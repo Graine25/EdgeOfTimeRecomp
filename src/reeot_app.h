@@ -18,7 +18,9 @@ class ReeotApp : public rex::ReXApp {
   }
 
   // Override virtual hooks for customization:
-  // void OnPreSetup(rex::RuntimeConfig& config) override {}
+  void OnPreSetup(rex::RuntimeConfig& config) override {
+    config.graphics = nullptr;
+  }
   // void OnLoadXexImage(std::string& xex_image) override {}
   // void OnPostSetup() override {}
   // void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {}

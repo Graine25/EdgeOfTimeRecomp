@@ -13,6 +13,7 @@ include(generated/rexglue.cmake)
 # Sources
 set(REEOT_SOURCES
     src/main.cpp
+    src/goliath_engine/gpu/headless_stubs.cpp
 )
 
 if(WIN32)
