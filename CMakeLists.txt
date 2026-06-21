@@ -47,3 +47,11 @@ target_include_directories(reeot PRIVATE
 
 target_link_libraries(reeot PRIVATE libzstd_static)
 target_include_directories(reeot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/zstd/lib")
+
+add_custom_command(
+    TARGET reeot POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxcompiler.dll"
+            "$<TARGET_FILE_DIR:reeot>/dxcompiler.dll"
+    COMMENT "Copying dxcompiler.dll to build output"
+    VERBATIM)
