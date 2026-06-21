@@ -17,6 +17,7 @@ set(REEOT_SOURCES
     src/main.cpp
     src/goliath_engine/gpu/headless_stubs.cpp
     src/goliath_engine/gpu/renderer/observe.cpp
+    src/goliath_engine/gpu/renderer/video.cpp
 )
 
 if(WIN32)
