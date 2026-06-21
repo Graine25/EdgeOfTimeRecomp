@@ -2,7 +2,15 @@
 
 #include "src/goliath_engine/gpu/renderer/video.h"
 
-REX_STUB(eot_RenderThread_Kick);
+REX_EXTERN(__imp__eot_RenderThread_Kick);
+REX_HOOK_RAW(eot_RenderThread_Kick) {
+  __imp__eot_RenderThread_Kick(ctx, base);
+}
+
+REX_HOOK_RAW(sub_82231448) {
+  (void)ctx;
+  (void)base;
+}
 
 REX_STUB(D3DDevice_BlockUntilIdle);
 
