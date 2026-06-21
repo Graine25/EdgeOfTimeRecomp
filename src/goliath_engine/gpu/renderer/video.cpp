@@ -98,6 +98,8 @@ bool VideoInit(void* native_window_handle, uint32_t width, uint32_t height) {
 
 bool VideoIsInitialized() { return g_initialized; }
 
+RenderDevice* Device() { return g_device.get(); }
+
 void VideoSetClearColor(float r, float g, float b, float a) {
   auto clamp8 = [](float v) -> uint32_t {
     if (v < 0.0f) v = 0.0f;

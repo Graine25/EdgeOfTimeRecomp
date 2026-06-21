@@ -2,7 +2,13 @@
 
 #include <cstdint>
 
+namespace plume {
+struct RenderDevice;
+}
+
 namespace eot::gpu {
+
+plume::RenderDevice* Device();
 
 bool VideoInit(void* native_window_handle, uint32_t width, uint32_t height);
 
