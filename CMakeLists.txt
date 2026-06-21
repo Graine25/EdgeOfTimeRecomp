@@ -33,3 +33,6 @@ target_link_libraries(reeot PRIVATE plume)
 if(WIN32)
     target_link_libraries(reeot PRIVATE d3d12 dxgi dxguid)
 endif()
+
+target_include_directories(reeot PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/xxHash")
