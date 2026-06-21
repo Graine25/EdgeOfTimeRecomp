@@ -18,6 +18,7 @@ set(REEOT_SOURCES
     src/goliath_engine/gpu/headless_stubs.cpp
     src/goliath_engine/gpu/renderer/observe.cpp
     src/goliath_engine/gpu/renderer/video.cpp
+    src/goliath_engine/gpu/renderer/d3d_hooks.cpp
 )
 
 if(WIN32)
