@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(generated/rexglue.cmake)
 
+add_subdirectory(thirdparty/plume)
+
 # Sources
 set(REEOT_SOURCES
     src/main.cpp
@@ -23,3 +25,8 @@ else()
 endif()
 
 rexglue_setup_target(reeot)
+
+target_link_libraries(reeot PRIVATE plume)
+if(WIN32)
+    target_link_libraries(reeot PRIVATE d3d12 dxgi dxguid)
+endif()
