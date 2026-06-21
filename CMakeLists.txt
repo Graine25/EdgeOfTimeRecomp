@@ -16,6 +16,7 @@ add_subdirectory(thirdparty/plume)
 set(REEOT_SOURCES
     src/main.cpp
     src/goliath_engine/gpu/headless_stubs.cpp
+    src/goliath_engine/gpu/renderer/observe.cpp
 )
 
 if(WIN32)
