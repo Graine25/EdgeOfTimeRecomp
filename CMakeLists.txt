@@ -12,6 +12,12 @@ include(generated/rexglue.cmake)
 
 add_subdirectory(thirdparty/plume)
 
+set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(thirdparty/zstd/build/cmake zstd_build)
+
 # Sources
 set(REEOT_SOURCES
     src/main.cpp
@@ -38,3 +44,6 @@ endif()
 
 target_include_directories(reeot PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/xxHash")
+
+target_link_libraries(reeot PRIVATE libzstd_static)
+target_include_directories(reeot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/zstd/lib")
