@@ -31,6 +31,12 @@ using namespace plume;
 
 namespace {
 
+constexpr uint32_t kSpecR11G11B10Normal = 1u << 0;
+constexpr uint32_t kSpecAlphaTest = 1u << 1;
+constexpr uint32_t kSpecSintTexcoord = 1u << 2;
+
+constexpr uint32_t kColorControlOffset = 0x2934 + 0x8;
+
 const ShaderCacheEntry* FindShaderCacheEntry(uint64_t hash) {
   const ShaderCacheEntry* begin = g_shaderCacheEntries;
   const ShaderCacheEntry* end = begin + g_shaderCacheEntryCount;
@@ -80,16 +86,32 @@ class DxcRuntime {
   IDxcBlob* Link(const void* dxil, uint32_t dxilSize, uint32_t dxilOffset, bool isVS,
                  uint32_t specConstants) {
     if (!ready()) return nullptr;
+    const wchar_t* entry = entryName_.load(std::memory_order_relaxed);
+    if (entry) return LinkWith(dxil, dxilSize, dxilOffset, isVS, specConstants, entry);
+    for (const wchar_t* candidate : {L"main", L"shaderMain"}) {
+      IDxcBlob* b = LinkWith(dxil, dxilSize, dxilOffset, isVS, specConstants, candidate, true);
+      if (b) {
+        entryName_.store(candidate, std::memory_order_relaxed);
+        REXGPU_INFO("DXC: shader entry name = '{}'", candidate == std::wstring(L"main") ? "main"
+                                                                                        : "shaderMain");
+        return b;
+      }
+    }
+    REXGPU_ERROR("DXC: shader link failed for both 'main' and 'shaderMain' entry names");
+    return nullptr;
+  }
+
+ private:
+  IDxcBlob* LinkWith(const void* dxil, uint32_t dxilSize, uint32_t dxilOffset, bool isVS,
+                     uint32_t specConstants, const wchar_t* entry, bool quiet = false) {
     IDxcBlob* specBlob = GetSpecLib(specConstants);
     if (!specBlob) return nullptr;
-
     IDxcBlobEncoding* shaderBlob = nullptr;
     if (FAILED(utils_->CreateBlobFromPinned(dxil, dxilSize, DXC_CP_ACP, &shaderBlob)) ||
         !shaderBlob) {
       specBlob->Release();
       return nullptr;
     }
-
     IDxcLinker* linker = nullptr;
     if (FAILED(createInstance_(CLSID_DxcLinker, __uuidof(IDxcLinker),
                                reinterpret_cast<void**>(&linker))) || !linker) {
@@ -106,15 +128,16 @@ class DxcRuntime {
 
     const wchar_t* libs[] = {specName, shaderName};
     IDxcOperationResult* link = nullptr;
-    HRESULT hr = linker->Link(L"main", isVS ? L"vs_6_0" : L"ps_6_0", libs,
-                              std::size(libs), nullptr, 0, &link);
+    HRESULT hr = linker->Link(entry, isVS ? L"vs_6_0" : L"ps_6_0", libs, std::size(libs),
+                              nullptr, 0, &link);
     linker->Release();
     if (FAILED(hr) || !link) return nullptr;
     HRESULT status = E_FAIL;
     link->GetStatus(&status);
     IDxcBlob* out = nullptr;
-    if (SUCCEEDED(status)) link->GetResult(&out);
-    else {
+    if (SUCCEEDED(status)) {
+      link->GetResult(&out);
+    } else if (!quiet) {
       IDxcBlobEncoding* err = nullptr;
       if (SUCCEEDED(link->GetErrorBuffer(&err)) && err) {
         std::string msg(static_cast<const char*>(err->GetBufferPointer()), err->GetBufferSize());
@@ -126,7 +149,6 @@ class DxcRuntime {
     return out;
   }
 
- private:
   IDxcBlob* GetSpecLib(uint32_t specConstants) {
     std::lock_guard lock(mutex_);
     auto it = specLibs_.find(specConstants);
@@ -149,12 +171,14 @@ class DxcRuntime {
     if (obj) { obj->AddRef(); specLibs_.emplace(specConstants, obj); }
     return obj;
   }
+
   HMODULE library_ = nullptr;
   DxcCreateInstanceProc createInstance_ = nullptr;
   IDxcCompiler3* compiler_ = nullptr;
   IDxcUtils* utils_ = nullptr;
   std::mutex mutex_;
   std::unordered_map<uint32_t, IDxcBlob*> specLibs_;
+  std::atomic<const wchar_t*> entryName_{nullptr};
 };
 DxcRuntime& Dxc() { static DxcRuntime r; return r; }
 #endif
@@ -162,56 +186,72 @@ DxcRuntime& Dxc() { static DxcRuntime r; return r; }
 struct GuestShader {
   const ShaderCacheEntry* entry = nullptr;
   bool isVS = false;
-  std::unique_ptr<RenderShader> shader;
-  bool tried = false;
+  std::unordered_map<uint32_t, std::unique_ptr<RenderShader>> variants;
 };
 std::unordered_map<uint32_t, GuestShader> g_shaders;
 std::mutex g_shadersMutex;
 
 std::atomic<uint64_t> g_hit{0}, g_miss{0}, g_created{0}, g_failed{0};
+std::atomic<uint32_t> g_vertexFormatSpecBits{0};
+uint32_t g_currentVSObj = 0, g_currentPSObj = 0;
 RenderShader* g_currentVS = nullptr;
 RenderShader* g_currentPS = nullptr;
 
-RenderShader* GetOrCreateShader(uint32_t objVA) {
+std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS,
+                                            uint32_t maskedSpec) {
+  EnsureDxilCache();
+  if (!g_dxilCache || !eot::gpu::Device()) return nullptr;
+  const uint8_t* dxil = g_dxilCache.get() + e->dxil_offset;
+  std::unique_ptr<RenderShader> shader;
+  if (e->spec_constants_mask == 0) {
+    shader = eot::gpu::Device()->createShader(dxil, e->dxil_size, "main", RenderShaderFormat::DXIL);
+  } else {
+#ifdef _WIN32
+    IDxcBlob* linked = Dxc().Link(dxil, e->dxil_size, e->dxil_offset, isVS, maskedSpec);
+    if (linked) {
+      shader = eot::gpu::Device()->createShader(linked->GetBufferPointer(),
+                                                static_cast<uint32_t>(linked->GetBufferSize()),
+                                                "main", RenderShaderFormat::DXIL);
+      linked->Release();
+    }
+#endif
+  }
+  (shader ? g_created : g_failed).fetch_add(1, std::memory_order_relaxed);
+  return shader;
+}
+
+RenderShader* GetVariant(uint32_t objVA, uint32_t specValue) {
   if (!objVA || !eot::gpu::Device()) return nullptr;
   std::lock_guard lock(g_shadersMutex);
   auto it = g_shaders.find(objVA);
   if (it == g_shaders.end() || !it->second.entry) return nullptr;
   GuestShader& gs = it->second;
-  if (gs.shader) return gs.shader.get();
-  if (gs.tried) return nullptr;
-  gs.tried = true;
+  const uint32_t key = specValue & gs.entry->spec_constants_mask;
+  auto vit = gs.variants.find(key);
+  if (vit != gs.variants.end()) return vit->second.get();
+  std::unique_ptr<RenderShader> sh = CreateVariant(gs.entry, gs.isVS, key);
+  RenderShader* p = sh.get();
+  gs.variants.emplace(key, std::move(sh));
+  uint64_t c = g_created.load();
+  if (c <= 8 || (c % 32) == 0)
+    REXGPU_INFO("shader: variant {} spec=0x{:X} | created={} failed={}", gs.isVS ? "VS" : "PS", key,
+                c, g_failed.load());
+  return p;
+}
 
-  EnsureDxilCache();
-  if (!g_dxilCache) return nullptr;
-  const ShaderCacheEntry* e = gs.entry;
-  const uint8_t* dxil = g_dxilCache.get() + e->dxil_offset;
-
-  if (e->spec_constants_mask == 0) {
-    gs.shader = eot::gpu::Device()->createShader(dxil, e->dxil_size, "main",
-                                                 RenderShaderFormat::DXIL);
-  } else {
-#ifdef _WIN32
-    IDxcBlob* linked = Dxc().Link(dxil, e->dxil_size, e->dxil_offset, gs.isVS, 0);
-    if (linked) {
-      gs.shader = eot::gpu::Device()->createShader(linked->GetBufferPointer(),
-                                                   static_cast<uint32_t>(linked->GetBufferSize()),
-                                                   "main", RenderShaderFormat::DXIL);
-      linked->Release();
-    }
-#endif
+uint32_t ComputeSpecConstants(uint8_t* base, uint32_t deviceVA) {
+  uint32_t spec = g_vertexFormatSpecBits.load(std::memory_order_relaxed);
+  if (deviceVA >= 0x1000) {
+    const uint32_t colorControl = gmem::ReadU32(base, deviceVA + kColorControlOffset);
+    if (colorControl & (1u << 3)) spec |= kSpecAlphaTest;
   }
+  return spec;
+}
 
-  if (gs.shader) {
-    g_created.fetch_add(1, std::memory_order_relaxed);
-    uint64_t c = g_created.load();
-    if (c <= 8 || (c % 32) == 0)
-      REXGPU_INFO("shader: created Plume {} #{} (mask=0x{:X}) | created={} failed={}",
-                  gs.isVS ? "VS" : "PS", c, e->spec_constants_mask, c, g_failed.load());
-  } else {
-    g_failed.fetch_add(1, std::memory_order_relaxed);
-  }
-  return gs.shader.get();
+void ResolveCurrent(uint8_t* base, uint32_t deviceVA) {
+  const uint32_t spec = ComputeSpecConstants(base, deviceVA);
+  g_currentVS = GetVariant(g_currentVSObj, spec);
+  g_currentPS = GetVariant(g_currentPSObj, spec);
 }
 
 void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS) {
@@ -223,7 +263,8 @@ void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS
   const ShaderCacheEntry* entry = FindShaderCacheEntry(hash);
   (entry ? g_hit : g_miss).fetch_add(1, std::memory_order_relaxed);
   std::lock_guard lock(g_shadersMutex);
-  g_shaders[objVA] = GuestShader{entry, isVS, nullptr, false};
+  g_shaders[objVA].entry = entry;
+  g_shaders[objVA].isVS = isVS;
 }
 
 }
@@ -231,6 +272,10 @@ void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS
 namespace eot::gpu {
 RenderShader* CurrentVertexShader() { return g_currentVS; }
 RenderShader* CurrentPixelShader() { return g_currentPS; }
+void ResolveShadersForDraw(uint8_t* base, uint32_t deviceVA) { ResolveCurrent(base, deviceVA); }
+void SetVertexFormatSpecBits(uint32_t bits) {
+  g_vertexFormatSpecBits.store(bits, std::memory_order_relaxed);
+}
 }
 
 REX_EXTERN(__imp__D3DDevice_CreateVertexShader);
@@ -249,14 +294,16 @@ REX_HOOK_RAW(D3DDevice_CreatePixelShader) {
 
 REX_EXTERN(__imp__D3DDevice_SetVertexShader);
 REX_HOOK_RAW(D3DDevice_SetVertexShader) {
-  const uint32_t obj = ctx.r4.u32;
+  const uint32_t device = ctx.r3.u32;
+  g_currentVSObj = ctx.r4.u32;
   __imp__D3DDevice_SetVertexShader(ctx, base);
-  g_currentVS = GetOrCreateShader(obj);
+  ResolveCurrent(base, device);
 }
 
 REX_EXTERN(__imp__D3DDevice_SetPixelShader);
 REX_HOOK_RAW(D3DDevice_SetPixelShader) {
-  const uint32_t obj = ctx.r4.u32;
+  const uint32_t device = ctx.r3.u32;
+  g_currentPSObj = ctx.r4.u32;
   __imp__D3DDevice_SetPixelShader(ctx, base);
-  g_currentPS = GetOrCreateShader(obj);
+  ResolveCurrent(base, device);
 }
