@@ -1,5 +1,7 @@
 #include "video.h"
 
+#include "src/goliath_engine/gpu/renderer/draw.h"
+
 #include <array>
 #include <atomic>
 #include <memory>
@@ -138,6 +140,9 @@ void VideoPresent() {
                           RenderTextureBarrier(backBuffer, RenderTextureLayout::COLOR_WRITE));
   g_commandList->setFramebuffer(framebuffer);
   g_commandList->clearColor(0, UnpackClearColor());
+  eot::gpu::ReplayCapturedDraws(g_commandList.get(), g_swapChain->getWidth(),
+                                g_swapChain->getHeight());
+  g_commandList->setFramebuffer(framebuffer);
   g_commandList->barriers(RenderBarrierStage::GRAPHICS,
                           RenderTextureBarrier(backBuffer, RenderTextureLayout::PRESENT));
   g_commandList->end();
