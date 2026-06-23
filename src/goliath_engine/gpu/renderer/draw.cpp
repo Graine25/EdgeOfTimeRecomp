@@ -15,6 +15,8 @@
 #include <plume_render_interface_builders.h>
 
 #include "src/goliath_engine/gpu/renderer/shader/generated/debug_draw_dxil.h"
+#include "src/goliath_engine/gpu/renderer/shader/generated/textured_draw_dxil.h"
+#include "src/goliath_engine/gpu/renderer/texture.h"
 #include "src/goliath_engine/gpu/renderer/video.h"
 #include "src/goliath_engine/kernel/guest_memory.h"
 
@@ -27,8 +29,14 @@ std::atomic<uint32_t> g_s0Base{0}, g_s0Offset{0}, g_s0Stride{0};
 
 struct CapturedDraw {
   std::vector<uint8_t> verts;
+  uint32_t immediateVA = 0;
   uint32_t stride = 0, vertexCount = 0, prim = 0;
+  uint32_t texAddr = 0, texD0 = 0, texD1 = 0, texD2 = 0;
 };
+
+inline void CaptureBoundTexture(CapturedDraw& d) {
+  eot::gpu::GetBoundTexture(0, d.texAddr, d.texD0, d.texD1, d.texD2);
+}
 std::vector<CapturedDraw> g_frameDraws;
 std::mutex g_drawMutex;
 
@@ -82,6 +90,44 @@ RenderPipeline* GetPSO(uint32_t stride) {
   return p;
 }
 
+std::unique_ptr<RenderShader> g_txVS, g_txPS;
+std::unordered_map<uint32_t, std::unique_ptr<RenderPipeline>> g_txPsoByStride;
+
+RenderPipeline* GetTexturedPSO(uint32_t stride) {
+  auto it = g_txPsoByStride.find(stride);
+  if (it != g_txPsoByStride.end()) return it->second.get();
+  RenderDevice* dev = eot::gpu::Device();
+  if (!g_txVS)
+    g_txVS = dev->createShader(g_textured_vs_dxil, sizeof(g_textured_vs_dxil), "VSMain",
+                               RenderShaderFormat::DXIL);
+  if (!g_txPS)
+    g_txPS = dev->createShader(g_textured_ps_dxil, sizeof(g_textured_ps_dxil), "PSMain",
+                               RenderShaderFormat::DXIL);
+  const RenderInputElement elems[] = {
+      RenderInputElement("POSITION", 0, 0, RenderFormat::R32G32_FLOAT, 0, 0),
+      RenderInputElement("COLOR", 0, 1, RenderFormat::B8G8R8A8_UNORM, 0, 8),
+      RenderInputElement("TEXCOORD", 0, 2, RenderFormat::R32G32_FLOAT, 0, 12),
+  };
+  RenderInputSlot slot(0, stride);
+  RenderGraphicsPipelineDesc desc;
+  desc.pipelineLayout = eot::gpu::TexturedPipelineLayout();
+  desc.vertexShader = g_txVS.get();
+  desc.pixelShader = g_txPS.get();
+  desc.renderTargetFormat[0] = RenderFormat::R8G8B8A8_UNORM;
+  desc.renderTargetBlend[0] = RenderBlendDesc::AlphaBlend();
+  desc.renderTargetCount = 1;
+  desc.primitiveTopology = RenderPrimitiveTopology::TRIANGLE_LIST;
+  desc.cullMode = RenderCullMode::NONE;
+  desc.inputElements = elems;
+  desc.inputElementsCount = 3;
+  desc.inputSlots = &slot;
+  desc.inputSlotsCount = 1;
+  std::unique_ptr<RenderPipeline> pso = dev->createGraphicsPipeline(desc);
+  RenderPipeline* p = pso.get();
+  g_txPsoByStride[stride] = std::move(pso);
+  return p;
+}
+
 std::vector<uint32_t> BuildIndices(uint32_t prim, uint32_t vc) {
   std::vector<uint32_t> idx;
   if (prim == 13) {
@@ -121,10 +167,22 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
 
   RenderDevice* dev = eot::gpu::Device();
   g_frameBuffers.clear();
+  eot::gpu::EnsureTextureSystem();
+  eot::gpu::BeginTextureFrame();
 
-  cmd->setGraphicsPipelineLayout(g_layout.get());
   cmd->setViewports(RenderViewport(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)));
   cmd->setScissors(RenderRect(0, 0, static_cast<int32_t>(w), static_cast<int32_t>(h)));
+
+  uint8_t* mb = rex::system::kernel_state()->memory()->virtual_membase();
+  for (CapturedDraw& d : draws) {
+    if (!d.immediateVA || !d.verts.empty()) continue;
+    const uint32_t bytes = d.vertexCount * d.stride;
+    d.verts.resize(bytes);
+    for (uint32_t i = 0; i < bytes; i += 4) {
+      const uint32_t word = gmem::ReadU32(mb, d.immediateVA + i);
+      std::memcpy(&d.verts[i], &word, 4);
+    }
+  }
 
   uint32_t drawn = 0;
   for (CapturedDraw& d : draws) {
@@ -145,7 +203,19 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       ib->unmap();
     }
 
-    cmd->setPipeline(GetPSO(d.stride));
+    uint32_t texIndex = 0;
+    if (d.stride >= 20 && d.texAddr != 0)
+      texIndex = eot::gpu::GetOrCreateTextureIndex(cmd, d.texAddr, d.texD0, d.texD1, d.texD2);
+    if (texIndex != 0) {
+      cmd->setGraphicsPipelineLayout(eot::gpu::TexturedPipelineLayout());
+      cmd->setPipeline(GetTexturedPSO(d.stride));
+      cmd->setGraphicsDescriptorSet(eot::gpu::TextureSet(), 0);
+      cmd->setGraphicsDescriptorSet(eot::gpu::SamplerSet(), 1);
+      cmd->setGraphicsPushConstants(0, &texIndex, 0, sizeof(texIndex));
+    } else {
+      cmd->setGraphicsPipelineLayout(g_layout.get());
+      cmd->setPipeline(GetPSO(d.stride));
+    }
     RenderVertexBufferView vbv(vb.get(), static_cast<uint32_t>(d.verts.size()));
     RenderInputSlot slot(0, d.stride);
     cmd->setVertexBuffers(0, &vbv, 1, &slot);
@@ -193,6 +263,7 @@ REX_HOOK_RAW(D3DDevice_DrawVertices) {
   d.stride = stride;
   d.vertexCount = count;
   d.prim = prim;
+  CaptureBoundTexture(d);
   d.verts.resize(bytes);
   for (uint32_t i = 0; i < bytes; i += 4) {
     const uint32_t word = gmem::ReadU32(base, startVA + i);
@@ -207,6 +278,22 @@ REX_HOOK_RAW(D3DDevice_DrawVertices) {
     REXGPU_INFO("[draw] capture prim={} count={} stride={} va=0x{:08X} v0=({:.2f},{:.2f})", prim,
                 count, stride, startVA, x, y);
   }
+  std::lock_guard<std::mutex> lock(g_drawMutex);
+  if (g_frameDraws.size() < 8192) g_frameDraws.push_back(std::move(d));
+}
+
+REX_EXTERN(__imp__D3DDevice_BeginVertices);
+REX_HOOK_RAW(D3DDevice_BeginVertices) {
+  const uint32_t prim = ctx.r4.u32, count = ctx.r5.u32, stride = ctx.r6.u32;
+  __imp__D3DDevice_BeginVertices(ctx, base);
+  const uint32_t ptr = ctx.r3.u32;
+  if (ptr < 0x1000 || !stride || count == 0 || count > 200000) return;
+  CapturedDraw d;
+  d.immediateVA = ptr;
+  d.stride = stride;
+  d.vertexCount = count;
+  d.prim = prim;
+  CaptureBoundTexture(d);
   std::lock_guard<std::mutex> lock(g_drawMutex);
   if (g_frameDraws.size() < 8192) g_frameDraws.push_back(std::move(d));
 }
