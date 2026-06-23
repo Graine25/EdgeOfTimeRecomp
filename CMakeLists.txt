@@ -28,6 +28,7 @@ set(REEOT_SOURCES
     src/goliath_engine/gpu/renderer/shaders.cpp
     src/goliath_engine/gpu/renderer/vertex_probe.cpp
     src/goliath_engine/gpu/renderer/draw.cpp
+    src/goliath_engine/gpu/renderer/texture.cpp
     generated/shader_cache.cpp
 )
 
