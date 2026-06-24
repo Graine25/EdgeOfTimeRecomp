@@ -12,6 +12,11 @@ REX_HOOK_RAW(sub_82231448) {
   (void)base;
 }
 
+REX_HOOK_RAW(sub_82230078) {
+  (void)ctx;
+  (void)base;
+}
+
 REX_STUB(D3DDevice_BlockUntilIdle);
 
 REX_HOOK_RAW(D3DDevice_Swap) {
