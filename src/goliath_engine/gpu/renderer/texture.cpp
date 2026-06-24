@@ -15,6 +15,9 @@
 #include <plume_render_interface.h>
 #include <plume_render_interface_builders.h>
 
+#define XXH_INLINE_ALL
+#include "xxhash.h"
+
 #include "src/goliath_engine/gpu/renderer/video.h"
 #include "src/goliath_engine/kernel/guest_memory.h"
 
@@ -58,10 +61,13 @@ struct GuestTexture {
   std::unique_ptr<RenderTexture> tex;
   std::unique_ptr<RenderTextureView> view;
   uint32_t index = 0;
+  uint64_t hash = 0;
 };
 std::unordered_map<uint32_t, GuestTexture> g_textures;
 uint32_t g_nextIndex = 1;
 std::vector<std::unique_ptr<RenderBuffer>> g_staging;
+std::vector<std::unique_ptr<RenderTexture>> g_retiredTex;
+std::vector<std::unique_ptr<RenderTextureView>> g_retiredView;
 
 struct BoundTex {
   uint32_t addr = 0, d0 = 0, d1 = 0, d2 = 0;
@@ -69,11 +75,13 @@ struct BoundTex {
 BoundTex g_bound[16];
 std::mutex g_boundMutex;
 
-bool FormatToBC(uint32_t fmt, RenderFormat& rf, uint32_t& bpb) {
+bool FormatToHost(uint32_t fmt, RenderFormat& rf, uint32_t& bpb, uint32_t& blockDim) {
   switch (fmt) {
-    case 0x12: rf = RenderFormat::BC1_UNORM; bpb = 8; return true;
-    case 0x13: rf = RenderFormat::BC2_UNORM; bpb = 16; return true;
-    case 0x14: rf = RenderFormat::BC3_UNORM; bpb = 16; return true;
+    case 0x12: rf = RenderFormat::BC1_UNORM; bpb = 8;  blockDim = 4; return true;
+    case 0x13: rf = RenderFormat::BC2_UNORM; bpb = 16; blockDim = 4; return true;
+    case 0x14: rf = RenderFormat::BC3_UNORM; bpb = 16; blockDim = 4; return true;
+    case 0x06: rf = RenderFormat::B8G8R8A8_UNORM; bpb = 4; blockDim = 1; return true;
+    case 0x02: rf = RenderFormat::R8_UNORM; bpb = 1; blockDim = 1; return true;
     default: return false;
   }
 }
@@ -139,32 +147,45 @@ bool EnsureTextureSystem() {
   return g_ready;
 }
 
-void BeginTextureFrame() { g_staging.clear(); }
+void BeginTextureFrame() {
+  g_staging.clear();
+  g_retiredTex.clear();
+  g_retiredView.clear();
+}
 
 uint32_t GetOrCreateTextureIndex(RenderCommandList* cmd, uint32_t guestAddr, uint32_t d0,
                                  uint32_t d1, uint32_t d2) {
   if (!guestAddr || !cmd || !EnsureTextureSystem()) return 0;
-  auto it = g_textures.find(guestAddr);
-  if (it != g_textures.end()) return it->second.index;
 
   RenderFormat rf;
-  uint32_t bpb;
-  if (!FormatToBC(d1 & 0x3F, rf, bpb)) return 0;
+  uint32_t bpb, blockDim;
+  const uint32_t fmt = d1 & 0x3F;
+  if (!FormatToHost(fmt, rf, bpb, blockDim)) {
+    static std::unordered_map<uint32_t, bool> s_warned;
+    if (!s_warned[fmt]) { s_warned[fmt] = true; REXGPU_INFO("texture: unhandled format 0x{:02X}", fmt); }
+    return 0;
+  }
   const uint32_t w = (d2 & 0x1FFF) + 1, h = ((d2 >> 13) & 0x1FFF) + 1;
   const uint32_t base = d1 & 0xFFFFF000;
   const bool tiled = (d0 >> 31) & 1;
   const auto* src = static_cast<const uint8_t*>(gmem::GuestAddressToHostMutable(base));
-  if (!src || w < 4 || h < 4 || w > 4096 || h > 4096) return 0;
+  if (!src || w < blockDim || h < blockDim || w > 4096 || h > 4096) return 0;
 
-  const uint32_t wBlocks = (w + 3) / 4, hBlocks = (h + 3) / 4;
-  std::vector<uint8_t> linear(size_t(wBlocks) * hBlocks * bpb);
+  const uint32_t wBlocks = (w + blockDim - 1) / blockDim, hBlocks = (h + blockDim - 1) / blockDim;
+  const size_t srcBytes = size_t(wBlocks) * hBlocks * bpb;
+
+  const uint64_t hash = XXH3_64bits(src, srcBytes);
+  auto it = g_textures.find(guestAddr);
+  if (it != g_textures.end() && it->second.hash == hash) return it->second.index;
+
+  std::vector<uint8_t> linear(srcBytes);
   if (tiled)
     UntileBlocks(src, linear.data(), wBlocks, hBlocks, bpb);
   else
     std::memcpy(linear.data(), src, linear.size());
 
   const uint32_t rowPitch = AlignUp(wBlocks * bpb, 256);
-  const uint32_t rowWidthTexels = (rowPitch / bpb) * 4;
+  const uint32_t rowWidthTexels = (rowPitch / bpb) * blockDim;
   RenderDevice* dev = Device();
   std::unique_ptr<RenderBuffer> staging =
       dev->createBuffer(RenderBufferDesc::UploadBuffer(uint64_t(rowPitch) * hBlocks));
@@ -185,10 +206,14 @@ uint32_t GetOrCreateTextureIndex(RenderCommandList* cmd, uint32_t guestAddr, uin
                 RenderTextureBarrier(tex.get(), RenderTextureLayout::SHADER_READ));
 
   std::unique_ptr<RenderTextureView> view = tex->createTextureView(RenderTextureViewDesc::Texture2D(rf));
-  const uint32_t index = g_nextIndex++;
+  const uint32_t index = (it != g_textures.end()) ? it->second.index : g_nextIndex++;
   g_texSet->setTexture(index, tex.get(), RenderTextureLayout::SHADER_READ, view.get());
   g_staging.push_back(std::move(staging));
-  g_textures[guestAddr] = GuestTexture{std::move(tex), std::move(view), index};
+  if (it != g_textures.end()) {
+    g_retiredTex.push_back(std::move(it->second.tex));
+    g_retiredView.push_back(std::move(it->second.view));
+  }
+  g_textures[guestAddr] = GuestTexture{std::move(tex), std::move(view), index, hash};
   return index;
 }
 
