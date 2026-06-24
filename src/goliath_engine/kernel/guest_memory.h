@@ -32,6 +32,11 @@ inline void WriteU32(uint8_t* base, uint32_t guest_addr, uint32_t value) {
     rex::memory::store_and_swap(rex::memory::GuestPtr(base, guest_addr), value);
 }
 
+inline uint16_t ReadU16(uint8_t* base, uint32_t guest_addr) {
+    if (!guest_addr) return 0;
+    return rex::memory::load_and_swap<uint16_t>(rex::memory::GuestPtr(base, guest_addr));
+}
+
 inline uint8_t ReadU8(uint8_t* base, uint32_t guest_addr) {
     if (!guest_addr) return 0;
     return *rex::memory::GuestPtr(base, guest_addr);
