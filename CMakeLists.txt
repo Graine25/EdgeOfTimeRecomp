@@ -56,5 +56,8 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxcompiler.dll"
             "$<TARGET_FILE_DIR:reeot>/dxcompiler.dll"
-    COMMENT "Copying dxcompiler.dll to build output"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxil.dll"
+            "$<TARGET_FILE_DIR:reeot>/dxil.dll"
+    COMMENT "Copying dxcompiler.dll + dxil.dll to build output"
     VERBATIM)
