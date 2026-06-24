@@ -27,8 +27,6 @@ OBSERVE(D3DDevice_SetDepthStencilSurface, setDepthStencil)
 OBSERVE(D3DDevice_SetViewport, setViewport)
 OBSERVE(D3DDevice_SetVertexShaderConstantFN, setVSConst)
 OBSERVE(D3DDevice_SetPixelShaderConstantFN, setPSConst)
-OBSERVE(D3DDevice_SetIndices, setIndices)
-OBSERVE(D3DDevice_DrawIndexedVertices, drawIndexed)
 
 REX_EXTERN(__imp__Engine_Present);
 REX_HOOK_RAW(Engine_Present) {

@@ -32,6 +32,10 @@ std::unique_ptr<RenderCommandSemaphore> g_acquireSemaphore;
 std::unique_ptr<RenderCommandSemaphore> g_renderSemaphore;
 std::unique_ptr<RenderSwapChain> g_swapChain;
 std::vector<std::unique_ptr<RenderFramebuffer>> g_framebuffers;
+std::unique_ptr<RenderTexture> g_depthTex;
+std::unique_ptr<RenderTextureView> g_depthView;
+
+constexpr RenderFormat kDepthFormat = RenderFormat::D32_FLOAT;
 
 RenderWindow g_window{};
 bool g_initialized = false;
@@ -53,11 +57,14 @@ RenderColor UnpackClearColor() {
 
 void RebuildFramebuffers() {
   g_framebuffers.clear();
+  const uint32_t w = g_swapChain->getWidth(), h = g_swapChain->getHeight();
+  g_depthTex = g_device->createTexture(RenderTextureDesc::DepthTarget(w, h, kDepthFormat));
+  g_depthView = g_depthTex->createTextureView(RenderTextureViewDesc::Texture2D(kDepthFormat));
   const uint32_t count = g_swapChain->getTextureCount();
   g_framebuffers.resize(count);
   for (uint32_t i = 0; i < count; ++i) {
     const RenderTexture* color = g_swapChain->getTexture(i);
-    RenderFramebufferDesc desc(&color, 1);
+    RenderFramebufferDesc desc(&color, 1, g_depthTex.get());
     g_framebuffers[i] = g_device->createFramebuffer(desc);
   }
 }
@@ -136,10 +143,14 @@ void VideoPresent() {
   RenderFramebuffer* framebuffer = g_framebuffers[backBufferIndex].get();
 
   g_commandList->begin();
-  g_commandList->barriers(RenderBarrierStage::GRAPHICS,
-                          RenderTextureBarrier(backBuffer, RenderTextureLayout::COLOR_WRITE));
+  const RenderTextureBarrier startBarriers[] = {
+      RenderTextureBarrier(backBuffer, RenderTextureLayout::COLOR_WRITE),
+      RenderTextureBarrier(g_depthTex.get(), RenderTextureLayout::DEPTH_WRITE),
+  };
+  g_commandList->barriers(RenderBarrierStage::GRAPHICS, startBarriers, 2);
   g_commandList->setFramebuffer(framebuffer);
   g_commandList->clearColor(0, UnpackClearColor());
+  g_commandList->clearDepth();
   eot::gpu::ReplayCapturedDraws(g_commandList.get(), g_swapChain->getWidth(),
                                 g_swapChain->getHeight());
   g_commandList->setFramebuffer(framebuffer);
