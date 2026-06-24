@@ -20,6 +20,7 @@
 #include <objidl.h>
 #include <unknwn.h>
 #include <dxcapi.h>
+#include <d3d12shader.h>
 #endif
 
 #include "generated/shader_cache.h"
@@ -83,6 +84,50 @@ class DxcRuntime {
   }
   bool ready() const { return compiler_ && utils_; }
 
+  bool UsesCbv(const void* dxil, size_t size, uint32_t bindPoint, uint32_t space) {
+    if (!utils_) return false;
+    DxcBuffer buf{dxil, size, DXC_CP_ACP};
+    ID3D12ShaderReflection* refl = nullptr;
+    if (FAILED(utils_->CreateReflection(&buf, __uuidof(ID3D12ShaderReflection),
+                                        reinterpret_cast<void**>(&refl))) || !refl)
+      return false;
+    D3D12_SHADER_DESC sd{};
+    refl->GetDesc(&sd);
+    bool found = false;
+    for (uint32_t i = 0; i < sd.BoundResources; ++i) {
+      D3D12_SHADER_INPUT_BIND_DESC b{};
+      if (FAILED(refl->GetResourceBindingDesc(i, &b))) continue;
+      if (b.Type == D3D_SIT_CBUFFER && b.BindPoint == bindPoint && b.Space == space) {
+        found = true;
+        break;
+      }
+    }
+    refl->Release();
+    return found;
+  }
+
+  void LogInputSignature(const void* dxil, size_t size, bool isVS) {
+    if (!utils_) return;
+    DxcBuffer buf{dxil, size, DXC_CP_ACP};
+    ID3D12ShaderReflection* refl = nullptr;
+    if (FAILED(utils_->CreateReflection(&buf, __uuidof(ID3D12ShaderReflection),
+                                        reinterpret_cast<void**>(&refl))) || !refl)
+      return;
+    D3D12_SHADER_DESC sd{};
+    refl->GetDesc(&sd);
+    for (uint32_t i = 0; i < sd.InputParameters; ++i) {
+      D3D12_SIGNATURE_PARAMETER_DESC p{};
+      refl->GetInputParameterDesc(i, &p);
+      const char* ct = p.ComponentType == D3D_REGISTER_COMPONENT_FLOAT32 ? "float"
+                       : p.ComponentType == D3D_REGISTER_COMPONENT_UINT32 ? "uint"
+                       : p.ComponentType == D3D_REGISTER_COMPONENT_SINT32 ? "sint"
+                                                                          : "?";
+      REXGPU_INFO("  {} input[{}] {}{} type={} mask=0x{:X}", isVS ? "VS" : "PS", i, p.SemanticName,
+                  p.SemanticIndex, ct, p.Mask);
+    }
+    refl->Release();
+  }
+
   IDxcBlob* Link(const void* dxil, uint32_t dxilSize, uint32_t dxilOffset, bool isVS,
                  uint32_t specConstants) {
     if (!ready()) return nullptr;
@@ -137,6 +182,7 @@ class DxcRuntime {
     IDxcBlob* out = nullptr;
     if (SUCCEEDED(status)) {
       link->GetResult(&out);
+      out = SignDxil(out);
     } else if (!quiet) {
       IDxcBlobEncoding* err = nullptr;
       if (SUCCEEDED(link->GetErrorBuffer(&err)) && err) {
@@ -147,6 +193,33 @@ class DxcRuntime {
     }
     link->Release();
     return out;
+  }
+
+  IDxcBlob* SignDxil(IDxcBlob* blob) {
+    if (!blob) return nullptr;
+    IDxcValidator* validator = nullptr;
+    if (FAILED(createInstance_(CLSID_DxcValidator, __uuidof(IDxcValidator),
+                               reinterpret_cast<void**>(&validator))) || !validator) {
+      if (!warnedNoValidator_.exchange(true))
+        REXGPU_ERROR("DXC: no IDxcValidator (dxil.dll missing) - linked shaders stay unsigned");
+      return blob;
+    }
+    IDxcOperationResult* result = nullptr;
+    HRESULT hr = validator->Validate(blob, DxcValidatorFlags_InPlaceEdit, &result);
+    validator->Release();
+    if (FAILED(hr) || !result) return blob;
+    HRESULT status = E_FAIL;
+    result->GetStatus(&status);
+    if (FAILED(status) && !warnedNoValidator_.exchange(true)) {
+      IDxcBlobEncoding* err = nullptr;
+      if (SUCCEEDED(result->GetErrorBuffer(&err)) && err) {
+        std::string msg(static_cast<const char*>(err->GetBufferPointer()), err->GetBufferSize());
+        REXGPU_ERROR("DXC validate failed: {}", msg);
+        err->Release();
+      }
+    }
+    result->Release();
+    return blob;
   }
 
   IDxcBlob* GetSpecLib(uint32_t specConstants) {
@@ -179,6 +252,7 @@ class DxcRuntime {
   std::mutex mutex_;
   std::unordered_map<uint32_t, IDxcBlob*> specLibs_;
   std::atomic<const wchar_t*> entryName_{nullptr};
+  std::atomic<bool> warnedNoValidator_{false};
 };
 DxcRuntime& Dxc() { static DxcRuntime r; return r; }
 #endif
@@ -186,6 +260,8 @@ DxcRuntime& Dxc() { static DxcRuntime r; return r; }
 struct GuestShader {
   const ShaderCacheEntry* entry = nullptr;
   bool isVS = false;
+  bool reflected = false;
+  bool windowSpace = false;
   std::unordered_map<uint32_t, std::unique_ptr<RenderShader>> variants;
 };
 std::unordered_map<uint32_t, GuestShader> g_shaders;
@@ -196,6 +272,7 @@ std::atomic<uint32_t> g_vertexFormatSpecBits{0};
 uint32_t g_currentVSObj = 0, g_currentPSObj = 0;
 RenderShader* g_currentVS = nullptr;
 RenderShader* g_currentPS = nullptr;
+std::atomic<bool> g_currentVsWindowSpace{false};
 
 std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS,
                                             uint32_t maskedSpec) {
@@ -203,8 +280,12 @@ std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS
   if (!g_dxilCache || !eot::gpu::Device()) return nullptr;
   const uint8_t* dxil = g_dxilCache.get() + e->dxil_offset;
   std::unique_ptr<RenderShader> shader;
+  static std::atomic<int> s_reflLogged{0};
   if (e->spec_constants_mask == 0) {
     shader = eot::gpu::Device()->createShader(dxil, e->dxil_size, "main", RenderShaderFormat::DXIL);
+#ifdef _WIN32
+    if (s_reflLogged.fetch_add(1) < 6) Dxc().LogInputSignature(dxil, e->dxil_size, isVS);
+#endif
   } else {
 #ifdef _WIN32
     IDxcBlob* linked = Dxc().Link(dxil, e->dxil_size, e->dxil_offset, isVS, maskedSpec);
@@ -212,6 +293,8 @@ std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS
       shader = eot::gpu::Device()->createShader(linked->GetBufferPointer(),
                                                 static_cast<uint32_t>(linked->GetBufferSize()),
                                                 "main", RenderShaderFormat::DXIL);
+      if (s_reflLogged.fetch_add(1) < 6)
+        Dxc().LogInputSignature(linked->GetBufferPointer(), linked->GetBufferSize(), isVS);
       linked->Release();
     }
 #endif
@@ -226,6 +309,15 @@ RenderShader* GetVariant(uint32_t objVA, uint32_t specValue) {
   auto it = g_shaders.find(objVA);
   if (it == g_shaders.end() || !it->second.entry) return nullptr;
   GuestShader& gs = it->second;
+  if (gs.isVS && !gs.reflected) {
+    gs.reflected = true;
+#ifdef _WIN32
+    EnsureDxilCache();
+    if (g_dxilCache)
+      gs.windowSpace = !Dxc().UsesCbv(g_dxilCache.get() + gs.entry->dxil_offset,
+                                      gs.entry->dxil_size, 0, 4);
+#endif
+  }
   const uint32_t key = specValue & gs.entry->spec_constants_mask;
   auto vit = gs.variants.find(key);
   if (vit != gs.variants.end()) return vit->second.get();
@@ -252,6 +344,13 @@ void ResolveCurrent(uint8_t* base, uint32_t deviceVA) {
   const uint32_t spec = ComputeSpecConstants(base, deviceVA);
   g_currentVS = GetVariant(g_currentVSObj, spec);
   g_currentPS = GetVariant(g_currentPSObj, spec);
+  bool ws = false;
+  {
+    std::lock_guard lock(g_shadersMutex);
+    auto it = g_shaders.find(g_currentVSObj);
+    if (it != g_shaders.end()) ws = it->second.windowSpace;
+  }
+  g_currentVsWindowSpace.store(ws, std::memory_order_relaxed);
 }
 
 void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS) {
@@ -272,6 +371,7 @@ void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS
 namespace eot::gpu {
 RenderShader* CurrentVertexShader() { return g_currentVS; }
 RenderShader* CurrentPixelShader() { return g_currentPS; }
+bool CurrentVsIsWindowSpace() { return g_currentVsWindowSpace.load(std::memory_order_relaxed); }
 void ResolveShadersForDraw(uint8_t* base, uint32_t deviceVA) { ResolveCurrent(base, deviceVA); }
 void SetVertexFormatSpecBits(uint32_t bits) {
   g_vertexFormatSpecBits.store(bits, std::memory_order_relaxed);
