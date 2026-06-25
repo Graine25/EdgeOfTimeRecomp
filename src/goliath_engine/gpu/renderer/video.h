@@ -2,22 +2,19 @@
 
 #include <cstdint>
 
-namespace plume {
-struct RenderDevice;
-}
+struct Video {
+  static inline uint32_t s_viewportWidth = 1280;
+  static inline uint32_t s_viewportHeight = 720;
 
-namespace eot::gpu {
+  static bool Init(void* nativeWindowHandle, uint32_t width, uint32_t height);
 
-plume::RenderDevice* Device();
+  static bool IsInitialized();
 
-bool VideoInit(void* native_window_handle, uint32_t width, uint32_t height);
+  static void Present();
 
-bool VideoIsInitialized();
+  static void SetClearColor(float r, float g, float b, float a);
 
-void VideoPresent();
+  static void WaitForGPU();
 
-void VideoSetClearColor(float r, float g, float b, float a);
-
-void VideoShutdown();
-
-}
+  static void Shutdown();
+};

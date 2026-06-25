@@ -28,9 +28,9 @@ class ReeotApp : public rex::ReXApp {
 
   void OnPreLaunchModule() override {
     if (auto* w = window()) {
-      eot::gpu::VideoInit(w->GetNativeWindowHandle(), 1280, 720);
+      Video::Init(w->GetNativeWindowHandle(), 1280, 720);
     }
   }
 
-  void OnShutdown() override { eot::gpu::VideoShutdown(); }
+  void OnShutdown() override { Video::Shutdown(); }
 };

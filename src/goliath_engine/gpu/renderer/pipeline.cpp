@@ -1,4 +1,3 @@
-#include <rex/hook.h>
 #include <rex/logging.h>
 
 #include <algorithm>
@@ -24,7 +23,8 @@
 #endif
 
 #include "generated/shader_cache.h"
-#include "src/goliath_engine/gpu/renderer/video.h"
+#include "src/goliath_engine/gpu/renderer/guest_device.h"
+#include "src/goliath_engine/gpu/renderer/render_internal.h"
 #include "src/goliath_engine/kernel/guest_memory.h"
 
 namespace gmem = eot::kernel::memory;
@@ -35,8 +35,6 @@ namespace {
 constexpr uint32_t kSpecR11G11B10Normal = 1u << 0;
 constexpr uint32_t kSpecAlphaTest = 1u << 1;
 constexpr uint32_t kSpecSintTexcoord = 1u << 2;
-
-constexpr uint32_t kColorControlOffset = 0x2934 + 0x8;
 
 const ShaderCacheEntry* FindShaderCacheEntry(uint64_t hash) {
   const ShaderCacheEntry* begin = g_shaderCacheEntries;
@@ -277,12 +275,12 @@ std::atomic<bool> g_currentVsWindowSpace{false};
 std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS,
                                             uint32_t maskedSpec) {
   EnsureDxilCache();
-  if (!g_dxilCache || !eot::gpu::Device()) return nullptr;
+  if (!g_dxilCache || !eot::render::Device()) return nullptr;
   const uint8_t* dxil = g_dxilCache.get() + e->dxil_offset;
   std::unique_ptr<RenderShader> shader;
   static std::atomic<int> s_reflLogged{0};
   if (e->spec_constants_mask == 0) {
-    shader = eot::gpu::Device()->createShader(dxil, e->dxil_size, "main", RenderShaderFormat::DXIL);
+    shader = eot::render::Device()->createShader(dxil, e->dxil_size, "main", RenderShaderFormat::DXIL);
 #ifdef _WIN32
     if (s_reflLogged.fetch_add(1) < 6) Dxc().LogInputSignature(dxil, e->dxil_size, isVS);
 #endif
@@ -290,9 +288,9 @@ std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS
 #ifdef _WIN32
     IDxcBlob* linked = Dxc().Link(dxil, e->dxil_size, e->dxil_offset, isVS, maskedSpec);
     if (linked) {
-      shader = eot::gpu::Device()->createShader(linked->GetBufferPointer(),
-                                                static_cast<uint32_t>(linked->GetBufferSize()),
-                                                "main", RenderShaderFormat::DXIL);
+      shader = eot::render::Device()->createShader(linked->GetBufferPointer(),
+                                                   static_cast<uint32_t>(linked->GetBufferSize()),
+                                                   "main", RenderShaderFormat::DXIL);
       if (s_reflLogged.fetch_add(1) < 6)
         Dxc().LogInputSignature(linked->GetBufferPointer(), linked->GetBufferSize(), isVS);
       linked->Release();
@@ -304,7 +302,7 @@ std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS
 }
 
 RenderShader* GetVariant(uint32_t objVA, uint32_t specValue) {
-  if (!objVA || !eot::gpu::Device()) return nullptr;
+  if (!objVA || !eot::render::Device()) return nullptr;
   std::lock_guard lock(g_shadersMutex);
   auto it = g_shaders.find(objVA);
   if (it == g_shaders.end() || !it->second.entry) return nullptr;
@@ -334,7 +332,7 @@ RenderShader* GetVariant(uint32_t objVA, uint32_t specValue) {
 uint32_t ComputeSpecConstants(uint8_t* base, uint32_t deviceVA) {
   uint32_t spec = g_vertexFormatSpecBits.load(std::memory_order_relaxed);
   if (deviceVA >= 0x1000) {
-    const uint32_t colorControl = gmem::ReadU32(base, deviceVA + kColorControlOffset);
+    const uint32_t colorControl = gmem::ReadU32(base, deviceVA + eot::render::kColorControlOffset);
     if (colorControl & (1u << 3)) spec |= kSpecAlphaTest;
   }
   return spec;
@@ -353,6 +351,20 @@ void ResolveCurrent(uint8_t* base, uint32_t deviceVA) {
   g_currentVsWindowSpace.store(ws, std::memory_order_relaxed);
 }
 
+}
+
+namespace eot::render {
+
+RenderShader* CurrentVertexShader() { return g_currentVS; }
+RenderShader* CurrentPixelShader() { return g_currentPS; }
+bool CurrentVsIsWindowSpace() { return g_currentVsWindowSpace.load(std::memory_order_relaxed); }
+
+void ResolveShadersForDraw(uint8_t* base, uint32_t deviceVA) { ResolveCurrent(base, deviceVA); }
+
+void SetVertexFormatSpecBits(uint32_t bits) {
+  g_vertexFormatSpecBits.store(bits, std::memory_order_relaxed);
+}
+
 void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS) {
   if (pFunction < 0x1000 || !objVA) return;
   const uint32_t total =
@@ -366,44 +378,14 @@ void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS
   g_shaders[objVA].isVS = isVS;
 }
 
-}
-
-namespace eot::gpu {
-RenderShader* CurrentVertexShader() { return g_currentVS; }
-RenderShader* CurrentPixelShader() { return g_currentPS; }
-bool CurrentVsIsWindowSpace() { return g_currentVsWindowSpace.load(std::memory_order_relaxed); }
-void ResolveShadersForDraw(uint8_t* base, uint32_t deviceVA) { ResolveCurrent(base, deviceVA); }
-void SetVertexFormatSpecBits(uint32_t bits) {
-  g_vertexFormatSpecBits.store(bits, std::memory_order_relaxed);
-}
-}
-
-REX_EXTERN(__imp__D3DDevice_CreateVertexShader);
-REX_HOOK_RAW(D3DDevice_CreateVertexShader) {
-  const uint32_t pFunction = ctx.r3.u32;
-  __imp__D3DDevice_CreateVertexShader(ctx, base);
-  RegisterShader(base, pFunction, ctx.r3.u32, true);
-}
-
-REX_EXTERN(__imp__D3DDevice_CreatePixelShader);
-REX_HOOK_RAW(D3DDevice_CreatePixelShader) {
-  const uint32_t pFunction = ctx.r3.u32;
-  __imp__D3DDevice_CreatePixelShader(ctx, base);
-  RegisterShader(base, pFunction, ctx.r3.u32, false);
-}
-
-REX_EXTERN(__imp__D3DDevice_SetVertexShader);
-REX_HOOK_RAW(D3DDevice_SetVertexShader) {
-  const uint32_t device = ctx.r3.u32;
-  g_currentVSObj = ctx.r4.u32;
-  __imp__D3DDevice_SetVertexShader(ctx, base);
+void SetCurrentVertexShaderObject(uint8_t* base, uint32_t device, uint32_t objVA) {
+  g_currentVSObj = objVA;
   ResolveCurrent(base, device);
 }
 
-REX_EXTERN(__imp__D3DDevice_SetPixelShader);
-REX_HOOK_RAW(D3DDevice_SetPixelShader) {
-  const uint32_t device = ctx.r3.u32;
-  g_currentPSObj = ctx.r4.u32;
-  __imp__D3DDevice_SetPixelShader(ctx, base);
+void SetCurrentPixelShaderObject(uint8_t* base, uint32_t device, uint32_t objVA) {
+  g_currentPSObj = objVA;
   ResolveCurrent(base, device);
+}
+
 }
