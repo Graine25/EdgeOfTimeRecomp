@@ -24,10 +24,10 @@ set(REEOT_SOURCES
     src/goliath_engine/gpu/headless_stubs.cpp
     src/goliath_engine/gpu/renderer/observe.cpp
     src/goliath_engine/gpu/renderer/video.cpp
+    src/goliath_engine/gpu/renderer/render_state.cpp
+    src/goliath_engine/gpu/renderer/pipeline.cpp
     src/goliath_engine/gpu/renderer/d3d_hooks.cpp
-    src/goliath_engine/gpu/renderer/shaders.cpp
     src/goliath_engine/gpu/renderer/vertex_probe.cpp
-    src/goliath_engine/gpu/renderer/draw.cpp
     src/goliath_engine/gpu/renderer/texture.cpp
     generated/shader_cache.cpp
 )

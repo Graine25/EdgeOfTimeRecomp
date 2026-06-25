@@ -22,5 +22,5 @@ REX_STUB(D3DDevice_BlockUntilIdle);
 REX_HOOK_RAW(D3DDevice_Swap) {
   (void)ctx;
   (void)base;
-  eot::gpu::VideoPresent();
+  Video::Present();
 }

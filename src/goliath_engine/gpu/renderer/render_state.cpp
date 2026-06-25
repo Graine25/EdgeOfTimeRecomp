@@ -1,6 +1,5 @@
-#include "draw.h"
+#include "src/goliath_engine/gpu/renderer/render_state.h"
 
-#include <rex/hook.h>
 #include <rex/logging.h>
 
 #include <atomic>
@@ -14,22 +13,12 @@
 #include <plume_render_interface.h>
 #include <plume_render_interface_builders.h>
 
+#include "src/goliath_engine/gpu/renderer/guest_device.h"
+#include "src/goliath_engine/gpu/renderer/guest_resources.h"
+#include "src/goliath_engine/gpu/renderer/render_internal.h"
 #include "src/goliath_engine/gpu/renderer/shader/generated/debug_draw_dxil.h"
 #include "src/goliath_engine/gpu/renderer/shader/generated/textured_draw_dxil.h"
-#include "src/goliath_engine/gpu/renderer/shaders.h"
-#include "src/goliath_engine/gpu/renderer/texture.h"
-#include "src/goliath_engine/gpu/renderer/vertex_decl.h"
-#include "src/goliath_engine/gpu/renderer/video.h"
 #include "src/goliath_engine/kernel/guest_memory.h"
-
-static constexpr uint32_t kVsConstOffset = 0x780;
-static constexpr uint32_t kVsConstBytes = 256 * 16;
-static constexpr uint32_t kPsConstOffset = 0x1780;
-static constexpr uint32_t kPsConstBytes = 224 * 16;
-static constexpr uint32_t kSharedBytes = 912;
-static constexpr uint32_t kDeclHandleOffset = 12216;
-static constexpr float kGameWidth = 1280.0f;
-static constexpr float kGameHeight = 720.0f;
 
 namespace gmem = eot::kernel::memory;
 using namespace plume;
@@ -39,23 +28,31 @@ namespace {
 std::atomic<uint32_t> g_s0Base{0}, g_s0Offset{0}, g_s0Stride{0};
 std::atomic<uint32_t> g_ibObject{0};
 
+struct BoundTex {
+  uint32_t addr = 0;
+  eot::render::TextureFetch fetch;
+};
+BoundTex g_bound[16];
+std::mutex g_boundMutex;
+
 struct CapturedDraw {
   std::vector<uint8_t> verts;
   uint32_t immediateVA = 0;
   uint32_t stride = 0, vertexCount = 0, prim = 0;
   bool indexed = false;
   std::vector<uint32_t> indices;
-  uint32_t texAddr = 0, texD0 = 0, texD1 = 0, texD2 = 0;
+  uint32_t texAddr = 0;
+  eot::render::TextureFetch texFetch;
 
   RenderShader* vs = nullptr;
   RenderShader* ps = nullptr;
   std::vector<uint8_t> vsConst;  // b0: 4096B, host-endian
   std::vector<uint8_t> psConst;  // b1: 3584B, host-endian
-  std::vector<eot::gpu::DeclElem> decl;
+  std::vector<eot::render::DeclElem> decl;
   uint32_t declHash = 0;
   float alphaThreshold = 0.0f;
   bool windowSpace = false;
-  struct Slot { uint32_t addr = 0, d0 = 0, d1 = 0, d2 = 0; } slots[16];
+  struct Slot { uint32_t addr = 0; eot::render::TextureFetch fetch; } slots[16];
 };
 
 const char* UsageSemantic(uint8_t usage) {
@@ -78,7 +75,7 @@ RenderFormat DeclTypeFormat(uint32_t type) {
   }
 }
 
-uint32_t HashDecl(const std::vector<eot::gpu::DeclElem>& d) {
+uint32_t HashDecl(const std::vector<eot::render::DeclElem>& d) {
   uint32_t h = 2166136261u;
   for (const auto& e : d) {
     for (uint32_t v : {uint32_t(e.usage), uint32_t(e.usageIndex), e.type, uint32_t(e.offset)}) {
@@ -89,7 +86,7 @@ uint32_t HashDecl(const std::vector<eot::gpu::DeclElem>& d) {
 }
 
 inline void CaptureBoundTexture(CapturedDraw& d) {
-  eot::gpu::GetBoundTexture(0, d.texAddr, d.texD0, d.texD1, d.texD2);
+  eot::render::GetBoundTexture(0, d.texAddr, d.texFetch);
 }
 
 std::vector<uint8_t> SnapshotConstants(uint8_t* base, uint32_t va, uint32_t bytes) {
@@ -102,29 +99,36 @@ std::vector<uint8_t> SnapshotConstants(uint8_t* base, uint32_t va, uint32_t byte
 }
 
 void CaptureRealShaderState(CapturedDraw& d, uint8_t* base, uint32_t deviceVA) {
+  using namespace eot::render;
   if (deviceVA < 0x1000) return;
-  eot::gpu::ResolveShadersForDraw(base, deviceVA);
-  d.vs = eot::gpu::CurrentVertexShader();
-  d.ps = eot::gpu::CurrentPixelShader();
-  d.windowSpace = eot::gpu::CurrentVsIsWindowSpace();
+  ResolveShadersForDraw(base, deviceVA);
+  d.vs = CurrentVertexShader();
+  d.ps = CurrentPixelShader();
+  d.windowSpace = CurrentVsIsWindowSpace();
   if (!d.vs || !d.ps) return;
   d.vsConst = SnapshotConstants(base, deviceVA + kVsConstOffset, kVsConstBytes);
   d.psConst = SnapshotConstants(base, deviceVA + kPsConstOffset, kPsConstBytes);
   for (uint32_t s = 0; s < 16; ++s)
-    eot::gpu::GetBoundTexture(s, d.slots[s].addr, d.slots[s].d0, d.slots[s].d1, d.slots[s].d2);
+    GetBoundTexture(s, d.slots[s].addr, d.slots[s].fetch);
   const uint32_t pDecl = gmem::ReadU32(base, deviceVA + kDeclHandleOffset);
-  if (eot::gpu::DeclElementsFor(pDecl, d.decl)) d.declHash = HashDecl(d.decl);
+  if (DeclElementsFor(pDecl, d.decl)) d.declHash = HashDecl(d.decl);
 }
+
 std::vector<CapturedDraw> g_frameDraws;
 std::mutex g_drawMutex;
 
+void PushCapturedDraw(CapturedDraw&& d) {
+  std::lock_guard<std::mutex> lock(g_drawMutex);
+  if (g_frameDraws.size() < 8192) g_frameDraws.push_back(std::move(d));
+}
+
 std::unique_ptr<RenderShader> g_dbgVS, g_dbgPS;
-std::unique_ptr<RenderPipelineLayout> g_layout;
+std::unique_ptr<RenderPipelineLayout> g_solidLayout;
 std::unordered_map<uint32_t, std::unique_ptr<RenderPipeline>> g_psoByStride;
 std::vector<std::unique_ptr<RenderBuffer>> g_frameBuffers;
 
 bool EnsureReplayResources() {
-  RenderDevice* dev = eot::gpu::Device();
+  RenderDevice* dev = eot::render::Device();
   if (!dev) return false;
   if (!g_dbgVS)
     g_dbgVS = dev->createShader(g_debug_vs_dxil, sizeof(g_debug_vs_dxil), "VSMain",
@@ -132,25 +136,25 @@ bool EnsureReplayResources() {
   if (!g_dbgPS)
     g_dbgPS = dev->createShader(g_debug_ps_dxil, sizeof(g_debug_ps_dxil), "PSMain",
                                 RenderShaderFormat::DXIL);
-  if (!g_layout) {
+  if (!g_solidLayout) {
     RenderPipelineLayoutBuilder lb;
     lb.begin(false, true);
     lb.end();
-    g_layout = lb.create(dev);
+    g_solidLayout = lb.create(dev);
   }
-  return g_dbgVS && g_dbgPS && g_layout;
+  return g_dbgVS && g_dbgPS && g_solidLayout;
 }
 
 RenderPipeline* GetPSO(uint32_t stride) {
   auto it = g_psoByStride.find(stride);
   if (it != g_psoByStride.end()) return it->second.get();
-  RenderDevice* dev = eot::gpu::Device();
+  RenderDevice* dev = eot::render::Device();
   const RenderInputElement elems[] = {
       RenderInputElement("POSITION", 0, 0, RenderFormat::R32G32_FLOAT, 0, 0),
   };
   RenderInputSlot slot(0, stride);
   RenderGraphicsPipelineDesc desc;
-  desc.pipelineLayout = g_layout.get();
+  desc.pipelineLayout = g_solidLayout.get();
   desc.vertexShader = g_dbgVS.get();
   desc.pixelShader = g_dbgPS.get();
   desc.renderTargetFormat[0] = RenderFormat::R8G8B8A8_UNORM;
@@ -175,7 +179,7 @@ std::unordered_map<uint32_t, std::unique_ptr<RenderPipeline>> g_txPsoByStride;
 RenderPipeline* GetTexturedPSO(uint32_t stride) {
   auto it = g_txPsoByStride.find(stride);
   if (it != g_txPsoByStride.end()) return it->second.get();
-  RenderDevice* dev = eot::gpu::Device();
+  RenderDevice* dev = eot::render::Device();
   if (!g_txVS)
     g_txVS = dev->createShader(g_textured_vs_dxil, sizeof(g_textured_vs_dxil), "VSMain",
                                RenderShaderFormat::DXIL);
@@ -189,7 +193,7 @@ RenderPipeline* GetTexturedPSO(uint32_t stride) {
   };
   RenderInputSlot slot(0, stride);
   RenderGraphicsPipelineDesc desc;
-  desc.pipelineLayout = eot::gpu::TexturedPipelineLayout();
+  desc.pipelineLayout = eot::render::TexturedPipelineLayout();
   desc.vertexShader = g_txVS.get();
   desc.pixelShader = g_txPS.get();
   desc.renderTargetFormat[0] = RenderFormat::R8G8B8A8_UNORM;
@@ -230,12 +234,12 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
   RealPsoKey key{d.vs, d.ps, d.stride, d.declHash};
   auto it = g_realPsoCache.find(key);
   if (it != g_realPsoCache.end()) return it->second.get();
-  RenderDevice* dev = eot::gpu::Device();
+  RenderDevice* dev = eot::render::Device();
   if (!dev) return nullptr;
 
   std::vector<RenderInputElement> elems;
   elems.reserve(d.decl.size());
-  for (const eot::gpu::DeclElem& e : d.decl) {
+  for (const eot::render::DeclElem& e : d.decl) {
     const char* sem = UsageSemantic(e.usage);
     const RenderFormat fmt = DeclTypeFormat(e.type);
     if (!sem || fmt == RenderFormat::UNKNOWN) {
@@ -251,7 +255,7 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
 
   RenderInputSlot slot(0, d.stride);
   RenderGraphicsPipelineDesc desc;
-  desc.pipelineLayout = eot::gpu::GameLayout();
+  desc.pipelineLayout = eot::render::GameLayout();
   desc.vertexShader = d.vs;
   desc.pixelShader = d.ps;
   desc.renderTargetFormat[0] = RenderFormat::R8G8B8A8_UNORM;
@@ -331,7 +335,124 @@ std::vector<uint32_t> ExpandIndexed(uint32_t prim, const std::vector<uint32_t>& 
 
 }
 
-namespace eot::gpu {
+namespace eot::render {
+
+void SetStreamSource(uint8_t* base, uint32_t stream, uint32_t vbObject, uint32_t offset,
+                     uint32_t stride) {
+  if (stream != 0) return;
+  const uint32_t base0 = (vbObject >= 0x1000) ? gmem::ReadU32(base, vbObject + 0x18) : 0;
+  g_s0Base.store(base0, std::memory_order_relaxed);
+  g_s0Offset.store(offset, std::memory_order_relaxed);
+  g_s0Stride.store(stride, std::memory_order_relaxed);
+}
+
+void SetIndices(uint32_t ibObject) {
+  g_ibObject.store(ibObject, std::memory_order_relaxed);
+}
+
+void SetBoundTexture(uint32_t sampler, uint32_t addr, const TextureFetch& fetch) {
+  if (sampler >= 16) return;
+  std::lock_guard<std::mutex> lock(g_boundMutex);
+  g_bound[sampler] = BoundTex{addr, fetch};
+}
+
+bool GetBoundTexture(uint32_t sampler, uint32_t& addr, TextureFetch& fetch) {
+  if (sampler >= 16) return false;
+  std::lock_guard<std::mutex> lock(g_boundMutex);
+  const BoundTex& b = g_bound[sampler];
+  if (!b.addr) return false;
+  addr = b.addr;
+  fetch = b.fetch;
+  return true;
+}
+
+void DrawVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t startVertex,
+                  uint32_t vertexCount) {
+  const uint32_t baseAddr = g_s0Base.load(std::memory_order_relaxed) & ~3u;
+  const uint32_t off = g_s0Offset.load(std::memory_order_relaxed);
+  const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
+  if (!baseAddr || !stride || vertexCount == 0 || vertexCount > 200000) return;
+  const uint32_t startVA = baseAddr + off + startVertex * stride;
+  if (startVA < 0x1000) return;
+  const uint32_t bytes = vertexCount * stride;
+
+  CapturedDraw d;
+  d.stride = stride;
+  d.vertexCount = vertexCount;
+  d.prim = prim;
+  CaptureBoundTexture(d);
+  CaptureRealShaderState(d, base, device);
+  d.verts.resize(bytes);
+  for (uint32_t i = 0; i < bytes; i += 4) {
+    const uint32_t word = gmem::ReadU32(base, startVA + i);
+    std::memcpy(&d.verts[i], &word, 4);
+  }
+  static std::atomic<uint64_t> s_n{0};
+  uint64_t nn = s_n.fetch_add(1, std::memory_order_relaxed);
+  if (nn < 16) {
+    float x, y;
+    std::memcpy(&x, &d.verts[0], 4);
+    std::memcpy(&y, &d.verts[4], 4);
+    REXGPU_INFO("[draw] capture prim={} count={} stride={} va=0x{:08X} v0=({:.2f},{:.2f})", prim,
+                vertexCount, stride, startVA, x, y);
+  }
+  PushCapturedDraw(std::move(d));
+}
+
+void BeginVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t vertexCount,
+                   uint32_t stride, uint32_t ringPtr) {
+  if (ringPtr < 0x1000 || !stride || vertexCount == 0 || vertexCount > 200000) return;
+  CapturedDraw d;
+  d.immediateVA = ringPtr;
+  d.stride = stride;
+  d.vertexCount = vertexCount;
+  d.prim = prim;
+  CaptureBoundTexture(d);
+  CaptureRealShaderState(d, base, device);
+  PushCapturedDraw(std::move(d));
+}
+
+void DrawIndexedVertices(uint8_t* base, uint32_t device, uint32_t prim, int32_t baseVertexIndex,
+                         uint32_t startIndex, uint32_t indexCount) {
+  const uint32_t ib = g_ibObject.load(std::memory_order_relaxed);
+  const uint32_t vbBase = g_s0Base.load(std::memory_order_relaxed) & ~3u;
+  const uint32_t vbOff = g_s0Offset.load(std::memory_order_relaxed);
+  const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
+  if (ib < 0x1000 || !vbBase || !stride || indexCount == 0 || indexCount > 1000000) return;
+
+  const uint32_t ibAddr = gmem::ReadU32(base, ib + 0x18);
+  if (ibAddr < 0x1000) return;
+
+  std::vector<uint32_t> raw(indexCount);
+  uint32_t maxIdx = 0;
+  for (uint32_t i = 0; i < indexCount; ++i) {
+    const uint16_t v = gmem::ReadU16(base, ibAddr + (startIndex + i) * 2);
+    raw[i] = v;
+    if (v != 0xFFFF && v > maxIdx) maxIdx = v;
+  }
+  std::vector<uint32_t> tris = ExpandIndexed(prim, raw, baseVertexIndex);
+  if (tris.empty()) return;
+
+  const uint32_t vertCount = static_cast<uint32_t>(baseVertexIndex) + maxIdx + 1;
+  if (vertCount > 2000000) return;
+  const uint32_t bytes = vertCount * stride;
+  const uint32_t startVA = vbBase + vbOff;
+
+  CapturedDraw d;
+  d.stride = stride;
+  d.vertexCount = vertCount;
+  d.prim = prim;
+  d.indexed = true;
+  d.indices = std::move(tris);
+  CaptureBoundTexture(d);
+  CaptureRealShaderState(d, base, device);
+  d.verts.resize(bytes);
+  for (uint32_t i = 0; i < bytes; i += 4) {
+    const uint32_t word = gmem::ReadU32(base, startVA + i);
+    std::memcpy(&d.verts[i], &word, 4);
+  }
+  PushCapturedDraw(std::move(d));
+}
 
 void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
   if (!cmd || !EnsureReplayResources()) return;
@@ -342,10 +463,10 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
   }
   if (draws.empty()) return;
 
-  RenderDevice* dev = eot::gpu::Device();
+  RenderDevice* dev = eot::render::Device();
   g_frameBuffers.clear();
-  eot::gpu::EnsureTextureSystem();
-  eot::gpu::BeginTextureFrame();
+  EnsureTextureSystem();
+  BeginTextureFrame();
 
   cmd->setViewports(RenderViewport(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)));
   cmd->setScissors(RenderRect(0, 0, static_cast<int32_t>(w), static_cast<int32_t>(h)));
@@ -369,7 +490,7 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
     RenderPipeline* realPso = (d.vs && d.ps && !d.decl.empty()) ? GetRealPSO(d) : nullptr;
 
     if (realPso && d.windowSpace) {
-      for (const eot::gpu::DeclElem& e : d.decl) {
+      for (const eot::render::DeclElem& e : d.decl) {
         if (e.usage != 0) continue;
         const uint32_t off = e.offset;
         for (size_t v = 0; v + off + 8 <= d.verts.size(); v += d.stride) {
@@ -401,7 +522,7 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
 
     uint32_t texIndex = 0;
     if (d.stride >= 20 && d.texAddr != 0)
-      texIndex = eot::gpu::GetOrCreateTextureIndex(cmd, d.texAddr, d.texD0, d.texD1, d.texD2);
+      texIndex = GetOrCreateTextureIndex(cmd, d.texAddr, d.texFetch);
 
     if (realPso) {
       std::unique_ptr<RenderBuffer> vsCb = dev->createBuffer(
@@ -415,9 +536,8 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       std::memset(shared, 0, sizeof(shared));
       for (uint32_t s = 0; s < 16; ++s) {
         if (!d.slots[s].addr) continue;
-        uint32_t idx = eot::gpu::GetOrCreateTextureIndex(cmd, d.slots[s].addr, d.slots[s].d0,
-                                                         d.slots[s].d1, d.slots[s].d2);
-        WriteU32LE(shared, s * 4, idx);
+        uint32_t idx2 = GetOrCreateTextureIndex(cmd, d.slots[s].addr, d.slots[s].fetch);
+        WriteU32LE(shared, s * 4, idx2);
         WriteU32LE(shared, 256 + s * 4, 0);
       }
       WriteF32LE(shared, 356, 1.0f / static_cast<float>(w));   // g_HalfPixelOffset.x (c22.y)
@@ -428,14 +548,14 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       if (void* p = shCb->map()) { std::memcpy(p, shared, kSharedBytes); shCb->unmap(); }
 
       uint32_t cbvVS = 0, cbvPS = 0, cbvShared = 0;
-      eot::gpu::GameCbvIndices(cbvVS, cbvPS, cbvShared);
-      cmd->setGraphicsPipelineLayout(eot::gpu::GameLayout());
+      GameCbvIndices(cbvVS, cbvPS, cbvShared);
+      cmd->setGraphicsPipelineLayout(GameLayout());
       cmd->setPipeline(realPso);
-      cmd->setGraphicsDescriptorSet(eot::gpu::TextureSet(), 0);
-      cmd->setGraphicsDescriptorSet(eot::gpu::Tex3DSet(), 1);
-      cmd->setGraphicsDescriptorSet(eot::gpu::TexCubeSet(), 2);
-      cmd->setGraphicsDescriptorSet(eot::gpu::SamplerSet(), 3);
-      cmd->setGraphicsDescriptorSet(eot::gpu::Tex1DSet(), 4);
+      cmd->setGraphicsDescriptorSet(TextureSet(), 0);
+      cmd->setGraphicsDescriptorSet(Tex3DSet(), 1);
+      cmd->setGraphicsDescriptorSet(TexCubeSet(), 2);
+      cmd->setGraphicsDescriptorSet(SamplerSet(), 3);
+      cmd->setGraphicsDescriptorSet(Tex1DSet(), 4);
       cmd->setGraphicsRootDescriptor(vsCb->at(0), cbvVS);
       cmd->setGraphicsRootDescriptor(psCb->at(0), cbvPS);
       cmd->setGraphicsRootDescriptor(shCb->at(0), cbvShared);
@@ -443,13 +563,13 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       g_frameBuffers.push_back(std::move(psCb));
       g_frameBuffers.push_back(std::move(shCb));
     } else if (texIndex != 0) {
-      cmd->setGraphicsPipelineLayout(eot::gpu::TexturedPipelineLayout());
+      cmd->setGraphicsPipelineLayout(TexturedPipelineLayout());
       cmd->setPipeline(GetTexturedPSO(d.stride));
-      cmd->setGraphicsDescriptorSet(eot::gpu::TextureSet(), 0);
-      cmd->setGraphicsDescriptorSet(eot::gpu::SamplerSet(), 1);
+      cmd->setGraphicsDescriptorSet(TextureSet(), 0);
+      cmd->setGraphicsDescriptorSet(SamplerSet(), 1);
       cmd->setGraphicsPushConstants(0, &texIndex, 0, sizeof(texIndex));
     } else {
-      cmd->setGraphicsPipelineLayout(g_layout.get());
+      cmd->setGraphicsPipelineLayout(g_solidLayout.get());
       cmd->setPipeline(GetPSO(d.stride));
     }
     RenderVertexBufferView vbv(vb.get(), static_cast<uint32_t>(d.verts.size()));
@@ -468,124 +588,4 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
     REXGPU_INFO("[draw] replayed {} draws ({} captured)", drawn, draws.size());
 }
 
-}
-
-REX_EXTERN(__imp__D3DDevice_SetStreamSource);
-REX_HOOK_RAW(D3DDevice_SetStreamSource) {
-  const uint32_t stream = ctx.r4.u32, vb = ctx.r5.u32, off = ctx.r6.u32, stride = ctx.r7.u32;
-  if (stream == 0) {
-    const uint32_t base0 = (vb >= 0x1000) ? gmem::ReadU32(base, vb + 0x18) : 0;
-    g_s0Base.store(base0, std::memory_order_relaxed);
-    g_s0Offset.store(off, std::memory_order_relaxed);
-    g_s0Stride.store(stride, std::memory_order_relaxed);
-  }
-  __imp__D3DDevice_SetStreamSource(ctx, base);
-}
-
-REX_EXTERN(__imp__D3DDevice_DrawVertices);
-REX_HOOK_RAW(D3DDevice_DrawVertices) {
-  const uint32_t device = ctx.r3.u32, prim = ctx.r4.u32, start = ctx.r5.u32, count = ctx.r6.u32;
-  __imp__D3DDevice_DrawVertices(ctx, base);
-
-  const uint32_t baseAddr = g_s0Base.load(std::memory_order_relaxed) & ~3u;
-  const uint32_t off = g_s0Offset.load(std::memory_order_relaxed);
-  const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
-  if (!baseAddr || !stride || count == 0 || count > 200000) return;
-  const uint32_t startVA = baseAddr + off + start * stride;
-  if (startVA < 0x1000) return;
-  const uint32_t bytes = count * stride;
-
-  CapturedDraw d;
-  d.stride = stride;
-  d.vertexCount = count;
-  d.prim = prim;
-  CaptureBoundTexture(d);
-  CaptureRealShaderState(d, base, device);
-  d.verts.resize(bytes);
-  for (uint32_t i = 0; i < bytes; i += 4) {
-    const uint32_t word = gmem::ReadU32(base, startVA + i);
-    std::memcpy(&d.verts[i], &word, 4);
-  }
-  static std::atomic<uint64_t> s_n{0};
-  uint64_t nn = s_n.fetch_add(1, std::memory_order_relaxed);
-  if (nn < 16) {
-    float x, y;
-    std::memcpy(&x, &d.verts[0], 4);
-    std::memcpy(&y, &d.verts[4], 4);
-    REXGPU_INFO("[draw] capture prim={} count={} stride={} va=0x{:08X} v0=({:.2f},{:.2f})", prim,
-                count, stride, startVA, x, y);
-  }
-  std::lock_guard<std::mutex> lock(g_drawMutex);
-  if (g_frameDraws.size() < 8192) g_frameDraws.push_back(std::move(d));
-}
-
-REX_EXTERN(__imp__D3DDevice_BeginVertices);
-REX_HOOK_RAW(D3DDevice_BeginVertices) {
-  const uint32_t device = ctx.r3.u32, prim = ctx.r4.u32, count = ctx.r5.u32, stride = ctx.r6.u32;
-  __imp__D3DDevice_BeginVertices(ctx, base);
-  const uint32_t ptr = ctx.r3.u32;
-  if (ptr < 0x1000 || !stride || count == 0 || count > 200000) return;
-  CapturedDraw d;
-  d.immediateVA = ptr;
-  d.stride = stride;
-  d.vertexCount = count;
-  d.prim = prim;
-  CaptureBoundTexture(d);
-  CaptureRealShaderState(d, base, device);
-  std::lock_guard<std::mutex> lock(g_drawMutex);
-  if (g_frameDraws.size() < 8192) g_frameDraws.push_back(std::move(d));
-}
-
-REX_EXTERN(__imp__D3DDevice_SetIndices);
-REX_HOOK_RAW(D3DDevice_SetIndices) {
-  g_ibObject.store(ctx.r4.u32, std::memory_order_relaxed);
-  __imp__D3DDevice_SetIndices(ctx, base);
-}
-
-REX_EXTERN(__imp__D3DDevice_DrawIndexedVertices);
-REX_HOOK_RAW(D3DDevice_DrawIndexedVertices) {
-  const uint32_t device = ctx.r3.u32, prim = ctx.r4.u32;
-  const int32_t baseVertex = static_cast<int32_t>(ctx.r5.u32);
-  const uint32_t startIndex = ctx.r6.u32, indexCount = ctx.r7.u32;
-  __imp__D3DDevice_DrawIndexedVertices(ctx, base);
-
-  const uint32_t ib = g_ibObject.load(std::memory_order_relaxed);
-  const uint32_t vbBase = g_s0Base.load(std::memory_order_relaxed) & ~3u;
-  const uint32_t vbOff = g_s0Offset.load(std::memory_order_relaxed);
-  const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
-  if (ib < 0x1000 || !vbBase || !stride || indexCount == 0 || indexCount > 1000000) return;
-
-  const uint32_t ibAddr = gmem::ReadU32(base, ib + 0x18);
-  if (ibAddr < 0x1000) return;
-
-  std::vector<uint32_t> raw(indexCount);
-  uint32_t maxIdx = 0;
-  for (uint32_t i = 0; i < indexCount; ++i) {
-    const uint16_t v = gmem::ReadU16(base, ibAddr + (startIndex + i) * 2);
-    raw[i] = v;
-    if (v != 0xFFFF && v > maxIdx) maxIdx = v;
-  }
-  std::vector<uint32_t> tris = ExpandIndexed(prim, raw, baseVertex);
-  if (tris.empty()) return;
-
-  const uint32_t vertCount = static_cast<uint32_t>(baseVertex) + maxIdx + 1;
-  if (vertCount > 2000000) return;
-  const uint32_t bytes = vertCount * stride;
-  const uint32_t startVA = vbBase + vbOff;
-
-  CapturedDraw d;
-  d.stride = stride;
-  d.vertexCount = vertCount;
-  d.prim = prim;
-  d.indexed = true;
-  d.indices = std::move(tris);
-  CaptureBoundTexture(d);
-  CaptureRealShaderState(d, base, device);
-  d.verts.resize(bytes);
-  for (uint32_t i = 0; i < bytes; i += 4) {
-    const uint32_t word = gmem::ReadU32(base, startVA + i);
-    std::memcpy(&d.verts[i], &word, 4);
-  }
-  std::lock_guard<std::mutex> lock(g_drawMutex);
-  if (g_frameDraws.size() < 8192) g_frameDraws.push_back(std::move(d));
 }
