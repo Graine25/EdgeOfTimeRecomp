@@ -240,6 +240,8 @@ void Video::Present() {
   g_commandList->clearDepth();
   ReplayCapturedDraws(g_commandList.get(), g_swapChain->getWidth(), g_swapChain->getHeight());
   g_commandList->setFramebuffer(framebuffer);
+  if (PresentMovieFrame(g_commandList.get(), g_swapChain->getWidth(), g_swapChain->getHeight()))
+    g_commandList->setFramebuffer(framebuffer);
   g_commandList->barriers(RenderBarrierStage::GRAPHICS,
                           RenderTextureBarrier(backBuffer, RenderTextureLayout::PRESENT));
   g_commandList->end();

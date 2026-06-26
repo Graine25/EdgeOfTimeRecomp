@@ -27,4 +27,7 @@ void DrawIndexedVertices(uint8_t* base, uint32_t device, uint32_t prim, int32_t 
 void ReplayCapturedDraws(plume::RenderCommandList* cmd, uint32_t backbufferW,
                          uint32_t backbufferH);
 
+void SubmitMovieFrame(uint8_t* base, uint32_t yuvVA);
+bool PresentMovieFrame(plume::RenderCommandList* cmd, uint32_t backbufferW, uint32_t backbufferH);
+
 }

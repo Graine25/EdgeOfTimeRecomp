@@ -588,4 +588,133 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
     REXGPU_INFO("[draw] replayed {} draws ({} captured)", drawn, draws.size());
 }
 
+static constexpr uint32_t kMovieTexIndex = 8190;
+static std::mutex g_movieMutex;
+static std::vector<uint8_t> g_movieRGBA;
+static uint32_t g_movieW = 0, g_movieH = 0;
+static bool g_movieHasFrame = false;
+static int g_movieStale = 0;
+
+static std::unique_ptr<RenderTexture> g_movieTex;
+static std::unique_ptr<RenderTextureView> g_movieView;
+static uint32_t g_movieTexW = 0, g_movieTexH = 0;
+static std::unique_ptr<RenderBuffer> g_movieStaging, g_movieQuadVB, g_movieQuadIB;
+
+static inline uint8_t Clamp8(int v) { return v < 0 ? 0 : (v > 255 ? 255 : static_cast<uint8_t>(v)); }
+
+void SubmitMovieFrame(uint8_t* base, uint32_t yuvVA) {
+  if (!base || yuvVA < 0x1000) return;
+  const uint32_t yPtr = gmem::ReadU32(base, yuvVA + 0x00), yPitch = gmem::ReadU32(base, yuvVA + 0x08);
+  const uint32_t uPtr = gmem::ReadU32(base, yuvVA + 0x0C), uPitch = gmem::ReadU32(base, yuvVA + 0x14);
+  const uint32_t vPtr = gmem::ReadU32(base, yuvVA + 0x18), vPitch = gmem::ReadU32(base, yuvVA + 0x20);
+  const uint32_t w = gmem::ReadU32(base, yuvVA + 0x38), h = gmem::ReadU32(base, yuvVA + 0x3C);
+  if (w == 0 || h == 0 || w > 4096 || h > 4096) return;
+  if (yPtr < 0x1000 || uPtr < 0x1000 || vPtr < 0x1000) return;
+  const uint8_t* Y = static_cast<const uint8_t*>(gmem::GuestAddressToHostMutable(yPtr));
+  const uint8_t* U = static_cast<const uint8_t*>(gmem::GuestAddressToHostMutable(uPtr));
+  const uint8_t* V = static_cast<const uint8_t*>(gmem::GuestAddressToHostMutable(vPtr));
+  if (!Y || !U || !V) return;
+
+  std::lock_guard<std::mutex> lk(g_movieMutex);
+  g_movieRGBA.resize(size_t(w) * h * 4);
+  uint8_t* out = g_movieRGBA.data();
+  for (uint32_t y = 0; y < h; ++y) {
+    const uint8_t* yr = Y + size_t(y) * yPitch;
+    const uint8_t* ur = U + size_t(y >> 1) * uPitch;
+    const uint8_t* vr = V + size_t(y >> 1) * vPitch;
+    uint8_t* o = out + size_t(y) * w * 4;
+    for (uint32_t x = 0; x < w; ++x, o += 4) {
+      const int C = int(yr[x]) - 16, D = int(ur[x >> 1]) - 128, E = int(vr[x >> 1]) - 128;
+      o[0] = Clamp8((298 * C + 409 * E + 128) >> 8);
+      o[1] = Clamp8((298 * C - 100 * D - 208 * E + 128) >> 8);
+      o[2] = Clamp8((298 * C + 516 * D + 128) >> 8);
+      o[3] = 255;
+    }
+  }
+  g_movieW = w;
+  g_movieH = h;
+  g_movieHasFrame = true;
+  g_movieStale = 0;
+}
+
+bool PresentMovieFrame(RenderCommandList* cmd, uint32_t w, uint32_t h) {
+  if (!cmd) return false;
+  RenderDevice* dev = eot::render::Device();
+  if (!dev || !EnsureTextureSystem()) return false;
+
+  std::vector<uint8_t> rgba;
+  uint32_t mw, mh;
+  {
+    std::lock_guard<std::mutex> lk(g_movieMutex);
+    if (!g_movieHasFrame) return false;
+    if (++g_movieStale > 6) {
+      g_movieHasFrame = false;
+      return false;
+    }
+    if (g_movieRGBA.empty() || g_movieW == 0 || g_movieH == 0) return false;
+    rgba = g_movieRGBA;
+    mw = g_movieW;
+    mh = g_movieH;
+  }
+
+  if (!g_movieTex || g_movieTexW != mw || g_movieTexH != mh) {
+    g_movieTex = dev->createTexture(RenderTextureDesc::Texture2D(mw, mh, 1, RenderFormat::R8G8B8A8_UNORM));
+    g_movieView = g_movieTex->createTextureView(RenderTextureViewDesc::Texture2D(RenderFormat::R8G8B8A8_UNORM));
+    g_movieTexW = mw;
+    g_movieTexH = mh;
+    TextureSet()->setTexture(kMovieTexIndex, g_movieTex.get(), RenderTextureLayout::SHADER_READ,
+                             g_movieView.get());
+  }
+
+  const uint32_t rowData = mw * 4;
+  const uint32_t rowPitch = (rowData + 255) & ~255u;
+  g_movieStaging = dev->createBuffer(RenderBufferDesc::UploadBuffer(uint64_t(rowPitch) * mh));
+  if (auto* p = static_cast<uint8_t*>(g_movieStaging->map())) {
+    for (uint32_t y = 0; y < mh; ++y)
+      std::memcpy(p + size_t(y) * rowPitch, rgba.data() + size_t(y) * rowData, rowData);
+    g_movieStaging->unmap();
+  }
+  cmd->barriers(RenderBarrierStage::COPY,
+                RenderTextureBarrier(g_movieTex.get(), RenderTextureLayout::COPY_DEST));
+  cmd->copyTextureRegion(
+      RenderTextureCopyLocation::Subresource(g_movieTex.get(), 0),
+      RenderTextureCopyLocation::PlacedFootprint(g_movieStaging.get(), RenderFormat::R8G8B8A8_UNORM,
+                                                 mw, mh, 1, rowPitch / 4));
+  cmd->barriers(RenderBarrierStage::GRAPHICS,
+                RenderTextureBarrier(g_movieTex.get(), RenderTextureLayout::SHADER_READ));
+
+  struct MV {
+    float x, y;
+    uint32_t bgra;
+    float u, v;
+  };
+  const MV verts[4] = {
+      {0.0f, 0.0f, 0xFFFFFFFFu, 0.0f, 0.0f},
+      {kGameWidth, 0.0f, 0xFFFFFFFFu, 1.0f, 0.0f},
+      {0.0f, kGameHeight, 0xFFFFFFFFu, 0.0f, 1.0f},
+      {kGameWidth, kGameHeight, 0xFFFFFFFFu, 1.0f, 1.0f},
+  };
+  const uint32_t idx[6] = {0, 1, 2, 1, 3, 2};
+  g_movieQuadVB = dev->createBuffer(RenderBufferDesc::VertexBuffer(sizeof(verts), RenderHeapType::UPLOAD));
+  if (void* p = g_movieQuadVB->map()) { std::memcpy(p, verts, sizeof(verts)); g_movieQuadVB->unmap(); }
+  g_movieQuadIB = dev->createBuffer(RenderBufferDesc::IndexBuffer(sizeof(idx), RenderHeapType::UPLOAD));
+  if (void* p = g_movieQuadIB->map()) { std::memcpy(p, idx, sizeof(idx)); g_movieQuadIB->unmap(); }
+
+  cmd->setViewports(RenderViewport(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)));
+  cmd->setScissors(RenderRect(0, 0, static_cast<int32_t>(w), static_cast<int32_t>(h)));
+  cmd->setGraphicsPipelineLayout(TexturedPipelineLayout());
+  cmd->setPipeline(GetTexturedPSO(sizeof(MV)));
+  cmd->setGraphicsDescriptorSet(TextureSet(), 0);
+  cmd->setGraphicsDescriptorSet(SamplerSet(), 1);
+  uint32_t ti = kMovieTexIndex;
+  cmd->setGraphicsPushConstants(0, &ti, 0, sizeof(ti));
+  RenderVertexBufferView vbv(g_movieQuadVB.get(), sizeof(verts));
+  RenderInputSlot slot(0, sizeof(MV));
+  cmd->setVertexBuffers(0, &vbv, 1, &slot);
+  RenderIndexBufferView ibv(g_movieQuadIB.get(), sizeof(idx), RenderFormat::R32_UINT);
+  cmd->setIndexBuffer(&ibv);
+  cmd->drawIndexedInstanced(6, 1, 0, 0, 0);
+  return true;
+}
+
 }
