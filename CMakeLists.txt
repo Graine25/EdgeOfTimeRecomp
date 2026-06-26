@@ -23,6 +23,7 @@ set(REEOT_SOURCES
     src/main.cpp
     src/goliath_engine/gpu/headless_stubs.cpp
     src/goliath_engine/gpu/renderer/observe.cpp
+    src/goliath_engine/gpu/renderer/movie_hooks.cpp
     src/goliath_engine/gpu/renderer/video.cpp
     src/goliath_engine/gpu/renderer/render_state.cpp
     src/goliath_engine/gpu/renderer/pipeline.cpp
