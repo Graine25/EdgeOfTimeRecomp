@@ -32,9 +32,10 @@ uint32_t GetOrCreateTextureIndex(plume::RenderCommandList* cmd, uint32_t guestAd
                                  const TextureFetch& fetch);
 
 void RegisterVertexDeclaration(uint8_t* base, uint32_t pElems, uint32_t pDecl);
-bool DeclElementsFor(uint32_t pDecl, std::vector<DeclElem>& out);
+bool DeclElementsFor(uint8_t* base, uint32_t pDecl, std::vector<DeclElem>& out);
 
 void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS);
+void DiagStreamShader(uint8_t* base, uint32_t streamPos, uint32_t objVA, bool isVS);
 void SetCurrentVertexShaderObject(uint8_t* base, uint32_t device, uint32_t objVA);
 void SetCurrentPixelShaderObject(uint8_t* base, uint32_t device, uint32_t objVA);
 void ResolveShadersForDraw(uint8_t* base, uint32_t deviceVA);

@@ -250,12 +250,42 @@ void RegisterVertexDeclaration(uint8_t* base, uint32_t pElems, uint32_t pDecl) {
   g_declsByHandle[pDecl] = std::move(elems);
 }
 
-bool DeclElementsFor(uint32_t pDecl, std::vector<DeclElem>& out) {
-  std::lock_guard<std::mutex> lock(g_declMutex);
-  auto it = g_declsByHandle.find(pDecl);
-  if (it == g_declsByHandle.end()) return false;
-  out = it->second;
+static bool ParseDeclObject(uint8_t* base, uint32_t pDecl, std::vector<DeclElem>& out) {
+  if (pDecl < 0x1000) return false;
+  if (gmem::ReadU32(base, pDecl + 0) != 0x100005u) return false;
+  if (gmem::ReadU32(base, pDecl + 0x14) != 0xFFFF0000u) return false;
+  const uint32_t count = gmem::ReadU32(base, pDecl + 24);
+  if (count == 0 || count > 32) return false;
+  std::vector<DeclElem> elems;
+  for (uint32_t i = 0; i < count; ++i) {
+    const uint32_t b = pDecl + 52 + i * 12;
+    const uint32_t d0 = gmem::ReadU32(base, b + 0);
+    const uint16_t stream = static_cast<uint16_t>(d0 >> 16);
+    if (stream == 0xFF) break;
+    DeclElem el;
+    el.stream = stream;
+    el.offset = static_cast<uint16_t>(d0 & 0xFFFF);
+    el.type = gmem::ReadU32(base, b + 4);
+    const uint32_t muu = gmem::ReadU32(base, b + 8);
+    el.usage = static_cast<uint8_t>((muu >> 16) & 0xFF);
+    el.usageIndex = static_cast<uint8_t>((muu >> 8) & 0xFF);
+    elems.push_back(el);
+  }
+  if (elems.empty()) return false;
+  out = std::move(elems);
   return true;
+}
+
+bool DeclElementsFor(uint8_t* base, uint32_t pDecl, std::vector<DeclElem>& out) {
+  {
+    std::lock_guard<std::mutex> lock(g_declMutex);
+    auto it = g_declsByHandle.find(pDecl);
+    if (it != g_declsByHandle.end()) {
+      out = it->second;
+      return true;
+    }
+  }
+  return ParseDeclObject(base, pDecl, out);
 }
 
 }
@@ -272,6 +302,34 @@ REX_HOOK_RAW(D3DDevice_CreatePixelShader) {
   const uint32_t pFunction = ctx.r3.u32;
   __imp__D3DDevice_CreatePixelShader(ctx, base);
   eot::render::RegisterShader(base, pFunction, ctx.r3.u32, false);
+}
+
+REX_EXTERN(__imp__sub_82116810);
+REX_HOOK_RAW(sub_82116810) {
+  const uint32_t stream = ctx.r3.u32;
+  const uint32_t pos = stream >= 0x1000
+                           ? gmem::ReadU32(base, stream + 24) + gmem::ReadU32(base, stream + 32)
+                           : 0;
+  __imp__sub_82116810(ctx, base);
+  const uint32_t node = ctx.r3.u32;
+  if (node >= 0x1000 && pos >= 0x1000) {
+    const uint32_t obj = gmem::ReadU32(base, node + 36);
+    if (obj >= 0x1000) eot::render::DiagStreamShader(base, pos, obj, true);
+  }
+}
+
+REX_EXTERN(__imp__sub_82116B78);
+REX_HOOK_RAW(sub_82116B78) {
+  const uint32_t stream = ctx.r3.u32;
+  const uint32_t pos = stream >= 0x1000
+                           ? gmem::ReadU32(base, stream + 24) + gmem::ReadU32(base, stream + 32)
+                           : 0;
+  __imp__sub_82116B78(ctx, base);
+  const uint32_t node = ctx.r3.u32;
+  if (node >= 0x1000 && pos >= 0x1000) {
+    const uint32_t obj = gmem::ReadU32(base, node + 32);  // PS object @ node+32 (VS uses +36)
+    if (obj >= 0x1000) eot::render::DiagStreamShader(base, pos, obj, false);
+  }
 }
 
 REX_EXTERN(__imp__XGSetVertexDeclaration);
