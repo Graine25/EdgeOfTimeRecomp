@@ -266,6 +266,7 @@ std::unordered_map<uint32_t, GuestShader> g_shaders;
 std::mutex g_shadersMutex;
 
 std::atomic<uint64_t> g_hit{0}, g_miss{0}, g_created{0}, g_failed{0};
+std::atomic<uint32_t> g_vsObjZero{0}, g_vsNotReg{0}, g_vsNoEntry{0}, g_vsOk{0};
 std::atomic<uint32_t> g_vertexFormatSpecBits{0};
 uint32_t g_currentVSObj = 0, g_currentPSObj = 0;
 RenderShader* g_currentVS = nullptr;
@@ -347,8 +348,18 @@ void ResolveCurrent(uint8_t* base, uint32_t deviceVA) {
     std::lock_guard lock(g_shadersMutex);
     auto it = g_shaders.find(g_currentVSObj);
     if (it != g_shaders.end()) ws = it->second.windowSpace;
+    if (g_currentVS) g_vsOk.fetch_add(1, std::memory_order_relaxed);
+    else if (!g_currentVSObj) g_vsObjZero.fetch_add(1, std::memory_order_relaxed);
+    else if (it == g_shaders.end()) g_vsNotReg.fetch_add(1, std::memory_order_relaxed);
+    else g_vsNoEntry.fetch_add(1, std::memory_order_relaxed);
   }
   g_currentVsWindowSpace.store(ws, std::memory_order_relaxed);
+  static std::atomic<uint64_t> s_n{0};
+  if ((s_n.fetch_add(1, std::memory_order_relaxed) % 4000) == 0)
+    REXGPU_INFO(
+        "[shaderres] VS ok={} objZero={} notReg={} noEntry={} | cache hit={} miss={} created={} failed={}",
+        g_vsOk.exchange(0), g_vsObjZero.exchange(0), g_vsNotReg.exchange(0), g_vsNoEntry.exchange(0),
+        g_hit.load(), g_miss.load(), g_created.load(), g_failed.load());
 }
 
 }
@@ -376,6 +387,37 @@ void RegisterShader(uint8_t* base, uint32_t pFunction, uint32_t objVA, bool isVS
   std::lock_guard lock(g_shadersMutex);
   g_shaders[objVA].entry = entry;
   g_shaders[objVA].isVS = isVS;
+}
+
+void DiagStreamShader(uint8_t* base, uint32_t streamPos, uint32_t objVA, bool isVS) {
+  if (objVA < 0x1000) return;
+  const int wantType = isVS ? 1 : 0;
+  const ShaderCacheEntry* entry = nullptr;
+  for (int off = -0x80; off <= 0x1000; off += 4) {
+    const uint32_t cand = streamPos + off;
+    if (cand < 0x1000) continue;
+    const uint8_t* p = static_cast<const uint8_t*>(gmem::ToHost(base, cand));
+    if (!p || p[0] != 0x10 || p[1] != 0x2A || p[2] != 0x11 || p[3] != wantType) continue;
+    if (gmem::ReadU32(base, cand + 0x1C) != 0 || gmem::ReadU32(base, cand + 0x20) != 0) continue;
+    const uint32_t total = gmem::ReadU32(base, cand + 4) + gmem::ReadU32(base, cand + 8);
+    if (!total || total > 0x100000) continue;
+    entry = FindShaderCacheEntry(XXH3_64bits(gmem::ToHost(base, cand), total));
+    break;
+  }
+  static std::atomic<uint32_t> s_ok{0}, s_fail{0};
+  if (entry) {
+    std::lock_guard lock(g_shadersMutex);
+    auto& gs = g_shaders[objVA];
+    gs.entry = entry;
+    gs.isVS = isVS;
+    gs.reflected = false;
+    s_ok.fetch_add(1, std::memory_order_relaxed);
+  } else {
+    s_fail.fetch_add(1, std::memory_order_relaxed);
+  }
+  static std::atomic<uint64_t> s_log{0};
+  if ((s_log.fetch_add(1, std::memory_order_relaxed) % 512) == 0)
+    REXGPU_INFO("[streamres] stream-shader register ok={} fail={}", s_ok.load(), s_fail.load());
 }
 
 void SetCurrentVertexShaderObject(uint8_t* base, uint32_t device, uint32_t objVA) {
