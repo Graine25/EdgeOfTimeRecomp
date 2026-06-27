@@ -71,6 +71,27 @@ RenderFormat DeclTypeFormat(uint32_t type) {
     case 0x2A23B9: return RenderFormat::R32G32B32_FLOAT;
     case 0x1A23A6: return RenderFormat::R32G32B32A32_FLOAT;
     case 0x182886: return RenderFormat::B8G8R8A8_UNORM;
+    case 0x1A2286:
+    case 0x1A2386: return RenderFormat::R8G8B8A8_UINT;
+    case 0x2C2359: return RenderFormat::R16G16_SINT;
+    case 0x1A235A: return RenderFormat::R16G16B16A16_SNORM;
+    case 0x1A2086:
+    case 0x1A2186: return RenderFormat::R8G8B8A8_UNORM;
+    case 0x2C2159: return RenderFormat::R16G16_SNORM;
+    case 0x1A215A: return RenderFormat::R16G16B16A16_SNORM;
+    case 0x2C2059: return RenderFormat::R16G16_UNORM;
+    case 0x1A205A: return RenderFormat::R16G16B16A16_UNORM;
+    case 0x2C82A1: return RenderFormat::R32_UINT;
+    case 0x2A2287:
+    case 0x1A2287: return RenderFormat::R32_UINT;
+    case 0x2A2187:
+    case 0x2A2190:
+    case 0x2A2390:
+    case 0x1A2187:
+    case 0x1A2190:
+    case 0x1A2390: return RenderFormat::R32_UINT;
+    case 0x2C235F: return RenderFormat::R16G16_FLOAT;
+    case 0x1A2360: return RenderFormat::R16G16B16A16_FLOAT;
     default: return RenderFormat::UNKNOWN;
   }
 }
@@ -92,7 +113,8 @@ inline void CaptureBoundTexture(CapturedDraw& d) {
 std::vector<uint8_t> SnapshotConstants(uint8_t* base, uint32_t va, uint32_t bytes) {
   std::vector<uint8_t> out(bytes);
   for (uint32_t i = 0; i < bytes; i += 4) {
-    const uint32_t word = gmem::ReadU32(base, va + i);
+    uint32_t word = gmem::ReadU32(base, va + i);
+    if ((word & 0x7FFFFFFFu) > 0x7F800000u) word = 0u;
     std::memcpy(&out[i], &word, 4);
   }
   return out;
@@ -111,11 +133,15 @@ void CaptureRealShaderState(CapturedDraw& d, uint8_t* base, uint32_t deviceVA) {
   for (uint32_t s = 0; s < 16; ++s)
     GetBoundTexture(s, d.slots[s].addr, d.slots[s].fetch);
   const uint32_t pDecl = gmem::ReadU32(base, deviceVA + kDeclHandleOffset);
-  if (DeclElementsFor(pDecl, d.decl)) d.declHash = HashDecl(d.decl);
+  if (DeclElementsFor(base, pDecl, d.decl)) d.declHash = HashDecl(d.decl);
 }
 
 std::vector<CapturedDraw> g_frameDraws;
 std::mutex g_drawMutex;
+
+std::atomic<uint32_t> g_dvEnter{0}, g_divEnter{0}, g_bvEnter{0};
+std::atomic<uint32_t> g_divNoIB{0}, g_divNoVB{0}, g_divNoIBAddr{0}, g_divOk{0};
+std::atomic<uint32_t> g_divPrim{0xFFFFFFFF};
 
 void PushCapturedDraw(CapturedDraw&& d) {
   std::lock_guard<std::mutex> lock(g_drawMutex);
@@ -243,6 +269,10 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
     const char* sem = UsageSemantic(e.usage);
     const RenderFormat fmt = DeclTypeFormat(e.type);
     if (!sem || fmt == RenderFormat::UNKNOWN) {
+      static std::atomic<uint32_t> s_pn{0};
+      if (s_pn.fetch_add(1, std::memory_order_relaxed) < 24)
+        REXGPU_INFO("[psores] unmapped decl elem: usage={} type=0x{:06X} (sem={})", e.usage, e.type,
+                    sem ? sem : "?");
       g_realPsoCache[key] = nullptr;
       return nullptr;
     }
@@ -296,6 +326,9 @@ std::vector<uint32_t> BuildIndices(uint32_t prim, uint32_t vc) {
     for (uint32_t i = 0; i < vc; ++i) idx.push_back(i);
   } else if (prim == 5 && vc >= 3) {
     idx.reserve((vc - 2) * 3);
+    for (uint32_t i = 1; i + 1 < vc; ++i) idx.insert(idx.end(), {0u, i, i + 1});
+  } else if (prim == 6 && vc >= 3) {
+    idx.reserve((vc - 2) * 3);
     for (uint32_t i = 0; i + 2 < vc; ++i) {
       if (i & 1)
         idx.insert(idx.end(), {i + 1, i, i + 2});
@@ -314,9 +347,19 @@ std::vector<uint32_t> ExpandIndexed(uint32_t prim, const std::vector<uint32_t>& 
     for (uint32_t i = 0; i + 2 < in.size(); i += 3) { out.push_back(V(in[i])); out.push_back(V(in[i+1])); out.push_back(V(in[i+2])); }
   } else if (prim == 5) {
     out.reserve(in.size() * 3);
-    uint32_t a = 0, b = 0; int n = 0; bool ccw = false;
+    uint32_t center = 0, prev = 0; int n = 0;
     for (uint32_t v : in) {
       if (v == 0xFFFF) { n = 0; continue; }
+      if (n == 0) center = v;
+      else if (n == 1) prev = v;
+      else { out.push_back(V(center)); out.push_back(V(prev)); out.push_back(V(v)); prev = v; }
+      ++n;
+    }
+  } else if (prim == 6) {
+    out.reserve(in.size() * 3);
+    uint32_t a = 0, b = 0; int n = 0; bool ccw = false;
+    for (uint32_t v : in) {
+      if (v == 0xFFFF) { n = 0; ccw = false; continue; }
       if (n >= 2) {
         if (!ccw) { out.push_back(V(a)); out.push_back(V(b)); out.push_back(V(v)); }
         else      { out.push_back(V(b)); out.push_back(V(a)); out.push_back(V(v)); }
@@ -368,6 +411,7 @@ bool GetBoundTexture(uint32_t sampler, uint32_t& addr, TextureFetch& fetch) {
 
 void DrawVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t startVertex,
                   uint32_t vertexCount) {
+  g_dvEnter.fetch_add(1, std::memory_order_relaxed);
   const uint32_t baseAddr = g_s0Base.load(std::memory_order_relaxed) & ~3u;
   const uint32_t off = g_s0Offset.load(std::memory_order_relaxed);
   const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
@@ -401,6 +445,7 @@ void DrawVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t startV
 
 void BeginVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t vertexCount,
                    uint32_t stride, uint32_t ringPtr) {
+  g_bvEnter.fetch_add(1, std::memory_order_relaxed);
   if (ringPtr < 0x1000 || !stride || vertexCount == 0 || vertexCount > 200000) return;
   CapturedDraw d;
   d.immediateVA = ringPtr;
@@ -414,14 +459,20 @@ void BeginVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t verte
 
 void DrawIndexedVertices(uint8_t* base, uint32_t device, uint32_t prim, int32_t baseVertexIndex,
                          uint32_t startIndex, uint32_t indexCount) {
+  g_divEnter.fetch_add(1, std::memory_order_relaxed);
+  if (g_divPrim.load(std::memory_order_relaxed) == 0xFFFFFFFF)
+    g_divPrim.store(prim, std::memory_order_relaxed);
   const uint32_t ib = g_ibObject.load(std::memory_order_relaxed);
   const uint32_t vbBase = g_s0Base.load(std::memory_order_relaxed) & ~3u;
   const uint32_t vbOff = g_s0Offset.load(std::memory_order_relaxed);
   const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
-  if (ib < 0x1000 || !vbBase || !stride || indexCount == 0 || indexCount > 1000000) return;
+  if (ib < 0x1000) { g_divNoIB.fetch_add(1, std::memory_order_relaxed); return; }
+  if (!vbBase || !stride) { g_divNoVB.fetch_add(1, std::memory_order_relaxed); return; }
+  if (indexCount == 0 || indexCount > 1000000) return;
 
   const uint32_t ibAddr = gmem::ReadU32(base, ib + 0x18);
-  if (ibAddr < 0x1000) return;
+  if (ibAddr < 0x1000) { g_divNoIBAddr.fetch_add(1, std::memory_order_relaxed); return; }
+  g_divOk.fetch_add(1, std::memory_order_relaxed);
 
   std::vector<uint32_t> raw(indexCount);
   uint32_t maxIdx = 0;
@@ -483,11 +534,18 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
   }
 
   uint32_t drawn = 0;
+  uint32_t cntReal = 0, cntTex = 0, cntSolid = 0, cntSkip = 0;
+  uint32_t cntNoShader = 0, cntNoDecl = 0, cntPsoNull = 0, cntIndexed = 0, cntWindow = 0;
   for (CapturedDraw& d : draws) {
     std::vector<uint32_t> idx = d.indexed ? std::move(d.indices) : BuildIndices(d.prim, d.vertexCount);
-    if (idx.empty() || d.verts.empty()) continue;
+    if (idx.empty() || d.verts.empty()) { ++cntSkip; continue; }
+    if (d.indexed) ++cntIndexed;
+    if (d.windowSpace) ++cntWindow;
+    if (!d.vs || !d.ps) ++cntNoShader;
+    else if (d.decl.empty()) ++cntNoDecl;
 
     RenderPipeline* realPso = (d.vs && d.ps && !d.decl.empty()) ? GetRealPSO(d) : nullptr;
+    if (d.vs && d.ps && !d.decl.empty() && !realPso) ++cntPsoNull;
 
     if (realPso && d.windowSpace) {
       for (const eot::render::DeclElem& e : d.decl) {
@@ -562,15 +620,18 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       g_frameBuffers.push_back(std::move(vsCb));
       g_frameBuffers.push_back(std::move(psCb));
       g_frameBuffers.push_back(std::move(shCb));
+      ++cntReal;
     } else if (texIndex != 0) {
       cmd->setGraphicsPipelineLayout(TexturedPipelineLayout());
       cmd->setPipeline(GetTexturedPSO(d.stride));
       cmd->setGraphicsDescriptorSet(TextureSet(), 0);
       cmd->setGraphicsDescriptorSet(SamplerSet(), 1);
       cmd->setGraphicsPushConstants(0, &texIndex, 0, sizeof(texIndex));
+      ++cntTex;
     } else {
       cmd->setGraphicsPipelineLayout(g_solidLayout.get());
       cmd->setPipeline(GetPSO(d.stride));
+      ++cntSolid;
     }
     RenderVertexBufferView vbv(vb.get(), static_cast<uint32_t>(d.verts.size()));
     RenderInputSlot slot(0, d.stride);
@@ -584,8 +645,19 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
     ++drawn;
   }
   static uint64_t s_log = 0;
-  if ((s_log++ % 120) == 0)
-    REXGPU_INFO("[draw] replayed {} draws ({} captured)", drawn, draws.size());
+  if ((s_log++ % 120) == 0) {
+    REXGPU_INFO(
+        "[draw] replayed {} ({} captured) | path real={} tex={} solid={} skip={} | "
+        "indexed={} window={} | drop noShader={} noDecl={} psoNull={}",
+        drawn, draws.size(), cntReal, cntTex, cntSolid, cntSkip, cntIndexed, cntWindow,
+        cntNoShader, cntNoDecl, cntPsoNull);
+    REXGPU_INFO(
+        "[draw] ENTRIES DrawVtx={} BeginVtx={} DrawIndexed={} | indexed early-out: "
+        "noIB={} noVB={} noIBAddr={} ok={} firstPrim={}",
+        g_dvEnter.exchange(0), g_bvEnter.exchange(0), g_divEnter.exchange(0),
+        g_divNoIB.exchange(0), g_divNoVB.exchange(0), g_divNoIBAddr.exchange(0),
+        g_divOk.exchange(0), g_divPrim.load());
+  }
 }
 
 static constexpr uint32_t kMovieTexIndex = 8190;
