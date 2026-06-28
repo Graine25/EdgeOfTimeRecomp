@@ -267,6 +267,7 @@ std::mutex g_shadersMutex;
 
 std::atomic<uint64_t> g_hit{0}, g_miss{0}, g_created{0}, g_failed{0};
 std::atomic<uint32_t> g_vsObjZero{0}, g_vsNotReg{0}, g_vsNoEntry{0}, g_vsOk{0};
+std::atomic<uint32_t> g_psObjZero{0}, g_psNotReg{0}, g_psNoEntry{0}, g_psOk{0};
 std::atomic<uint32_t> g_vertexFormatSpecBits{0};
 uint32_t g_currentVSObj = 0, g_currentPSObj = 0;
 RenderShader* g_currentVS = nullptr;
@@ -352,14 +353,19 @@ void ResolveCurrent(uint8_t* base, uint32_t deviceVA) {
     else if (!g_currentVSObj) g_vsObjZero.fetch_add(1, std::memory_order_relaxed);
     else if (it == g_shaders.end()) g_vsNotReg.fetch_add(1, std::memory_order_relaxed);
     else g_vsNoEntry.fetch_add(1, std::memory_order_relaxed);
+    auto pit = g_shaders.find(g_currentPSObj);
+    if (g_currentPS) g_psOk.fetch_add(1, std::memory_order_relaxed);
+    else if (!g_currentPSObj) g_psObjZero.fetch_add(1, std::memory_order_relaxed);
+    else if (pit == g_shaders.end()) g_psNotReg.fetch_add(1, std::memory_order_relaxed);
+    else g_psNoEntry.fetch_add(1, std::memory_order_relaxed);
   }
   g_currentVsWindowSpace.store(ws, std::memory_order_relaxed);
   static std::atomic<uint64_t> s_n{0};
   if ((s_n.fetch_add(1, std::memory_order_relaxed) % 4000) == 0)
     REXGPU_INFO(
-        "[shaderres] VS ok={} objZero={} notReg={} noEntry={} | cache hit={} miss={} created={} failed={}",
-        g_vsOk.exchange(0), g_vsObjZero.exchange(0), g_vsNotReg.exchange(0), g_vsNoEntry.exchange(0),
-        g_hit.load(), g_miss.load(), g_created.load(), g_failed.load());
+        "[shaderres] VS ok={} notReg={} | PS ok={} objZero={} notReg={} noEntry={} | cache hit={} miss={} created={}",
+        g_vsOk.exchange(0), g_vsNotReg.exchange(0), g_psOk.exchange(0), g_psObjZero.exchange(0),
+        g_psNotReg.exchange(0), g_psNoEntry.exchange(0), g_hit.load(), g_miss.load(), g_created.load());
 }
 
 }

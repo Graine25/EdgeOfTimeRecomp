@@ -267,7 +267,13 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
   elems.reserve(d.decl.size());
   for (const eot::render::DeclElem& e : d.decl) {
     const char* sem = UsageSemantic(e.usage);
-    const RenderFormat fmt = DeclTypeFormat(e.type);
+    RenderFormat fmt = DeclTypeFormat(e.type);
+    if ((e.usage == 3 || e.usage == 6 || e.usage == 7) && e.type == 0x2A23B9)
+      fmt = RenderFormat::R32G32B32_UINT;
+    else if (e.usage == 5 && e.type == 0x2C2359)
+      fmt = RenderFormat::R16G16_UINT;
+    else if (e.usage == 5 && e.type == 0x1A235A)
+      fmt = RenderFormat::R16G16B16A16_UINT;
     if (!sem || fmt == RenderFormat::UNKNOWN) {
       static std::atomic<uint32_t> s_pn{0};
       if (s_pn.fetch_add(1, std::memory_order_relaxed) < 24)
@@ -534,7 +540,7 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
   }
 
   uint32_t drawn = 0;
-  uint32_t cntReal = 0, cntTex = 0, cntSolid = 0, cntSkip = 0;
+  uint32_t cntReal = 0, cntTex = 0, cntSolid = 0, cntSkip = 0, cntSkipNoWvp = 0;
   uint32_t cntNoShader = 0, cntNoDecl = 0, cntPsoNull = 0, cntIndexed = 0, cntWindow = 0;
   for (CapturedDraw& d : draws) {
     std::vector<uint32_t> idx = d.indexed ? std::move(d.indices) : BuildIndices(d.prim, d.vertexCount);
@@ -546,6 +552,8 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
 
     RenderPipeline* realPso = (d.vs && d.ps && !d.decl.empty()) ? GetRealPSO(d) : nullptr;
     if (d.vs && d.ps && !d.decl.empty() && !realPso) ++cntPsoNull;
+
+    if (d.indexed && !realPso) { ++cntSkipNoWvp; continue; }
 
     if (realPso && d.windowSpace) {
       for (const eot::render::DeclElem& e : d.decl) {
@@ -601,6 +609,38 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       WriteF32LE(shared, 356, 1.0f / static_cast<float>(w));   // g_HalfPixelOffset.x (c22.y)
       WriteF32LE(shared, 360, -1.0f / static_cast<float>(h));  // g_HalfPixelOffset.y
       WriteF32LE(shared, 364, d.alphaThreshold);               // g_AlphaThreshold (c22.w)
+      {
+        auto bswap = [](uint32_t t) {
+          switch (t) {
+            case 0x2C2359: case 0x1A235A: case 0x2C2159: case 0x1A215A:
+            case 0x2C2059: case 0x1A205A: case 0x2C235F: case 0x1A2360: return true;
+            default: return false;
+          }
+        };
+        uint32_t swPos = 0, swTex = 0, swNrm = 0, swTan = 0, swBin = 0, swBw = 0, sintTex = 0;
+        for (const eot::render::DeclElem& e : d.decl) {
+          const uint32_t bit = 1u << (e.usageIndex & 31);
+          const bool bs = bswap(e.type);
+          switch (e.usage) {
+            case 0: if (bs) swPos |= bit; break;
+            case 1: if (bs) swBw  |= bit; break;
+            case 3: if (bs) swNrm |= bit; break;
+            case 5:
+              if (bs) swTex |= bit;
+              if (e.type == 0x2C2359 || e.type == 0x1A235A) sintTex |= bit;
+              break;
+            case 6: if (bs) swTan |= bit; break;
+            case 7: if (bs) swBin |= bit; break;
+          }
+        }
+        WriteU32LE(shared, 352, swTex);
+        WriteU32LE(shared, 368, swNrm);
+        WriteU32LE(shared, 372, swBin);
+        WriteU32LE(shared, 376, swTan);
+        WriteU32LE(shared, 380, swBw);
+        WriteU32LE(shared, 384, swPos);
+        WriteU32LE(shared, 388, sintTex);
+      }
       std::unique_ptr<RenderBuffer> shCb =
           dev->createBuffer(RenderBufferDesc::UploadBuffer(kSharedBytes, RenderBufferFlag::CONSTANT));
       if (void* p = shCb->map()) { std::memcpy(p, shared, kSharedBytes); shCb->unmap(); }
@@ -648,9 +688,9 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
   if ((s_log++ % 120) == 0) {
     REXGPU_INFO(
         "[draw] replayed {} ({} captured) | path real={} tex={} solid={} skip={} | "
-        "indexed={} window={} | drop noShader={} noDecl={} psoNull={}",
+        "indexed={} window={} | drop noShader={} noDecl={} psoNull={} skipNoWvp={}",
         drawn, draws.size(), cntReal, cntTex, cntSolid, cntSkip, cntIndexed, cntWindow,
-        cntNoShader, cntNoDecl, cntPsoNull);
+        cntNoShader, cntNoDecl, cntPsoNull, cntSkipNoWvp);
     REXGPU_INFO(
         "[draw] ENTRIES DrawVtx={} BeginVtx={} DrawIndexed={} | indexed early-out: "
         "noIB={} noVB={} noIBAddr={} ok={} firstPrim={}",
