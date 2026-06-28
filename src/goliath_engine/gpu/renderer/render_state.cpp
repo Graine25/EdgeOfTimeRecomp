@@ -140,7 +140,7 @@ std::vector<CapturedDraw> g_frameDraws;
 std::mutex g_drawMutex;
 
 std::atomic<uint32_t> g_dvEnter{0}, g_divEnter{0}, g_bvEnter{0};
-std::atomic<uint32_t> g_divNoIB{0}, g_divNoVB{0}, g_divNoIBAddr{0}, g_divOk{0};
+std::atomic<uint32_t> g_divNoIB{0}, g_divNoVB{0}, g_divNoIBAddr{0}, g_divOk{0}, g_divOk32{0};
 std::atomic<uint32_t> g_divPrim{0xFFFFFFFF};
 
 void PushCapturedDraw(CapturedDraw&& d) {
@@ -355,7 +355,7 @@ std::vector<uint32_t> ExpandIndexed(uint32_t prim, const std::vector<uint32_t>& 
     out.reserve(in.size() * 3);
     uint32_t center = 0, prev = 0; int n = 0;
     for (uint32_t v : in) {
-      if (v == 0xFFFF) { n = 0; continue; }
+      if (v == 0xFFFF || v == 0xFFFFFFFF) { n = 0; continue; }
       if (n == 0) center = v;
       else if (n == 1) prev = v;
       else { out.push_back(V(center)); out.push_back(V(prev)); out.push_back(V(v)); prev = v; }
@@ -365,7 +365,7 @@ std::vector<uint32_t> ExpandIndexed(uint32_t prim, const std::vector<uint32_t>& 
     out.reserve(in.size() * 3);
     uint32_t a = 0, b = 0; int n = 0; bool ccw = false;
     for (uint32_t v : in) {
-      if (v == 0xFFFF) { n = 0; ccw = false; continue; }
+      if (v == 0xFFFF || v == 0xFFFFFFFF) { n = 0; ccw = false; continue; }
       if (n >= 2) {
         if (!ccw) { out.push_back(V(a)); out.push_back(V(b)); out.push_back(V(v)); }
         else      { out.push_back(V(b)); out.push_back(V(a)); out.push_back(V(v)); }
@@ -480,12 +480,16 @@ void DrawIndexedVertices(uint8_t* base, uint32_t device, uint32_t prim, int32_t 
   if (ibAddr < 0x1000) { g_divNoIBAddr.fetch_add(1, std::memory_order_relaxed); return; }
   g_divOk.fetch_add(1, std::memory_order_relaxed);
 
+  const bool idx32 = (gmem::ReadU32(base, ib) & 0x80000000u) != 0;
+  if (idx32) g_divOk32.fetch_add(1, std::memory_order_relaxed);
   std::vector<uint32_t> raw(indexCount);
   uint32_t maxIdx = 0;
   for (uint32_t i = 0; i < indexCount; ++i) {
-    const uint16_t v = gmem::ReadU16(base, ibAddr + (startIndex + i) * 2);
+    const uint32_t v = idx32 ? gmem::ReadU32(base, ibAddr + (startIndex + i) * 4)
+                             : gmem::ReadU16(base, ibAddr + (startIndex + i) * 2);
     raw[i] = v;
-    if (v != 0xFFFF && v > maxIdx) maxIdx = v;
+    const uint32_t restart = idx32 ? 0xFFFFFFFFu : 0xFFFFu;
+    if (v != restart && v > maxIdx) maxIdx = v;
   }
   std::vector<uint32_t> tris = ExpandIndexed(prim, raw, baseVertexIndex);
   if (tris.empty()) return;
@@ -693,10 +697,10 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
         cntNoShader, cntNoDecl, cntPsoNull, cntSkipNoWvp);
     REXGPU_INFO(
         "[draw] ENTRIES DrawVtx={} BeginVtx={} DrawIndexed={} | indexed early-out: "
-        "noIB={} noVB={} noIBAddr={} ok={} firstPrim={}",
+        "noIB={} noVB={} noIBAddr={} ok={} ok32={} firstPrim={}",
         g_dvEnter.exchange(0), g_bvEnter.exchange(0), g_divEnter.exchange(0),
         g_divNoIB.exchange(0), g_divNoVB.exchange(0), g_divNoIBAddr.exchange(0),
-        g_divOk.exchange(0), g_divPrim.load());
+        g_divOk.exchange(0), g_divOk32.exchange(0), g_divPrim.load());
   }
 }
 
