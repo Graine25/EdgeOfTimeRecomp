@@ -2550,6 +2550,17 @@ strcpy_s           = 0x8233E498
 0x82237690 = { name = "D3DSurface_LockRect" }           # j_Lock2DSurface stub
 0x82237ad0 = { name = "D3DLineTexture_LockRect" }       # Lock2DSurface variant
 
+# Resolve / present
+0x82227f68 = { name = "D3DDevice_Resolve" }
+0x8210ace0 = { name = "GfxResolveToTexture" }
+0x822294d0 = { name = "D3D_ClearF_Subdivide" }
+0x82229278 = { name = "D3D_ClearRect" }
+0x82228fc0 = { name = "D3D_ClearRects" }
+0x822980d8 = { name = "XGSetSurfaceHeader" }
+0x82298530 = { name = "XGOffsetSurfaceAddress" }
+0x82120458 = { name = "GfxDevice_Flip" }
+0x8210bd30 = { name = "GfxCreateMainTargets" }
+
 # Sampler states
 0x8222c1d8 = { name = "D3DDevice_SetSamplerState_MinFilter" }
 0x8222c2d8 = { name = "D3DDevice_SetSamplerState_MinFilterZ" }
