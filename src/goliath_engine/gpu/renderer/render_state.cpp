@@ -26,6 +26,7 @@ using namespace plume;
 namespace {
 
 std::atomic<uint32_t> g_s0Base{0}, g_s0Offset{0}, g_s0Stride{0};
+std::atomic<uint32_t> g_exBase[3], g_exOff[3], g_exStride[3];
 std::atomic<uint32_t> g_ibObject{0};
 
 struct BoundTex {
@@ -53,6 +54,8 @@ struct CapturedDraw {
   float alphaThreshold = 0.0f;
   bool windowSpace = false;
   struct Slot { uint32_t addr = 0; eot::render::TextureFetch fetch; } slots[16];
+  std::vector<uint8_t> exVerts[3];
+  uint32_t exStride[3] = {0, 0, 0};
 };
 
 const char* UsageSemantic(uint8_t usage) {
@@ -99,7 +102,8 @@ RenderFormat DeclTypeFormat(uint32_t type) {
 uint32_t HashDecl(const std::vector<eot::render::DeclElem>& d) {
   uint32_t h = 2166136261u;
   for (const auto& e : d) {
-    for (uint32_t v : {uint32_t(e.usage), uint32_t(e.usageIndex), e.type, uint32_t(e.offset)}) {
+    for (uint32_t v :
+         {uint32_t(e.usage), uint32_t(e.usageIndex), e.type, uint32_t(e.offset), uint32_t(e.stream)}) {
       h = (h ^ v) * 16777619u;
     }
   }
@@ -282,14 +286,21 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
       g_realPsoCache[key] = nullptr;
       return nullptr;
     }
-    elems.emplace_back(sem, e.usageIndex, static_cast<uint32_t>(elems.size()), fmt, 0, e.offset);
+    elems.emplace_back(sem, e.usageIndex, static_cast<uint32_t>(elems.size()), fmt,
+                       static_cast<uint32_t>(e.stream & 3), e.offset);
   }
   if (elems.empty()) {
     g_realPsoCache[key] = nullptr;
     return nullptr;
   }
 
-  RenderInputSlot slot(0, d.stride);
+  std::vector<RenderInputSlot> slots;
+  uint32_t smask = 0;
+  for (const eot::render::DeclElem& e : d.decl) smask |= 1u << (e.stream & 3);
+  if (smask & 1u) slots.emplace_back(0u, d.stride);
+  for (uint32_t s = 1; s < 4; ++s)
+    if (smask & (1u << s)) slots.emplace_back(s, d.exStride[s - 1] ? d.exStride[s - 1] : 4u);
+  if (slots.empty()) slots.emplace_back(0u, d.stride);
   RenderGraphicsPipelineDesc desc;
   desc.pipelineLayout = eot::render::GameLayout();
   desc.vertexShader = d.vs;
@@ -307,8 +318,8 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
   desc.cullMode = RenderCullMode::NONE;
   desc.inputElements = elems.data();
   desc.inputElementsCount = static_cast<uint32_t>(elems.size());
-  desc.inputSlots = &slot;
-  desc.inputSlotsCount = 1;
+  desc.inputSlots = slots.data();
+  desc.inputSlotsCount = static_cast<uint32_t>(slots.size());
   std::unique_ptr<RenderPipeline> pso = dev->createGraphicsPipeline(desc);
   RenderPipeline* p = pso.get();
   g_realPsoCache[key] = std::move(pso);
@@ -388,11 +399,17 @@ namespace eot::render {
 
 void SetStreamSource(uint8_t* base, uint32_t stream, uint32_t vbObject, uint32_t offset,
                      uint32_t stride) {
-  if (stream != 0) return;
-  const uint32_t base0 = (vbObject >= 0x1000) ? gmem::ReadU32(base, vbObject + 0x18) : 0;
-  g_s0Base.store(base0, std::memory_order_relaxed);
-  g_s0Offset.store(offset, std::memory_order_relaxed);
-  g_s0Stride.store(stride, std::memory_order_relaxed);
+  if (stream > 3) return;
+  const uint32_t b = (vbObject >= 0x1000) ? gmem::ReadU32(base, vbObject + 0x18) : 0;
+  if (stream == 0) {
+    g_s0Base.store(b, std::memory_order_relaxed);
+    g_s0Offset.store(offset, std::memory_order_relaxed);
+    g_s0Stride.store(stride, std::memory_order_relaxed);
+  } else {
+    g_exBase[stream - 1].store(b, std::memory_order_relaxed);
+    g_exOff[stream - 1].store(offset, std::memory_order_relaxed);
+    g_exStride[stream - 1].store(stride, std::memory_order_relaxed);
+  }
 }
 
 void SetIndices(uint32_t ibObject) {
@@ -511,6 +528,24 @@ void DrawIndexedVertices(uint8_t* base, uint32_t device, uint32_t prim, int32_t 
   for (uint32_t i = 0; i < bytes; i += 4) {
     const uint32_t word = gmem::ReadU32(base, startVA + i);
     std::memcpy(&d.verts[i], &word, 4);
+  }
+  for (uint32_t s = 0; s < 3; ++s) {
+    const uint32_t eb = g_exBase[s].load(std::memory_order_relaxed) & ~3u;
+    const uint32_t es = g_exStride[s].load(std::memory_order_relaxed);
+    if (!eb || !es) continue;
+    bool used = false;
+    for (const eot::render::DeclElem& e : d.decl)
+      if (e.stream == s + 1) { used = true; break; }
+    if (!used) continue;
+    const uint32_t exVA = eb + g_exOff[s].load(std::memory_order_relaxed);
+    const uint32_t exBytes = vertCount * es;
+    if (exBytes > 32u * 1024 * 1024) continue;
+    d.exStride[s] = es;
+    d.exVerts[s].resize(exBytes);
+    for (uint32_t i = 0; i < exBytes; i += 4) {
+      const uint32_t word = gmem::ReadU32(base, exVA + i);
+      std::memcpy(&d.exVerts[s][i], &word, 4);
+    }
   }
   PushCapturedDraw(std::move(d));
 }
@@ -677,9 +712,22 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       cmd->setPipeline(GetPSO(d.stride));
       ++cntSolid;
     }
-    RenderVertexBufferView vbv(vb.get(), static_cast<uint32_t>(d.verts.size()));
-    RenderInputSlot slot(0, d.stride);
-    cmd->setVertexBuffers(0, &vbv, 1, &slot);
+    std::vector<RenderVertexBufferView> vbvs;
+    std::vector<RenderInputSlot> vslots;
+    vbvs.emplace_back(vb.get(), static_cast<uint32_t>(d.verts.size()));
+    vslots.emplace_back(0u, d.stride);
+    if (realPso) {
+      for (uint32_t s = 0; s < 3; ++s) {
+        if (d.exVerts[s].empty()) continue;
+        std::unique_ptr<RenderBuffer> exvb = dev->createBuffer(
+            RenderBufferDesc::VertexBuffer(d.exVerts[s].size(), RenderHeapType::UPLOAD));
+        if (void* p = exvb->map()) { std::memcpy(p, d.exVerts[s].data(), d.exVerts[s].size()); exvb->unmap(); }
+        vbvs.emplace_back(exvb.get(), static_cast<uint32_t>(d.exVerts[s].size()));
+        vslots.emplace_back(s + 1, d.exStride[s]);
+        g_frameBuffers.push_back(std::move(exvb));
+      }
+    }
+    cmd->setVertexBuffers(0, vbvs.data(), static_cast<uint32_t>(vbvs.size()), vslots.data());
     RenderIndexBufferView ibv(ib.get(), static_cast<uint32_t>(ibBytes), RenderFormat::R32_UINT);
     cmd->setIndexBuffer(&ibv);
     cmd->drawIndexedInstanced(static_cast<uint32_t>(idx.size()), 1, 0, 0, 0);
