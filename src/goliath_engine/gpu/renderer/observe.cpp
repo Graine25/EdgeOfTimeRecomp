@@ -22,8 +22,6 @@ uint64_t take(std::atomic<uint64_t>& c) { return c.exchange(0, std::memory_order
   }
 
 OBSERVE(Direct3D_CreateDevice, createDevice)
-OBSERVE(D3DDevice_SetRenderTarget, setRenderTarget)
-OBSERVE(D3DDevice_SetDepthStencilSurface, setDepthStencil)
 OBSERVE(D3DDevice_SetViewport, setViewport)
 OBSERVE(D3DDevice_SetVertexShaderConstantFN, setVSConst)
 OBSERVE(D3DDevice_SetPixelShaderConstantFN, setPSConst)
