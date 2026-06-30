@@ -56,6 +56,10 @@ struct CapturedDraw {
   struct Slot { uint32_t addr = 0; eot::render::TextureFetch fetch; } slots[16];
   std::vector<uint8_t> exVerts[3];
   uint32_t exStride[3] = {0, 0, 0};
+
+  uint32_t vsLoop[16] = {};
+  uint32_t vsBool[4] = {};    // device+0x2780 VertexShaderB
+  uint32_t psBool[4] = {};    // device+0x2790 PixelShaderB
 };
 
 const char* UsageSemantic(uint8_t usage) {
@@ -138,6 +142,10 @@ void CaptureRealShaderState(CapturedDraw& d, uint8_t* base, uint32_t deviceVA) {
     GetBoundTexture(s, d.slots[s].addr, d.slots[s].fetch);
   const uint32_t pDecl = gmem::ReadU32(base, deviceVA + kDeclHandleOffset);
   if (DeclElementsFor(base, pDecl, d.decl)) d.declHash = HashDecl(d.decl);
+
+  for (uint32_t i = 0; i < 4; ++i) d.vsBool[i] = gmem::ReadU32(base, deviceVA + 0x2780 + i * 4);
+  for (uint32_t i = 0; i < 4; ++i) d.psBool[i] = gmem::ReadU32(base, deviceVA + 0x2790 + i * 4);
+  for (uint32_t i = 0; i < 16; ++i) d.vsLoop[i] = gmem::ReadU32(base, deviceVA + 0x27A0 + i * 4);
 }
 
 std::vector<CapturedDraw> g_frameDraws;
@@ -679,6 +687,14 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
         WriteU32LE(shared, 380, swBw);
         WriteU32LE(shared, 384, swPos);
         WriteU32LE(shared, 388, sintTex);
+      }
+      for (uint32_t i = 0; i < 4; ++i) WriteU32LE(shared, 320 + i * 4, d.vsBool[i]);
+      for (uint32_t i = 0; i < 4; ++i) WriteU32LE(shared, 336 + i * 4, d.psBool[i]);
+      for (uint32_t r = 0; r < 16; ++r) {
+        const uint32_t v = d.vsLoop[r];
+        WriteU32LE(shared, 400 + r * 16 + 0, v & 0xFFFu);
+        WriteU32LE(shared, 400 + r * 16 + 4, (v >> 12) & 0xFFFu);
+        WriteU32LE(shared, 400 + r * 16 + 8, (v >> 24) & 0xFFu);
       }
       std::unique_ptr<RenderBuffer> shCb =
           dev->createBuffer(RenderBufferDesc::UploadBuffer(kSharedBytes, RenderBufferFlag::CONSTANT));
