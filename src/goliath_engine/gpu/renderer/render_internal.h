@@ -41,6 +41,7 @@ void SetCurrentPixelShaderObject(uint8_t* base, uint32_t device, uint32_t objVA)
 void ResolveShadersForDraw(uint8_t* base, uint32_t deviceVA);
 plume::RenderShader* CurrentVertexShader();
 plume::RenderShader* CurrentPixelShader();
+const uint32_t* CurrentVsFetchLayout(uint32_t& count);
 bool CurrentVsIsWindowSpace();
 void SetVertexFormatSpecBits(uint32_t bits);
 

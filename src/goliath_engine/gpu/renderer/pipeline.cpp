@@ -273,6 +273,43 @@ uint32_t g_currentVSObj = 0, g_currentPSObj = 0;
 RenderShader* g_currentVS = nullptr;
 RenderShader* g_currentPS = nullptr;
 std::atomic<bool> g_currentVsWindowSpace{false};
+std::vector<uint32_t> g_currentVsLayoutData;
+
+bool DecodeVsFetchLayout(uint8_t* base, uint32_t objVA, const ShaderCacheEntry* e,
+                         std::vector<uint32_t>& out) {
+  out.clear();
+  if (!e || !e->vertex_layout_count || objVA < 0x1000) return false;
+  const uint32_t micro = gmem::ReadU32(base, objVA + 0x20);
+  if (micro < 0x1000) return false;
+  const uint32_t codeVA = micro + e->vfetch_code_offset;
+  out.reserve(e->vertex_layout_count * 2);
+  for (uint32_t i = 0; i < e->vertex_layout_count; ++i) {
+    const uint32_t w0 = g_shaderVertexLayouts[e->vertex_layout_offset + i * 2 + 0];
+    const uint32_t w1 = g_shaderVertexLayouts[e->vertex_layout_offset + i * 2 + 1];
+    const uint32_t addr = w1 & 0xFFFF, parent = w1 >> 16;
+    const uint32_t d0 = gmem::ReadU32(base, codeVA + addr * 12 + 0);
+    const uint32_t d1 = gmem::ReadU32(base, codeVA + addr * 12 + 4);
+    const uint32_t d2 = gmem::ReadU32(base, codeVA + addr * 12 + 8);
+    if ((d0 & 0x1F) != 0) return false;
+    uint32_t c0 = d0, c2 = d2;
+    if ((d1 >> 30) & 1) {
+      c0 = gmem::ReadU32(base, codeVA + parent * 12 + 0);
+      c2 = gmem::ReadU32(base, codeVA + parent * 12 + 8);
+      if ((c0 & 0x1F) != 0) return false;
+    }
+    const uint32_t slot = ((c0 >> 20) & 0x1F) * 3 + ((c0 >> 25) & 0x3);
+    if (slot < 92 || slot > 95) return false;
+    const uint32_t format = (d1 >> 16) & 0x3F;
+    if (format == 0) return false;
+    const uint32_t numFormat = (d1 >> 13) & 1, formatComp = (d1 >> 12) & 1, signedRf = (d1 >> 14) & 1;
+    const uint32_t offsetWords = (d2 >> 8) & 0x7FFFFF;
+    const uint32_t strideWords = c2 & 0xFF;
+    out.push_back((w0 & 0xFF) | (slot << 8) | (format << 16) | (numFormat << 22) |
+                  (formatComp << 23) | (signedRf << 24));
+    out.push_back((offsetWords & 0xFFFFFF) | (strideWords << 24));
+  }
+  return !out.empty();
+}
 
 std::unique_ptr<RenderShader> CreateVariant(const ShaderCacheEntry* e, bool isVS,
                                             uint32_t maskedSpec) {
@@ -311,12 +348,7 @@ RenderShader* GetVariant(uint32_t objVA, uint32_t specValue) {
   GuestShader& gs = it->second;
   if (gs.isVS && !gs.reflected) {
     gs.reflected = true;
-#ifdef _WIN32
-    EnsureDxilCache();
-    if (g_dxilCache)
-      gs.windowSpace = !Dxc().UsesCbv(g_dxilCache.get() + gs.entry->dxil_offset,
-                                      gs.entry->dxil_size, 0, 4);
-#endif
+    gs.windowSpace = gs.entry->uses_float_constants == 0;
   }
   const uint32_t key = specValue & gs.entry->spec_constants_mask;
   auto vit = gs.variants.find(key);
@@ -341,10 +373,23 @@ uint32_t ComputeSpecConstants(uint8_t* base, uint32_t deviceVA) {
 }
 
 void ResolveCurrent(uint8_t* base, uint32_t deviceVA) {
-  const uint32_t spec = ComputeSpecConstants(base, deviceVA);
+  bool ws = false;
+  {
+    std::lock_guard lock(g_shadersMutex);
+    auto it = g_shaders.find(g_currentVSObj);
+    g_currentVsLayoutData.clear();
+    if (it != g_shaders.end() && it->second.entry)
+      DecodeVsFetchLayout(base, g_currentVSObj, it->second.entry, g_currentVsLayoutData);
+  }
+  uint32_t spec = ComputeSpecConstants(base, deviceVA);
+  for (size_t i = 0; i + 1 < g_currentVsLayoutData.size(); i += 2) {
+    const uint32_t w0 = g_currentVsLayoutData[i];
+    const uint32_t usage = w0 & 0xF, fmt = (w0 >> 16) & 0x3F;
+    if ((usage == 3 || usage == 6 || usage == 7) && (fmt == 7 || fmt == 16 || fmt == 17))
+      spec |= kSpecR11G11B10Normal;
+  }
   g_currentVS = GetVariant(g_currentVSObj, spec);
   g_currentPS = GetVariant(g_currentPSObj, spec);
-  bool ws = false;
   {
     std::lock_guard lock(g_shadersMutex);
     auto it = g_shaders.find(g_currentVSObj);
@@ -375,6 +420,11 @@ namespace eot::render {
 RenderShader* CurrentVertexShader() { return g_currentVS; }
 RenderShader* CurrentPixelShader() { return g_currentPS; }
 bool CurrentVsIsWindowSpace() { return g_currentVsWindowSpace.load(std::memory_order_relaxed); }
+
+const uint32_t* CurrentVsFetchLayout(uint32_t& count) {
+  count = static_cast<uint32_t>(g_currentVsLayoutData.size() / 2);
+  return count ? g_currentVsLayoutData.data() : nullptr;
+}
 
 void ResolveShadersForDraw(uint8_t* base, uint32_t deviceVA) { ResolveCurrent(base, deviceVA); }
 

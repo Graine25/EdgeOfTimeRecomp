@@ -10,6 +10,10 @@ inline constexpr uint32_t kPsConstOffset = 0x1780;
 inline constexpr uint32_t kPsConstBytes = 224 * 16;
 inline constexpr uint32_t kSharedBytes = 912;
 inline constexpr uint32_t kDeclHandleOffset = 12216;
+inline constexpr uint32_t kStreamFetchDword0 = 0x778;
+inline constexpr uint32_t kStreamStrideShadow = 0x3250;
+inline constexpr uint32_t kTexFetchConstants = 0x480;
+inline constexpr uint32_t kTexObjShadow = 0x3260;
 inline constexpr uint32_t kColorControlOffset = 0x2934 + 0x8;
 
 inline constexpr float kGameWidth = 1280.0f;
