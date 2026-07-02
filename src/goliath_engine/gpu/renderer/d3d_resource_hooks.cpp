@@ -71,7 +71,9 @@ bool MapXenosFormat(xenos::TextureFormat fmt, RenderFormat& host, Decode& decode
     case xenos::TextureFormat::k_8_A:
     case xenos::TextureFormat::k_8_B:     host = RenderFormat::R8_UNORM; return true;
     case xenos::TextureFormat::k_8_8:     host = RenderFormat::R8G8_UNORM; return true;
-    case xenos::TextureFormat::k_24_8:    host = RenderFormat::R32_FLOAT; decode = Decode::kD24S8; return true;
+    case xenos::TextureFormat::k_16_16_16_16: host = RenderFormat::R16G16B16A16_UNORM; return true;
+    case xenos::TextureFormat::k_24_8:
+    case xenos::TextureFormat::k_24_8_FLOAT: host = RenderFormat::R32_FLOAT; decode = Decode::kD24S8; return true;
     default: return false;
   }
 }
@@ -110,6 +112,10 @@ uint32_t GetOrCreateTextureIndex(RenderCommandList* cmd, uint32_t guestAddr,
   xe::TextureInfo info;
   if (!xe::TextureInfo::Prepare(fc, &info)) return 0;
   if (!info.memory.base_address || !info.memory.base_size) return 0;
+  if (info.memory.base_address >= 0x20000000u ||
+      info.memory.base_size > 0x08000000u ||
+      info.memory.base_address + info.memory.base_size > 0x20000000u)
+    return 0;
 
   const xenos::TextureFormat baseFmt = xe::GetBaseFormat(info.format);
   RenderFormat hostFormat;
@@ -131,8 +137,8 @@ uint32_t GetOrCreateTextureIndex(RenderCommandList* cmd, uint32_t guestAddr,
   const uint32_t visBlocksH = (texelH + srcBlockH - 1) / srcBlockH;
   const uint32_t srcPitchBlocks = info.extent.block_pitch_h;
 
-  const auto* src =
-      static_cast<const uint8_t*>(gmem::GuestAddressToHostMutable(info.memory.base_address));
+  const auto* src = rex::system::kernel_state()->memory()->TranslatePhysical<const uint8_t*>(
+      info.memory.base_address);
   if (!src) return 0;
 
   const uint64_t hash = XXH3_64bits(src, info.memory.base_size);
