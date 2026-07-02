@@ -55,6 +55,8 @@ struct CapturedDraw {
   bool layoutStreamMissing = false;
   float alphaThreshold = 0.0f;
   bool windowSpace = false;
+  uint32_t colorWrite = 0xF;
+  uint32_t rtSurface = 0;
   struct Slot { uint32_t addr = 0; eot::render::TextureFetch fetch; } slots[16];
   std::vector<uint8_t> exVerts[3];
   uint32_t exStride[3] = {0, 0, 0};
@@ -250,6 +252,8 @@ void CaptureRealShaderState(CapturedDraw& d, uint8_t* base, uint32_t deviceVA) {
   if (!d.vs || !d.ps) return;
   d.vsConst = SnapshotConstants(base, deviceVA + kVsConstOffset, kVsConstBytes);
   d.psConst = SnapshotConstants(base, deviceVA + kPsConstOffset, kPsConstBytes);
+  d.colorWrite = gmem::ReadU32(base, deviceVA + kColorWriteShadow);
+  d.rtSurface = gmem::ReadU32(base, deviceVA + kRenderTargetShadow);
   for (uint32_t s = 0; s < 16; ++s) {
     GetBoundTexture(s, d.slots[s].addr, d.slots[s].fetch);
     TextureFetch fc;
@@ -806,12 +810,28 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
     }
   }
 
+  uint32_t primaryRT = 0;
+  {
+    std::unordered_map<uint32_t, uint32_t> allCount;
+    for (const CapturedDraw& d : draws)
+      if (d.rtSurface && !d.windowSpace) ++allCount[d.rtSurface];
+    uint32_t n = 0;
+    for (const auto& kv : allCount)
+      if (kv.second > n) { n = kv.second; primaryRT = kv.first; }
+  }
+
   uint32_t drawn = 0;
   uint32_t cntReal = 0, cntTex = 0, cntSolid = 0, cntSkip = 0, cntSkipNoWvp = 0;
   uint32_t cntNoShader = 0, cntNoDecl = 0, cntPsoNull = 0, cntIndexed = 0, cntWindow = 0;
+  uint32_t cntOffRT = 0;
   for (CapturedDraw& d : draws) {
     std::vector<uint32_t> idx = d.indexed ? std::move(d.indices) : BuildIndices(d.prim, d.vertexCount);
     if (idx.empty() || d.verts.empty()) { ++cntSkip; continue; }
+    if ((d.colorWrite & 0x7u) == 0) { ++cntSkip; continue; }
+    if (!d.windowSpace && d.rtSurface && primaryRT && d.rtSurface != primaryRT) {
+      ++cntOffRT;
+      continue;
+    }
     if (d.indexed) ++cntIndexed;
     if (d.windowSpace) ++cntWindow;
     const bool hasLayoutSrc = !d.vsLayoutData.empty() || !d.decl.empty();
@@ -1002,9 +1022,9 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
   static uint64_t s_log = 0;
   if ((s_log++ % 120) == 0) {
     REXGPU_INFO(
-        "[draw] replayed {} ({} captured) | path real={} tex={} solid={} skip={} | "
+        "[draw] replayed {} ({} captured) | path real={} tex={} solid={} skip={} offRT={} | "
         "indexed={} window={} | drop noShader={} noDecl={} psoNull={} skipNoWvp={}",
-        drawn, draws.size(), cntReal, cntTex, cntSolid, cntSkip, cntIndexed, cntWindow,
+        drawn, draws.size(), cntReal, cntTex, cntSolid, cntSkip, cntOffRT, cntIndexed, cntWindow,
         cntNoShader, cntNoDecl, cntPsoNull, cntSkipNoWvp);
     REXGPU_INFO(
         "[draw] ENTRIES DrawVtx={} BeginVtx={} DrawIndexed={} | indexed early-out: "
