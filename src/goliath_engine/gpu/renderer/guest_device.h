@@ -15,6 +15,8 @@ inline constexpr uint32_t kStreamStrideShadow = 0x3250;
 inline constexpr uint32_t kTexFetchConstants = 0x480;
 inline constexpr uint32_t kTexObjShadow = 0x3260;
 inline constexpr uint32_t kColorControlOffset = 0x2934 + 0x8;
+inline constexpr uint32_t kColorWriteShadow = 0x2FEC;
+inline constexpr uint32_t kRenderTargetShadow = 0x31F8;
 
 inline constexpr float kGameWidth = 1280.0f;
 inline constexpr float kGameHeight = 720.0f;
