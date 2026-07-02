@@ -53,6 +53,7 @@ enum class Decode {
   kNone,
   kCTX1,
   kDXT3A,
+  kD24S8,
 };
 
 bool MapXenosFormat(xenos::TextureFormat fmt, RenderFormat& host, Decode& decode) {
@@ -70,6 +71,7 @@ bool MapXenosFormat(xenos::TextureFormat fmt, RenderFormat& host, Decode& decode
     case xenos::TextureFormat::k_8_A:
     case xenos::TextureFormat::k_8_B:     host = RenderFormat::R8_UNORM; return true;
     case xenos::TextureFormat::k_8_8:     host = RenderFormat::R8G8_UNORM; return true;
+    case xenos::TextureFormat::k_24_8:    host = RenderFormat::R32_FLOAT; decode = Decode::kD24S8; return true;
     default: return false;
   }
 }
@@ -175,6 +177,18 @@ uint32_t GetOrCreateTextureIndex(RenderCommandList* cmd, uint32_t guestAddr,
     for (uint32_t b = 0; b < visBlocksW * visBlocksH; ++b)
       txc::ConvertTexelDXT3AToDXT3(xenos::Endian::kNone, decoded.data() + size_t(b) * 16,
                                    srcLinear.data() + size_t(b) * srcBpb, 16);
+    hostData = decoded.data();
+  } else if (decode == Decode::kD24S8) {
+    hostBpb = 4;
+    hostBlockTexels = 1;
+    hostSrcRowStride = visBlocksW * hostBpb;
+    decoded.resize(size_t(visBlocksW) * visBlocksH * hostBpb);
+    for (uint32_t t = 0; t < visBlocksW * visBlocksH; ++t) {
+      uint32_t v;
+      std::memcpy(&v, srcLinear.data() + size_t(t) * 4, 4);
+      const float depth = static_cast<float>(v >> 8) * (1.0f / 16777215.0f);
+      std::memcpy(decoded.data() + size_t(t) * 4, &depth, 4);
+    }
     hostData = decoded.data();
   } else if (decode == Decode::kCTX1) {
     hostBpb = 2;
