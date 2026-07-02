@@ -51,6 +51,8 @@ struct CapturedDraw {
   std::vector<uint8_t> psConst;  // b1: 3584B, host-endian
   std::vector<eot::render::DeclElem> decl;
   uint32_t declHash = 0;
+  std::vector<uint32_t> vsLayoutData;
+  bool layoutStreamMissing = false;
   float alphaThreshold = 0.0f;
   bool windowSpace = false;
   struct Slot { uint32_t addr = 0; eot::render::TextureFetch fetch; } slots[16];
@@ -103,6 +105,94 @@ RenderFormat DeclTypeFormat(uint32_t type) {
   }
 }
 
+struct FetchElem {
+  uint8_t usage = 0;
+  uint8_t usageIndex = 0;
+  uint8_t stream = 0;
+  uint8_t format = 0;
+  bool isInt = false;
+  bool isSigned = false;
+  uint32_t offset = 0;
+  uint32_t stride = 0;
+};
+
+enum XenosFetchFormat : uint8_t {
+  kFmt_8_8_8_8 = 6,
+  kFmt_2_10_10_10 = 7,
+  kFmt_10_11_11 = 16,
+  kFmt_11_11_10 = 17,
+  kFmt_16_16 = 25,
+  kFmt_16_16_16_16 = 26,
+  kFmt_16_16_FLOAT = 31,
+  kFmt_16_16_16_16_FLOAT = 32,
+  kFmt_32 = 33,
+  kFmt_32_FLOAT = 36,
+  kFmt_32_32_FLOAT = 37,
+  kFmt_32_32_32_32_FLOAT = 38,
+  kFmt_32_32_32_FLOAT = 57,
+};
+
+bool DecodeFetchLayout(const uint32_t* w, uint32_t count, std::vector<FetchElem>& out) {
+  out.clear();
+  out.reserve(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    const uint32_t w0 = w[i * 2 + 0], w1 = w[i * 2 + 1];
+    const uint32_t slot = (w0 >> 8) & 0xFF;
+    if (slot < 92 || slot > 95) return false;
+    FetchElem e;
+    e.usage = w0 & 0xF;
+    e.usageIndex = (w0 >> 4) & 0xF;
+    e.stream = static_cast<uint8_t>(95 - slot);
+    e.format = (w0 >> 16) & 0x3F;
+    e.isInt = ((w0 >> 22) & 1) != 0;
+    e.isSigned = ((w0 >> 23) & 1) != 0;
+    e.offset = (w1 & 0xFFFFFF) * 4;
+    e.stride = (w1 >> 24) * 4;
+    out.push_back(e);
+  }
+  return !out.empty();
+}
+
+RenderFormat HostFormatForFetch(const FetchElem& e) {
+  switch (e.format) {
+    case kFmt_8_8_8_8:
+      if (e.usage == 10) return RenderFormat::B8G8R8A8_UNORM;
+      if (e.isInt) return RenderFormat::R8G8B8A8_UINT;
+      return RenderFormat::R8G8B8A8_UNORM;
+    case kFmt_2_10_10_10:
+    case kFmt_10_11_11:
+    case kFmt_11_11_10: return RenderFormat::R32_UINT;
+    case kFmt_16_16:
+      if (e.usage == 5 && e.isInt) return RenderFormat::R16G16_UINT;
+      if (e.isInt) return RenderFormat::R16G16_SINT;
+      return e.isSigned ? RenderFormat::R16G16_SNORM : RenderFormat::R16G16_UNORM;
+    case kFmt_16_16_16_16:
+      if (e.usage == 5 && e.isInt) return RenderFormat::R16G16B16A16_UINT;
+      return e.isSigned ? RenderFormat::R16G16B16A16_SNORM : RenderFormat::R16G16B16A16_UNORM;
+    case kFmt_16_16_FLOAT: return RenderFormat::R16G16_FLOAT;
+    case kFmt_16_16_16_16_FLOAT: return RenderFormat::R16G16B16A16_FLOAT;
+    case kFmt_32: return RenderFormat::R32_UINT;
+    case kFmt_32_FLOAT: return RenderFormat::R32_FLOAT;
+    case kFmt_32_32_FLOAT: return RenderFormat::R32G32_FLOAT;
+    case kFmt_32_32_32_FLOAT:
+      if (e.usage == 3 || e.usage == 6 || e.usage == 7) return RenderFormat::R32G32B32_UINT;
+      return RenderFormat::R32G32B32_FLOAT;
+    case kFmt_32_32_32_32_FLOAT: return RenderFormat::R32G32B32A32_FLOAT;
+    default: return RenderFormat::UNKNOWN;
+  }
+}
+
+inline bool FetchFormatIs16(uint8_t fmt) {
+  return fmt == kFmt_16_16 || fmt == kFmt_16_16_16_16 || fmt == kFmt_16_16_FLOAT ||
+         fmt == kFmt_16_16_16_16_FLOAT;
+}
+
+uint32_t HashFetchLayout(const uint32_t* w, uint32_t count) {
+  uint32_t h = 2166136261u;
+  for (uint32_t i = 0; i < count * 2; ++i) h = (h ^ w[i]) * 16777619u;
+  return h ^ 0x9E3779B9u;
+}
+
 uint32_t HashDecl(const std::vector<eot::render::DeclElem>& d) {
   uint32_t h = 2166136261u;
   for (const auto& e : d) {
@@ -116,6 +206,28 @@ uint32_t HashDecl(const std::vector<eot::render::DeclElem>& d) {
 
 inline void CaptureBoundTexture(CapturedDraw& d) {
   eot::render::GetBoundTexture(0, d.texAddr, d.texFetch);
+}
+
+inline bool ReadStreamFetch(uint8_t* base, uint32_t device, uint32_t s, uint32_t& addr,
+                            uint32_t& size) {
+  const uint32_t d0 = gmem::ReadU32(base, device + eot::render::kStreamFetchDword0 - s * 8);
+  const uint32_t d1 = gmem::ReadU32(base, device + eot::render::kStreamFetchDword0 + 4 - s * 8);
+  addr = d0 & ~3u;
+  size = d1 & 0x03FFFFFCu;
+  return addr >= 0x1000;
+}
+
+inline uint32_t CopyPhysicalSwapped(uint8_t* dst, uint32_t physAddr, uint32_t bytes) {
+  const uint32_t phys = physAddr & 0x1FFFFFFFu;
+  if (phys + bytes > 0x20000000u) bytes = (0x20000000u > phys) ? (0x20000000u - phys) & ~3u : 0;
+  const uint8_t* src =
+      rex::system::kernel_state()->memory()->TranslatePhysical<const uint8_t*>(physAddr);
+  if (!src) return 0;
+  for (uint32_t i = 0; i < bytes; i += 4) {
+    const uint32_t word = rex::memory::load_and_swap<uint32_t>(src + i);
+    std::memcpy(dst + i, &word, 4);
+  }
+  return bytes;
 }
 
 std::vector<uint8_t> SnapshotConstants(uint8_t* base, uint32_t va, uint32_t bytes) {
@@ -138,10 +250,25 @@ void CaptureRealShaderState(CapturedDraw& d, uint8_t* base, uint32_t deviceVA) {
   if (!d.vs || !d.ps) return;
   d.vsConst = SnapshotConstants(base, deviceVA + kVsConstOffset, kVsConstBytes);
   d.psConst = SnapshotConstants(base, deviceVA + kPsConstOffset, kPsConstBytes);
-  for (uint32_t s = 0; s < 16; ++s)
+  for (uint32_t s = 0; s < 16; ++s) {
     GetBoundTexture(s, d.slots[s].addr, d.slots[s].fetch);
+    TextureFetch fc;
+    for (uint32_t i = 0; i < 6; ++i)
+      fc.dword[i] = gmem::ReadU32(base, deviceVA + kTexFetchConstants + s * 24 + i * 4);
+    if ((fc.dword[0] & 3u) == 2u) {
+      d.slots[s].fetch = fc;
+      const uint32_t objVA = gmem::ReadU32(base, deviceVA + kTexObjShadow + s * 4) & ~3u;
+      d.slots[s].addr = objVA >= 0x1000 ? objVA : (fc.dword[1] ? fc.dword[1] : d.slots[s].addr);
+    }
+  }
+  uint32_t layCount = 0;
+  if (const uint32_t* lay = CurrentVsFetchLayout(layCount)) {
+    d.vsLayoutData.assign(lay, lay + layCount * 2);
+    d.declHash = HashFetchLayout(d.vsLayoutData.data(), layCount);
+  }
   const uint32_t pDecl = gmem::ReadU32(base, deviceVA + kDeclHandleOffset);
-  if (DeclElementsFor(base, pDecl, d.decl)) d.declHash = HashDecl(d.decl);
+  if (DeclElementsFor(base, pDecl, d.decl) && d.vsLayoutData.empty())
+    d.declHash = HashDecl(d.decl);
 
   for (uint32_t i = 0; i < 4; ++i) d.vsBool[i] = gmem::ReadU32(base, deviceVA + 0x2780 + i * 4);
   for (uint32_t i = 0; i < 4; ++i) d.psBool[i] = gmem::ReadU32(base, deviceVA + 0x2790 + i * 4);
@@ -276,26 +403,54 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
   if (!dev) return nullptr;
 
   std::vector<RenderInputElement> elems;
-  elems.reserve(d.decl.size());
-  for (const eot::render::DeclElem& e : d.decl) {
-    const char* sem = UsageSemantic(e.usage);
-    RenderFormat fmt = DeclTypeFormat(e.type);
-    if ((e.usage == 3 || e.usage == 6 || e.usage == 7) && e.type == 0x2A23B9)
-      fmt = RenderFormat::R32G32B32_UINT;
-    else if (e.usage == 5 && e.type == 0x2C2359)
-      fmt = RenderFormat::R16G16_UINT;
-    else if (e.usage == 5 && e.type == 0x1A235A)
-      fmt = RenderFormat::R16G16B16A16_UINT;
-    if (!sem || fmt == RenderFormat::UNKNOWN) {
-      static std::atomic<uint32_t> s_pn{0};
-      if (s_pn.fetch_add(1, std::memory_order_relaxed) < 24)
-        REXGPU_INFO("[psores] unmapped decl elem: usage={} type=0x{:06X} (sem={})", e.usage, e.type,
-                    sem ? sem : "?");
-      g_realPsoCache[key] = nullptr;
-      return nullptr;
+  uint32_t smask = 0;
+
+  std::vector<FetchElem> lay;
+  if (!d.vsLayoutData.empty() &&
+      DecodeFetchLayout(d.vsLayoutData.data(), static_cast<uint32_t>(d.vsLayoutData.size() / 2),
+                        lay)) {
+    elems.reserve(lay.size());
+    for (const FetchElem& e : lay) {
+      const char* sem = UsageSemantic(e.usage);
+      const RenderFormat fmt = HostFormatForFetch(e);
+      if (!sem || fmt == RenderFormat::UNKNOWN) {
+        static std::atomic<uint32_t> s_fn{0};
+        if (s_fn.fetch_add(1, std::memory_order_relaxed) < 24)
+          REXGPU_INFO("[psores] unmapped fetch elem: usage={} fmt={} int={} signed={}", e.usage,
+                      e.format, e.isInt, e.isSigned);
+        elems.clear();
+        break;
+      }
+      elems.emplace_back(sem, e.usageIndex, static_cast<uint32_t>(elems.size()), fmt,
+                         static_cast<uint32_t>(e.stream & 3), e.offset);
+      smask |= 1u << (e.stream & 3);
     }
-    elems.emplace_back(sem, e.usageIndex, static_cast<uint32_t>(elems.size()), fmt,
-                       static_cast<uint32_t>(e.stream & 3), e.offset);
+  }
+
+  if (elems.empty()) {
+    smask = 0;
+    elems.reserve(d.decl.size());
+    for (const eot::render::DeclElem& e : d.decl) {
+      const char* sem = UsageSemantic(e.usage);
+      RenderFormat fmt = DeclTypeFormat(e.type);
+      if ((e.usage == 3 || e.usage == 6 || e.usage == 7) && e.type == 0x2A23B9)
+        fmt = RenderFormat::R32G32B32_UINT;
+      else if (e.usage == 5 && e.type == 0x2C2359)
+        fmt = RenderFormat::R16G16_UINT;
+      else if (e.usage == 5 && e.type == 0x1A235A)
+        fmt = RenderFormat::R16G16B16A16_UINT;
+      if (!sem || fmt == RenderFormat::UNKNOWN) {
+        static std::atomic<uint32_t> s_pn{0};
+        if (s_pn.fetch_add(1, std::memory_order_relaxed) < 24)
+          REXGPU_INFO("[psores] unmapped decl elem: usage={} type=0x{:06X} (sem={})", e.usage, e.type,
+                      sem ? sem : "?");
+        g_realPsoCache[key] = nullptr;
+        return nullptr;
+      }
+      elems.emplace_back(sem, e.usageIndex, static_cast<uint32_t>(elems.size()), fmt,
+                         static_cast<uint32_t>(e.stream & 3), e.offset);
+      smask |= 1u << (e.stream & 3);
+    }
   }
   if (elems.empty()) {
     g_realPsoCache[key] = nullptr;
@@ -303,8 +458,6 @@ RenderPipeline* GetRealPSO(const CapturedDraw& d) {
   }
 
   std::vector<RenderInputSlot> slots;
-  uint32_t smask = 0;
-  for (const eot::render::DeclElem& e : d.decl) smask |= 1u << (e.stream & 3);
   if (smask & 1u) slots.emplace_back(0u, d.stride);
   for (uint32_t s = 1; s < 4; ++s)
     if (smask & (1u << s)) slots.emplace_back(s, d.exStride[s - 1] ? d.exStride[s - 1] : 4u);
@@ -446,9 +599,10 @@ void DrawVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t startV
   const uint32_t baseAddr = g_s0Base.load(std::memory_order_relaxed) & ~3u;
   const uint32_t off = g_s0Offset.load(std::memory_order_relaxed);
   const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
-  if (!baseAddr || !stride || vertexCount == 0 || vertexCount > 200000) return;
-  const uint32_t startVA = baseAddr + off + startVertex * stride;
-  if (startVA < 0x1000) return;
+  if (!stride || vertexCount == 0 || vertexCount > 200000) return;
+  uint32_t s0va = 0, s0sz = 0;
+  if (device >= 0x1000) ReadStreamFetch(base, device, 0, s0va, s0sz);
+  if (!s0va && !baseAddr) return;
   const uint32_t bytes = vertexCount * stride;
 
   CapturedDraw d;
@@ -458,9 +612,15 @@ void DrawVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t startV
   CaptureBoundTexture(d);
   CaptureRealShaderState(d, base, device);
   d.verts.resize(bytes);
-  for (uint32_t i = 0; i < bytes; i += 4) {
-    const uint32_t word = gmem::ReadU32(base, startVA + i);
-    std::memcpy(&d.verts[i], &word, 4);
+  if (s0va) {
+    CopyPhysicalSwapped(d.verts.data(), s0va + startVertex * stride, bytes);
+  } else {
+    const uint32_t startVA = baseAddr + off + startVertex * stride;
+    if (startVA < 0x1000) return;
+    for (uint32_t i = 0; i < bytes; i += 4) {
+      const uint32_t word = gmem::ReadU32(base, startVA + i);
+      std::memcpy(&d.verts[i], &word, 4);
+    }
   }
   static std::atomic<uint64_t> s_n{0};
   uint64_t nn = s_n.fetch_add(1, std::memory_order_relaxed);
@@ -468,8 +628,8 @@ void DrawVertices(uint8_t* base, uint32_t device, uint32_t prim, uint32_t startV
     float x, y;
     std::memcpy(&x, &d.verts[0], 4);
     std::memcpy(&y, &d.verts[4], 4);
-    REXGPU_INFO("[draw] capture prim={} count={} stride={} va=0x{:08X} v0=({:.2f},{:.2f})", prim,
-                vertexCount, stride, startVA, x, y);
+    REXGPU_INFO("[draw] capture prim={} count={} stride={} fetch=0x{:08X} v0=({:.2f},{:.2f})", prim,
+                vertexCount, stride, s0va, x, y);
   }
   PushCapturedDraw(std::move(d));
 }
@@ -498,7 +658,9 @@ void DrawIndexedVertices(uint8_t* base, uint32_t device, uint32_t prim, int32_t 
   const uint32_t vbOff = g_s0Offset.load(std::memory_order_relaxed);
   const uint32_t stride = g_s0Stride.load(std::memory_order_relaxed);
   if (ib < 0x1000) { g_divNoIB.fetch_add(1, std::memory_order_relaxed); return; }
-  if (!vbBase || !stride) { g_divNoVB.fetch_add(1, std::memory_order_relaxed); return; }
+  uint32_t s0chk = 0, s0chkSz = 0;
+  if (device >= 0x1000) ReadStreamFetch(base, device, 0, s0chk, s0chkSz);
+  if ((!vbBase && !s0chk) || !stride) { g_divNoVB.fetch_add(1, std::memory_order_relaxed); return; }
   if (indexCount == 0 || indexCount > 1000000) return;
 
   const uint32_t ibAddr = gmem::ReadU32(base, ib + 0x18);
@@ -521,38 +683,96 @@ void DrawIndexedVertices(uint8_t* base, uint32_t device, uint32_t prim, int32_t 
 
   const uint32_t vertCount = static_cast<uint32_t>(baseVertexIndex) + maxIdx + 1;
   if (vertCount > 2000000) return;
-  const uint32_t bytes = vertCount * stride;
-  const uint32_t startVA = vbBase + vbOff;
 
   CapturedDraw d;
-  d.stride = stride;
   d.vertexCount = vertCount;
   d.prim = prim;
   d.indexed = true;
   d.indices = std::move(tris);
   CaptureBoundTexture(d);
   CaptureRealShaderState(d, base, device);
-  d.verts.resize(bytes);
-  for (uint32_t i = 0; i < bytes; i += 4) {
-    const uint32_t word = gmem::ReadU32(base, startVA + i);
-    std::memcpy(&d.verts[i], &word, 4);
+
+  std::vector<FetchElem> lay;
+  const bool hasLayout =
+      !d.vsLayoutData.empty() &&
+      DecodeFetchLayout(d.vsLayoutData.data(), static_cast<uint32_t>(d.vsLayoutData.size() / 2),
+                        lay);
+  uint32_t streamStride[4] = {stride, 0, 0, 0};
+  bool streamUsed[4] = {!hasLayout, false, false, false};
+  if (hasLayout) {
+    for (const FetchElem& e : lay) {
+      streamUsed[e.stream & 3] = true;
+      if (e.stride) streamStride[e.stream & 3] = e.stride;
+    }
+  } else {
+    for (const eot::render::DeclElem& e : d.decl) streamUsed[e.stream & 3] = true;
+    for (uint32_t s = 1; s < 4; ++s)
+      streamStride[s] = g_exStride[s - 1].load(std::memory_order_relaxed);
   }
-  for (uint32_t s = 0; s < 3; ++s) {
-    const uint32_t eb = g_exBase[s].load(std::memory_order_relaxed) & ~3u;
-    const uint32_t es = g_exStride[s].load(std::memory_order_relaxed);
-    if (!eb || !es) continue;
-    bool used = false;
-    for (const eot::render::DeclElem& e : d.decl)
-      if (e.stream == s + 1) { used = true; break; }
-    if (!used) continue;
-    const uint32_t exVA = eb + g_exOff[s].load(std::memory_order_relaxed);
-    const uint32_t exBytes = vertCount * es;
+
+  uint32_t fetchVA[4] = {0, 0, 0, 0}, fetchSize[4] = {0, 0, 0, 0};
+  for (uint32_t s = 0; s < 4; ++s) ReadStreamFetch(base, device, s, fetchVA[s], fetchSize[s]);
+
+  static std::atomic<uint32_t> s_probe{0};
+  bool skinned = false;
+  for (const FetchElem& e : lay) skinned |= (e.usage == 2);
+  if (hasLayout && skinned && s_probe.fetch_add(1, std::memory_order_relaxed) < 8) {
+    REXGPU_INFO(
+        "[vfetch] skinned draw prim={} idx={} decl=0x{:08X} | api s0=0x{:08X}+{}/{} s1=0x{:08X} | "
+        "fetch s0=0x{:08X}sz{} s1=0x{:08X}sz{}",
+        prim, indexCount, gmem::ReadU32(base, device + eot::render::kDeclHandleOffset), vbBase,
+        vbOff, stride, g_exBase[0].load(), fetchVA[0], fetchSize[0], fetchVA[1], fetchSize[1]);
+    for (const FetchElem& e : lay)
+      REXGPU_INFO("[vfetch]   {}{} stream={} off={} stride={} fmt={} int={} signed={}",
+                  UsageSemantic(e.usage) ? UsageSemantic(e.usage) : "?", e.usageIndex, e.stream,
+                  e.offset, e.stride, e.format, e.isInt, e.isSigned);
+  }
+
+  d.stride = streamStride[0] ? streamStride[0] : stride;
+  if (streamUsed[0] || !hasLayout) {
+    uint32_t bytes = vertCount * d.stride;
+    d.verts.resize(bytes);
+    if (fetchVA[0]) {
+      if (fetchSize[0] && fetchSize[0] < bytes) bytes = fetchSize[0] & ~3u;
+      CopyPhysicalSwapped(d.verts.data(), fetchVA[0], bytes);
+    } else {
+      const uint32_t startVA = vbBase + vbOff;
+      for (uint32_t i = 0; i < bytes; i += 4) {
+        const uint32_t word = gmem::ReadU32(base, startVA + i);
+        std::memcpy(&d.verts[i], &word, 4);
+      }
+    }
+  } else {
+    d.verts.resize(4, 0);
+    d.stride = 4;
+  }
+  for (uint32_t s = 1; s < 4; ++s) {
+    if (!streamUsed[s]) continue;
+    const uint32_t es = streamStride[s];
+    const uint32_t apiVA = (g_exBase[s - 1].load(std::memory_order_relaxed) & ~3u)
+                               ? (g_exBase[s - 1].load(std::memory_order_relaxed) & ~3u) +
+                                     g_exOff[s - 1].load(std::memory_order_relaxed)
+                               : 0;
+    if ((!fetchVA[s] && !apiVA) || !es) {
+      d.layoutStreamMissing = true;
+      static std::atomic<uint32_t> s_miss{0};
+      if (s_miss.fetch_add(1, std::memory_order_relaxed) < 12)
+        REXGPU_INFO("[vfetch] MISSING stream {} (fetch=0x{:08X} api=0x{:08X} stride={}) skinned={}",
+                    s, fetchVA[s], apiVA, es, skinned);
+      continue;
+    }
+    uint32_t exBytes = vertCount * es;
     if (exBytes > 32u * 1024 * 1024) continue;
-    d.exStride[s] = es;
-    d.exVerts[s].resize(exBytes);
-    for (uint32_t i = 0; i < exBytes; i += 4) {
-      const uint32_t word = gmem::ReadU32(base, exVA + i);
-      std::memcpy(&d.exVerts[s][i], &word, 4);
+    d.exStride[s - 1] = es;
+    d.exVerts[s - 1].resize(exBytes);
+    if (fetchVA[s]) {
+      if (fetchSize[s] && fetchSize[s] < exBytes) exBytes = fetchSize[s] & ~3u;
+      CopyPhysicalSwapped(d.exVerts[s - 1].data(), fetchVA[s], exBytes);
+    } else {
+      for (uint32_t i = 0; i < exBytes; i += 4) {
+        const uint32_t word = gmem::ReadU32(base, apiVA + i);
+        std::memcpy(&d.exVerts[s - 1][i], &word, 4);
+      }
     }
   }
   PushCapturedDraw(std::move(d));
@@ -594,18 +814,33 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
     if (idx.empty() || d.verts.empty()) { ++cntSkip; continue; }
     if (d.indexed) ++cntIndexed;
     if (d.windowSpace) ++cntWindow;
+    const bool hasLayoutSrc = !d.vsLayoutData.empty() || !d.decl.empty();
     if (!d.vs || !d.ps) ++cntNoShader;
-    else if (d.decl.empty()) ++cntNoDecl;
+    else if (!hasLayoutSrc) ++cntNoDecl;
 
-    RenderPipeline* realPso = (d.vs && d.ps && !d.decl.empty()) ? GetRealPSO(d) : nullptr;
-    if (d.vs && d.ps && !d.decl.empty() && !realPso) ++cntPsoNull;
+    RenderPipeline* realPso = (d.vs && d.ps && hasLayoutSrc && !d.layoutStreamMissing)
+                                  ? GetRealPSO(d)
+                                  : nullptr;
+    if (d.vs && d.ps && hasLayoutSrc && !realPso) ++cntPsoNull;
 
     if (d.indexed && !realPso) { ++cntSkipNoWvp; continue; }
 
     if (realPso && d.windowSpace) {
-      for (const eot::render::DeclElem& e : d.decl) {
-        if (e.usage != 0) continue;
-        const uint32_t off = e.offset;
+      int32_t posOff = -1;
+      {
+        std::vector<FetchElem> lay;
+        if (!d.vsLayoutData.empty() &&
+            DecodeFetchLayout(d.vsLayoutData.data(),
+                              static_cast<uint32_t>(d.vsLayoutData.size() / 2), lay)) {
+          for (const FetchElem& e : lay)
+            if (e.usage == 0 && e.stream == 0) { posOff = static_cast<int32_t>(e.offset); break; }
+        }
+      }
+      if (posOff < 0)
+        for (const eot::render::DeclElem& e : d.decl)
+          if (e.usage == 0 && e.stream == 0) { posOff = e.offset; break; }
+      if (posOff >= 0) {
+        const uint32_t off = static_cast<uint32_t>(posOff);
         for (size_t v = 0; v + off + 8 <= d.verts.size(); v += d.stride) {
           float px, py;
           std::memcpy(&px, &d.verts[v + off], 4);
@@ -615,7 +850,6 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
           std::memcpy(&d.verts[v + off], &px, 4);
           std::memcpy(&d.verts[v + off + 4], &py, 4);
         }
-        break;
       }
     }
 
@@ -657,28 +891,41 @@ void ReplayCapturedDraws(RenderCommandList* cmd, uint32_t w, uint32_t h) {
       WriteF32LE(shared, 360, -1.0f / static_cast<float>(h));  // g_HalfPixelOffset.y
       WriteF32LE(shared, 364, d.alphaThreshold);               // g_AlphaThreshold (c22.w)
       {
-        auto bswap = [](uint32_t t) {
-          switch (t) {
-            case 0x2C2359: case 0x1A235A: case 0x2C2159: case 0x1A215A:
-            case 0x2C2059: case 0x1A205A: case 0x2C235F: case 0x1A2360: return true;
-            default: return false;
+        uint32_t swPos = 0, swTex = 0, swNrm = 0, swTan = 0, swBin = 0, swBw = 0, sintTex = 0;
+        auto apply = [&](uint32_t usage, uint32_t usageIndex, bool is16, bool isSintTex) {
+          const uint32_t bit = 1u << (usageIndex & 31);
+          switch (usage) {
+            case 0: if (is16) swPos |= bit; break;
+            case 1: if (is16) swBw  |= bit; break;
+            case 3: if (is16) swNrm |= bit; break;
+            case 5:
+              if (is16) swTex |= bit;
+              if (isSintTex) sintTex |= bit;
+              break;
+            case 6: if (is16) swTan |= bit; break;
+            case 7: if (is16) swBin |= bit; break;
           }
         };
-        uint32_t swPos = 0, swTex = 0, swNrm = 0, swTan = 0, swBin = 0, swBw = 0, sintTex = 0;
-        for (const eot::render::DeclElem& e : d.decl) {
-          const uint32_t bit = 1u << (e.usageIndex & 31);
-          const bool bs = bswap(e.type);
-          switch (e.usage) {
-            case 0: if (bs) swPos |= bit; break;
-            case 1: if (bs) swBw  |= bit; break;
-            case 3: if (bs) swNrm |= bit; break;
-            case 5:
-              if (bs) swTex |= bit;
-              if (e.type == 0x2C2359 || e.type == 0x1A235A) sintTex |= bit;
-              break;
-            case 6: if (bs) swTan |= bit; break;
-            case 7: if (bs) swBin |= bit; break;
+        std::vector<FetchElem> lay;
+        if (!d.vsLayoutData.empty() &&
+            DecodeFetchLayout(d.vsLayoutData.data(),
+                              static_cast<uint32_t>(d.vsLayoutData.size() / 2), lay)) {
+          for (const FetchElem& e : lay) {
+            const bool is16 = FetchFormatIs16(e.format);
+            const bool sint = e.isInt && (e.format == kFmt_16_16 || e.format == kFmt_16_16_16_16);
+            apply(e.usage, e.usageIndex, is16, sint);
           }
+        } else {
+          auto bswap = [](uint32_t t) {
+            switch (t) {
+              case 0x2C2359: case 0x1A235A: case 0x2C2159: case 0x1A215A:
+              case 0x2C2059: case 0x1A205A: case 0x2C235F: case 0x1A2360: return true;
+              default: return false;
+            }
+          };
+          for (const eot::render::DeclElem& e : d.decl)
+            apply(e.usage, e.usageIndex, bswap(e.type),
+                  e.type == 0x2C2359 || e.type == 0x1A235A);
         }
         WriteU32LE(shared, 352, swTex);
         WriteU32LE(shared, 368, swNrm);
