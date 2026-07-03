@@ -6,5 +6,6 @@ readback_memexport_fast = false
 execute_unclipped_draw_vs_on_cpu = true
 execute_unclipped_draw_vs_on_cpu_with_scissor = true
 mnk_mode = true
+eot_skip_startup_movies = true
 game_data_root = "C:\Users\rieng\Documents\GitHub\reeot\assets"
 fullscreen = false
