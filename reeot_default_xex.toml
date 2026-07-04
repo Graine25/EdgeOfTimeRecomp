@@ -58,7 +58,7 @@ strcpy_s           = 0x8233E498
 # -------------------------------------------------
 # GLAPI (1104)
 # -------------------------------------------------
-0x82082DB0 = { name = "eot_GLAPIDebug_GLPrint_GLVPrint" }
+0x82082DB0 = { name = "eot_DebugPrint" }
 0x820A5B68 = { name = "eot_GLAPI3dObj_AddChild" }
 0x820A5C18 = { name = "eot_GLAPI3dObj_IsStaticHierarchy" }
 0x820A5D08 = { name = "eot_GLAPI3dObj_BoneGetWorldPos" }
