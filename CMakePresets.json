@@ -1,3 +1,4 @@
+
 {
     "version": 6,
     "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
@@ -37,9 +38,6 @@
             "hidden": true,
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "environment": {
-                "PATH": "/opt/homebrew/opt/llvm/bin:/usr/local/opt/llvm/bin:$penv{PATH}"
-            },
             "cacheVariables": {
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++",
