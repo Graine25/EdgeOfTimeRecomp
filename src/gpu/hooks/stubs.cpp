@@ -9,7 +9,6 @@
  */
 #include "core/hooks.h"
 
-EOT_NOOP(eot_RenderThread_Kick);
 EOT_NOOP(eot_D3D_CDevice_BlockOnFence);
 EOT_NOOP(eot_D3D_CDevice_BlockOnSecondaryPosition);
 EOT_NOOP(eot_D3D_CDevice_WaitPrimaryRingSpace);

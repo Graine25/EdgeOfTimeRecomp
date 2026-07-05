@@ -66,6 +66,8 @@ struct GuestTexture {
       plume::RenderTextureViewDimension::UNKNOWN;
   plume::RenderSampleCounts sampleCount = plume::RenderSampleCount::COUNT_1;
 
+  u32 mappedMemory = 0;
+
   GuestTexture() = default;
   explicit GuestTexture(ResourceType t) : type(t) {}
   GuestTexture(const GuestTexture &) = delete;
@@ -73,5 +75,7 @@ struct GuestTexture {
 };
 
 constexpr u32 kInvalidDescriptorIndex = ~u32{0};
+
+u32 ComputeTexturePitch(const GuestTexture *tex);
 
 }

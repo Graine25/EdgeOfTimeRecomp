@@ -251,6 +251,46 @@ u32 D3DResource_GetType_hook(u32 res_guest) {
   return 0;
 }
 
+u32 eot_D3DTexture_LockRect_hook(u32 texture_guest, u32,
+                                 u32, u32,
+                                 rex::MappedPtr<be_u32> pBits_out,
+                                 rex::MappedPtr<be_u32> pitch_out,
+                                 rex::MappedPtr<be_u32> block_size_out,
+                                 rex::MappedPtr<be_u32> block_offset_out) {
+  if (pBits_out)
+    *pBits_out = 0u;
+  if (pitch_out)
+    *pitch_out = 0u;
+  if (block_size_out)
+    *block_size_out = 0u;
+  if (block_offset_out)
+    *block_offset_out = 0u;
+
+  auto *tex =
+      eot::gpu::HostResourceHeap::FromGuest<eot::gpu::GuestTexture>(
+          texture_guest);
+  if (!tex)
+    return 0;
+  const u32 pitch = eot::gpu::ComputeTexturePitch(tex);
+  if (!pitch || !tex->height)
+    return 0;
+
+  if (!tex->mappedMemory) {
+    auto *memory = REX_KERNEL_MEMORY();
+    tex->mappedMemory = memory->SystemHeapAlloc(pitch * tex->height, 0x10);
+    if (!tex->mappedMemory) {
+      EOT_ERROR("LockRect: scratch alloc failed ({} bytes)",
+                pitch * tex->height);
+      return 0;
+    }
+  }
+  if (pBits_out)
+    *pBits_out = tex->mappedMemory;
+  if (pitch_out)
+    *pitch_out = pitch;
+  return tex->mappedMemory;
+}
+
 u32 D3DTexture_GetSurfaceLevel_hook(u32 texture_guest, u32 level) {
   eot::gpu::ResourceType parent_type;
   if (!eot::gpu::HostResourceHeap::GetType(texture_guest, &parent_type)) {
@@ -296,4 +336,5 @@ REX_HOOK(D3DResource_Release, D3DResource_Release_hook);
 REX_HOOK(D3DResource_AddRef, D3DResource_AddRef_hook);
 REX_HOOK(D3DResource_GetType, D3DResource_GetType_hook);
 REX_HOOK(D3DTexture_GetSurfaceLevel, D3DTexture_GetSurfaceLevel_hook);
+REX_HOOK(eot_D3DTexture_LockRect, eot_D3DTexture_LockRect_hook);
 REX_HOOK(D3D_DestroyResource, D3D_DestroyResource_hook);
