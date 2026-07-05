@@ -39,6 +39,8 @@ set(REEOT_SOURCES
     src/core/threading.h
     src/core/time_util.h
     src/core/windows_lean.h
+
+    src/gpu/hooks/stubs.cpp
 )
 
 if(WIN32)

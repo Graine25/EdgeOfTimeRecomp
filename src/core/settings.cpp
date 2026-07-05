@@ -17,7 +17,7 @@ REXCVAR_DECLARE(i32, eot_shutdown_timeout_ms);
 REXCVAR_DECLARE(std::string, eot_saves_path);
 REXCVAR_DECLARE(std::string, eot_cache_path);
 
-REXCVAR_DEFINE_BOOL(eot_devmode, false, kCvarGroup, "Turn on developer mode");
+REXCVAR_DEFINE_BOOL(eot_devmode, false, kCvarGroup, "Turn on developer mode")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 REXCVAR_DEFINE_BOOL(eot_dbgprint, false, kCvarGroup, "Log guest debug prints");
