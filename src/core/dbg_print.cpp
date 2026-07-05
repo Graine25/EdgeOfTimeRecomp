@@ -22,7 +22,7 @@
 #include <cctype>
 #include <string>
 
-u32 bdDebugPrintHook(mapped_string fmt) {
+u32 eotDebugPrintHook(mapped_string fmt) {
   if (!eot::Settings::Get().DbgPrint())
     return 1;
 
