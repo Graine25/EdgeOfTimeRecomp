@@ -19,7 +19,7 @@ REXCVAR_DECLARE(std::string, eot_cache_path);
 
 REXCVAR_DEFINE_BOOL(eot_devmode, false, kCvarGroup,
                     "Developer mode: debug menu boot, Mindows overlay (F11) "
-                    "and debug keyboard input.");
+                    "and debug keyboard input.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 REXCVAR_DEFINE_BOOL(eot_dbgprint, false, kCvarGroup,
