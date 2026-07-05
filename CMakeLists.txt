@@ -51,6 +51,7 @@ set(REEOT_SOURCES
     src/gpu/guest/d3d.h
     src/gpu/guest/format.cpp
     src/gpu/guest/format.h
+    src/gpu/guest/resources.cpp
     src/gpu/guest/resources.h
     src/gpu/hooks/resource.cpp
     src/gpu/hooks/stubs.cpp

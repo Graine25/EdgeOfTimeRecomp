@@ -70,6 +70,11 @@ plume::RenderFormat ConvertGuestFormat(u32 guest_format) {
     return plume::RenderFormat::R16G16_UNORM;
   case xe::TextureFormat::k_16_16_16_16:
     return plume::RenderFormat::R16G16B16A16_UNORM;
+
+  case xe::TextureFormat::k_16_16_EDRAM:
+    return plume::RenderFormat::R16G16_FLOAT;
+  case xe::TextureFormat::k_16_16_16_16_EDRAM:
+    return plume::RenderFormat::R16G16B16A16_FLOAT;
   case xe::TextureFormat::k_16_FLOAT:
     return plume::RenderFormat::R16_FLOAT;
   case xe::TextureFormat::k_16_16_FLOAT:
