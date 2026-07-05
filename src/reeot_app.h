@@ -1,11 +1,9 @@
-// reeot - ReXGlue Recompiled Project
-//
-// This file is yours to edit. 'rexglue migrate' will NOT overwrite it.
-// Customize your app by overriding virtual hooks from rex::ReXApp.
-
 #pragma once
 
 #include <rex/rex_app.h>
+
+#include "core/logging.h"
+#include "gpu/device/device.h"
 
 class ReeotApp : public rex::ReXApp {
  public:
@@ -17,11 +15,10 @@ class ReeotApp : public rex::ReXApp {
         PPCImageConfig));
   }
 
-  // Override virtual hooks for customization:
-  // void OnPreSetup(rex::RuntimeConfig& config) override {}
-  // void OnLoadXexImage(std::string& xex_image) override {}
-  // void OnPostSetup() override {}
-  // void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {}
-  // void OnShutdown() override {}
-  // void OnConfigurePaths(rex::PathConfig& paths) override {}
+  void OnPostSetup() override {
+    if (!eot::gpu::Video::CreateHostDevice()) {
+      EOT_CRITICAL("Video::CreateHostDevice failed; quitting");
+      app_context().QuitFromUIThread();
+    }
+  }
 };

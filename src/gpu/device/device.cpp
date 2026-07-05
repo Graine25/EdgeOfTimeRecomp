@@ -17,8 +17,8 @@
 #include <rex/runtime.h>
 
 #include "core/logging.h"
+#include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
-#include "platform/native_window.h"
 
 namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
@@ -52,20 +52,11 @@ VideoState &state() {
   return s;
 }
 
-bool Video::CreateHostDevice(rex::ui::Window *window) {
-  if (!window) {
-    EOT_ERROR("Video::CreateHostDevice called with null window");
-    return false;
-  }
+bool Video::CreateHostDevice() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
   if (s.ready) {
     return true;
-  }
-
-  plume::RenderWindow render_window{};
-  if (!eot::platform::GetNativeRenderWindow(window, render_window)) {
-    return false;
   }
 
   s.render_iface = plume::CreateD3D12Interface();
@@ -76,6 +67,11 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   s.device = s.render_iface->createDevice();
   if (!s.device) {
     EOT_ERROR("Plume RenderInterface::createDevice failed");
+    return false;
+  }
+
+  if (!HostHeapArena::Get().Init()) {
+    EOT_ERROR("HostHeapArena init failed");
     return false;
   }
 

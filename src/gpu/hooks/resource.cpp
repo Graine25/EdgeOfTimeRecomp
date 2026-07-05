@@ -3,18 +3,22 @@
  * @brief   Guest hooks that create and refcount D3D texture/surface
  *          resources.
  *
- * Narrow-slice port of re:Blue's gpu/hooks/resource.cpp: only
- * CreateTexture/CreateSurface/Release/AddRef/GetType, the five whose
- * addresses are already confirmed in reeot_default_xex.toml. Buffer
- * creation/lock, LockRect, GetSurfaceLevel/GetDesc and the native-mirror
- * fallback path aren't ported yet - see gpu/device/device.h and
- * gpu/guest/resources.h for what's deliberately missing underneath these.
+ * Narrow-slice port of re:Blue's gpu/hooks/resource.cpp, corrected against
+ * this binary's own IDA database rather than assumed from re:Blue's: only
+ * CreateTexture/CreateSurface/Release/AddRef/GetType/GetSurfaceLevel/
+ * D3D_DestroyResource are here. Buffer creation/lock, LockRect, GetDesc and
+ * the native-mirror fallback path aren't ported yet - see gpu/device/device.h
+ * and gpu/guest/resources.h for what's deliberately missing underneath these.
  *
  * @copyright Copyright (c) 2026 Tom Clay <tomc@tctechstuff.com>
  *            All rights reserved.
  * @license   BSD 3-Clause License
  *            See LICENSE file in the project root for full license text.
  */
+#include <cstring>
+#include <mutex>
+#include <unordered_set>
+
 #include <rex/hook.h>
 #include <rex/runtime.h>
 #include <rex/types.h>
@@ -22,12 +26,46 @@
 #include <plume_render_interface.h>
 
 #include "core/logging.h"
+#include "core/memory_helpers.h"
 #include "gpu/device/device.h"
+#include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/format.h"
 
 namespace {
+
+std::mutex g_surface_level_mutex;
+std::unordered_set<u32> g_surface_levels;
+
+void RegisterSurfaceLevel(u32 va) {
+  std::lock_guard<std::mutex> lk(g_surface_level_mutex);
+  g_surface_levels.insert(va);
+}
+bool IsSurfaceLevel(u32 va) {
+  std::lock_guard<std::mutex> lk(g_surface_level_mutex);
+  return g_surface_levels.count(va) != 0;
+}
+bool TakeSurfaceLevel(u32 va) {
+  std::lock_guard<std::mutex> lk(g_surface_level_mutex);
+  return g_surface_levels.erase(va) != 0;
+}
+
+u32 ReleaseSurfaceLevel(rex::MappedPtr<eot::gpu::D3DResource> res) {
+  const u32 surface_va = res.guest_address();
+  if (!IsSurfaceLevel(surface_va))
+    return 0;
+  const u32 prev = res->ReferenceCount;
+  if (prev == 0)
+    return 0;
+  const u32 next = prev - 1;
+  res->ReferenceCount = next;
+  if (next == 0) {
+    TakeSurfaceLevel(surface_va);
+    eot::gpu::HostHeapArena::Get().FreeGuest(surface_va);
+  }
+  return next;
+}
 
 eot::gpu::GuestTexture *D3DDevice_CreateSurface_hook(u32 width, u32 height,
                                                       u32 format,
@@ -68,7 +106,8 @@ eot::gpu::GuestTexture *D3DDevice_CreateSurface_hook(u32 width, u32 height,
   desc.committed = true;
 
   auto *device = eot::gpu::Video::HostDevice();
-  if (device) {
+  if (plume_format == plume::RenderFormat::UNKNOWN) {
+  } else if (device) {
     surface->textureHolder =
         eot::gpu::CreateHostTexture(device, desc, "rt-surface");
     surface->texture = surface->textureHolder.get();
@@ -96,6 +135,10 @@ D3DDevice_CreateTexture_hook(u32 width, u32 height, u32 depth, u32 levels,
       is_volume ? plume::RenderTextureViewDimension::TEXTURE_3D
       : is_cube ? plume::RenderTextureViewDimension::TEXTURE_CUBE
                 : plume::RenderTextureViewDimension::TEXTURE_2D;
+
+  const plume::RenderFormat plume_format =
+      eot::gpu::ConvertGuestFormat(format);
+
   auto *texture =
       eot::gpu::HostResourceHeap::Alloc<eot::gpu::GuestTexture>(rtype);
   if (!texture) {
@@ -106,8 +149,6 @@ D3DDevice_CreateTexture_hook(u32 width, u32 height, u32 depth, u32 levels,
   eot::gpu::InitResourceHeader(texture->x360.as_texture.resource,
                                eot::gpu::D3DResourceType::kTexture);
 
-  const plume::RenderFormat plume_format =
-      eot::gpu::ConvertGuestFormat(format);
   plume::RenderTextureDesc desc;
   desc.dimension = (rtype == eot::gpu::ResourceType::VolumeTexture)
                        ? plume::RenderTextureDimension::TEXTURE_3D
@@ -138,7 +179,8 @@ D3DDevice_CreateTexture_hook(u32 width, u32 height, u32 depth, u32 levels,
   texture->viewDimension = view_dimension;
 
   auto *device = eot::gpu::Video::HostDevice();
-  if (device) {
+  if (plume_format == plume::RenderFormat::UNKNOWN) {
+  } else if (device) {
     texture->textureHolder =
         eot::gpu::CreateHostTexture(device, desc, "guest-texture");
     texture->texture = texture->textureHolder.get();
@@ -159,7 +201,7 @@ u32 D3DResource_Release_hook(rex::MappedPtr<eot::gpu::D3DResource> res) {
     return 0;
   eot::gpu::ResourceType type;
   if (!eot::gpu::HostResourceHeap::GetType(res.guest_address(), &type)) {
-    return 0;
+    return ReleaseSurfaceLevel(res);
   }
   const u32 prev = res->ReferenceCount;
   if (prev == 0)
@@ -177,7 +219,8 @@ u32 D3DResource_AddRef_hook(rex::MappedPtr<eot::gpu::D3DResource> res) {
     return 0;
   eot::gpu::ResourceType ignored;
   if (!eot::gpu::HostResourceHeap::GetType(res.guest_address(), &ignored)) {
-    return 0;
+    if (!IsSurfaceLevel(res.guest_address()))
+      return 0;
   }
   const u32 next = u32(res->ReferenceCount) + 1;
   res->ReferenceCount = next;
@@ -203,7 +246,46 @@ u32 D3DResource_GetType_hook(u32 res_guest) {
       return 0;
     }
   }
+  if (IsSurfaceLevel(res_guest))
+    return 1; // D3DRTYPE_SURFACE
   return 0;
+}
+
+u32 D3DTexture_GetSurfaceLevel_hook(u32 texture_guest, u32 level) {
+  eot::gpu::ResourceType parent_type;
+  if (!eot::gpu::HostResourceHeap::GetType(texture_guest, &parent_type)) {
+    EOT_ERROR("GetSurfaceLevel: texture 0x{:08X} is not one of ours",
+              texture_guest);
+    return 0;
+  }
+  const u32 surface_guest = eot::gpu::HostHeapArena::Get().AllocGuest(0x30, 0x10);
+  if (!surface_guest)
+    return 0;
+  auto *surf = eot::mem::at<eot::gpu::D3DSurface>(surface_guest);
+  if (!surf)
+    return 0;
+  std::memset(surf, 0, sizeof(*surf));
+  RegisterSurfaceLevel(surface_guest);
+  eot::gpu::InitResourceHeader(surf->resource, eot::gpu::D3DResourceType::kSurface);
+  surf->SurfaceInfo = texture_guest;
+  surf->DepthInfo = level << 28;
+  if (auto *parent = eot::mem::at<eot::gpu::D3DResource>(texture_guest)) {
+    parent->ReferenceCount = u32(parent->ReferenceCount) + 1;
+  }
+  return surface_guest;
+}
+
+void D3D_DestroyResource_hook(rex::MappedPtr<eot::gpu::D3DResource> res) {
+  if (!res)
+    return;
+  eot::gpu::ResourceType type;
+  if (eot::gpu::HostResourceHeap::GetType(res.guest_address(), &type)) {
+    eot::gpu::Video::QueueResourceDestroy(res.guest_address(), type);
+    return;
+  }
+  if (TakeSurfaceLevel(res.guest_address())) {
+    eot::gpu::HostHeapArena::Get().FreeGuest(res.guest_address());
+  }
 }
 
 }
@@ -213,3 +295,5 @@ REX_HOOK(D3DDevice_CreateTexture, D3DDevice_CreateTexture_hook);
 REX_HOOK(D3DResource_Release, D3DResource_Release_hook);
 REX_HOOK(D3DResource_AddRef, D3DResource_AddRef_hook);
 REX_HOOK(D3DResource_GetType, D3DResource_GetType_hook);
+REX_HOOK(D3DTexture_GetSurfaceLevel, D3DTexture_GetSurfaceLevel_hook);
+REX_HOOK(D3D_DestroyResource, D3D_DestroyResource_hook);
