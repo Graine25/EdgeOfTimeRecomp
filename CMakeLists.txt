@@ -12,6 +12,7 @@ set(REEOT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 include(generated/rexglue.cmake)
 include(cmake/build_info.cmake)
+add_subdirectory(thirdparty)
 
 reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
@@ -40,7 +41,22 @@ set(REEOT_SOURCES
     src/core/time_util.h
     src/core/windows_lean.h
 
+    src/gpu/device/device.cpp
+    src/gpu/device/device.h
+    src/gpu/device/host_heap_arena.cpp
+    src/gpu/device/host_heap_arena.h
+    src/gpu/device/host_resource_heap.cpp
+    src/gpu/device/host_resource_heap.h
+    src/gpu/gpu.h
+    src/gpu/guest/d3d.h
+    src/gpu/guest/format.cpp
+    src/gpu/guest/format.h
+    src/gpu/guest/resources.h
+    src/gpu/hooks/resource.cpp
     src/gpu/hooks/stubs.cpp
+
+    src/platform/native_window.cpp
+    src/platform/native_window.h
 )
 
 if(WIN32)
@@ -53,4 +69,7 @@ rexglue_setup_target(reeot GPU_PLUGINS xenos)
 
 target_include_directories(reeot PRIVATE src "${REEOT_GEN_DIR}")
 
-target_link_libraries(reeot PRIVATE rex::ui)
+target_link_libraries(reeot PRIVATE rex::ui o1heap plume)
+if(WIN32)
+    target_link_libraries(reeot PRIVATE d3d12 dxgi)
+endif()

@@ -1,0 +1,4 @@
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(PLUME_SDL_VULKAN_ENABLED ON CACHE BOOL "" FORCE)
+endif()
+add_subdirectory(plume EXCLUDE_FROM_ALL)
