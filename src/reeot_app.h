@@ -6,7 +6,6 @@
 #pragma once
 
 #include <rex/rex_app.h>
-#include "goliath_engine/gpu/renderer/video.h"
 
 class ReeotApp : public rex::ReXApp {
  public:
@@ -19,18 +18,10 @@ class ReeotApp : public rex::ReXApp {
   }
 
   // Override virtual hooks for customization:
-  void OnPreSetup(rex::RuntimeConfig& config) override {
-    config.graphics = nullptr;
-  }
+  // void OnPreSetup(rex::RuntimeConfig& config) override {}
   // void OnLoadXexImage(std::string& xex_image) override {}
   // void OnPostSetup() override {}
   // void OnCreateDialogs(rex::ui::ImGuiDrawer* drawer) override {}
-
-  void OnPreLaunchModule() override {
-    if (auto* w = window()) {
-      Video::Init(w->GetNativeWindowHandle(), 1280, 720);
-    }
-  }
-
-  void OnShutdown() override { Video::Shutdown(); }
+  // void OnShutdown() override {}
+  // void OnConfigurePaths(rex::PathConfig& paths) override {}
 };

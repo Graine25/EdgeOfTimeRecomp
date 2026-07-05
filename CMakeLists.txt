@@ -10,26 +10,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(generated/rexglue.cmake)
 
-add_subdirectory(thirdparty/plume)
-
-set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
-set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
-set(ZSTD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-add_subdirectory(thirdparty/zstd/build/cmake zstd_build)
-
 # Sources
 set(REEOT_SOURCES
     src/main.cpp
-    src/goliath_engine/gpu/headless_stubs.cpp
-    src/goliath_engine/gpu/renderer/observe.cpp
-    src/goliath_engine/gpu/renderer/movie_hooks.cpp
-    src/goliath_engine/gpu/renderer/video.cpp
-    src/goliath_engine/gpu/renderer/render_state.cpp
-    src/goliath_engine/gpu/renderer/pipeline.cpp
-    src/goliath_engine/gpu/renderer/d3d_hooks.cpp
-    src/goliath_engine/gpu/renderer/d3d_resource_hooks.cpp
-    generated/shader_cache.cpp
 )
 
 if(WIN32)
@@ -39,25 +22,3 @@ else()
 endif()
 
 rexglue_setup_target(reeot)
-
-target_link_libraries(reeot PRIVATE plume)
-if(WIN32)
-    target_link_libraries(reeot PRIVATE d3d12 dxgi dxguid)
-endif()
-
-target_include_directories(reeot PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/xxHash")
-
-target_link_libraries(reeot PRIVATE libzstd_static)
-target_include_directories(reeot PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/zstd/lib")
-
-add_custom_command(
-    TARGET reeot POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxcompiler.dll"
-            "$<TARGET_FILE_DIR:reeot>/dxcompiler.dll"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxil.dll"
-            "$<TARGET_FILE_DIR:reeot>/dxil.dll"
-    COMMENT "Copying dxcompiler.dll + dxil.dll to build output"
-    VERBATIM)
