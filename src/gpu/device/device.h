@@ -34,7 +34,7 @@ namespace eot::gpu {
 
 class Video {
 public:
-  static bool CreateHostDevice(rex::ui::Window *window);
+  static bool CreateHostDevice();
 
   static plume::RenderDevice *HostDevice();
 

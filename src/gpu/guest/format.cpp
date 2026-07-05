@@ -9,39 +9,86 @@
  */
 #include "gpu/guest/format.h"
 
+#include <atomic>
+#include <mutex>
+#include <unordered_set>
+
+#include <rex/graphics/xenos.h>
+
 #include "core/logging.h"
 
 namespace eot::gpu {
+namespace {
+
+namespace xe = rex::graphics::xenos;
+
+void WarnUnmapped(u32 guest_format, u32 base) {
+  static std::mutex mutex;
+  static std::unordered_set<u32> seen;
+  std::lock_guard lock(mutex);
+  if (seen.insert(base).second) {
+    EOT_ERROR("ConvertGuestFormat: unmapped Xenos base format {} (from guest "
+              "format 0x{:08X}); returning UNKNOWN",
+              base, guest_format);
+  }
+}
+
+}
 
 plume::RenderFormat ConvertGuestFormat(u32 guest_format) {
-  switch (static_cast<D3DFormat>(guest_format)) {
-  case D3DFormat::kA16B16G16R16F:
-  case D3DFormat::kA16B16G16R16FAlt:
-    return plume::RenderFormat::R16G16B16A16_FLOAT;
-  case D3DFormat::kA8B8G8R8:
-  case D3DFormat::kA8R8G8B8:
-  case D3DFormat::kX8R8G8B8:
-    return plume::RenderFormat::R8G8B8A8_UNORM;
-  case D3DFormat::kD24FS8:
-  case D3DFormat::kD24S8:
-    return plume::RenderFormat::D32_FLOAT_S8_UINT;
-  case D3DFormat::kR32F:
-    return plume::RenderFormat::R32_FLOAT;
-  case D3DFormat::kG16R16F:
-  case D3DFormat::kG16R16FAlt:
-    return plume::RenderFormat::R16G16_FLOAT;
-  case D3DFormat::kIndex16:
-    return plume::RenderFormat::R16_UINT;
-  case D3DFormat::kIndex32:
-    return plume::RenderFormat::R32_UINT;
-  case D3DFormat::kL8:
-  case D3DFormat::kL8Alt:
-  case D3DFormat::kA8:
+  const u32 base = guest_format & kGuestFormatMask;
+  switch (static_cast<xe::TextureFormat>(base)) {
+  case xe::TextureFormat::k_DXT1:
+    return plume::RenderFormat::BC1_UNORM;
+  case xe::TextureFormat::k_DXT2_3:
+    return plume::RenderFormat::BC2_UNORM;
+  case xe::TextureFormat::k_DXT4_5:
+    return plume::RenderFormat::BC3_UNORM;
+  case xe::TextureFormat::k_DXT5A:
+    return plume::RenderFormat::BC4_UNORM;
+  case xe::TextureFormat::k_DXN:
+    return plume::RenderFormat::BC5_UNORM;
+
+  case xe::TextureFormat::k_8:
+  case xe::TextureFormat::k_8_A:
+  case xe::TextureFormat::k_8_B:
     return plume::RenderFormat::R8_UNORM;
+  case xe::TextureFormat::k_8_8:
+    return plume::RenderFormat::R8G8_UNORM;
+  case xe::TextureFormat::k_8_8_8_8:
+  case xe::TextureFormat::k_8_8_8_8_A:
+  case xe::TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+    return plume::RenderFormat::R8G8B8A8_UNORM;
+
+  case xe::TextureFormat::k_2_10_10_10:
+  case xe::TextureFormat::k_2_10_10_10_AS_16_16_16_16:
+    return plume::RenderFormat::R16G16B16A16_FLOAT;
+
+  case xe::TextureFormat::k_16:
+    return plume::RenderFormat::R16_UNORM;
+  case xe::TextureFormat::k_16_16:
+    return plume::RenderFormat::R16G16_UNORM;
+  case xe::TextureFormat::k_16_16_16_16:
+    return plume::RenderFormat::R16G16B16A16_UNORM;
+  case xe::TextureFormat::k_16_FLOAT:
+    return plume::RenderFormat::R16_FLOAT;
+  case xe::TextureFormat::k_16_16_FLOAT:
+    return plume::RenderFormat::R16G16_FLOAT;
+  case xe::TextureFormat::k_16_16_16_16_FLOAT:
+    return plume::RenderFormat::R16G16B16A16_FLOAT;
+  case xe::TextureFormat::k_32_FLOAT:
+    return plume::RenderFormat::R32_FLOAT;
+  case xe::TextureFormat::k_32_32_FLOAT:
+    return plume::RenderFormat::R32G32_FLOAT;
+  case xe::TextureFormat::k_32_32_32_32_FLOAT:
+    return plume::RenderFormat::R32G32B32A32_FLOAT;
+
+  case xe::TextureFormat::k_24_8:
+  case xe::TextureFormat::k_24_8_FLOAT:
+    return plume::RenderFormat::D32_FLOAT_S8_UINT;
+
   default:
-    EOT_ERROR(
-        "ConvertGuestFormat: unknown guest format 0x{:08X}; returning UNKNOWN",
-        guest_format);
+    WarnUnmapped(guest_format, base);
     return plume::RenderFormat::UNKNOWN;
   }
 }
@@ -49,11 +96,17 @@ plume::RenderFormat ConvertGuestFormat(u32 guest_format) {
 bool IsRenderTargetCapable(plume::RenderFormat format) {
   switch (format) {
   case plume::RenderFormat::R8_UNORM:
+  case plume::RenderFormat::R8G8_UNORM:
   case plume::RenderFormat::R8G8B8A8_UNORM:
   case plume::RenderFormat::B8G8R8A8_UNORM:
+  case plume::RenderFormat::R16_UNORM:
+  case plume::RenderFormat::R16G16_UNORM:
+  case plume::RenderFormat::R16_FLOAT:
   case plume::RenderFormat::R16G16_FLOAT:
   case plume::RenderFormat::R16G16B16A16_FLOAT:
   case plume::RenderFormat::R16G16B16A16_UNORM:
+  case plume::RenderFormat::R32_FLOAT:
+  case plume::RenderFormat::R32G32_FLOAT:
   case plume::RenderFormat::R32G32B32A32_FLOAT:
     return true;
   default:
