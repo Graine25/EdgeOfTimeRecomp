@@ -22,6 +22,7 @@
 #include <memory>
 #include <mutex>
 #include <rex/types.h>
+#include <unordered_set>
 #include <vector>
 
 #include <plume_render_interface.h>
@@ -54,6 +55,13 @@ public:
   static u32 OutputHeight();
 
   static u32 BindTextureSRV(GuestTexture *tex);
+
+  static void SetRenderTarget(u32 index, GuestTexture *surface);
+  static void SetDepthStencil(GuestTexture *surface);
+
+  static bool BindDrawFramebuffer();
+
+  static void NotifyTextureDestroyed(GuestTexture *dead);
 
   static void QueueResourceDestroy(u32 guest_va, ResourceType type);
 
@@ -107,6 +115,15 @@ struct VideoState {
   std::vector<PendingDestroy> deferred_destroy[kNumFrames];
 
   std::atomic<bool> resize_requested{false};
+
+  GuestTexture *render_targets[kMaxRenderTargets] = {};
+  GuestTexture *depth_stencil = nullptr;
+
+  bool draw_framebuffer_bound = false;
+  GuestTexture *bound_fb_rt = nullptr;
+  GuestTexture *bound_fb_ds = nullptr;
+
+  std::unordered_set<GuestTexture *> framebuffer_owners;
 };
 
 VideoState &state();

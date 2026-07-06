@@ -30,6 +30,7 @@
 #include "gpu/device/device.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
+#include "gpu/device/native_texture_mirror.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/format.h"
 
@@ -337,4 +338,11 @@ REX_HOOK(D3DResource_AddRef, D3DResource_AddRef_hook);
 REX_HOOK(D3DResource_GetType, D3DResource_GetType_hook);
 REX_HOOK(D3DTexture_GetSurfaceLevel, D3DTexture_GetSurfaceLevel_hook);
 REX_HOOK(eot_D3DTexture_LockRect, eot_D3DTexture_LockRect_hook);
+
+REX_EXTERN(__imp__eot_RenderTargetResource_PopulateHeaders);
+REX_HOOK_RAW(eot_RenderTargetResource_PopulateHeaders) {
+  const u32 record = ctx.r3.u32;
+  __imp__eot_RenderTargetResource_PopulateHeaders(ctx, base);
+  eot::gpu::RegisterSurfacePool(record);
+}
 REX_HOOK(D3D_DestroyResource, D3D_DestroyResource_hook);

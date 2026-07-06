@@ -68,6 +68,11 @@ struct GuestTexture {
 
   u32 mappedMemory = 0;
 
+  std::unordered_map<const plume::RenderTexture *,
+                     std::unique_ptr<plume::RenderFramebuffer>>
+      framebuffers;
+  std::unique_ptr<plume::RenderTextureView> attachmentView;
+
   GuestTexture() = default;
   explicit GuestTexture(ResourceType t) : type(t) {}
   GuestTexture(const GuestTexture &) = delete;
