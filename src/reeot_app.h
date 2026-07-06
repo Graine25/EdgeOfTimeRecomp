@@ -19,6 +19,15 @@ class ReeotApp : public rex::ReXApp {
     if (!eot::gpu::Video::CreateHostDevice()) {
       EOT_CRITICAL("Video::CreateHostDevice failed; quitting");
       app_context().QuitFromUIThread();
+      return;
     }
+    if (!eot::gpu::Video::CreateSwapChain(window())) {
+      EOT_CRITICAL("Video::CreateSwapChain failed; quitting");
+      app_context().QuitFromUIThread();
+    }
+  }
+
+  void OnWindowPixelSizeChanged(uint32_t, uint32_t) override {
+    eot::gpu::Video::RequestResize();
   }
 };

@@ -14,4 +14,3 @@ EOT_NOOP(eot_D3D_CDevice_BlockOnSecondaryPosition);
 EOT_NOOP(eot_D3D_CDevice_WaitPrimaryRingSpace);
 EOT_NOOP_RETURN(D3DDevice_IsFencePending, 0);
 EOT_NOOP(D3DDevice_BlockUntilIdle);
-EOT_NOOP(D3DDevice_Swap);
