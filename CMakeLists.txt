@@ -12,7 +12,11 @@ set(REEOT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 include(generated/rexglue.cmake)
 include(cmake/build_info.cmake)
+include(cmake/shaders.cmake)
 add_subdirectory(thirdparty)
+
+reeot_host_shader(present_blit_vs vs_6_0)
+reeot_host_shader(present_blit_ps ps_6_0)
 
 reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
@@ -53,8 +57,10 @@ set(REEOT_SOURCES
     src/gpu/guest/format.h
     src/gpu/guest/resources.cpp
     src/gpu/guest/resources.h
+    src/gpu/hooks/device.cpp
     src/gpu/hooks/resource.cpp
     src/gpu/hooks/stubs.cpp
+    ${REEOT_SHADER_HEADERS}
 
     src/platform/native_window.cpp
     src/platform/native_window.h

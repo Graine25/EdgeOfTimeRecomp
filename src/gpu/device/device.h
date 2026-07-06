@@ -18,9 +18,11 @@
  */
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <rex/types.h>
+#include <vector>
 
 #include <plume_render_interface.h>
 
@@ -32,11 +34,24 @@ class Window;
 
 namespace eot::gpu {
 
+constexpr u32 kNumFrames = 2;
+
 class Video {
 public:
   static bool CreateHostDevice();
 
+  static bool CreateSwapChain(rex::ui::Window *window);
+
   static plume::RenderDevice *HostDevice();
+
+  static void Present(GuestTexture *front_buffer = nullptr);
+
+  static void BeginGuestFrame();
+
+  static void RequestResize();
+
+  static u32 OutputWidth();
+  static u32 OutputHeight();
 
   static u32 BindTextureSRV(GuestTexture *tex);
 
@@ -55,10 +70,48 @@ bool DeviceIsLost();
 struct VideoState {
   std::unique_ptr<plume::RenderInterface> render_iface;
   std::unique_ptr<plume::RenderDevice> device;
+  std::unique_ptr<plume::RenderCommandQueue> queue;
+
+  std::unique_ptr<plume::RenderCommandList> command_lists[kNumFrames];
+  std::unique_ptr<plume::RenderCommandFence> fences[kNumFrames];
+  std::unique_ptr<plume::RenderCommandSemaphore> acquire_semaphores[kNumFrames];
+  bool command_list_submitted[kNumFrames] = {};
+
+  std::vector<std::unique_ptr<plume::RenderCommandSemaphore>> render_semaphores;
+
+  std::unique_ptr<plume::RenderSwapChain> swap_chain;
+  std::vector<std::unique_ptr<plume::RenderFramebuffer>> framebuffers;
+
+  std::unique_ptr<plume::RenderShader> blit_vs;
+  std::unique_ptr<plume::RenderShader> blit_ps;
+  std::unique_ptr<plume::RenderSampler> blit_sampler;
+  std::unique_ptr<plume::RenderPipelineLayout> blit_layout;
+  std::unique_ptr<plume::RenderPipeline> blit_pipeline;
+  std::unique_ptr<plume::RenderDescriptorSet> blit_descriptor_set;
+  std::vector<std::unique_ptr<plume::RenderTextureView>>
+      blit_view_graveyard[kNumFrames];
+
+  std::atomic<u32> frame{0};
+  u32 next_frame = 1 % kNumFrames;
+
   std::mutex mutex;
   bool ready = false;
+  bool present_ready = false;
+
+  bool frame_present_committed = false;
+
+  struct PendingDestroy {
+    u32 guest_va;
+    ResourceType type;
+  };
+  std::vector<PendingDestroy> deferred_destroy[kNumFrames];
+
+  std::atomic<bool> resize_requested{false};
 };
 
 VideoState &state();
+
+bool BuildFramebuffers(VideoState &s);
+bool BuildPresentSemaphores(VideoState &s);
 
 }
