@@ -48,6 +48,7 @@ void DestroyResourceNow(u32 guest_va, ResourceType type) {
   case ResourceType::RenderTarget:
   case ResourceType::DepthStencil: {
     auto *tex = static_cast<GuestTexture *>(host);
+    Video::NotifyTextureDestroyed(tex);
     if (tex->mappedMemory) {
       memory->SystemHeapFree(tex->mappedMemory);
       tex->mappedMemory = 0;
@@ -468,6 +469,133 @@ void Video::QueueResourceDestroy(u32 guest_va, ResourceType type) {
   }
   const u32 slot = s.frame.load(std::memory_order_relaxed);
   s.deferred_destroy[slot].push_back({guest_va, type});
+}
+
+namespace {
+
+plume::RenderTextureView *AttachmentViewLocked(GuestTexture *tex) {
+  if (!tex || !tex->texture)
+    return nullptr;
+  if (!tex->attachmentView) {
+    plume::RenderTextureViewDesc desc;
+    desc.format = tex->format;
+    desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+    desc.mipLevels = 1;
+    tex->attachmentView = tex->texture->createTextureView(desc);
+    if (!tex->attachmentView) {
+      EOT_ERROR("Attachment view creation failed ({}x{} fmt={})", tex->width,
+                tex->height, static_cast<u32>(tex->format));
+      return nullptr;
+    }
+  }
+  return tex->attachmentView.get();
+}
+
+plume::RenderFramebuffer *GetFramebufferLocked(VideoState &s, GuestTexture *rt,
+                                              GuestTexture *ds) {
+  if (!rt || !rt->texture)
+    return nullptr;
+  const plume::RenderTexture *key = ds ? ds->texture : nullptr;
+  auto it = rt->framebuffers.find(key);
+  if (it != rt->framebuffers.end())
+    return it->second.get();
+
+  if (!AttachmentViewLocked(rt))
+    return nullptr;
+  if (ds && !AttachmentViewLocked(ds))
+    return nullptr;
+
+  const plume::RenderTexture *colors[1] = {rt->texture};
+  plume::RenderFramebufferDesc desc(colors, 1);
+  if (ds)
+    desc.depthAttachment = ds->texture;
+  auto fb = s.device->createFramebuffer(desc);
+  if (!fb) {
+    EOT_ERROR("createFramebuffer failed for RT {}x{} fmt={} (depth={})",
+              rt->width, rt->height, static_cast<u32>(rt->format),
+              ds ? "yes" : "no");
+    return nullptr;
+  }
+  auto *raw = fb.get();
+  rt->framebuffers.emplace(key, std::move(fb));
+  s.framebuffer_owners.insert(rt);
+  return raw;
+}
+
+}
+
+void Video::SetRenderTarget(u32 index, GuestTexture *surface) {
+  if (index >= kMaxRenderTargets)
+    return;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (s.render_targets[index] != surface) {
+    s.render_targets[index] = surface;
+    if (index == 0)
+      s.draw_framebuffer_bound = false;
+  }
+}
+
+void Video::SetDepthStencil(GuestTexture *surface) {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (s.depth_stencil != surface) {
+    s.depth_stencil = surface;
+    s.draw_framebuffer_bound = false;
+  }
+}
+
+bool Video::BindDrawFramebuffer() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (!s.present_ready)
+    return false;
+
+  GuestTexture *rt = s.render_targets[0];
+  GuestTexture *ds = s.depth_stencil;
+  if (!rt && !ds)
+    return false;
+
+  if (s.draw_framebuffer_bound && rt == s.bound_fb_rt && ds == s.bound_fb_ds)
+    return true;
+
+  if (!rt)
+    return false;
+
+  plume::RenderFramebuffer *fb = GetFramebufferLocked(s, rt, ds);
+  if (!fb)
+    return false;
+
+  s.bound_fb_rt = rt;
+  s.bound_fb_ds = ds;
+  s.draw_framebuffer_bound = true;
+  return true;
+}
+
+void Video::NotifyTextureDestroyed(GuestTexture *dead) {
+  if (!dead)
+    return;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+
+  for (auto *&slot : s.render_targets) {
+    if (slot == dead)
+      slot = nullptr;
+  }
+  if (s.depth_stencil == dead)
+    s.depth_stencil = nullptr;
+  if (s.bound_fb_rt == dead || s.bound_fb_ds == dead) {
+    s.bound_fb_rt = nullptr;
+    s.bound_fb_ds = nullptr;
+    s.draw_framebuffer_bound = false;
+  }
+
+  dead->framebuffers.clear();
+  s.framebuffer_owners.erase(dead);
+  for (auto *owner : s.framebuffer_owners) {
+    if (dead->texture)
+      owner->framebuffers.erase(dead->texture);
+  }
 }
 
 void Video::BeginGuestFrame() {

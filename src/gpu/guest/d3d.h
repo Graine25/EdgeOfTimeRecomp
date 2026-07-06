@@ -60,13 +60,20 @@ static_assert(offsetof(D3DTexture, Format) == 0x1C);
 struct D3DSurface {
   D3DResource resource; // +0x00
   be_u32 SurfaceInfo;   // +0x18  GPU_SURFACEINFO union word
-  be_u32 DepthInfo;     // +0x1C  GPU_DEPTHINFO union word
+  be_u32 DepthInfo;
   be_u32 HiControl;     // +0x20
   be_u32 SizeBits;      // +0x24  packed Height/Width
   be_u32 Format;        // +0x28  D3DFORMAT
   be_u32 Size;          // +0x2C
 };
 static_assert(sizeof(D3DSurface) == 48);
+
+inline u32 SurfaceWidthFromSizeBits(u32 size_bits) {
+  return (size_bits >> 18) + 1u;
+}
+inline u32 SurfaceHeightFromSizeBits(u32 size_bits) {
+  return ((size_bits >> 3) & 0x7FFFu) + 1u;
+}
 
 struct D3DSurfaceDesc {
   be_u32 Format;             // +0x00  guest D3DFORMAT
@@ -85,6 +92,11 @@ struct D3DLockedRect {
   be_u32 pBits; // +0x04  guest VA of the locked pixel scratch
 };
 static_assert(sizeof(D3DLockedRect) == 8);
+
+inline constexpr u32 kDeviceRenderTargetShadow = 0x31F8;
+inline constexpr u32 kDeviceDepthStencilShadow = 0x3208;
+
+inline constexpr u32 kMaxRenderTargets = 4;
 
 inline void InitResourceHeader(D3DResource &r, D3DResourceType type) {
   r.Common = u32(type);

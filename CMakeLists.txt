@@ -51,6 +51,8 @@ set(REEOT_SOURCES
     src/gpu/device/host_heap_arena.h
     src/gpu/device/host_resource_heap.cpp
     src/gpu/device/host_resource_heap.h
+    src/gpu/device/native_texture_mirror.cpp
+    src/gpu/device/native_texture_mirror.h
     src/gpu/gpu.h
     src/gpu/guest/d3d.h
     src/gpu/guest/format.cpp
@@ -59,6 +61,7 @@ set(REEOT_SOURCES
     src/gpu/guest/resources.h
     src/gpu/hooks/device.cpp
     src/gpu/hooks/resource.cpp
+    src/gpu/hooks/state.cpp
     src/gpu/hooks/stubs.cpp
     ${REEOT_SHADER_HEADERS}
 
