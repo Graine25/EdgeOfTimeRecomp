@@ -13,10 +13,33 @@ set(REEOT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 include(generated/rexglue.cmake)
 include(cmake/build_info.cmake)
 include(cmake/shaders.cmake)
+include(cmake/shader_cache.cmake)
 add_subdirectory(thirdparty)
 
 reeot_host_shader(present_blit_vs vs_6_0)
 reeot_host_shader(present_blit_ps ps_6_0)
+
+#
+set(REEOT_SHADER_PAK_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/shader_notes/EOT_pak"
+    CACHE PATH "Directory of unpacked .pak files the shader cache is built from")
+set(REEOT_SHADER_PKZ_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/assets/Data"
+    CACHE PATH "Directory of .pkz packages to unpack when PAK_DIR is empty")
+set(REEOT_SHADER_XEX "${CMAKE_CURRENT_SOURCE_DIR}/assets/Default.xex"
+    CACHE FILEPATH "Guest executable scanned for XEX-resident shaders")
+
+set(REEOT_SHADER_COMMON_H
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/XenosRecomp/shader_common.h")
+cmake_path(GET REEOT_SHADER_COMMON_H PARENT_PATH REEOT_SHADER_COMMON_DIR)
+
+reeot_shader_cache(
+    RECOMP_TARGET XenosRecomp
+    PAK_DIR       "${REEOT_SHADER_PAK_DIR}"
+    PKZ_DIR       "${REEOT_SHADER_PKZ_DIR}"
+    XEX           "${REEOT_SHADER_XEX}"
+    INCLUDE_FILE  "${REEOT_SHADER_COMMON_H}"
+    OUTPUT_CPP    "${REEOT_GEN_DIR}/shader_cache.cpp")
 
 reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
@@ -63,7 +86,10 @@ set(REEOT_SOURCES
     src/gpu/hooks/resource.cpp
     src/gpu/hooks/state.cpp
     src/gpu/hooks/stubs.cpp
+    src/gpu/shaders/shader_cache.h
     ${REEOT_SHADER_HEADERS}
+
+    "${REEOT_GEN_DIR}/shader_cache.cpp"
 
     src/platform/native_window.cpp
     src/platform/native_window.h
@@ -77,7 +103,8 @@ endif()
 
 rexglue_setup_target(reeot GPU_PLUGINS xenos)
 
-target_include_directories(reeot PRIVATE src "${REEOT_GEN_DIR}")
+target_include_directories(reeot PRIVATE
+    src src/gpu/shaders "${REEOT_GEN_DIR}" "${REEOT_SHADER_COMMON_DIR}")
 
 target_link_libraries(reeot PRIVATE rex::ui o1heap plume)
 if(WIN32)
