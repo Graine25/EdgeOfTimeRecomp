@@ -77,11 +77,14 @@ set(REEOT_SOURCES
     src/gpu/device/native_texture_mirror.cpp
     src/gpu/device/native_texture_mirror.h
     src/gpu/gpu.h
+    src/gpu/guest/buffers.cpp
+    src/gpu/guest/buffers.h
     src/gpu/guest/d3d.h
     src/gpu/guest/format.cpp
     src/gpu/guest/format.h
     src/gpu/guest/resources.cpp
     src/gpu/guest/resources.h
+    src/gpu/hooks/buffer.cpp
     src/gpu/hooks/device.cpp
     src/gpu/hooks/resource.cpp
     src/gpu/hooks/shader.cpp

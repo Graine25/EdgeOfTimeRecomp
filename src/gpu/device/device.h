@@ -64,6 +64,10 @@ public:
   static GuestShader *BoundVertexShader();
   static GuestShader *BoundPixelShader();
 
+  static void SetStreamSource(u32 stream, GuestBuffer *buffer, u32 offset,
+                              u32 stride);
+  static void SetIndices(GuestBuffer *buffer);
+
   static bool BindDrawFramebuffer();
 
   static void NotifyTextureDestroyed(GuestTexture *dead);
@@ -132,6 +136,16 @@ struct VideoState {
 
   GuestShader *vertex_shader = nullptr;
   GuestShader *pixel_shader = nullptr;
+
+  struct StreamSource {
+    GuestBuffer *buffer = nullptr;
+    u32 offset = 0;
+    u32 stride = 0;
+
+    u32 address() const { return buffer ? buffer->address + offset : 0; }
+  };
+  StreamSource streams[kMaxStreamSources];
+  GuestBuffer *index_buffer = nullptr;
 };
 
 VideoState &state();

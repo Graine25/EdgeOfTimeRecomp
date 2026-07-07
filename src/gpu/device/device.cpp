@@ -569,6 +569,21 @@ GuestShader *Video::BoundPixelShader() {
   return s.pixel_shader;
 }
 
+void Video::SetStreamSource(u32 stream, GuestBuffer *buffer, u32 offset,
+                            u32 stride) {
+  if (stream >= kMaxStreamSources)
+    return;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  s.streams[stream] = {buffer, offset, stride};
+}
+
+void Video::SetIndices(GuestBuffer *buffer) {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  s.index_buffer = buffer;
+}
+
 bool Video::BindDrawFramebuffer() {
   auto &s = state();
   std::lock_guard lock(s.mutex);

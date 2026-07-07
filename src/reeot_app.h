@@ -4,6 +4,7 @@
 
 #include "core/logging.h"
 #include "gpu/device/device.h"
+#include "gpu/guest/buffers.h"
 #include "gpu/shaders/guest_shaders.h"
 
 class ReeotApp : public rex::ReXApp {
@@ -31,5 +32,8 @@ class ReeotApp : public rex::ReXApp {
   void OnWindowPixelSizeChanged(uint32_t, uint32_t) override {
     eot::gpu::Video::RequestResize();
   }
-  void OnShutdown() override { eot::gpu::LogShaderStats(); }
+  void OnShutdown() override {
+    eot::gpu::LogShaderStats();
+    eot::gpu::LogBufferStats();
+  }
 };
