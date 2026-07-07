@@ -84,9 +84,16 @@ set(REEOT_SOURCES
     src/gpu/guest/resources.h
     src/gpu/hooks/device.cpp
     src/gpu/hooks/resource.cpp
+    src/gpu/hooks/shader.cpp
     src/gpu/hooks/state.cpp
     src/gpu/hooks/stubs.cpp
+    src/gpu/shaders/dxc_link.cpp
+    src/gpu/shaders/dxc_link.h
+    src/gpu/shaders/guest_shaders.cpp
+    src/gpu/shaders/guest_shaders.h
     src/gpu/shaders/shader_cache.h
+    src/gpu/shaders/shader_linker.cpp
+    src/gpu/shaders/shader_linker.h
     ${REEOT_SHADER_HEADERS}
 
     "${REEOT_GEN_DIR}/shader_cache.cpp"
@@ -109,4 +116,20 @@ target_include_directories(reeot PRIVATE
 target_link_libraries(reeot PRIVATE rex::ui o1heap plume)
 if(WIN32)
     target_link_libraries(reeot PRIVATE d3d12 dxgi)
+endif()
+
+target_link_libraries(reeot PRIVATE libzstd_static)
+target_include_directories(reeot PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/thirdparty/zstd/lib"
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/thirdparty/xxHash")
+if(WIN32)
+    target_link_libraries(reeot PRIVATE Microsoft::DirectXShaderCompiler)
+
+    foreach(dxc_dll dxcompiler dxil)
+        add_custom_command(TARGET reeot POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/thirdparty/dxc-bin/bin/x64/${dxc_dll}.dll"
+                "$<TARGET_FILE_DIR:reeot>"
+            VERBATIM)
+    endforeach()
 endif()

@@ -545,6 +545,30 @@ void Video::SetDepthStencil(GuestTexture *surface) {
   }
 }
 
+void Video::SetVertexShader(GuestShader *shader) {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  s.vertex_shader = shader;
+}
+
+void Video::SetPixelShader(GuestShader *shader) {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  s.pixel_shader = shader;
+}
+
+GuestShader *Video::BoundVertexShader() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return s.vertex_shader;
+}
+
+GuestShader *Video::BoundPixelShader() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return s.pixel_shader;
+}
+
 bool Video::BindDrawFramebuffer() {
   auto &s = state();
   std::lock_guard lock(s.mutex);

@@ -98,6 +98,33 @@ inline constexpr u32 kDeviceDepthStencilShadow = 0x3208;
 
 inline constexpr u32 kMaxRenderTargets = 4;
 
+inline constexpr u32 kDevicePixelShaderShadow = 0x32F4;
+inline constexpr u32 kDeviceVertexShaderShadow = 0x32F8;
+
+struct ShaderContainer {
+  be_u32 Flags;                 // +0x00  0x102A11'00 pixel / '01 vertex
+  be_u32 VirtualSize;           // +0x04  header + microcode, i.e. this blob
+  be_u32 PhysicalSize;          // +0x08  trailing XG registration payload
+  be_u32 Field0C;               // +0x0C
+  be_u32 ConstantTableOffset;   // +0x10
+  be_u32 DefinitionTableOffset; // +0x14
+  be_u32 ShaderOffset;          // +0x18
+  be_u32 Field1C;               // +0x1C  zero in every valid container
+  be_u32 Field20;               // +0x20  zero in every valid container
+};
+static_assert(sizeof(ShaderContainer) == 36);
+
+inline constexpr u32 kShaderContainerMagic = 0x102A1100;
+inline constexpr u32 kShaderContainerMagicMask = 0xFFFFFF00;
+inline constexpr u32 kShaderContainerVertexBit = 1;
+
+inline constexpr u32 kPixelShaderContainerOffset = 0x28;
+inline constexpr u32 kVertexShaderContainerOffset = 0x368;
+
+inline constexpr u32 kShaderNodePhysicalPayload = 0x08;
+inline constexpr u32 kShaderNodeVertexObject = 0x24;
+inline constexpr u32 kShaderNodePixelObject = 0x20;
+
 inline void InitResourceHeader(D3DResource &r, D3DResourceType type) {
   r.Common = u32(type);
   r.ReferenceCount = 1u;
