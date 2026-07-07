@@ -1,7 +1,6 @@
 #include "gpu/guest/resources.h"
 
 namespace eot::gpu {
-namespace {
 
 u32 BytesPerTexel(plume::RenderFormat format) {
   switch (format) {
@@ -28,8 +27,6 @@ u32 BytesPerTexel(plume::RenderFormat format) {
   default:
     return 0;
   }
-}
-
 }
 
 u32 ComputeTexturePitch(const GuestTexture *tex) {

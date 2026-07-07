@@ -30,6 +30,7 @@
 #include "gpu/device/device.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
+#include "gpu/device/texture_upload.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/format.h"
@@ -289,6 +290,7 @@ u32 eot_D3DTexture_LockRect_hook(u32 texture_guest, u32,
     *pBits_out = tex->mappedMemory;
   if (pitch_out)
     *pitch_out = pitch;
+  eot::gpu::QueueTextureUpload(tex);
   return tex->mappedMemory;
 }
 

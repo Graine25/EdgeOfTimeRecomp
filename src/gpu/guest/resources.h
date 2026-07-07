@@ -88,6 +88,7 @@ struct GuestBuffer {
   u32 address = 0;
   u32 size = 0;
   u32 indexFormat = 0;
+  bool index32 = false;
   bool reportedEmpty = false;
 
   GuestBuffer() = default;
@@ -114,6 +115,8 @@ struct GuestShader {
 };
 
 constexpr u32 kInvalidDescriptorIndex = ~u32{0};
+
+u32 BytesPerTexel(plume::RenderFormat format);
 
 u32 ComputeTexturePitch(const GuestTexture *tex);
 

@@ -108,6 +108,9 @@ struct VideoState {
   std::vector<std::unique_ptr<plume::RenderTextureView>>
       blit_view_graveyard[kNumFrames];
 
+  std::vector<std::unique_ptr<plume::RenderBuffer>>
+      upload_staging[kNumFrames];
+
   std::atomic<u32> frame{0};
   u32 next_frame = 1 % kNumFrames;
 

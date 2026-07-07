@@ -22,6 +22,9 @@ struct Stats {
   std::atomic<u32> stamped{0};
   std::atomic<u32> at_bind{0};
   std::atomic<u32> zero_base{0};
+  std::atomic<u32> fixups{0};
+  std::atomic<u32> fixup_calls{0};   // XGOffsetResourceAddress calls seen
+  std::atomic<u32> fixup_unknown{0};
   std::atomic<u32> malformed{0};
 };
 Stats g_stats;
@@ -31,20 +34,24 @@ const char *TypeName(ResourceType type) {
 }
 
 bool RefreshLocked(GuestBuffer &buf) {
+  u32 address = 0;
   if (buf.type == ResourceType::IndexBuffer) {
     const auto *ib = mem::try_at<const D3DIndexBuffer>(buf.headerVa);
     if (!ib)
       return false;
-    buf.address = ib->Address;
+    address = ib->Address;
     buf.size = ib->Size;
     buf.indexFormat = IndexBufferFormat(*ib);
+    buf.index32 = IndexBufferIs32Bit(*ib);
   } else {
     const auto *vb = mem::try_at<const D3DVertexBuffer>(buf.headerVa);
     if (!vb)
       return false;
-    buf.address = VertexBufferAddress(*vb);
+    address = VertexBufferAddress(*vb);
     buf.size = VertexBufferSize(*vb);
   }
+  if (address != 0)
+    buf.address = address;
   return true;
 }
 
@@ -99,6 +106,27 @@ GuestBuffer *RegisterBufferHeader(u32 header_va, ResourceType type) {
   return Publish(header_va, type, true);
 }
 
+void NotifyBufferAddressFixup(u32 resource_va) {
+  if (!resource_va)
+    return;
+  g_stats.fixup_calls.fetch_add(1, std::memory_order_relaxed);
+  std::lock_guard lock(g_buffer_mutex);
+  auto it = g_buffers.find(resource_va);
+  if (it == g_buffers.end()) {
+    const u32 common = mem::try_load<u32>(resource_va);
+    const u32 kind = common & 0x7;
+    if ((kind == 1 || kind == 2) &&
+        g_stats.fixup_unknown.fetch_add(1, std::memory_order_relaxed) < 4) {
+      EOT_WARN("[buffer] fixup on unregistered {} header 0x{:08X} "
+               "(Common=0x{:08X})",
+               kind == 1 ? "VB" : "IB", resource_va, common);
+    }
+    return;
+  }
+  if (RefreshLocked(*it->second) && it->second->address != 0)
+    g_stats.fixups.fetch_add(1, std::memory_order_relaxed);
+}
+
 GuestBuffer *ResolveGuestBuffer(u32 header_va, ResourceType type) {
   if (!header_va)
     return nullptr;
@@ -123,12 +151,28 @@ GuestBuffer *ResolveGuestBuffer(u32 header_va, ResourceType type) {
   return buf;
 }
 
+bool ReadStreamFetch(u32 device_va, u32 stream, u32 &addr, u32 &size) {
+  addr = 0;
+  size = 0;
+  if (!device_va || stream >= kMaxStreamSources)
+    return false;
+  const u32 slot =
+      device_va + kStreamFetchDword0 - stream * kStreamFetchStride;
+  const u32 d0 = mem::try_load<u32>(slot);
+  const u32 d1 = mem::try_load<u32>(slot + 4);
+  addr = d0 & ~kVertexFetchTypeMask;
+  size = d1 & kVertexFetchSizeMask;
+  return addr >= 0x1000 && size != 0;
+}
+
 void LogBufferStats() {
   EOT_INFO("[buffer] {} vertex, {} index; {} first seen at stamp, {} at bind; "
-           "{} with a zero base, {} malformed",
+           "{} still with a zero base, {}/{} address fixups ({} on unknown "
+           "headers), {} malformed",
            g_stats.vertex.load(), g_stats.index.load(), g_stats.stamped.load(),
            g_stats.at_bind.load(), g_stats.zero_base.load(),
-           g_stats.malformed.load());
+           g_stats.fixups.load(), g_stats.fixup_calls.load(),
+           g_stats.fixup_unknown.load(), g_stats.malformed.load());
 }
 
 }

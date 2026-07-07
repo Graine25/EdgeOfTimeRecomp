@@ -74,6 +74,8 @@ set(REEOT_SOURCES
     src/gpu/device/host_heap_arena.h
     src/gpu/device/host_resource_heap.cpp
     src/gpu/device/host_resource_heap.h
+    src/gpu/device/texture_upload.cpp
+    src/gpu/device/texture_upload.h
     src/gpu/device/native_texture_mirror.cpp
     src/gpu/device/native_texture_mirror.h
     src/gpu/gpu.h
@@ -86,6 +88,7 @@ set(REEOT_SOURCES
     src/gpu/guest/resources.h
     src/gpu/hooks/buffer.cpp
     src/gpu/hooks/device.cpp
+    src/gpu/hooks/draw.cpp
     src/gpu/hooks/resource.cpp
     src/gpu/hooks/shader.cpp
     src/gpu/hooks/state.cpp

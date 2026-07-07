@@ -21,6 +21,7 @@
 #include "core/logging.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
+#include "gpu/device/texture_upload.h"
 #include "platform/native_window.h"
 
 #include "src/gpu/shaders/hlsl/present_blit_ps.hlsl.dxil.h"
@@ -49,6 +50,7 @@ void DestroyResourceNow(u32 guest_va, ResourceType type) {
   case ResourceType::DepthStencil: {
     auto *tex = static_cast<GuestTexture *>(host);
     Video::NotifyTextureDestroyed(tex);
+    ForgetTextureUpload(tex);
     if (tex->mappedMemory) {
       memory->SystemHeapFree(tex->mappedMemory);
       tex->mappedMemory = 0;
@@ -331,6 +333,7 @@ void AdvanceAndWaitReusedLocked(VideoState &s) {
     s.command_list_submitted[slot] = false;
   }
   s.blit_view_graveyard[slot].clear();
+  s.upload_staging[slot].clear();
 }
 
 }
@@ -388,6 +391,9 @@ void Video::Present(GuestTexture *front_buffer) {
   }
 
   cmd->begin();
+
+  FlushTextureUploads(cmd, s.upload_staging[cur]);
+
   if (src_view) {
     plume::RenderTextureBarrier to_blit[] = {
         plume::RenderTextureBarrier(front_buffer->texture,
