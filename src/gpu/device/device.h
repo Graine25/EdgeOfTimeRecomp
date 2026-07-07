@@ -59,6 +59,11 @@ public:
   static void SetRenderTarget(u32 index, GuestTexture *surface);
   static void SetDepthStencil(GuestTexture *surface);
 
+  static void SetVertexShader(GuestShader *shader);
+  static void SetPixelShader(GuestShader *shader);
+  static GuestShader *BoundVertexShader();
+  static GuestShader *BoundPixelShader();
+
   static bool BindDrawFramebuffer();
 
   static void NotifyTextureDestroyed(GuestTexture *dead);
@@ -124,6 +129,9 @@ struct VideoState {
   GuestTexture *bound_fb_ds = nullptr;
 
   std::unordered_set<GuestTexture *> framebuffer_owners;
+
+  GuestShader *vertex_shader = nullptr;
+  GuestShader *pixel_shader = nullptr;
 };
 
 VideoState &state();

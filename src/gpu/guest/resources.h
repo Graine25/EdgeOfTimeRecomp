@@ -23,6 +23,7 @@
 #include <plume_render_interface.h>
 
 #include "gpu/guest/d3d.h"
+#include "gpu/shaders/shader_cache.h"
 
 namespace eot::gpu {
 
@@ -77,6 +78,23 @@ struct GuestTexture {
   explicit GuestTexture(ResourceType t) : type(t) {}
   GuestTexture(const GuestTexture &) = delete;
   GuestTexture &operator=(const GuestTexture &) = delete;
+};
+
+struct GuestShader {
+  ResourceType type = ResourceType::VertexShader;
+  u32 selfVa = 0;
+
+  u32 objectVa = 0;
+  u64 hash = 0;
+
+  const ShaderCacheEntry *shaderCacheEntry = nullptr;
+
+  std::unordered_map<u32, std::unique_ptr<plume::RenderShader>> variants;
+
+  GuestShader() = default;
+  explicit GuestShader(ResourceType t) : type(t) {}
+  GuestShader(const GuestShader &) = delete;
+  GuestShader &operator=(const GuestShader &) = delete;
 };
 
 constexpr u32 kInvalidDescriptorIndex = ~u32{0};
