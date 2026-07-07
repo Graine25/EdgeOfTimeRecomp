@@ -98,6 +98,38 @@ inline constexpr u32 kDeviceDepthStencilShadow = 0x3208;
 
 inline constexpr u32 kMaxRenderTargets = 4;
 
+inline constexpr u32 kDeviceIndexBufferShadow = 0x31F4;
+inline constexpr u32 kDeviceStreamSourceShadow = 0x320C;
+
+inline constexpr u32 kMaxStreamSources = 16;
+
+struct D3DVertexBuffer {
+  D3DResource Resource; // +0x00
+  be_u32 FetchAddress; // +0x18
+  be_u32 FetchSize;    // +0x1C
+};
+static_assert(sizeof(D3DVertexBuffer) == 32);
+
+struct D3DIndexBuffer {
+  D3DResource Resource; // +0x00  format lives in Common >> 29
+  be_u32 Address;       // +0x18  guest VA of the index data
+  be_u32 Size;          // +0x1C  bytes
+};
+static_assert(sizeof(D3DIndexBuffer) == 32);
+
+inline constexpr u32 kVertexFetchTypeMask = 0x3;
+inline constexpr u32 kVertexFetchSizeMask = 0x3FFFFFC;
+
+inline u32 VertexBufferAddress(const D3DVertexBuffer &vb) {
+  return u32(vb.FetchAddress) & ~kVertexFetchTypeMask;
+}
+inline u32 VertexBufferSize(const D3DVertexBuffer &vb) {
+  return u32(vb.FetchSize) & kVertexFetchSizeMask;
+}
+inline u32 IndexBufferFormat(const D3DIndexBuffer &ib) {
+  return u32(ib.Resource.Common) >> 29;
+}
+
 inline constexpr u32 kDevicePixelShaderShadow = 0x32F4;
 inline constexpr u32 kDeviceVertexShaderShadow = 0x32F8;
 

@@ -80,6 +80,22 @@ struct GuestTexture {
   GuestTexture &operator=(const GuestTexture &) = delete;
 };
 
+struct GuestBuffer {
+  ResourceType type = ResourceType::VertexBuffer;
+  u32 selfVa = 0;
+
+  u32 headerVa = 0;
+  u32 address = 0;
+  u32 size = 0;
+  u32 indexFormat = 0;
+  bool reportedEmpty = false;
+
+  GuestBuffer() = default;
+  explicit GuestBuffer(ResourceType t) : type(t) {}
+  GuestBuffer(const GuestBuffer &) = delete;
+  GuestBuffer &operator=(const GuestBuffer &) = delete;
+};
+
 struct GuestShader {
   ResourceType type = ResourceType::VertexShader;
   u32 selfVa = 0;
