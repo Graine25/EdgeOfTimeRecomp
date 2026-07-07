@@ -4,6 +4,7 @@
 
 #include "core/logging.h"
 #include "gpu/device/device.h"
+#include "gpu/device/texture_upload.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/shaders/guest_shaders.h"
 
@@ -35,5 +36,7 @@ class ReeotApp : public rex::ReXApp {
   void OnShutdown() override {
     eot::gpu::LogShaderStats();
     eot::gpu::LogBufferStats();
+    eot::gpu::LogDrawStats();
+    eot::gpu::LogTextureUploadStats();
   }
 };

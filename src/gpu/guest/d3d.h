@@ -103,6 +103,11 @@ inline constexpr u32 kDeviceStreamSourceShadow = 0x320C;
 
 inline constexpr u32 kMaxStreamSources = 16;
 
+inline constexpr u32 kStreamFetchDword0 = 0x778;
+inline constexpr u32 kStreamFetchStride = 8;
+
+inline constexpr u32 kIndexBuffer32BitFlag = 0x80000000;
+
 struct D3DVertexBuffer {
   D3DResource Resource; // +0x00
   be_u32 FetchAddress; // +0x18
@@ -128,6 +133,9 @@ inline u32 VertexBufferSize(const D3DVertexBuffer &vb) {
 }
 inline u32 IndexBufferFormat(const D3DIndexBuffer &ib) {
   return u32(ib.Resource.Common) >> 29;
+}
+inline bool IndexBufferIs32Bit(const D3DIndexBuffer &ib) {
+  return (u32(ib.Resource.Common) & kIndexBuffer32BitFlag) != 0;
 }
 
 inline constexpr u32 kDevicePixelShaderShadow = 0x32F4;
