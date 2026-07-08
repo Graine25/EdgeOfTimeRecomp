@@ -23,32 +23,18 @@ namespace {
 
 std::mutex g_upload_mutex;
 std::unordered_set<GuestTexture *> g_pending;
+GuestTexture *g_last_uploaded = nullptr;
+GuestTexture *g_last_fullscreen = nullptr;
+u32 g_fullscreen_w = 0;
+u32 g_fullscreen_h = 0;
 
 struct Stats {
   std::atomic<u32> queued{0};
   std::atomic<u32> uploaded{0};
   std::atomic<u32> skipped{0};
+  std::atomic<u32> mip_locks{0};
 };
 Stats g_stats;
-
-struct HostFootprint {
-  u32 pitch = 0;      // bytes, 256-aligned as D3D12 wants
-  u32 rowTexels = 0;
-  u32 rows = 0;
-  u64 size() const { return u64(pitch) * rows; }
-  bool valid() const { return pitch != 0 && rows != 0 && rowTexels != 0; }
-};
-
-HostFootprint FootprintFor(const GuestTexture &tex) {
-  HostFootprint fp;
-  const u32 bpt = BytesPerTexel(tex.format);
-  fp.pitch = ComputeTexturePitch(&tex);
-  if (!fp.pitch || !bpt || !tex.height)
-    return {};
-  fp.rows = tex.height;
-  fp.rowTexels = fp.pitch / bpt;
-  return fp;
-}
 
 }
 
@@ -65,6 +51,19 @@ void ForgetTextureUpload(GuestTexture *tex) {
     return;
   std::lock_guard lock(g_upload_mutex);
   g_pending.erase(tex);
+  if (g_last_uploaded == tex)
+    g_last_uploaded = nullptr;
+  if (g_last_fullscreen == tex)
+    g_last_fullscreen = nullptr;
+}
+
+GuestTexture *LastUploadedTexture(u32 preferred_w, u32 preferred_h) {
+  std::lock_guard lock(g_upload_mutex);
+  g_fullscreen_w = preferred_w;
+  g_fullscreen_h = preferred_h;
+  if (g_last_fullscreen && g_last_fullscreen->hasContent)
+    return g_last_fullscreen;
+  return g_last_uploaded;
 }
 
 void FlushTextureUploads(plume::RenderCommandList *cmd,
@@ -87,7 +86,7 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
       g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
       continue;
     }
-    const HostFootprint fp = FootprintFor(*tex);
+    const TextureFootprint fp = ComputeTextureFootprint(tex);
     if (!fp.valid()) {
       g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
       continue;
@@ -121,7 +120,7 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
         plume::RenderTextureCopyLocation::Subresource(tex->texture, 0, 0),
         plume::RenderTextureCopyLocation::PlacedFootprint(
             staging.get(), tex->format, tex->width, tex->height, 1,
-            fp.rowTexels));
+            (fp.pitch / fp.unitBytes) * fp.blockSize));
 
     const plume::RenderTextureBarrier to_read(
         tex->texture, plume::RenderTextureLayout::SHADER_READ);
@@ -129,6 +128,13 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
     tex->layout = plume::RenderTextureLayout::SHADER_READ;
 
     keep_alive.push_back(std::move(staging));
+    tex->hasContent = true;
+    {
+      std::lock_guard lock(g_upload_mutex);
+      g_last_uploaded = tex;
+      if (tex->width == g_fullscreen_w && tex->height == g_fullscreen_h)
+        g_last_fullscreen = tex;
+    }
     if (g_stats.uploaded.fetch_add(1, std::memory_order_relaxed) == 0) {
       EOT_INFO("[texture] first upload: {}x{} fmt={} pitch={} rows={}",
                tex->width, tex->height, static_cast<u32>(tex->format), fp.pitch,
@@ -137,10 +143,15 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
   }
 }
 
+void NoteMipLockSkipped() {
+  g_stats.mip_locks.fetch_add(1, std::memory_order_relaxed);
+}
+
 void LogTextureUploadStats() {
-  EOT_INFO("[texture] {} uploads queued, {} performed, {} skipped",
+  EOT_INFO("[texture] {} uploads queued, {} performed, {} skipped; {} mip locks "
+           "not uploaded",
            g_stats.queued.load(), g_stats.uploaded.load(),
-           g_stats.skipped.load());
+           g_stats.skipped.load(), g_stats.mip_locks.load());
 }
 
 }

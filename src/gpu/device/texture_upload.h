@@ -17,6 +17,10 @@ void FlushTextureUploads(
     plume::RenderCommandList *cmd,
     std::vector<std::unique_ptr<plume::RenderBuffer>> &keep_alive);
 
+void NoteMipLockSkipped();
+
+GuestTexture *LastUploadedTexture(u32 preferred_w, u32 preferred_h);
+
 void LogTextureUploadStats();
 
 }

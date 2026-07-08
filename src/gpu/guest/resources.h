@@ -69,6 +69,8 @@ struct GuestTexture {
 
   u32 mappedMemory = 0;
 
+  bool hasContent = false;
+
   std::unordered_map<const plume::RenderTexture *,
                      std::unique_ptr<plume::RenderFramebuffer>>
       framebuffers;
@@ -117,6 +119,25 @@ struct GuestShader {
 constexpr u32 kInvalidDescriptorIndex = ~u32{0};
 
 u32 BytesPerTexel(plume::RenderFormat format);
+
+u32 BytesPerBlock(plume::RenderFormat format);
+bool IsBlockCompressed(plume::RenderFormat format);
+
+inline constexpr u32 kTextureBlockSize = 4;
+
+struct TextureFootprint {
+  u32 pitch = 0;
+  u32 rowUnits = 0;
+  u32 rows = 0;
+  u32 unitBytes = 0;
+  u32 blockSize = 1;
+
+  u64 size() const { return u64(pitch) * rows; }
+  bool valid() const { return pitch != 0 && rows != 0 && unitBytes != 0; }
+};
+
+TextureFootprint ComputeTextureFootprint(const GuestTexture *tex,
+                                         u32 level = 0);
 
 u32 ComputeTexturePitch(const GuestTexture *tex);
 

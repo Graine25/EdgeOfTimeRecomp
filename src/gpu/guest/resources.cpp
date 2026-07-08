@@ -1,5 +1,7 @@
 #include "gpu/guest/resources.h"
 
+#include <algorithm>
+
 namespace eot::gpu {
 
 u32 BytesPerTexel(plume::RenderFormat format) {
@@ -29,15 +31,64 @@ u32 BytesPerTexel(plume::RenderFormat format) {
   }
 }
 
+u32 BytesPerBlock(plume::RenderFormat format) {
+  switch (format) {
+  case plume::RenderFormat::BC1_UNORM:
+  case plume::RenderFormat::BC1_UNORM_SRGB:
+  case plume::RenderFormat::BC4_UNORM:
+  case plume::RenderFormat::BC4_SNORM:
+    return 8;
+  case plume::RenderFormat::BC2_UNORM:
+  case plume::RenderFormat::BC2_UNORM_SRGB:
+  case plume::RenderFormat::BC3_UNORM:
+  case plume::RenderFormat::BC3_UNORM_SRGB:
+  case plume::RenderFormat::BC5_UNORM:
+  case plume::RenderFormat::BC5_SNORM:
+  case plume::RenderFormat::BC7_UNORM:
+  case plume::RenderFormat::BC7_UNORM_SRGB:
+    return 16;
+  default:
+    return 0;
+  }
+}
+
+bool IsBlockCompressed(plume::RenderFormat format) {
+  return BytesPerBlock(format) != 0;
+}
+
+TextureFootprint ComputeTextureFootprint(const GuestTexture *tex, u32 level) {
+  TextureFootprint fp;
+  if (!tex || !tex->width || !tex->height)
+    return fp;
+
+  const u32 width = std::max(1u, tex->width >> level);
+  const u32 height = std::max(1u, tex->height >> level);
+
+  constexpr u32 kPitchAlignment = 256; // D3D12_TEXTURE_DATA_PITCH_ALIGNMENT
+  const u32 block_bytes = BytesPerBlock(tex->format);
+  u32 row = 0;
+  if (block_bytes) {
+    fp.blockSize = kTextureBlockSize;
+    fp.unitBytes = block_bytes;
+    fp.rowUnits = (width + kTextureBlockSize - 1) / kTextureBlockSize;
+    fp.rows = (height + kTextureBlockSize - 1) / kTextureBlockSize;
+    row = fp.rowUnits * block_bytes;
+  } else {
+    const u32 bpt = BytesPerTexel(tex->format);
+    if (!bpt)
+      return {};
+    fp.blockSize = 1;
+    fp.unitBytes = bpt;
+    fp.rowUnits = width;
+    fp.rows = height;
+    row = width * bpt;
+  }
+  fp.pitch = (row + kPitchAlignment - 1) & ~(kPitchAlignment - 1);
+  return fp;
+}
+
 u32 ComputeTexturePitch(const GuestTexture *tex) {
-  if (!tex || !tex->width)
-    return 0;
-  const u32 bpt = BytesPerTexel(tex->format);
-  if (!bpt)
-    return 0;
-  constexpr u32 kPitchAlignment = 256;
-  const u32 row = tex->width * bpt;
-  return (row + kPitchAlignment - 1) & ~(kPitchAlignment - 1);
+  return ComputeTextureFootprint(tex).pitch;
 }
 
 }
