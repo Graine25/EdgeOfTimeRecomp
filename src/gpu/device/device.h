@@ -68,7 +68,23 @@ public:
                               u32 stride);
   static void SetIndices(GuestBuffer *buffer);
 
-  static bool BindDrawFramebuffer();
+  struct AttachmentFormats {
+    plume::RenderFormat color = plume::RenderFormat::UNKNOWN;
+    plume::RenderFormat depth = plume::RenderFormat::UNKNOWN;
+    u32 sampleCount = 1;
+  };
+  static AttachmentFormats BoundAttachmentFormats();
+
+  enum class FramebufferBind {
+    kBound,
+    kNotReady,
+    kNothingBound,
+    kDepthOnly,
+    kNoHostTexture,
+    kCreateFailed,
+  };
+
+  static FramebufferBind BindDrawFramebuffer();
 
   static void NotifyTextureDestroyed(GuestTexture *dead);
 

@@ -8,6 +8,7 @@
 #include "gpu/device/device.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/guest/d3d.h"
+#include "gpu/pipeline/pipeline_cache.h"
 
 namespace eot::gpu {
 
@@ -22,6 +23,12 @@ struct DrawStats {
   std::atomic<u32> no_shaders{0};
   std::atomic<u32> stage_unresolved{0};
   std::atomic<u32> depth_only{0};
+  std::atomic<u32> framebuffer_ok{0};
+  std::atomic<u32> fb_not_ready{0};
+  std::atomic<u32> fb_nothing_bound{0};
+  std::atomic<u32> fb_depth_only{0};
+  std::atomic<u32> fb_no_host_texture{0};
+  std::atomic<u32> fb_create_failed{0};
   std::atomic<u32> translatable{0};
   std::atomic<u32> index32{0};
 };
@@ -73,8 +80,36 @@ void Classify(u32 device_va, bool indexed) {
     }
   }
 
-  if (has_stream && has_indices && has_vs)
-    g_draws.translatable.fetch_add(1, std::memory_order_relaxed);
+  if (!(has_stream && has_indices && has_vs))
+    return;
+  g_draws.translatable.fetch_add(1, std::memory_order_relaxed);
+
+  switch (Video::BindDrawFramebuffer()) {
+  case Video::FramebufferBind::kBound:
+    g_draws.framebuffer_ok.fetch_add(1, std::memory_order_relaxed);
+    break;
+  case Video::FramebufferBind::kNotReady:
+    g_draws.fb_not_ready.fetch_add(1, std::memory_order_relaxed);
+    break;
+  case Video::FramebufferBind::kNothingBound:
+    g_draws.fb_nothing_bound.fetch_add(1, std::memory_order_relaxed);
+    break;
+  case Video::FramebufferBind::kDepthOnly:
+    g_draws.fb_depth_only.fetch_add(1, std::memory_order_relaxed);
+    break;
+  case Video::FramebufferBind::kNoHostTexture:
+    g_draws.fb_no_host_texture.fetch_add(1, std::memory_order_relaxed);
+    break;
+  case Video::FramebufferBind::kCreateFailed:
+    g_draws.fb_create_failed.fetch_add(1, std::memory_order_relaxed);
+    break;
+  }
+
+  PipelineKey key;
+  if (BuildPipelineKeyForCurrentState(key))
+    GetOrCreatePipeline(key);
+  else
+    NotePipelineUndescribable();
 }
 
 }
@@ -83,12 +118,17 @@ void LogDrawStats() {
   const u32 total = g_draws.vertices.load() + g_draws.indexed.load();
   EOT_INFO("[draw] {} draws ({} indexed, {} of those 32-bit); {} translatable; "
            "dropped: {} no stream, {} no IB bound, {} IB has no base, {} no "
-           "vertex shader ({} unresolved); {} of the translatable are depth-only",
+           "vertex shader ({} unresolved); {} depth-only; framebuffer {} ok, "
+           "{} not-ready, {} nothing-bound, {} depth-only, {} no-host-texture, "
+           "{} create-failed",
            total, g_draws.indexed.load(), g_draws.index32.load(),
            g_draws.translatable.load(), g_draws.no_stream.load(),
            g_draws.no_index_bound.load(), g_draws.no_index_base.load(),
            g_draws.no_shaders.load(), g_draws.stage_unresolved.load(),
-           g_draws.depth_only.load());
+           g_draws.depth_only.load(), g_draws.framebuffer_ok.load(),
+           g_draws.fb_not_ready.load(), g_draws.fb_nothing_bound.load(),
+           g_draws.fb_depth_only.load(), g_draws.fb_no_host_texture.load(),
+           g_draws.fb_create_failed.load());
 }
 
 namespace {
