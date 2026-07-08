@@ -22,8 +22,9 @@ REX_HOOK_RAW(XGSetIndexBufferHeader) {
 REX_EXTERN(__imp__XGOffsetResourceAddress);
 REX_HOOK_RAW(XGOffsetResourceAddress) {
   const u32 resource_va = ctx.r3.u32;
+  const u32 base_va = ctx.r4.u32;
   __imp__XGOffsetResourceAddress(ctx, base);
-  eot::gpu::NotifyBufferAddressFixup(resource_va);
+  eot::gpu::NotifyBufferAddressFixup(resource_va, base_va);
 }
 
 REX_EXTERN(__imp__D3DDevice_SetStreamSource);

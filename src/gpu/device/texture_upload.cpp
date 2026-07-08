@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <iterator>
 #include <mutex>
 #include <unordered_set>
 #include <vector>
@@ -22,7 +23,7 @@ namespace eot::gpu {
 namespace {
 
 std::mutex g_upload_mutex;
-std::unordered_set<GuestTexture *> g_pending;
+std::unordered_set<GuestTexture *> g_dirty;
 GuestTexture *g_last_uploaded = nullptr;
 GuestTexture *g_last_fullscreen = nullptr;
 u32 g_fullscreen_w = 0;
@@ -33,6 +34,7 @@ struct Stats {
   std::atomic<u32> uploaded{0};
   std::atomic<u32> skipped{0};
   std::atomic<u32> mip_locks{0};
+  std::atomic<u32> non_zero{0};
 };
 Stats g_stats;
 
@@ -42,7 +44,7 @@ void QueueTextureUpload(GuestTexture *tex) {
   if (!tex || !tex->texture || !tex->mappedMemory)
     return;
   std::lock_guard lock(g_upload_mutex);
-  if (g_pending.insert(tex).second)
+  if (g_dirty.insert(tex).second)
     g_stats.queued.fetch_add(1, std::memory_order_relaxed);
 }
 
@@ -50,7 +52,7 @@ void ForgetTextureUpload(GuestTexture *tex) {
   if (!tex)
     return;
   std::lock_guard lock(g_upload_mutex);
-  g_pending.erase(tex);
+  g_dirty.erase(tex);
   if (g_last_uploaded == tex)
     g_last_uploaded = nullptr;
   if (g_last_fullscreen == tex)
@@ -75,10 +77,11 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
   std::vector<GuestTexture *> batch;
   {
     std::lock_guard lock(g_upload_mutex);
-    if (g_pending.empty())
+    if (g_dirty.empty())
       return;
-    batch.assign(g_pending.begin(), g_pending.end());
-    g_pending.clear();
+    batch.assign(g_dirty.begin(), g_dirty.end());
+    for (auto it = g_dirty.begin(); it != g_dirty.end();)
+      it = (*it)->sawNonZeroSource ? g_dirty.erase(it) : std::next(it);
   }
 
   for (GuestTexture *tex : batch) {
@@ -108,7 +111,24 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
       g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
       continue;
     }
-    std::memcpy(mapped, src, size_t(fp.size()));
+    const size_t bytes = size_t(fp.size());
+    bool non_zero = false;
+    for (size_t i = 0; i < bytes; ++i) {
+      if (src[i] != 0) {
+        non_zero = true;
+        break;
+      }
+    }
+    if (non_zero && !tex->sawNonZeroSource) {
+      tex->sawNonZeroSource = true;
+      if (g_stats.non_zero.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[texture] first NON-ZERO scratch: {}x{} fmt={} - the guest "
+                 "does write through our LockRect pointer",
+                 tex->width, tex->height, static_cast<u32>(tex->format));
+      }
+    }
+
+    std::memcpy(mapped, src, bytes);
     staging->unmap();
 
     const plume::RenderTextureBarrier to_copy(
@@ -128,7 +148,7 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
     tex->layout = plume::RenderTextureLayout::SHADER_READ;
 
     keep_alive.push_back(std::move(staging));
-    tex->hasContent = true;
+    tex->hasContent = tex->sawNonZeroSource;
     {
       std::lock_guard lock(g_upload_mutex);
       g_last_uploaded = tex;
@@ -148,10 +168,11 @@ void NoteMipLockSkipped() {
 }
 
 void LogTextureUploadStats() {
-  EOT_INFO("[texture] {} uploads queued, {} performed, {} skipped; {} mip locks "
-           "not uploaded",
+  EOT_INFO("[texture] {} tracked, {} uploads, {} skipped, {} mip locks skipped; "
+           "{} ever had non-zero content",
            g_stats.queued.load(), g_stats.uploaded.load(),
-           g_stats.skipped.load(), g_stats.mip_locks.load());
+           g_stats.skipped.load(), g_stats.mip_locks.load(),
+           g_stats.non_zero.load());
 }
 
 }

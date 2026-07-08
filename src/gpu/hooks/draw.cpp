@@ -20,6 +20,8 @@ struct DrawStats {
   std::atomic<u32> no_index_bound{0};
   std::atomic<u32> no_index_base{0};
   std::atomic<u32> no_shaders{0};
+  std::atomic<u32> stage_unresolved{0};
+  std::atomic<u32> depth_only{0};
   std::atomic<u32> translatable{0};
   std::atomic<u32> index32{0};
 };
@@ -40,7 +42,15 @@ void Classify(u32 device_va, bool indexed) {
     if (!ib) {
       g_draws.no_index_bound.fetch_add(1, std::memory_order_relaxed);
     } else if (ib->address < 0x1000) {
-      g_draws.no_index_base.fetch_add(1, std::memory_order_relaxed);
+      if (g_draws.no_index_base.fetch_add(1, std::memory_order_relaxed) < 3) {
+        const auto *raw = eot::mem::try_at<const eot::be<u32>>(ib_va);
+        EOT_WARN("[draw] IB 0x{:08X} base=0 size={} hdr = {:08X} {:08X} "
+                 "{:08X} {:08X} {:08X} {:08X} {:08X} {:08X}",
+                 ib_va, ib->size, raw ? u32(raw[0]) : 0, raw ? u32(raw[1]) : 0,
+                 raw ? u32(raw[2]) : 0, raw ? u32(raw[3]) : 0,
+                 raw ? u32(raw[4]) : 0, raw ? u32(raw[5]) : 0,
+                 raw ? u32(raw[6]) : 0, raw ? u32(raw[7]) : 0);
+      }
     } else {
       has_indices = true;
       if (ib->index32)
@@ -48,11 +58,22 @@ void Classify(u32 device_va, bool indexed) {
     }
   }
 
-  const bool has_shaders = Video::BoundVertexShader() && Video::BoundPixelShader();
-  if (!has_shaders)
+  const u32 vs_va = mem::try_load<u32>(device_va + kDeviceVertexShaderShadow);
+  const u32 ps_va = mem::try_load<u32>(device_va + kDevicePixelShaderShadow);
+  const bool has_vs = Video::BoundVertexShader() != nullptr;
+  const bool has_ps = Video::BoundPixelShader() != nullptr;
+  if (has_vs && !has_ps)
+    g_draws.depth_only.fetch_add(1, std::memory_order_relaxed);
+  if (!has_vs) {
     g_draws.no_shaders.fetch_add(1, std::memory_order_relaxed);
+    if (vs_va && g_draws.stage_unresolved.fetch_add(
+                     1, std::memory_order_relaxed) < 3) {
+      EOT_WARN("[draw] VS bound but unresolved: vs=0x{:08X} ps=0x{:08X}", vs_va,
+               ps_va);
+    }
+  }
 
-  if (has_stream && has_indices && has_shaders)
+  if (has_stream && has_indices && has_vs)
     g_draws.translatable.fetch_add(1, std::memory_order_relaxed);
 }
 
@@ -62,11 +83,12 @@ void LogDrawStats() {
   const u32 total = g_draws.vertices.load() + g_draws.indexed.load();
   EOT_INFO("[draw] {} draws ({} indexed, {} of those 32-bit); {} translatable; "
            "dropped: {} no stream, {} no IB bound, {} IB has no base, {} no "
-           "shaders",
+           "vertex shader ({} unresolved); {} of the translatable are depth-only",
            total, g_draws.indexed.load(), g_draws.index32.load(),
            g_draws.translatable.load(), g_draws.no_stream.load(),
            g_draws.no_index_bound.load(), g_draws.no_index_base.load(),
-           g_draws.no_shaders.load());
+           g_draws.no_shaders.load(), g_draws.stage_unresolved.load(),
+           g_draws.depth_only.load());
 }
 
 namespace {

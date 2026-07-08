@@ -8,7 +8,7 @@ namespace eot::gpu {
 
 GuestBuffer *RegisterBufferHeader(u32 header_va, ResourceType type);
 
-void NotifyBufferAddressFixup(u32 resource_va);
+void NotifyBufferAddressFixup(u32 resource_va, u32 base_va);
 
 GuestBuffer *ResolveGuestBuffer(u32 header_va, ResourceType type);
 

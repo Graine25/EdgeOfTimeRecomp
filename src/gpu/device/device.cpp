@@ -412,7 +412,8 @@ void Video::Present(GuestTexture *front_buffer) {
              front_buffer ? front_buffer->height : 0,
              front_buffer ? static_cast<u32>(front_buffer->format) : 0u,
              front_buffer ? static_cast<u32>(front_buffer->sampleCount) : 0u,
-             s.blit_pipeline != nullptr, blittable ? "BLIT" : "clear only");
+             s.blit_pipeline != nullptr,
+             blittable ? "BLIT" : "clear only");
   }
 
   cmd->begin();

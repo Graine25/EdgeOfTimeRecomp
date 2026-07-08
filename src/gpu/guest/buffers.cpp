@@ -25,6 +25,7 @@ struct Stats {
   std::atomic<u32> fixups{0};
   std::atomic<u32> fixup_calls{0};   // XGOffsetResourceAddress calls seen
   std::atomic<u32> fixup_unknown{0};
+  std::atomic<u32> fixup_null_base{0};
   std::atomic<u32> malformed{0};
 };
 Stats g_stats;
@@ -106,7 +107,7 @@ GuestBuffer *RegisterBufferHeader(u32 header_va, ResourceType type) {
   return Publish(header_va, type, true);
 }
 
-void NotifyBufferAddressFixup(u32 resource_va) {
+void NotifyBufferAddressFixup(u32 resource_va, u32 base_va) {
   if (!resource_va)
     return;
   g_stats.fixup_calls.fetch_add(1, std::memory_order_relaxed);
@@ -123,8 +124,14 @@ void NotifyBufferAddressFixup(u32 resource_va) {
     }
     return;
   }
-  if (RefreshLocked(*it->second) && it->second->address != 0)
+  const bool ok = RefreshLocked(*it->second) && it->second->address != 0;
+  if (ok) {
     g_stats.fixups.fetch_add(1, std::memory_order_relaxed);
+  } else if (g_stats.fixup_null_base.fetch_add(1, std::memory_order_relaxed) < 3) {
+    EOT_WARN("[buffer] fixup with NULL base: {} header 0x{:08X} size={} "
+             "(base arg = 0x{:08X})",
+             TypeName(it->second->type), resource_va, it->second->size, base_va);
+  }
 }
 
 GuestBuffer *ResolveGuestBuffer(u32 header_va, ResourceType type) {
@@ -168,11 +175,12 @@ bool ReadStreamFetch(u32 device_va, u32 stream, u32 &addr, u32 &size) {
 void LogBufferStats() {
   EOT_INFO("[buffer] {} vertex, {} index; {} first seen at stamp, {} at bind; "
            "{} still with a zero base, {}/{} address fixups ({} on unknown "
-           "headers), {} malformed",
+           "headers, {} with a NULL base), {} malformed",
            g_stats.vertex.load(), g_stats.index.load(), g_stats.stamped.load(),
            g_stats.at_bind.load(), g_stats.zero_base.load(),
            g_stats.fixups.load(), g_stats.fixup_calls.load(),
-           g_stats.fixup_unknown.load(), g_stats.malformed.load());
+           g_stats.fixup_unknown.load(), g_stats.fixup_null_base.load(),
+           g_stats.malformed.load());
 }
 
 }
