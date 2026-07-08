@@ -253,7 +253,7 @@ u32 D3DResource_GetType_hook(u32 res_guest) {
   return 0;
 }
 
-u32 eot_D3DTexture_LockRect_hook(u32 texture_guest, u32,
+u32 eot_D3DTexture_LockRect_hook(u32 texture_guest, u32 level,
                                  u32, u32,
                                  rex::MappedPtr<be_u32> pBits_out,
                                  rex::MappedPtr<be_u32> pitch_out,
@@ -273,16 +273,19 @@ u32 eot_D3DTexture_LockRect_hook(u32 texture_guest, u32,
           texture_guest);
   if (!tex)
     return 0;
-  const u32 pitch = eot::gpu::ComputeTexturePitch(tex);
-  if (!pitch || !tex->height)
+  const eot::gpu::TextureFootprint fp =
+      eot::gpu::ComputeTextureFootprint(tex, level);
+  const eot::gpu::TextureFootprint base = eot::gpu::ComputeTextureFootprint(tex);
+  if (!fp.valid() || !base.valid())
     return 0;
+  const u32 pitch = fp.pitch;
 
   if (!tex->mappedMemory) {
     auto *memory = REX_KERNEL_MEMORY();
-    tex->mappedMemory = memory->SystemHeapAlloc(pitch * tex->height, 0x10);
+    tex->mappedMemory =
+        memory->SystemHeapAlloc(static_cast<u32>(base.size()), 0x10);
     if (!tex->mappedMemory) {
-      EOT_ERROR("LockRect: scratch alloc failed ({} bytes)",
-                pitch * tex->height);
+      EOT_ERROR("LockRect: scratch alloc failed ({} bytes)", base.size());
       return 0;
     }
   }
@@ -290,7 +293,10 @@ u32 eot_D3DTexture_LockRect_hook(u32 texture_guest, u32,
     *pBits_out = tex->mappedMemory;
   if (pitch_out)
     *pitch_out = pitch;
-  eot::gpu::QueueTextureUpload(tex);
+  if (level == 0)
+    eot::gpu::QueueTextureUpload(tex);
+  else
+    eot::gpu::NoteMipLockSkipped();
   return tex->mappedMemory;
 }
 

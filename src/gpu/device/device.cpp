@@ -371,6 +371,15 @@ void Video::Present(GuestTexture *front_buffer) {
   plume::RenderFramebuffer *back_fb = s.framebuffers[texture_index].get();
   auto *cmd = s.command_lists[cur].get();
 
+  if (!front_buffer || !front_buffer->hasContent) {
+    const u32 want_w = front_buffer ? front_buffer->width : 0;
+    const u32 want_h = front_buffer ? front_buffer->height : 0;
+    if (GuestTexture *uploaded = LastUploadedTexture(want_w, want_h)) {
+      if (uploaded->texture && uploaded->hasContent)
+        front_buffer = uploaded;
+    }
+  }
+
   const bool blittable =
       front_buffer && front_buffer->texture && front_buffer->width &&
       front_buffer->height &&
@@ -388,6 +397,22 @@ void Video::Present(GuestTexture *front_buffer) {
       src_view = view.get();
       s.blit_view_graveyard[cur].push_back(std::move(view));
     }
+  }
+
+  static GuestTexture *reported_source = reinterpret_cast<GuestTexture *>(1);
+  static u32 reported_count = 0;
+  if (reported_source != front_buffer && reported_count < 4) {
+    reported_source = front_buffer;
+    ++reported_count;
+    EOT_INFO("[present] front={} tex={} {}x{} fmt={} samples={} pipeline={} -> "
+             "{}",
+             front_buffer != nullptr,
+             front_buffer && front_buffer->texture,
+             front_buffer ? front_buffer->width : 0,
+             front_buffer ? front_buffer->height : 0,
+             front_buffer ? static_cast<u32>(front_buffer->format) : 0u,
+             front_buffer ? static_cast<u32>(front_buffer->sampleCount) : 0u,
+             s.blit_pipeline != nullptr, blittable ? "BLIT" : "clear only");
   }
 
   cmd->begin();
