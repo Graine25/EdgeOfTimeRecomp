@@ -525,32 +525,44 @@ plume::RenderTextureView *AttachmentViewLocked(GuestTexture *tex) {
 
 plume::RenderFramebuffer *GetFramebufferLocked(VideoState &s, GuestTexture *rt,
                                               GuestTexture *ds) {
-  if (!rt || !rt->texture)
+  if (rt && !rt->texture)
+    rt = nullptr;
+  if (ds && !ds->texture)
+    ds = nullptr;
+  if (!rt && !ds)
     return nullptr;
-  const plume::RenderTexture *key = ds ? ds->texture : nullptr;
-  auto it = rt->framebuffers.find(key);
-  if (it != rt->framebuffers.end())
+
+  GuestTexture *owner = rt ? rt : ds;
+  const plume::RenderTexture *key =
+      rt ? (ds ? ds->texture : nullptr) : nullptr;
+  auto it = owner->framebuffers.find(key);
+  if (it != owner->framebuffers.end())
     return it->second.get();
 
-  if (!AttachmentViewLocked(rt))
+  if (rt && !AttachmentViewLocked(rt))
     return nullptr;
   if (ds && !AttachmentViewLocked(ds))
     return nullptr;
 
-  const plume::RenderTexture *colors[1] = {rt->texture};
-  plume::RenderFramebufferDesc desc(colors, 1);
+  const plume::RenderTexture *colors[1] = {rt ? rt->texture : nullptr};
+  plume::RenderFramebufferDesc desc;
+  if (rt) {
+    desc.colorAttachments = colors;
+    desc.colorAttachmentsCount = 1;
+  }
   if (ds)
     desc.depthAttachment = ds->texture;
+
   auto fb = s.device->createFramebuffer(desc);
   if (!fb) {
-    EOT_ERROR("createFramebuffer failed for RT {}x{} fmt={} (depth={})",
-              rt->width, rt->height, static_cast<u32>(rt->format),
-              ds ? "yes" : "no");
+    EOT_ERROR("createFramebuffer failed: colour={} depth={} ({}x{} fmt={})",
+              rt ? "yes" : "no", ds ? "yes" : "no", owner->width, owner->height,
+              static_cast<u32>(owner->format));
     return nullptr;
   }
   auto *raw = fb.get();
-  rt->framebuffers.emplace(key, std::move(fb));
-  s.framebuffer_owners.insert(rt);
+  owner->framebuffers.emplace(key, std::move(fb));
+  s.framebuffer_owners.insert(owner);
   return raw;
 }
 
@@ -610,37 +622,53 @@ void Video::SetStreamSource(u32 stream, GuestBuffer *buffer, u32 offset,
   s.streams[stream] = {buffer, offset, stride};
 }
 
+Video::AttachmentFormats Video::BoundAttachmentFormats() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  AttachmentFormats out;
+  if (s.render_targets[0]) {
+    out.color = s.render_targets[0]->format;
+    out.sampleCount =
+        static_cast<u32>(s.render_targets[0]->sampleCount);
+  }
+  if (s.depth_stencil)
+    out.depth = s.depth_stencil->format;
+  return out;
+}
+
 void Video::SetIndices(GuestBuffer *buffer) {
   auto &s = state();
   std::lock_guard lock(s.mutex);
   s.index_buffer = buffer;
 }
 
-bool Video::BindDrawFramebuffer() {
+Video::FramebufferBind Video::BindDrawFramebuffer() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
   if (!s.present_ready)
-    return false;
+    return FramebufferBind::kNotReady;
 
   GuestTexture *rt = s.render_targets[0];
   GuestTexture *ds = s.depth_stencil;
   if (!rt && !ds)
-    return false;
+    return FramebufferBind::kNothingBound;
 
   if (s.draw_framebuffer_bound && rt == s.bound_fb_rt && ds == s.bound_fb_ds)
-    return true;
+    return FramebufferBind::kBound;
 
-  if (!rt)
-    return false;
+  if (rt && !rt->texture)
+    return FramebufferBind::kNoHostTexture;
+  if (!rt && !ds->texture)
+    return FramebufferBind::kNoHostTexture;
 
   plume::RenderFramebuffer *fb = GetFramebufferLocked(s, rt, ds);
   if (!fb)
-    return false;
+    return FramebufferBind::kCreateFailed;
 
   s.bound_fb_rt = rt;
   s.bound_fb_ds = ds;
   s.draw_framebuffer_bound = true;
-  return true;
+  return FramebufferBind::kBound;
 }
 
 void Video::NotifyTextureDestroyed(GuestTexture *dead) {

@@ -89,10 +89,13 @@ set(REEOT_SOURCES
     src/gpu/hooks/buffer.cpp
     src/gpu/hooks/device.cpp
     src/gpu/hooks/draw.cpp
+    src/gpu/hooks/movie.cpp
     src/gpu/hooks/resource.cpp
     src/gpu/hooks/shader.cpp
     src/gpu/hooks/state.cpp
     src/gpu/hooks/stubs.cpp
+    src/gpu/pipeline/pipeline_cache.cpp
+    src/gpu/pipeline/pipeline_cache.h
     src/gpu/shaders/dxc_link.cpp
     src/gpu/shaders/dxc_link.h
     src/gpu/shaders/guest_shaders.cpp
