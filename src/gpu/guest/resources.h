@@ -70,6 +70,7 @@ struct GuestTexture {
   u32 mappedMemory = 0;
 
   bool hasContent = false;
+  bool sawNonZeroSource = false;
 
   std::unordered_map<const plume::RenderTexture *,
                      std::unique_ptr<plume::RenderFramebuffer>>

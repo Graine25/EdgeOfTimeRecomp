@@ -229,28 +229,35 @@ u32 D3DResource_AddRef_hook(rex::MappedPtr<eot::gpu::D3DResource> res) {
   return next;
 }
 
-u32 D3DResource_GetType_hook(u32 res_guest) {
+bool HostResourceTypeFor(u32 res_guest, u32 &out) {
   eot::gpu::ResourceType type;
   if (eot::gpu::HostResourceHeap::GetType(res_guest, &type)) {
     switch (type) {
     case eot::gpu::ResourceType::RenderTarget:
     case eot::gpu::ResourceType::DepthStencil:
-      return 1; // D3DRTYPE_SURFACE
+      out = 1; // D3DRTYPE_SURFACE
+      return true;
     case eot::gpu::ResourceType::Texture:
-      return 3; // D3DRTYPE_TEXTURE
+      out = 3; // D3DRTYPE_TEXTURE
+      return true;
     case eot::gpu::ResourceType::VolumeTexture:
-      return 17; // D3DRTYPE_VOLUMETEXTURE (X360 = 0x11)
+      out = 17; // D3DRTYPE_VOLUMETEXTURE (X360 = 0x11)
+      return true;
     case eot::gpu::ResourceType::VertexBuffer:
-      return 6; // D3DRTYPE_VERTEXBUFFER
+      out = 6; // D3DRTYPE_VERTEXBUFFER
+      return true;
     case eot::gpu::ResourceType::IndexBuffer:
-      return 7; // D3DRTYPE_INDEXBUFFER
+      out = 7; // D3DRTYPE_INDEXBUFFER
+      return true;
     default:
-      return 0;
+      break;
     }
   }
-  if (IsSurfaceLevel(res_guest))
-    return 1; // D3DRTYPE_SURFACE
-  return 0;
+  if (IsSurfaceLevel(res_guest)) {
+    out = 1; // D3DRTYPE_SURFACE
+    return true;
+  }
+  return false;
 }
 
 u32 eot_D3DTexture_LockRect_hook(u32 texture_guest, u32 level,
@@ -343,7 +350,16 @@ REX_HOOK(D3DDevice_CreateSurface, D3DDevice_CreateSurface_hook);
 REX_HOOK(D3DDevice_CreateTexture, D3DDevice_CreateTexture_hook);
 REX_HOOK(D3DResource_Release, D3DResource_Release_hook);
 REX_HOOK(D3DResource_AddRef, D3DResource_AddRef_hook);
-REX_HOOK(D3DResource_GetType, D3DResource_GetType_hook);
+REX_EXTERN(__imp__D3DResource_GetType);
+REX_HOOK_RAW(D3DResource_GetType) {
+  u32 type = 0;
+  if (HostResourceTypeFor(ctx.r3.u32, type)) {
+    ctx.r3.u32 = type;
+    return;
+  }
+  __imp__D3DResource_GetType(ctx, base);
+}
+
 REX_HOOK(D3DTexture_GetSurfaceLevel, D3DTexture_GetSurfaceLevel_hook);
 REX_HOOK(eot_D3DTexture_LockRect, eot_D3DTexture_LockRect_hook);
 
