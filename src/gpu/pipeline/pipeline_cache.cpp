@@ -10,6 +10,7 @@
 #include "core/logging.h"
 #include "gpu/device/device.h"
 #include "gpu/guest/resources.h"
+#include "gpu/pipeline/vertex_layout.h"
 #include "gpu/shaders/shader_cache.h"
 
 namespace eot::gpu {
@@ -26,6 +27,12 @@ std::unordered_map<PipelineKey, Entry, PipelineKeyHash> g_pipelines;
 
 std::atomic<u32> g_lookups{0};
 std::atomic<u32> g_undescribable{0};
+std::atomic<u32> g_layout_ok{0};
+std::atomic<u32> g_layout_failed{0};
+std::atomic<u32> g_layout_reported{0};
+std::atomic<u32> g_layout_no_fetches{0};
+std::atomic<u32> g_layout_no_decl{0};
+std::atomic<u32> g_layout_join_failed{0};
 
 void LogPipelineStatsLocked();
 
@@ -33,6 +40,24 @@ void Mix(u64 &h, u64 value) {
   h ^= value + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2);
 }
 
+}
+
+void NoteInputLayout(const InputLayout &layout, bool ok) {
+  if (ok) {
+    if (g_layout_ok.fetch_add(1, std::memory_order_relaxed) == 0) {
+      char buf[320];
+      int len = 0;
+      for (u32 i = 0; i < layout.count && len < int(sizeof(buf)) - 40; ++i) {
+        const auto &e = layout.elements[i];
+        len += snprintf(buf + len, sizeof(buf) - len, "%s%s%u@s%u+%u:f%u",
+                        i ? " " : "", VertexUsageName(e.usage), e.usageIndex,
+                        e.stream, e.offset, static_cast<u32>(e.format));
+      }
+      EOT_INFO("[pso] first input layout: {} elements - {}", layout.count, buf);
+    }
+  } else {
+    g_layout_failed.fetch_add(1, std::memory_order_relaxed);
+  }
 }
 
 size_t PipelineKeyHash::operator()(const PipelineKey &k) const {
@@ -43,17 +68,46 @@ size_t PipelineKeyHash::operator()(const PipelineKey &k) const {
   Mix(h, (u64(static_cast<u32>(k.renderTargetFormat)) << 32) |
              static_cast<u32>(k.depthFormat));
   Mix(h, (u64(static_cast<u32>(k.topology)) << 32) | k.sampleCount);
+  Mix(h, k.inputLayoutHash);
   Mix(h, k.stateHash);
   return static_cast<size_t>(h);
 }
 
-bool BuildPipelineKeyForCurrentState(PipelineKey &out) {
+u64 HashInputLayout(const InputLayout &layout) {
+  u64 h = 0;
+  for (u32 i = 0; i < layout.count; ++i) {
+    const auto &e = layout.elements[i];
+    Mix(h, (u64(static_cast<u32>(e.usage)) << 40) | (u64(e.usageIndex) << 32) |
+               (u64(e.stream) << 24) | e.offset);
+    Mix(h, static_cast<u32>(e.format));
+  }
+  return h;
+}
+
+bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
   GuestShader *vs = Video::BoundVertexShader();
   if (!vs || !vs->shaderCacheEntry)
     return false;
 
   out = PipelineKey{};
   out.vertexShaderHash = vs->hash;
+
+  VertexLayout fetches;
+  VertexDeclaration decl;
+  InputLayout input;
+  if (!DecodeVertexLayout(vs, fetches)) {
+    g_layout_no_fetches.fetch_add(1, std::memory_order_relaxed);
+    NoteInputLayout(input, false);
+  } else if (!CurrentVertexDeclaration(device_va, decl)) {
+    g_layout_no_decl.fetch_add(1, std::memory_order_relaxed);
+    NoteInputLayout(input, false);
+  } else if (!BuildInputLayout(fetches, decl, input)) {
+    g_layout_join_failed.fetch_add(1, std::memory_order_relaxed);
+    NoteInputLayout(input, false);
+  } else {
+    NoteInputLayout(input, true);
+    out.inputLayoutHash = HashInputLayout(input);
+  }
   out.vertexSpecConstants = 0;
 
   if (GuestShader *ps = Video::BoundPixelShader()) {
@@ -101,10 +155,13 @@ void LogPipelineStatsLocked() {
     if (key.pixelShaderHash == 0)
       ++depth_only;
   }
-  EOT_INFO("[pso] {} distinct keys from {} lookups ({} depth-only); {} draws "
-           "undescribable",
+  EOT_INFO("[pso] {} distinct keys from {} lookups ({} depth-only); {} "
+           "undescribable; input layout {} ok, {} failed ({} no fetch table, "
+           "{} no declaration, {} join failed)",
            g_pipelines.size(), g_lookups.load(), depth_only,
-           g_undescribable.load());
+           g_undescribable.load(), g_layout_ok.load(),
+           g_layout_failed.load(), g_layout_no_fetches.load(),
+           g_layout_no_decl.load(), g_layout_join_failed.load());
 }
 
 }

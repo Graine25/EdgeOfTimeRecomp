@@ -122,6 +122,38 @@ struct D3DIndexBuffer {
 };
 static_assert(sizeof(D3DIndexBuffer) == 32);
 
+inline constexpr u32 kDeviceVertexDeclShadow = 0x2FB8;
+
+inline constexpr u32 kVertexDeclCommonSignature = 0x100005;
+inline constexpr u32 kVertexDeclBaseFlushSignature = 0xFFFF0000;
+
+inline constexpr u32 kVertexDeclEndStream = 0xFF;
+
+inline constexpr u32 kVertexDeclCountOffset = 0x18;
+inline constexpr u32 kVertexDeclMaxStreamOffset = 0x1C;
+inline constexpr u32 kVertexDeclElementsOffset = 0x34;
+inline constexpr u32 kVertexDeclElementStride = 12;
+
+struct D3DVertexElement {
+  be_u32 StreamAndOffset;
+  be_u32 Type;            // D3DDECLTYPE
+  be_u32 MethodUsage;
+};
+static_assert(sizeof(D3DVertexElement) == 12);
+
+inline u32 VertexElementStream(const D3DVertexElement &e) {
+  return u32(e.StreamAndOffset) >> 16;
+}
+inline u32 VertexElementOffset(const D3DVertexElement &e) {
+  return u32(e.StreamAndOffset) & 0xFFFF;
+}
+inline u32 VertexElementUsage(const D3DVertexElement &e) {
+  return (u32(e.MethodUsage) >> 16) & 0xFF;
+}
+inline u32 VertexElementUsageIndex(const D3DVertexElement &e) {
+  return (u32(e.MethodUsage) >> 8) & 0xFF;
+}
+
 inline constexpr u32 kVertexFetchTypeMask = 0x3;
 inline constexpr u32 kVertexFetchSizeMask = 0x3FFFFFC;
 

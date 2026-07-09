@@ -17,6 +17,8 @@ struct PipelineKey {
       plume::RenderPrimitiveTopology::TRIANGLE_LIST;
   u32 sampleCount = 1;
 
+  u64 inputLayoutHash = 0;
+
   u64 stateHash = 0;
 
   bool operator==(const PipelineKey &) const = default;
@@ -28,7 +30,7 @@ struct PipelineKeyHash {
 
 plume::RenderPipeline *GetOrCreatePipeline(const PipelineKey &key);
 
-bool BuildPipelineKeyForCurrentState(PipelineKey &out);
+bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out);
 
 void NotePipelineUndescribable();
 void LogPipelineStats();

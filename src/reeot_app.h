@@ -7,6 +7,7 @@
 #include "gpu/device/texture_upload.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/pipeline/pipeline_cache.h"
+#include "gpu/pipeline/vertex_layout.h"
 #include "gpu/shaders/guest_shaders.h"
 
 class ReeotApp : public rex::ReXApp {
@@ -39,6 +40,7 @@ class ReeotApp : public rex::ReXApp {
     eot::gpu::LogBufferStats();
     eot::gpu::LogDrawStats();
     eot::gpu::LogPipelineStats();
+    eot::gpu::LogVertexLayoutStats();
     eot::gpu::LogTextureUploadStats();
   }
 };
