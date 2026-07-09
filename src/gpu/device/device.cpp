@@ -50,7 +50,6 @@ void DestroyResourceNow(u32 guest_va, ResourceType type) {
   case ResourceType::DepthStencil: {
     auto *tex = static_cast<GuestTexture *>(host);
     Video::NotifyTextureDestroyed(tex);
-    ForgetTextureUpload(tex);
     if (tex->mappedMemory) {
       memory->SystemHeapFree(tex->mappedMemory);
       tex->mappedMemory = 0;
@@ -199,12 +198,14 @@ bool BuildBlitPipelineLocked(VideoState &s) {
       plume::RenderDescriptorRange(plume::RenderDescriptorRangeType::SAMPLER, 1,
                                    1)};
   plume::RenderDescriptorSetDesc set_desc(ranges, 2);
-  s.blit_descriptor_set = s.device->createDescriptorSet(set_desc);
-  if (!s.blit_descriptor_set) {
+  for (u32 i = 0; i < kNumFrames; ++i)
+    s.blit_descriptor_set[i] = s.device->createDescriptorSet(set_desc);
+  if (!s.blit_descriptor_set[0]) {
     EOT_ERROR("Present blit: descriptor set creation failed");
     return false;
   }
-  s.blit_descriptor_set->setSampler(1, s.blit_sampler.get());
+  for (u32 i = 0; i < kNumFrames; ++i)
+    s.blit_descriptor_set[i]->setSampler(1, s.blit_sampler.get());
 
   plume::RenderPipelineLayoutDesc layout_desc;
   layout_desc.descriptorSetDescs = &set_desc;
@@ -325,6 +326,8 @@ void LogPresentFallbackOnce(const GuestTexture *front_buffer,
 }
 
 void AdvanceAndWaitReusedLocked(VideoState &s) {
+  DrainValidationMessages();
+  CheckDeviceRemoved("present");
   const u32 slot = s.next_frame;
   s.frame.store(slot, std::memory_order_relaxed);
   s.next_frame = (slot + 1) % kNumFrames;
@@ -333,7 +336,7 @@ void AdvanceAndWaitReusedLocked(VideoState &s) {
     s.command_list_submitted[slot] = false;
   }
   s.blit_view_graveyard[slot].clear();
-  s.upload_staging[slot].clear();
+  s.upload_staging[slot].Reset();
 }
 
 }
@@ -429,15 +432,15 @@ void Video::Present(GuestTexture *front_buffer) {
     cmd->barriers(plume::RenderBarrierStage::GRAPHICS, to_blit, 2);
     front_buffer->layout = plume::RenderTextureLayout::SHADER_READ;
 
-    s.blit_descriptor_set->setTexture(0, front_buffer->texture,
-                                      plume::RenderTextureLayout::SHADER_READ,
-                                      src_view);
+    auto *blit_set = s.blit_descriptor_set[cur].get();
+    blit_set->setTexture(0, front_buffer->texture,
+                         plume::RenderTextureLayout::SHADER_READ, src_view);
     const u32 w = s.swap_chain->getWidth();
     const u32 h = s.swap_chain->getHeight();
     cmd->setFramebuffer(back_fb);
     cmd->setPipeline(s.blit_pipeline.get());
     cmd->setGraphicsPipelineLayout(s.blit_layout.get());
-    cmd->setGraphicsDescriptorSet(s.blit_descriptor_set.get(), 0);
+    cmd->setGraphicsDescriptorSet(blit_set, 0);
     cmd->setViewports(plume::RenderViewport(0.0f, 0.0f, float(w), float(h)));
     cmd->setScissors(
         plume::RenderRect(0, 0, static_cast<i32>(w), static_cast<i32>(h)));
@@ -499,6 +502,19 @@ void Video::QueueResourceDestroy(u32 guest_va, ResourceType type) {
     DestroyResourceNow(guest_va, type);
     return;
   }
+  switch (type) {
+  case ResourceType::Texture:
+  case ResourceType::VolumeTexture:
+  case ResourceType::RenderTarget:
+  case ResourceType::DepthStencil: {
+    auto *memory = REX_KERNEL_MEMORY();
+    ForgetTextureUpload(memory->TranslateVirtual<GuestTexture *>(guest_va));
+    break;
+  }
+  default:
+    break;
+  }
+
   const u32 slot = s.frame.load(std::memory_order_relaxed);
   s.deferred_destroy[slot].push_back({guest_va, type});
 }
@@ -682,6 +698,8 @@ Video::FramebufferBind Video::BindDrawFramebuffer() {
 void Video::NotifyTextureDestroyed(GuestTexture *dead) {
   if (!dead)
     return;
+  ForgetTextureUpload(dead);
+
   auto &s = state();
   std::lock_guard lock(s.mutex);
 
@@ -733,6 +751,39 @@ CreateHostTexture(plume::RenderDevice *device,
     return nullptr;
   }
   return texture;
+}
+
+void DrainValidationMessages() {
+  auto *dev = static_cast<plume::D3D12Device *>(Video::HostDevice());
+  if (!dev || !dev->d3d)
+    return;
+  ID3D12InfoQueue *queue = nullptr;
+  if (FAILED(dev->d3d->QueryInterface(IID_PPV_ARGS(&queue))) || !queue)
+    return;
+
+  static bool break_disabled = false;
+  if (!break_disabled) {
+    break_disabled = true;
+    queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, FALSE);
+    queue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, FALSE);
+  }
+
+  const u64 count = queue->GetNumStoredMessages();
+  static u32 logged = 0;
+  for (u64 i = 0; i < count && logged < 40; ++i) {
+    SIZE_T len = 0;
+    if (FAILED(queue->GetMessage(i, nullptr, &len)) || len == 0)
+      continue;
+    std::vector<u8> storage(len);
+    auto *msg = reinterpret_cast<D3D12_MESSAGE *>(storage.data());
+    if (FAILED(queue->GetMessage(i, msg, &len)) || !msg->pDescription)
+      continue;
+    ++logged;
+    EOT_ERROR("[d3d12] sev={} id={} {}", static_cast<u32>(msg->Severity),
+              static_cast<u32>(msg->ID), msg->pDescription);
+  }
+  queue->ClearStoredMessages();
+  queue->Release();
 }
 
 bool CheckDeviceRemoved(const char *context) {

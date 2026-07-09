@@ -1,5 +1,6 @@
 #include "gpu/device/texture_upload.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <iterator>
@@ -11,12 +12,17 @@
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
 
+#include <rex/cvar.h>
+
 #include "core/logging.h"
+#include "core/settings.h"
 #include "core/memory_helpers.h"
 #include "gpu/device/device.h"
 #include "gpu/guest/format.h"
 
 namespace tu = rex::graphics::texture_util;
+
+REXCVAR_DEFINE_BOOL(eot_upload_textures, true, kCvarGroup, "Upload guest textures");
 
 namespace eot::gpu {
 
@@ -29,14 +35,64 @@ GuestTexture *g_last_fullscreen = nullptr;
 u32 g_fullscreen_w = 0;
 u32 g_fullscreen_h = 0;
 
+constexpr u32 kMaxEmptyUploadAttempts = 4;
+
+constexpr u32 kGuestPageSize = 0x1000;
+
+bool ReadableSpan(u32 va, u64 size) {
+  if (!va || size == 0 || size > 0xFFFFFFFFull)
+    return false;
+  const u32 bytes = static_cast<u32>(size);
+  if (va + bytes < va)
+    return false;
+  for (u32 p = va; p < va + bytes;
+       p = (p & ~(kGuestPageSize - 1)) + kGuestPageSize) {
+    if (!mem::try_translate(p, 1))
+      return false;
+  }
+  return true;
+}
+
 struct Stats {
   std::atomic<u32> queued{0};
   std::atomic<u32> uploaded{0};
   std::atomic<u32> skipped{0};
   std::atomic<u32> mip_locks{0};
   std::atomic<u32> non_zero{0};
+  std::atomic<u32> abandoned{0};
+  std::atomic<u32> not_copyable{0};
 };
 Stats g_stats;
+
+}
+
+namespace {
+
+plume::RenderBuffer *AcquireStaging(StagingPool &pool,
+                                    plume::RenderDevice *device, u64 bytes) {
+  constexpr u64 kGranularity = 64 * 1024;
+  const u64 capacity = (bytes + kGranularity - 1) / kGranularity * kGranularity;
+
+  for (u32 i = pool.used; i < pool.buffers.size(); ++i) {
+    if (pool.capacities[i] < capacity)
+      continue;
+    if (i != pool.used) {
+      std::swap(pool.buffers[i], pool.buffers[pool.used]);
+      std::swap(pool.capacities[i], pool.capacities[pool.used]);
+    }
+    return pool.buffers[pool.used++].get();
+  }
+
+  auto buffer =
+      device->createBuffer(plume::RenderBufferDesc::UploadBuffer(capacity));
+  if (!buffer)
+    return nullptr;
+  plume::RenderBuffer *raw = buffer.get();
+  pool.buffers.insert(pool.buffers.begin() + pool.used, std::move(buffer));
+  pool.capacities.insert(pool.capacities.begin() + pool.used, capacity);
+  ++pool.used;
+  return raw;
+}
 
 }
 
@@ -69,9 +125,9 @@ GuestTexture *LastUploadedTexture(u32 preferred_w, u32 preferred_h) {
 }
 
 void FlushTextureUploads(plume::RenderCommandList *cmd,
-                         std::vector<std::unique_ptr<plume::RenderBuffer>> &keep_alive) {
+                         StagingPool &pool) {
   auto *device = Video::HostDevice();
-  if (!cmd || !device)
+  if (!cmd || !device || !REXCVAR_GET(eot_upload_textures))
     return;
 
   std::vector<GuestTexture *> batch;
@@ -80,8 +136,17 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
     if (g_dirty.empty())
       return;
     batch.assign(g_dirty.begin(), g_dirty.end());
-    for (auto it = g_dirty.begin(); it != g_dirty.end();)
-      it = (*it)->sawNonZeroSource ? g_dirty.erase(it) : std::next(it);
+    for (auto it = g_dirty.begin(); it != g_dirty.end();) {
+      GuestTexture *tex = *it;
+      if (tex->sawNonZeroSource) {
+        it = g_dirty.erase(it);
+      } else if (++tex->emptyUploadAttempts > kMaxEmptyUploadAttempts) {
+        g_stats.abandoned.fetch_add(1, std::memory_order_relaxed);
+        it = g_dirty.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 
   for (GuestTexture *tex : batch) {
@@ -89,8 +154,21 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
       g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
       continue;
     }
+    if (IsDepthFormat(tex->format) ||
+        tex->sampleCount != plume::RenderSampleCount::COUNT_1) {
+      if (g_stats.not_copyable.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[texture] skipping upload to a {} texture ({}x{} fmt={})",
+                 IsDepthFormat(tex->format) ? "depth" : "multisampled",
+                 tex->width, tex->height, static_cast<u32>(tex->format));
+      }
+      continue;
+    }
     const TextureFootprint fp = ComputeTextureFootprint(tex);
     if (!fp.valid()) {
+      g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
+      continue;
+    }
+    if (!ReadableSpan(tex->mappedMemory, fp.size())) {
       g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
       continue;
     }
@@ -100,8 +178,28 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
       continue;
     }
 
-    auto staging =
-        device->createBuffer(plume::RenderBufferDesc::UploadBuffer(fp.size()));
+    const size_t bytes = size_t(fp.size());
+    bool non_zero = false;
+    for (size_t i = 0; i < bytes; ++i) {
+      if (src[i] != 0) {
+        non_zero = true;
+        break;
+      }
+    }
+    if (!non_zero) {
+      g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
+      continue;
+    }
+    if (!tex->sawNonZeroSource) {
+      tex->sawNonZeroSource = true;
+      if (g_stats.non_zero.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[texture] first NON-ZERO scratch: {}x{} fmt={} - the guest "
+                 "does write through our LockRect pointer",
+                 tex->width, tex->height, static_cast<u32>(tex->format));
+      }
+    }
+
+    plume::RenderBuffer *staging = AcquireStaging(pool, device, bytes);
     if (!staging) {
       g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
       continue;
@@ -111,23 +209,6 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
       g_stats.skipped.fetch_add(1, std::memory_order_relaxed);
       continue;
     }
-    const size_t bytes = size_t(fp.size());
-    bool non_zero = false;
-    for (size_t i = 0; i < bytes; ++i) {
-      if (src[i] != 0) {
-        non_zero = true;
-        break;
-      }
-    }
-    if (non_zero && !tex->sawNonZeroSource) {
-      tex->sawNonZeroSource = true;
-      if (g_stats.non_zero.fetch_add(1, std::memory_order_relaxed) == 0) {
-        EOT_INFO("[texture] first NON-ZERO scratch: {}x{} fmt={} - the guest "
-                 "does write through our LockRect pointer",
-                 tex->width, tex->height, static_cast<u32>(tex->format));
-      }
-    }
-
     std::memcpy(mapped, src, bytes);
     staging->unmap();
 
@@ -139,7 +220,7 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
     cmd->copyTextureRegion(
         plume::RenderTextureCopyLocation::Subresource(tex->texture, 0, 0),
         plume::RenderTextureCopyLocation::PlacedFootprint(
-            staging.get(), tex->format, tex->width, tex->height, 1,
+            staging, tex->format, tex->width, tex->height, 1,
             (fp.pitch / fp.unitBytes) * fp.blockSize));
 
     const plume::RenderTextureBarrier to_read(
@@ -147,7 +228,6 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
     cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1);
     tex->layout = plume::RenderTextureLayout::SHADER_READ;
 
-    keep_alive.push_back(std::move(staging));
     tex->hasContent = tex->sawNonZeroSource;
     {
       std::lock_guard lock(g_upload_mutex);
@@ -169,10 +249,11 @@ void NoteMipLockSkipped() {
 
 void LogTextureUploadStats() {
   EOT_INFO("[texture] {} tracked, {} uploads, {} skipped, {} mip locks skipped; "
-           "{} ever had non-zero content",
+           "{} ever had non-zero content, {} abandoned empty, {} not copyable",
            g_stats.queued.load(), g_stats.uploaded.load(),
            g_stats.skipped.load(), g_stats.mip_locks.load(),
-           g_stats.non_zero.load());
+           g_stats.non_zero.load(), g_stats.abandoned.load(),
+           g_stats.not_copyable.load());
 }
 
 }

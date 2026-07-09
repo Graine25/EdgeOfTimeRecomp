@@ -71,6 +71,7 @@ struct GuestTexture {
 
   bool hasContent = false;
   bool sawNonZeroSource = false;
+  u32 emptyUploadAttempts = 0;
 
   std::unordered_map<const plume::RenderTexture *,
                      std::unique_ptr<plume::RenderFramebuffer>>

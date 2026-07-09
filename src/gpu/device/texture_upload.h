@@ -13,9 +13,15 @@ void QueueTextureUpload(GuestTexture *tex);
 
 void ForgetTextureUpload(GuestTexture *tex);
 
-void FlushTextureUploads(
-    plume::RenderCommandList *cmd,
-    std::vector<std::unique_ptr<plume::RenderBuffer>> &keep_alive);
+struct StagingPool {
+  std::vector<std::unique_ptr<plume::RenderBuffer>> buffers;
+  std::vector<u64> capacities;
+  u32 used = 0;
+
+  void Reset() { used = 0; }
+};
+
+void FlushTextureUploads(plume::RenderCommandList *cmd, StagingPool &pool);
 
 void NoteMipLockSkipped();
 
