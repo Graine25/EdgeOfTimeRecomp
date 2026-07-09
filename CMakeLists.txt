@@ -95,6 +95,8 @@ set(REEOT_SOURCES
     src/gpu/hooks/state.cpp
     src/gpu/hooks/stubs.cpp
     src/gpu/pipeline/pipeline_cache.cpp
+    src/gpu/pipeline/vertex_layout.cpp
+    src/gpu/pipeline/vertex_layout.h
     src/gpu/pipeline/pipeline_cache.h
     src/gpu/shaders/dxc_link.cpp
     src/gpu/shaders/dxc_link.h

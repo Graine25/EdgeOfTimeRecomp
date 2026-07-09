@@ -4,6 +4,7 @@
 #include "gpu/device/device.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/guest/d3d.h"
+#include "gpu/pipeline/vertex_layout.h"
 
 REX_EXTERN(__imp__XGSetVertexBufferHeader);
 REX_HOOK_RAW(XGSetVertexBufferHeader) {
@@ -25,6 +26,13 @@ REX_HOOK_RAW(XGOffsetResourceAddress) {
   const u32 base_va = ctx.r4.u32;
   __imp__XGOffsetResourceAddress(ctx, base);
   eot::gpu::NotifyBufferAddressFixup(resource_va, base_va);
+}
+
+REX_EXTERN(__imp__XGSetVertexDeclaration);
+REX_HOOK_RAW(XGSetVertexDeclaration) {
+  const u32 decl_va = ctx.r4.u32;
+  __imp__XGSetVertexDeclaration(ctx, base);
+  eot::gpu::RegisterVertexDeclaration(decl_va);
 }
 
 REX_EXTERN(__imp__D3DDevice_SetStreamSource);

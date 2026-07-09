@@ -119,4 +119,51 @@ bool IsRenderTargetCapable(plume::RenderFormat format) {
   }
 }
 
+plume::RenderFormat ConvertDeclType(u32 decl_type) {
+  switch (static_cast<D3DDeclType>(decl_type)) {
+  case D3DDeclType::kFloat1:
+    return plume::RenderFormat::R32_FLOAT;
+  case D3DDeclType::kFloat2:
+    return plume::RenderFormat::R32G32_FLOAT;
+  case D3DDeclType::kFloat3:
+    return plume::RenderFormat::R32G32B32_FLOAT;
+  case D3DDeclType::kFloat4:
+    return plume::RenderFormat::R32G32B32A32_FLOAT;
+  case D3DDeclType::kD3DColor:
+    return plume::RenderFormat::B8G8R8A8_UNORM;
+  case D3DDeclType::kUByte4:
+  case D3DDeclType::kUByte4Alt:
+    return plume::RenderFormat::R8G8B8A8_UINT;
+  case D3DDeclType::kShort2:
+    return plume::RenderFormat::R16G16_SINT;
+  case D3DDeclType::kShort4:
+    return plume::RenderFormat::R16G16B16A16_SNORM;
+  case D3DDeclType::kUByte4N:
+  case D3DDeclType::kUByte4NAlt:
+    return plume::RenderFormat::R8G8B8A8_UNORM;
+  case D3DDeclType::kShort2N:
+    return plume::RenderFormat::R16G16_SNORM;
+  case D3DDeclType::kShort4N:
+    return plume::RenderFormat::R16G16B16A16_SNORM;
+  case D3DDeclType::kUShort2N:
+    return plume::RenderFormat::R16G16_UNORM;
+  case D3DDeclType::kUShort4N:
+    return plume::RenderFormat::R16G16B16A16_UNORM;
+  case D3DDeclType::kUInt1:
+    return plume::RenderFormat::R32_UINT;
+  case D3DDeclType::kUDec3:
+  case D3DDeclType::kDec3N:
+  case D3DDeclType::kDec3NAlt:
+  case D3DDeclType::kDec3NAlt2:
+  case D3DDeclType::kDec3NWide:
+    return plume::RenderFormat::R32_UINT;
+  case D3DDeclType::kFloat16_2:
+    return plume::RenderFormat::R16G16_FLOAT;
+  case D3DDeclType::kFloat16_4:
+    return plume::RenderFormat::R16G16B16A16_FLOAT;
+  default:
+    return plume::RenderFormat::UNKNOWN;
+  }
+}
+
 }
