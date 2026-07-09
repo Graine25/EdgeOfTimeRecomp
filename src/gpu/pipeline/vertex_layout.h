@@ -27,6 +27,10 @@ enum class VertexUsage : u32 {
 
 const char *VertexUsageName(VertexUsage usage);
 
+const char *VertexUsageSemantic(VertexUsage usage);
+
+const char *VertexUsageSemantic(VertexUsage usage);
+
 struct VertexFetch {
   VertexUsage usage = VertexUsage::kPosition;
   u32 usageIndex = 0;

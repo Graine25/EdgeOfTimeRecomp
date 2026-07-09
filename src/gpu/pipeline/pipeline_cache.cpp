@@ -11,6 +11,7 @@
 #include "gpu/device/device.h"
 #include "gpu/guest/resources.h"
 #include "gpu/pipeline/vertex_layout.h"
+#include "gpu/shaders/guest_shaders.h"
 #include "gpu/shaders/shader_cache.h"
 
 namespace eot::gpu {
@@ -33,6 +34,8 @@ std::atomic<u32> g_layout_reported{0};
 std::atomic<u32> g_layout_no_fetches{0};
 std::atomic<u32> g_layout_no_decl{0};
 std::atomic<u32> g_layout_join_failed{0};
+std::atomic<u32> g_built{0};
+std::atomic<u32> g_build_failed{0};
 
 void LogPipelineStatsLocked();
 
@@ -107,6 +110,7 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
   } else {
     NoteInputLayout(input, true);
     out.inputLayoutHash = HashInputLayout(input);
+    out.layout = input;
   }
   out.vertexSpecConstants = 0;
 
@@ -127,11 +131,104 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
   return true;
 }
 
-plume::RenderPipeline *GetOrCreatePipeline(const PipelineKey &key) {
+namespace {
+
+plume::RenderPipelineLayout *GuestPipelineLayout() { return nullptr; }
+
+std::unique_ptr<plume::RenderPipeline>
+BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
+  auto *device = Video::HostDevice();
+  GuestShader *vs = Video::BoundVertexShader();
+  GuestShader *ps = Video::BoundPixelShader();
+  if (!device || !vs)
+    return nullptr;
+
+  plume::RenderShader *host_vs = GetOrLinkShader(vs, key.vertexSpecConstants);
+  if (!host_vs)
+    return nullptr;
+  plume::RenderShader *host_ps =
+      ps ? GetOrLinkShader(ps, key.pixelSpecConstants) : nullptr;
+
+  plume::RenderInputElement elements[kMaxVertexFetches]{};
+  for (u32 i = 0; i < layout.count; ++i) {
+    const auto &e = layout.elements[i];
+    elements[i] = plume::RenderInputElement(VertexUsageSemantic(e.usage),
+                                            e.usageIndex, i,
+                                            e.format, e.stream, e.offset);
+  }
+
+  plume::RenderInputSlot slots[kMaxStreamSources]{};
+  u32 slot_count = 0;
+  for (u32 i = 0; i < layout.count; ++i) {
+    const u32 stream = layout.elements[i].stream;
+    bool seen = false;
+    for (u32 j = 0; j < slot_count; ++j)
+      seen = seen || slots[j].index == stream;
+    if (seen)
+      continue;
+    const u32 stride = Video::BoundStreamStride(stream);
+    if (stride == 0)
+      return nullptr;
+    slots[slot_count++] = plume::RenderInputSlot(
+        stream, stride, plume::RenderInputSlotClassification::PER_VERTEX_DATA);
+  }
+
+  if (!GuestPipelineLayout())
+    return nullptr;
+
+  plume::RenderGraphicsPipelineDesc desc;
+  desc.pipelineLayout = GuestPipelineLayout();
+  desc.vertexShader = host_vs;
+  desc.pixelShader = host_ps;
+  desc.inputElements = elements;
+  desc.inputElementsCount = layout.count;
+  desc.inputSlots = slots;
+  desc.inputSlotsCount = slot_count;
+  desc.primitiveTopology = key.topology;
+  desc.multisampling.sampleCount = key.sampleCount;
+  desc.depthTargetFormat = key.depthFormat;
+  if (key.renderTargetFormat != plume::RenderFormat::UNKNOWN) {
+    desc.renderTargetFormat[0] = key.renderTargetFormat;
+    desc.renderTargetBlend[0] = plume::RenderBlendDesc::Copy();
+    desc.renderTargetCount = 1;
+  }
+  desc.specConstants = nullptr;
+  desc.specConstantsCount = 0;
+
+  return device->createGraphicsPipeline(desc);
+}
+
+}
+
+plume::RenderPipeline *GetOrCreatePipeline(const PipelineKey &key,
+                                           const InputLayout &layout) {
   g_lookups.fetch_add(1, std::memory_order_relaxed);
+  {
+    std::lock_guard lock(g_pipeline_mutex);
+    auto it = g_pipelines.find(key);
+    if (it != g_pipelines.end()) {
+      ++it->second.draws;
+      return it->second.pipeline.get();
+    }
+  }
+
+  std::unique_ptr<plume::RenderPipeline> built = BuildPipeline(key, layout);
+  if (!built && g_build_failed.fetch_add(1, std::memory_order_relaxed) < 3) {
+    EOT_WARN("[pso] build failed: vs=0x{:016X} ps=0x{:016X} rt={} ds={} "
+             "{} elements",
+             key.vertexShaderHash, key.pixelShaderHash,
+             static_cast<u32>(key.renderTargetFormat),
+             static_cast<u32>(key.depthFormat), layout.count);
+  }
+
   std::lock_guard lock(g_pipeline_mutex);
   auto [it, inserted] = g_pipelines.try_emplace(key);
   ++it->second.draws;
+  if (inserted) {
+    it->second.pipeline = std::move(built);
+    if (it->second.pipeline)
+      g_built.fetch_add(1, std::memory_order_relaxed);
+  }
   if (inserted && g_pipelines.size() == 1) {
     EOT_INFO("[pso] first key: vs=0x{:016X} ps=0x{:016X} rt={} ds={} topo={}",
              key.vertexShaderHash, key.pixelShaderHash,
@@ -156,12 +253,10 @@ void LogPipelineStatsLocked() {
       ++depth_only;
   }
   EOT_INFO("[pso] {} distinct keys from {} lookups ({} depth-only); {} "
-           "undescribable; input layout {} ok, {} failed ({} no fetch table, "
-           "{} no declaration, {} join failed)",
+           "undescribable; layouts {} ok / {} failed; pipelines {} built, {} failed",
            g_pipelines.size(), g_lookups.load(), depth_only,
            g_undescribable.load(), g_layout_ok.load(),
-           g_layout_failed.load(), g_layout_no_fetches.load(),
-           g_layout_no_decl.load(), g_layout_join_failed.load());
+           g_layout_failed.load(), g_built.load(), g_build_failed.load());
 }
 
 }

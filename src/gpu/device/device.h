@@ -75,6 +75,8 @@ public:
   };
   static AttachmentFormats BoundAttachmentFormats();
 
+  static u32 BoundStreamStride(u32 stream);
+
   enum class FramebufferBind {
     kBound,
     kNotReady,
