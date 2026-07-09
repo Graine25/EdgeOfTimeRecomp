@@ -27,6 +27,7 @@
 
 #include <plume_render_interface.h>
 
+#include "gpu/device/texture_upload.h"
 #include "gpu/guest/resources.h"
 
 namespace rex::ui {
@@ -100,6 +101,8 @@ CreateHostTexture(plume::RenderDevice *device,
                   const plume::RenderTextureDesc &desc, const char *tag);
 
 bool CheckDeviceRemoved(const char *context);
+
+void DrainValidationMessages();
 bool DeviceIsLost();
 
 struct VideoState {
@@ -122,12 +125,11 @@ struct VideoState {
   std::unique_ptr<plume::RenderSampler> blit_sampler;
   std::unique_ptr<plume::RenderPipelineLayout> blit_layout;
   std::unique_ptr<plume::RenderPipeline> blit_pipeline;
-  std::unique_ptr<plume::RenderDescriptorSet> blit_descriptor_set;
+  std::unique_ptr<plume::RenderDescriptorSet> blit_descriptor_set[kNumFrames];
   std::vector<std::unique_ptr<plume::RenderTextureView>>
       blit_view_graveyard[kNumFrames];
 
-  std::vector<std::unique_ptr<plume::RenderBuffer>>
-      upload_staging[kNumFrames];
+  StagingPool upload_staging[kNumFrames];
 
   std::atomic<u32> frame{0};
   u32 next_frame = 1 % kNumFrames;

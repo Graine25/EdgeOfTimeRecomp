@@ -26,6 +26,10 @@ using System.Runtime.InteropServices;
 public class Win32Shot {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
+    // CopyFromScreen grabs whatever is on top at those coordinates, so the game
+    // window has to be raised first or the shot is of whatever covers it.
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref System.Drawing.Point p);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 }
@@ -66,6 +70,9 @@ try {
         $bmp = New-Object System.Drawing.Bitmap $w, $hgt
         $g = [System.Drawing.Graphics]::FromImage($bmp)
         try {
+            [Win32Shot]::ShowWindow($h, 5) | Out-Null   # SW_SHOW
+            [Win32Shot]::SetForegroundWindow($h) | Out-Null
+            Start-Sleep -Milliseconds 400
             $g.CopyFromScreen($origin.X, $origin.Y, 0, 0, $bmp.Size)
             $index++
             $name = Join-Path $OutDir ("shot_{0:D3}_{1}s.png" -f $index, ($index * $Every))
