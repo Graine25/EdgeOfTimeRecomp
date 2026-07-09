@@ -622,6 +622,14 @@ void Video::SetStreamSource(u32 stream, GuestBuffer *buffer, u32 offset,
   s.streams[stream] = {buffer, offset, stride};
 }
 
+u32 Video::BoundStreamStride(u32 stream) {
+  if (stream >= kMaxStreamSources)
+    return 0;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return s.streams[stream].stride;
+}
+
 Video::AttachmentFormats Video::BoundAttachmentFormats() {
   auto &s = state();
   std::lock_guard lock(s.mutex);

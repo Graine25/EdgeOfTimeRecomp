@@ -91,6 +91,10 @@ const char *VertexUsageName(VertexUsage usage) {
   }
 }
 
+const char *VertexUsageSemantic(VertexUsage usage) {
+  return VertexUsageName(usage);
+}
+
 bool DecodeVertexLayout(const GuestShader *vs, VertexLayout &out) {
   out = VertexLayout{};
   const ShaderCacheEntry *entry = vs ? vs->shaderCacheEntry : nullptr;

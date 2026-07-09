@@ -107,7 +107,7 @@ void Classify(u32 device_va, bool indexed) {
 
   PipelineKey key;
   if (BuildPipelineKeyForCurrentState(device_va, key))
-    GetOrCreatePipeline(key);
+    GetOrCreatePipeline(key, key.layout);
   else
     NotePipelineUndescribable();
 }

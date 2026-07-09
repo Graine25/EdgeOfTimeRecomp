@@ -4,6 +4,8 @@
 
 #include <plume_render_interface.h>
 
+#include "gpu/pipeline/vertex_layout.h"
+
 namespace eot::gpu {
 
 struct PipelineKey {
@@ -19,16 +21,28 @@ struct PipelineKey {
 
   u64 inputLayoutHash = 0;
 
+  InputLayout layout;
+
   u64 stateHash = 0;
 
-  bool operator==(const PipelineKey &) const = default;
+  bool operator==(const PipelineKey &o) const {
+    return vertexShaderHash == o.vertexShaderHash &&
+           pixelShaderHash == o.pixelShaderHash &&
+           vertexSpecConstants == o.vertexSpecConstants &&
+           pixelSpecConstants == o.pixelSpecConstants &&
+           renderTargetFormat == o.renderTargetFormat &&
+           depthFormat == o.depthFormat && topology == o.topology &&
+           sampleCount == o.sampleCount &&
+           inputLayoutHash == o.inputLayoutHash && stateHash == o.stateHash;
+  }
 };
 
 struct PipelineKeyHash {
   size_t operator()(const PipelineKey &k) const;
 };
 
-plume::RenderPipeline *GetOrCreatePipeline(const PipelineKey &key);
+plume::RenderPipeline *GetOrCreatePipeline(const PipelineKey &key,
+                                           const InputLayout &layout);
 
 bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out);
 
