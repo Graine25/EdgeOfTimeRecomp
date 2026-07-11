@@ -12,6 +12,10 @@ void RegisterSurfacePool(u32 record_va);
 
 void EvictSurfaceMirror(u32 surface_va);
 
+GuestTexture *FindOrBuildNativeTexture(u32 texture_va);
+
+void LogNativeTextureStats();
+
 GuestTexture *ResolveGuestSurface(u32 surface_va);
 
 }

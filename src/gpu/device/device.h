@@ -38,8 +38,9 @@ namespace eot::gpu {
 
 constexpr u32 kNumFrames = 2;
 
-constexpr u32 kBindlessTextureCount = 65536;
-constexpr u32 kBindlessSamplerCount = 1024;
+constexpr u32 kHostDescriptorReserve = 512;
+constexpr u32 kBindlessTextureCount = 65536 - kHostDescriptorReserve;
+constexpr u32 kBindlessSamplerCount = 1024 - 16;
 
 class Video {
 public:
@@ -85,6 +86,8 @@ public:
   };
   static AttachmentSize BoundAttachmentSize();
 
+  static u32 AcquireTextureDescriptor(GuestTexture *tex);
+
   static u32 BoundStreamStride(u32 stream);
 
   static plume::RenderPipelineLayout *GuestPipelineLayout();
@@ -123,6 +126,10 @@ struct VideoState {
 
   std::unique_ptr<plume::RenderPipelineLayout> guest_pipeline_layout;
   std::unique_ptr<plume::RenderDescriptorSet> guest_texture_set;
+
+  u32 next_texture_slot = 1;
+  std::unique_ptr<plume::RenderTexture> null_texture;
+  std::unique_ptr<plume::RenderTextureView> null_texture_view;
   std::unique_ptr<plume::RenderDescriptorSet> guest_sampler_set;
   bool guest_layout_failed = false;
 

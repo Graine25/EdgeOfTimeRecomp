@@ -122,6 +122,17 @@ struct D3DIndexBuffer {
 };
 static_assert(sizeof(D3DIndexBuffer) == 32);
 
+inline constexpr u32 kTextureObjectShadow = 0x3260;
+
+inline constexpr u32 kTextureObjectFetchOffset = 0x1C;
+
+inline constexpr u32 kTextureFetchConstants = 0x480;
+inline constexpr u32 kTextureFetchStride = 24;
+
+inline constexpr u32 kAlphaRefOffset = 0x2904;
+
+inline constexpr u32 kMaxSamplerSlots = 16;
+
 inline constexpr u32 kVsFloatConstOffset = 0x780;
 inline constexpr u32 kPsFloatConstOffset = 0x1780;
 inline constexpr u32 kVsFloatConstCount = 256;

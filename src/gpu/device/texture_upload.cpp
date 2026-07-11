@@ -30,6 +30,15 @@ namespace {
 
 std::mutex g_upload_mutex;
 std::unordered_set<GuestTexture *> g_dirty;
+
+struct NativeUpload {
+  GuestTexture *tex = nullptr;
+  std::vector<u8> data;
+  u32 rowPitch = 0;
+  u32 rows = 0;
+};
+std::vector<NativeUpload> g_native_pending;
+std::atomic<u32> g_native_uploaded{0};
 GuestTexture *g_last_uploaded = nullptr;
 GuestTexture *g_last_fullscreen = nullptr;
 u32 g_fullscreen_w = 0;
@@ -104,6 +113,14 @@ void QueueTextureUpload(GuestTexture *tex) {
     g_stats.queued.fetch_add(1, std::memory_order_relaxed);
 }
 
+void QueueNativeUpload(GuestTexture *tex, std::vector<u8> data, u32 rowPitch,
+                       u32 rows) {
+  if (!tex || data.empty() || !rowPitch || !rows)
+    return;
+  std::lock_guard lock(g_upload_mutex);
+  g_native_pending.push_back({tex, std::move(data), rowPitch, rows});
+}
+
 void ForgetTextureUpload(GuestTexture *tex) {
   if (!tex)
     return;
@@ -129,6 +146,56 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
   auto *device = Video::HostDevice();
   if (!cmd || !device || !REXCVAR_GET(eot_upload_textures))
     return;
+
+  {
+    std::vector<NativeUpload> native;
+    {
+      std::lock_guard lock(g_upload_mutex);
+      native.swap(g_native_pending);
+    }
+    for (auto &up : native) {
+      GuestTexture *tex = up.tex;
+      if (!tex || !tex->texture)
+        continue;
+      const u64 bytes = u64(up.rowPitch) * up.rows;
+      plume::RenderBuffer *staging = AcquireStaging(pool, device, bytes);
+      if (!staging)
+        continue;
+      void *mapped = staging->map();
+      if (!mapped)
+        continue;
+      std::memcpy(mapped, up.data.data(), size_t(bytes));
+      staging->unmap();
+
+      const plume::RenderTextureBarrier to_copy(
+          tex->texture, plume::RenderTextureLayout::COPY_DEST);
+      cmd->barriers(plume::RenderBarrierStage::COPY, &to_copy, 1);
+      tex->layout = plume::RenderTextureLayout::COPY_DEST;
+
+      const u32 block = IsBlockCompressed(tex->format) ? kTextureBlockSize : 1;
+      const u32 unit = block == 1 ? BytesPerTexel(tex->format)
+                                  : BytesPerBlock(tex->format);
+      if (!unit)
+        continue;
+      cmd->copyTextureRegion(
+          plume::RenderTextureCopyLocation::Subresource(tex->texture, 0, 0),
+          plume::RenderTextureCopyLocation::PlacedFootprint(
+              staging, tex->format, tex->width, tex->height, 1,
+              (up.rowPitch / unit) * block));
+
+      const plume::RenderTextureBarrier to_read(
+          tex->texture, plume::RenderTextureLayout::SHADER_READ);
+      cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1);
+      tex->layout = plume::RenderTextureLayout::SHADER_READ;
+
+      tex->hasContent = true;
+      if (g_native_uploaded.fetch_add(1, std::memory_order_relaxed) == 0)
+        EOT_INFO("[texture] first engine texture uploaded: {}x{} fmt={} "
+                 "pitch={} rows={}",
+                 tex->width, tex->height, static_cast<u32>(tex->format),
+                 up.rowPitch, up.rows);
+    }
+  }
 
   std::vector<GuestTexture *> batch;
   {
