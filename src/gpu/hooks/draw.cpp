@@ -8,6 +8,7 @@
 #include "gpu/device/device.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/guest/d3d.h"
+#include "gpu/pipeline/constant_buffers.h"
 #include "gpu/pipeline/pipeline_cache.h"
 
 namespace eot::gpu {
@@ -106,10 +107,14 @@ void Classify(u32 device_va, bool indexed) {
   }
 
   PipelineKey key;
+  plume::RenderPipeline *pipeline = nullptr;
   if (BuildPipelineKeyForCurrentState(device_va, key))
-    GetOrCreatePipeline(key, key.layout);
+    pipeline = GetOrCreatePipeline(key, key.layout);
   else
     NotePipelineUndescribable();
+
+  if (pipeline)
+    constants::UploadDrawConstants(device_va);
 }
 
 }

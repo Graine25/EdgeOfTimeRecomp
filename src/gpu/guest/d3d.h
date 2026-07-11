@@ -122,6 +122,17 @@ struct D3DIndexBuffer {
 };
 static_assert(sizeof(D3DIndexBuffer) == 32);
 
+inline constexpr u32 kVsFloatConstOffset = 0x780;
+inline constexpr u32 kPsFloatConstOffset = 0x1780;
+inline constexpr u32 kVsFloatConstCount = 256;
+inline constexpr u32 kPsFloatConstCount = 224;
+inline constexpr u32 kVsFloatConstBytes = kVsFloatConstCount * 16;
+inline constexpr u32 kPsFloatConstBytes = kPsFloatConstCount * 16;
+
+inline constexpr u32 kVsBoolConstOffset = 0x2780;
+inline constexpr u32 kPsBoolConstOffset = 0x2790;
+inline constexpr u32 kBoolConstDwords = 4;
+
 inline constexpr u32 kDeviceVertexDeclShadow = 0x2FB8;
 
 inline constexpr u32 kVertexDeclCommonSignature = 0x100005;

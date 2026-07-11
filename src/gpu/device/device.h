@@ -79,6 +79,12 @@ public:
   };
   static AttachmentFormats BoundAttachmentFormats();
 
+  struct AttachmentSize {
+    u32 width = 0;
+    u32 height = 0;
+  };
+  static AttachmentSize BoundAttachmentSize();
+
   static u32 BoundStreamStride(u32 stream);
 
   static plume::RenderPipelineLayout *GuestPipelineLayout();
