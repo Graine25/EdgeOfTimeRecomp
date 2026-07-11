@@ -23,6 +23,7 @@
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/device/texture_upload.h"
+#include "gpu/pipeline/constant_buffers.h"
 #include "platform/native_window.h"
 
 #include "src/gpu/shaders/hlsl/present_blit_ps.hlsl.dxil.h"
@@ -395,6 +396,7 @@ void AdvanceAndWaitReusedLocked(VideoState &s) {
   }
   s.blit_view_graveyard[slot].clear();
   s.upload_staging[slot].Reset();
+  constants::ResetFrame(slot);
 }
 
 }
@@ -715,6 +717,19 @@ Video::AttachmentFormats Video::BoundAttachmentFormats() {
   }
   if (s.depth_stencil)
     out.depth = s.depth_stencil->format;
+  return out;
+}
+
+Video::AttachmentSize Video::BoundAttachmentSize() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  AttachmentSize out;
+  const GuestTexture *tex = s.render_targets[0] ? s.render_targets[0]
+                                                : s.depth_stencil;
+  if (tex) {
+    out.width = tex->width;
+    out.height = tex->height;
+  }
   return out;
 }
 
