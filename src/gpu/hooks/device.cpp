@@ -5,9 +5,14 @@
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/guest/resources.h"
 
+namespace eot::gpu {
+void NoteFrameStartForDraws();
+}
+
 REX_EXTERN(__imp__D3DDevice_ClearF);
 REX_HOOK_RAW(D3DDevice_ClearF) {
   eot::gpu::Video::BeginGuestFrame();
+  eot::gpu::NoteFrameStartForDraws();
   __imp__D3DDevice_ClearF(ctx, base);
 }
 
