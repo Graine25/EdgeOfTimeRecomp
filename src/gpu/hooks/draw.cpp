@@ -3,13 +3,21 @@
 #include <rex/hook.h>
 #include <rex/types.h>
 
+#include <rex/cvar.h>
+
 #include "core/logging.h"
+#include "core/settings.h"
 #include "core/memory_helpers.h"
 #include "gpu/device/device.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/pipeline/constant_buffers.h"
+#include "gpu/pipeline/geometry_upload.h"
 #include "gpu/pipeline/pipeline_cache.h"
+
+REXCVAR_DEFINE_BOOL(eot_issue_draws, false, kCvarGroup,
+                    "Record guest draws onto the frame's command list. "
+                    "Unfinished: setFramebuffer blocks.");
 
 namespace eot::gpu {
 
@@ -35,7 +43,109 @@ struct DrawStats {
 };
 DrawStats g_draws;
 
-void Classify(u32 device_va, bool indexed) {
+struct DrawArgs {
+  u32 primitiveType = 0;
+  u32 startVertex = 0;
+  u32 vertexCount = 0;
+  u32 baseVertexIndex = 0;
+  u32 startIndex = 0;
+  u32 indexCount = 0;
+};
+
+std::atomic<u32> g_issued{0};
+std::atomic<u32> g_no_geometry{0};
+std::atomic<u32> g_no_list{0};
+std::atomic<u32> g_no_framebuffer{0};
+
+void IssueDraw(u32 device_va, const PipelineKey &key,
+               plume::RenderPipeline *pipeline, bool indexed,
+               const DrawArgs &args) {
+  if (!REXCVAR_GET(eot_issue_draws))
+    return;
+  auto *layout_obj = Video::GuestPipelineLayout();
+  auto *texture_set = Video::GuestTextureSet();
+  auto *sampler_set = Video::GuestSamplerSet();
+  if (!pipeline || !layout_obj || !texture_set || !sampler_set)
+    return;
+
+  const constants::DrawConstants cb = constants::UploadDrawConstants(device_va);
+  if (!cb.valid())
+    return;
+
+  DrawGeometry geometry;
+  if (!UploadDrawGeometry(key.layout, indexed ? 0 : args.startVertex,
+                          args.vertexCount, indexed, args.startIndex,
+                          args.indexCount, geometry)) {
+    g_no_geometry.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
+  if (Video::BindDrawFramebuffer() != Video::FramebufferBind::kBound) {
+    g_no_framebuffer.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
+  auto rec = Video::AcquireRecordingList();
+  if (!rec || !rec.framebuffer) {
+    g_no_list.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
+  plume::RenderTextureBarrier to_write[2];
+  u32 barrier_count = 0;
+  if (rec.colorTarget && rec.colorTarget->texture &&
+      rec.colorTarget->layout != plume::RenderTextureLayout::COLOR_WRITE) {
+    to_write[barrier_count++] = plume::RenderTextureBarrier(
+        rec.colorTarget->texture, plume::RenderTextureLayout::COLOR_WRITE);
+    rec.colorTarget->layout = plume::RenderTextureLayout::COLOR_WRITE;
+  }
+  if (rec.depthTarget && rec.depthTarget->texture &&
+      rec.depthTarget->layout != plume::RenderTextureLayout::DEPTH_WRITE) {
+    to_write[barrier_count++] = plume::RenderTextureBarrier(
+        rec.depthTarget->texture, plume::RenderTextureLayout::DEPTH_WRITE);
+    rec.depthTarget->layout = plume::RenderTextureLayout::DEPTH_WRITE;
+  }
+  if (barrier_count)
+    rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, to_write,
+                      barrier_count);
+
+  rec.cmd->setFramebuffer(rec.framebuffer);
+  rec.cmd->setPipeline(pipeline);
+  rec.cmd->setGraphicsPipelineLayout(layout_obj);
+  rec.cmd->setGraphicsDescriptorSet(texture_set, 0);
+  rec.cmd->setGraphicsDescriptorSet(texture_set, 1);
+  rec.cmd->setGraphicsDescriptorSet(texture_set, 2);
+  rec.cmd->setGraphicsDescriptorSet(sampler_set, 3);
+  rec.cmd->setGraphicsDescriptorSet(texture_set, 4);
+  rec.cmd->setGraphicsRootDescriptor(cb.vs.ref, 0);
+  rec.cmd->setGraphicsRootDescriptor(cb.ps.ref, 1);
+  rec.cmd->setGraphicsRootDescriptor(cb.shared.ref, 2);
+  rec.cmd->setVertexBuffers(0, geometry.vertexViews, geometry.vertexBufferCount,
+                            geometry.vertexSlots);
+  rec.cmd->setViewports(plume::RenderViewport(
+      0.0f, 0.0f, float(rec.targetWidth), float(rec.targetHeight)));
+  rec.cmd->setScissors(plume::RenderRect(0, 0, i32(rec.targetWidth),
+                                         i32(rec.targetHeight)));
+
+  if (indexed && geometry.hasIndices) {
+    rec.cmd->setIndexBuffer(&geometry.indexView);
+    rec.cmd->drawIndexedInstanced(args.indexCount, 1, 0,
+                                  i32(args.baseVertexIndex), 0);
+  } else {
+    rec.cmd->drawInstanced(args.vertexCount, 1, 0, 0);
+  }
+
+  if (rec.colorTarget)
+    rec.colorTarget->hasContent = true;
+
+  if (g_issued.fetch_add(1, std::memory_order_relaxed) == 0)
+    EOT_INFO("[draw] first host draw issued: {} {} into {}x{}",
+             indexed ? args.indexCount : args.vertexCount,
+             indexed ? "indices" : "vertices", rec.targetWidth,
+             rec.targetHeight);
+}
+
+void Classify(u32 device_va, bool indexed, const DrawArgs &args) {
   u32 addr = 0;
   u32 size = 0;
   const bool has_stream = ReadStreamFetch(device_va, 0, addr, size);
@@ -114,7 +224,7 @@ void Classify(u32 device_va, bool indexed) {
     NotePipelineUndescribable();
 
   if (pipeline)
-    constants::UploadDrawConstants(device_va);
+    IssueDraw(device_va, key, pipeline, indexed, args);
 }
 
 }
@@ -138,14 +248,20 @@ void LogDrawStats() {
 
 namespace {
 
-void CountDraw(u32 device_va, bool indexed) {
+void CountDraw(u32 device_va, bool indexed, const DrawArgs &args) {
   auto &counter = indexed ? g_draws.indexed : g_draws.vertices;
   counter.fetch_add(1, std::memory_order_relaxed);
-  Classify(device_va, indexed);
+  Classify(device_va, indexed, args);
   const u32 total = g_draws.vertices.load(std::memory_order_relaxed) +
                     g_draws.indexed.load(std::memory_order_relaxed);
-  if (total % 20000 == 0)
+  if (total % 20000 == 0) {
     LogDrawStats();
+    EOT_INFO("[draw] {} host draws issued; skipped: {} no geometry, "
+             "{} no framebuffer, {} no open list",
+             g_issued.load(), g_no_geometry.load(), g_no_framebuffer.load(),
+             g_no_list.load());
+    LogGeometryUploadStats();
+  }
 }
 
 }
@@ -154,13 +270,22 @@ void CountDraw(u32 device_va, bool indexed) {
 REX_EXTERN(__imp__D3DDevice_DrawVertices);
 REX_HOOK_RAW(D3DDevice_DrawVertices) {
   const u32 device_va = ctx.r3.u32;
+  eot::gpu::DrawArgs args;
+  args.primitiveType = ctx.r4.u32;
+  args.startVertex = ctx.r5.u32;
+  args.vertexCount = ctx.r6.u32;
   __imp__D3DDevice_DrawVertices(ctx, base);
-  eot::gpu::CountDraw(device_va, false);
+  eot::gpu::CountDraw(device_va, false, args);
 }
 
 REX_EXTERN(__imp__D3DDevice_DrawIndexedVertices);
 REX_HOOK_RAW(D3DDevice_DrawIndexedVertices) {
   const u32 device_va = ctx.r3.u32;
+  eot::gpu::DrawArgs args;
+  args.primitiveType = ctx.r4.u32;
+  args.baseVertexIndex = ctx.r5.u32;
+  args.startIndex = ctx.r6.u32;
+  args.indexCount = ctx.r7.u32;
   __imp__D3DDevice_DrawIndexedVertices(ctx, base);
-  eot::gpu::CountDraw(device_va, true);
+  eot::gpu::CountDraw(device_va, true, args);
 }

@@ -4,7 +4,8 @@ param(
     [string] $Exe      = "out\build\win-amd64-debug\reeot.exe",
     [string] $GameData = "C:\Users\rieng\Documents\GitHub\reeot\assets",
     [string] $OutDir   = "",
-    [switch] $MnkMode
+    [switch] $MnkMode,
+    [switch] $IssueDraws
 )
 
 Set-StrictMode -Version Latest
@@ -37,6 +38,7 @@ public class Win32Shot {
 
 $args = @("--game_data_root", $GameData)
 if ($MnkMode) { $args += "--mnk_mode=true" }
+if ($IssueDraws) { $args += "--eot_issue_draws=true" }
 
 Write-Host "Launching $exePath"
 Write-Host "  shots -> $OutDir  (every ${Every}s for ${Seconds}s)"

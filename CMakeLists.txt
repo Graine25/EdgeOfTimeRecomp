@@ -96,6 +96,7 @@ set(REEOT_SOURCES
     src/gpu/hooks/stubs.cpp
     src/gpu/guest/texture_fetch.cpp
     src/gpu/pipeline/constant_buffers.cpp
+    src/gpu/pipeline/geometry_upload.cpp
     src/gpu/pipeline/pipeline_cache.cpp
     src/gpu/pipeline/vertex_layout.cpp
     src/gpu/pipeline/vertex_layout.h
