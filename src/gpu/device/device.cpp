@@ -22,8 +22,10 @@
 #include "core/logging.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
+#include "gpu/device/native_texture_mirror.h"
 #include "gpu/device/texture_upload.h"
 #include "gpu/pipeline/constant_buffers.h"
+#include "gpu/pipeline/geometry_upload.h"
 #include "platform/native_window.h"
 
 #include "src/gpu/shaders/hlsl/present_blit_ps.hlsl.dxil.h"
@@ -403,6 +405,15 @@ void LogPresentFallbackOnce(const GuestTexture *front_buffer,
   }
 }
 
+void EnsureCommandListOpenLocked(VideoState &s, u32 slot) {
+  if (slot >= kNumFrames || s.command_list_open[slot])
+    return;
+  if (auto *cmd = s.command_lists[slot].get()) {
+    cmd->begin();
+    s.command_list_open[slot] = true;
+  }
+}
+
 void AdvanceAndWaitReusedLocked(VideoState &s) {
   DrainValidationMessages();
   CheckDeviceRemoved("present");
@@ -416,6 +427,7 @@ void AdvanceAndWaitReusedLocked(VideoState &s) {
   s.blit_view_graveyard[slot].clear();
   s.upload_staging[slot].Reset();
   constants::ResetFrame(slot);
+  ResetGeometryFrame();
 }
 
 }
@@ -498,7 +510,9 @@ void Video::Present(GuestTexture *front_buffer) {
              blittable ? "BLIT" : "clear only");
   }
 
-  cmd->begin();
+  EnsureCommandListOpenLocked(s, cur);
+
+  cmd->setFramebuffer(nullptr);
 
   FlushTextureUploads(cmd, s.upload_staging[cur]);
 
@@ -538,6 +552,7 @@ void Video::Present(GuestTexture *front_buffer) {
                 plume::RenderTextureBarrier(
                     back, plume::RenderTextureLayout::PRESENT));
   cmd->end();
+  s.command_list_open[cur] = false;
 
   const plume::RenderCommandList *lists[] = {cmd};
   plume::RenderCommandSemaphore *waits[] = {s.acquire_semaphores[cur].get()};
@@ -739,6 +754,18 @@ Video::AttachmentFormats Video::BoundAttachmentFormats() {
   return out;
 }
 
+plume::RenderDescriptorSet *Video::GuestTextureSet() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return s.guest_texture_set.get();
+}
+
+plume::RenderDescriptorSet *Video::GuestSamplerSet() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return s.guest_sampler_set.get();
+}
+
 u32 Video::AcquireTextureDescriptor(GuestTexture *tex) {
   if (!tex || !tex->texture)
     return kInvalidDescriptorIndex;
@@ -775,6 +802,33 @@ u32 Video::AcquireTextureDescriptor(GuestTexture *tex) {
   return slot;
 }
 
+Video::BoundStreamInfo Video::BoundStream(u32 stream) {
+  BoundStreamInfo out;
+  if (stream >= kMaxStreamSources)
+    return out;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  const VideoState::StreamSource &src = s.streams[stream];
+  if (!src.buffer)
+    return out;
+  out.address = src.address();
+  out.stride = src.stride;
+  out.size = src.offset < src.buffer->size ? src.buffer->size - src.offset : 0;
+  return out;
+}
+
+Video::BoundIndexInfo Video::BoundIndexBuffer() {
+  BoundIndexInfo out;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (!s.index_buffer)
+    return out;
+  out.address = s.index_buffer->address;
+  out.size = s.index_buffer->size;
+  out.index32 = s.index_buffer->index32;
+  return out;
+}
+
 Video::AttachmentSize Video::BoundAttachmentSize() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -807,6 +861,7 @@ Video::FramebufferBind Video::BindDrawFramebuffer() {
 
   if (s.draw_framebuffer_bound && rt == s.bound_fb_rt && ds == s.bound_fb_ds)
     return FramebufferBind::kBound;
+  s.bound_framebuffer = nullptr;
 
   if (rt && !rt->texture)
     return FramebufferBind::kNoHostTexture;
@@ -819,6 +874,7 @@ Video::FramebufferBind Video::BindDrawFramebuffer() {
 
   s.bound_fb_rt = rt;
   s.bound_fb_ds = ds;
+  s.bound_framebuffer = fb;
   s.draw_framebuffer_bound = true;
   return FramebufferBind::kBound;
 }
@@ -840,6 +896,7 @@ void Video::NotifyTextureDestroyed(GuestTexture *dead) {
   if (s.bound_fb_rt == dead || s.bound_fb_ds == dead) {
     s.bound_fb_rt = nullptr;
     s.bound_fb_ds = nullptr;
+    s.bound_framebuffer = nullptr;
     s.draw_framebuffer_bound = false;
   }
 
@@ -851,10 +908,88 @@ void Video::NotifyTextureDestroyed(GuestTexture *dead) {
   }
 }
 
+void Video::ResolveRenderTarget(u32 dest_texture_va) {
+  if (!dest_texture_va)
+    return;
+  GuestTexture *dest = ResolveGuestSurface(dest_texture_va);
+  if (!dest)
+    dest = FindOrBuildNativeTexture(dest_texture_va);
+
+  static std::atomic<u32> g_resolves{0};
+  static std::atomic<u32> g_no_dest{0};
+  static std::atomic<u32> g_mismatch{0};
+  if (!dest || !dest->texture) {
+    g_no_dest.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
+  auto rec = AcquireRecordingList();
+  if (!rec || !rec.colorTarget || !rec.colorTarget->texture)
+    return;
+  GuestTexture *src = rec.colorTarget;
+  if (src == dest)
+    return;
+
+  if (src->format != dest->format || src->width != dest->width ||
+      src->height != dest->height) {
+    if (g_mismatch.fetch_add(1, std::memory_order_relaxed) == 0) {
+      EOT_INFO("[resolve] {}x{} fmt={} -> {}x{} fmt={}: not a straight copy",
+               src->width, src->height, static_cast<u32>(src->format),
+               dest->width, dest->height, static_cast<u32>(dest->format));
+    }
+    return;
+  }
+
+  rec.cmd->setFramebuffer(nullptr);
+
+  const plume::RenderTextureBarrier to_copy[] = {
+      plume::RenderTextureBarrier(src->texture,
+                                  plume::RenderTextureLayout::COPY_SOURCE),
+      plume::RenderTextureBarrier(dest->texture,
+                                  plume::RenderTextureLayout::COPY_DEST)};
+  rec.cmd->barriers(plume::RenderBarrierStage::COPY, to_copy, 2);
+  src->layout = plume::RenderTextureLayout::COPY_SOURCE;
+  dest->layout = plume::RenderTextureLayout::COPY_DEST;
+
+  rec.cmd->copyTexture(dest->texture, src->texture);
+
+  const plume::RenderTextureBarrier to_read(
+      dest->texture, plume::RenderTextureLayout::SHADER_READ);
+  rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1);
+  dest->layout = plume::RenderTextureLayout::SHADER_READ;
+  dest->hasContent = src->hasContent;
+
+  if (g_resolves.fetch_add(1, std::memory_order_relaxed) == 0)
+    EOT_INFO("[resolve] first resolve: {}x{} fmt={} -> 0x{:08X}", src->width,
+             src->height, static_cast<u32>(src->format), dest_texture_va);
+}
+
 void Video::BeginGuestFrame() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
   s.frame_present_committed = false;
+  EnsureCommandListOpenLocked(s, s.frame.load(std::memory_order_relaxed));
+}
+
+Video::RecordingList Video::AcquireRecordingList() {
+  auto &s = state();
+  std::unique_lock lock(s.mutex);
+  const u32 cur = s.frame.load(std::memory_order_relaxed);
+  if (!s.ready || DeviceIsLost() || !s.command_list_open[cur])
+    return {};
+  RecordingList out;
+  out.cmd = s.command_lists[cur].get();
+  out.framebuffer = s.bound_framebuffer;
+  out.colorTarget = s.render_targets[0];
+  out.depthTarget = s.depth_stencil;
+  const GuestTexture *target =
+      s.render_targets[0] ? s.render_targets[0] : s.depth_stencil;
+  if (target) {
+    out.targetWidth = target->width;
+    out.targetHeight = target->height;
+  }
+  out.lock = std::move(lock);
+  return out;
 }
 
 plume::RenderSampleCounts Video::CvarMSAASampleCount() {

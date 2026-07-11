@@ -47,6 +47,10 @@ struct DrawConstants {
   bool valid() const { return vs.valid() && ps.valid() && shared.valid(); }
 };
 
+Allocation Allocate(u32 size);
+
+bool CopyGuestSwapped32(u8 *dst, u32 guest_va, u32 bytes);
+
 DrawConstants UploadDrawConstants(u32 device_va);
 
 void ResetFrame(u32 slot);

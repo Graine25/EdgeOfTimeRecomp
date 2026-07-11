@@ -18,3 +18,10 @@ REX_HOOK_RAW(D3DDevice_Swap) {
           ctx.r4.u32);
   eot::gpu::Video::Present(front_buffer);
 }
+
+REX_EXTERN(__imp__D3DDevice_Resolve);
+REX_HOOK_RAW(D3DDevice_Resolve) {
+  const u32 dest_texture_va = ctx.r6.u32;
+  __imp__D3DDevice_Resolve(ctx, base);
+  eot::gpu::Video::ResolveRenderTarget(dest_texture_va);
+}

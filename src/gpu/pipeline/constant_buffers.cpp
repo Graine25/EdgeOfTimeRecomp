@@ -58,7 +58,9 @@ bool CreateChunk(UploadChunk &chunk) {
   if (!device)
     return false;
   chunk.buffer = device->createBuffer(plume::RenderBufferDesc::UploadBuffer(
-      kUploadChunkSize, plume::RenderBufferFlag::CONSTANT));
+      kUploadChunkSize, plume::RenderBufferFlag::CONSTANT |
+                            plume::RenderBufferFlag::VERTEX |
+                            plume::RenderBufferFlag::INDEX));
   if (!chunk.buffer) {
     EOT_ERROR("[constants] createBuffer({} MiB) failed",
               kUploadChunkSize / (1024 * 1024));
@@ -205,6 +207,18 @@ DrawConstants UploadDrawConstants(u32 device_va) {
   if ((g_uploads.fetch_add(1, std::memory_order_relaxed) + 1) % 200000 == 0)
     LogStats();
   return out;
+}
+
+Allocation Allocate(u32 size) {
+  if (!size)
+    return {};
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return AllocateLocked(s, size);
+}
+
+bool CopyGuestSwapped32(u8 *dst, u32 guest_va, u32 bytes) {
+  return CopyByteSwap32(dst, guest_va, bytes);
 }
 
 void ResetFrame(u32 slot) {

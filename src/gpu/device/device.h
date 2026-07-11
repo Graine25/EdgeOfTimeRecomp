@@ -54,6 +54,21 @@ public:
 
   static void BeginGuestFrame();
 
+  static void ResolveRenderTarget(u32 dest_texture_va);
+
+  struct RecordingList {
+    plume::RenderCommandList *cmd = nullptr;
+    plume::RenderFramebuffer *framebuffer = nullptr;
+    u32 targetWidth = 0;
+    u32 targetHeight = 0;
+    GuestTexture *colorTarget = nullptr;
+    GuestTexture *depthTarget = nullptr;
+    std::unique_lock<std::mutex> lock;
+
+    explicit operator bool() const { return cmd != nullptr; }
+  };
+  static RecordingList AcquireRecordingList();
+
   static void RequestResize();
 
   static u32 OutputWidth();
@@ -90,7 +105,24 @@ public:
 
   static u32 BoundStreamStride(u32 stream);
 
+  struct BoundStreamInfo {
+    u32 address = 0;
+    u32 stride = 0;
+    u32 size = 0;
+  };
+  static BoundStreamInfo BoundStream(u32 stream);
+
+  struct BoundIndexInfo {
+    u32 address = 0;
+    u32 size = 0;
+    bool index32 = false;
+  };
+  static BoundIndexInfo BoundIndexBuffer();
+
   static plume::RenderPipelineLayout *GuestPipelineLayout();
+
+  static plume::RenderDescriptorSet *GuestTextureSet();
+  static plume::RenderDescriptorSet *GuestSamplerSet();
 
   enum class FramebufferBind {
     kBound,
@@ -163,6 +195,8 @@ struct VideoState {
 
   bool frame_present_committed = false;
 
+  bool command_list_open[kNumFrames] = {};
+
   struct PendingDestroy {
     u32 guest_va;
     ResourceType type;
@@ -175,6 +209,7 @@ struct VideoState {
   GuestTexture *depth_stencil = nullptr;
 
   bool draw_framebuffer_bound = false;
+  plume::RenderFramebuffer *bound_framebuffer = nullptr;
   GuestTexture *bound_fb_rt = nullptr;
   GuestTexture *bound_fb_ds = nullptr;
 
