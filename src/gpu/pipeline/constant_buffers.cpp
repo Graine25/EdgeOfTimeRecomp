@@ -13,6 +13,7 @@
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/texture_fetch.h"
+#include "gpu/pipeline/vertex_layout.h"
 
 namespace eot::gpu::constants {
 
@@ -115,6 +116,55 @@ bool CopyByteSwap32(u8 *dst, u32 guest_va, u32 bytes) {
   return true;
 }
 
+bool Is16BitComponentFormat(plume::RenderFormat format) {
+  switch (format) {
+  case plume::RenderFormat::R16G16_SINT:
+  case plume::RenderFormat::R16G16_UINT:
+  case plume::RenderFormat::R16G16_SNORM:
+  case plume::RenderFormat::R16G16_UNORM:
+  case plume::RenderFormat::R16G16_FLOAT:
+  case plume::RenderFormat::R16G16B16A16_SINT:
+  case plume::RenderFormat::R16G16B16A16_UINT:
+  case plume::RenderFormat::R16G16B16A16_SNORM:
+  case plume::RenderFormat::R16G16B16A16_UNORM:
+  case plume::RenderFormat::R16G16B16A16_FLOAT:
+    return true;
+  default:
+    return false;
+  }
+}
+
+void ApplySwapMasks(const InputLayout &layout, SharedConstants &shared) {
+  for (u32 i = 0; i < layout.count; ++i) {
+    const InputElement &e = layout.elements[i];
+    if (!Is16BitComponentFormat(e.format))
+      continue;
+    const u32 bit = 1u << (e.usageIndex & 31u);
+    switch (e.usage) {
+    case VertexUsage::kPosition:
+      shared.swappedPositions |= bit;
+      break;
+    case VertexUsage::kNormal:
+      shared.swappedNormals |= bit;
+      break;
+    case VertexUsage::kBinormal:
+      shared.swappedBinormals |= bit;
+      break;
+    case VertexUsage::kTangent:
+      shared.swappedTangents |= bit;
+      break;
+    case VertexUsage::kBlendWeight:
+      shared.swappedBlendWeights |= bit;
+      break;
+    case VertexUsage::kTexCoord:
+      shared.swappedTexcoords |= bit;
+      break;
+    default:
+      break;
+    }
+  }
+}
+
 void GatherSharedConstants(u32 device_va, SharedConstants &shared,
                            u32 &bound_textures) {
   CopyByteSwap32(reinterpret_cast<u8 *>(shared.booleansArr),
@@ -168,7 +218,8 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
 
 }
 
-DrawConstants UploadDrawConstants(u32 device_va) {
+DrawConstants UploadDrawConstants(u32 device_va,
+                                  const eot::gpu::InputLayout *layout) {
   DrawConstants out;
   if (!device_va) {
     g_failed.fetch_add(1, std::memory_order_relaxed);
@@ -178,6 +229,8 @@ DrawConstants UploadDrawConstants(u32 device_va) {
   SharedConstants shared;
   u32 bound_textures = 0;
   GatherSharedConstants(device_va, shared, bound_textures);
+  if (layout)
+    ApplySwapMasks(*layout, shared);
 
   auto &s = state();
   std::lock_guard lock(s.mutex);

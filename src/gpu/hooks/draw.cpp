@@ -51,6 +51,7 @@ struct DrawArgs {
 };
 
 std::atomic<u32> g_issued{0};
+std::atomic<bool> g_frame_clear_pending{false};
 std::atomic<u32> g_no_geometry{0};
 std::atomic<u32> g_no_list{0};
 std::atomic<u32> g_no_framebuffer{0};
@@ -66,14 +67,21 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   if (!pipeline || !layout_obj || !texture_set || !sampler_set)
     return;
 
-  const constants::DrawConstants cb = constants::UploadDrawConstants(device_va);
+  const constants::DrawConstants cb =
+      constants::UploadDrawConstants(device_va, &key.layout);
   if (!cb.valid())
     return;
+
+  GuestShader *vs = Video::BoundVertexShader();
+  const bool window_space = vs && vs->shaderCacheEntry &&
+                            vs->shaderCacheEntry->uses_float_constants == 0;
+  const auto target = Video::BoundAttachmentSize();
 
   DrawGeometry geometry;
   if (!UploadDrawGeometry(key.layout, indexed ? 0 : args.startVertex,
                           args.vertexCount, indexed, args.startIndex,
-                          args.indexCount, geometry)) {
+                          args.indexCount, window_space, target.width,
+                          target.height, geometry)) {
     g_no_geometry.fetch_add(1, std::memory_order_relaxed);
     return;
   }
@@ -263,6 +271,11 @@ void CountDraw(u32 device_va, bool indexed, const DrawArgs &args) {
 }
 
 }
+
+void NoteFrameStartForDraws() {
+  g_frame_clear_pending.store(true, std::memory_order_relaxed);
+}
+
 }
 
 REX_EXTERN(__imp__D3DDevice_DrawVertices);

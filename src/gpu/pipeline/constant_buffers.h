@@ -4,6 +4,8 @@
 
 #include <plume_render_interface.h>
 
+#include "gpu/pipeline/vertex_layout.h"
+
 namespace eot::gpu::constants {
 
 struct SharedConstants {
@@ -51,7 +53,8 @@ Allocation Allocate(u32 size);
 
 bool CopyGuestSwapped32(u8 *dst, u32 guest_va, u32 bytes);
 
-DrawConstants UploadDrawConstants(u32 device_va);
+DrawConstants UploadDrawConstants(u32 device_va,
+                                  const eot::gpu::InputLayout *layout = nullptr);
 
 void ResetFrame(u32 slot);
 

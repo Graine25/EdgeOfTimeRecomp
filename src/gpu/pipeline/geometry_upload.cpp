@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
+#include <cstring>
 #include <map>
 #include <mutex>
 #include <utility>
@@ -24,6 +26,7 @@ std::atomic<u32> g_uploads{0};
 std::atomic<u32> g_no_stream{0};
 std::atomic<u32> g_no_indices{0};
 std::atomic<u32> g_too_large{0};
+std::atomic<u32> g_window_space{0};
 
 constexpr u32 kMaxStreamBytesPerDraw = 8u * 1024 * 1024;
 
@@ -37,7 +40,7 @@ bool CopyIndices16(u8 *dst, u32 guest_va, u32 count) {
 }
 
 bool AcquireRange(u32 guest_va, u32 bytes, bool swap16,
-                  plume::RenderBufferReference &out) {
+                  plume::RenderBufferReference &out, u8 **mapped = nullptr) {
   const std::pair<u32, u32> key{guest_va, bytes};
   {
     std::lock_guard lock(g_cache_mutex);
@@ -45,6 +48,8 @@ bool AcquireRange(u32 guest_va, u32 bytes, bool swap16,
     if (it != g_frame_cache.end()) {
       g_cache_hits.fetch_add(1, std::memory_order_relaxed);
       out = it->second;
+      if (mapped)
+        *mapped = nullptr;
       return true;
     }
   }
@@ -61,6 +66,8 @@ bool AcquireRange(u32 guest_va, u32 bytes, bool swap16,
   std::lock_guard lock(g_cache_mutex);
   g_frame_cache.emplace(key, alloc.ref);
   out = alloc.ref;
+  if (mapped)
+    *mapped = alloc.memory;
   return true;
 }
 
@@ -71,9 +78,36 @@ void ResetGeometryFrame() {
   g_frame_cache.clear();
 }
 
+void ConvertWindowSpacePositions(u8 *data, u32 bytes, u32 stride, u32 posOffset,
+                                 u32 width, u32 height) {
+  if (!stride || !width || !height || posOffset + 8 > stride)
+    return;
+
+  float max_abs = 0.0f;
+  for (u32 v = 0; v * stride + posOffset + 8 <= bytes; ++v) {
+    float xy[2];
+    std::memcpy(xy, data + v * stride + posOffset, 8);
+    max_abs = std::max(max_abs, std::max(std::abs(xy[0]), std::abs(xy[1])));
+  }
+  if (max_abs <= 1.5f)
+    return;
+
+  const float half_w = float(width) * 0.5f;
+  const float half_h = float(height) * 0.5f;
+  for (u32 v = 0; v * stride + posOffset + 8 <= bytes; ++v) {
+    float xy[2];
+    u8 *at = data + v * stride + posOffset;
+    std::memcpy(xy, at, 8);
+    xy[0] = xy[0] / half_w - 1.0f;
+    xy[1] = 1.0f - xy[1] / half_h;
+    std::memcpy(at, xy, 8);
+  }
+}
+
 bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
                         u32 vertexCount, bool indexed, u32 startIndex,
-                        u32 indexCount, DrawGeometry &out) {
+                        u32 indexCount, bool windowSpace, u32 targetWidth,
+                        u32 targetHeight, DrawGeometry &out) {
   out = DrawGeometry{};
   if (!vertexCount && !indexed)
     return false;
@@ -112,8 +146,22 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
     }
 
     plume::RenderBufferReference ref;
-    if (!AcquireRange(info.address + first_byte, bytes, false, ref))
+    u8 *fresh = nullptr;
+    if (!AcquireRange(info.address + first_byte, bytes, false, ref,
+                      &fresh))
       return false;
+
+    if (windowSpace && fresh) {
+      for (u32 e = 0; e < layout.count; ++e) {
+        const auto &el = layout.elements[e];
+        if (el.usage != VertexUsage::kPosition || el.stream != streams[i])
+          continue;
+        ConvertWindowSpacePositions(fresh, bytes, info.stride, el.offset,
+                                    targetWidth, targetHeight);
+        g_window_space.fetch_add(1, std::memory_order_relaxed);
+        break;
+      }
+    }
 
     out.vertexViews[i] = plume::RenderVertexBufferView(ref, bytes);
     out.vertexSlots[i] = plume::RenderInputSlot(
@@ -155,7 +203,7 @@ void LogGeometryUploadStats() {
   EOT_INFO("[geometry] {} draws fed, {} range copies reused; dropped: {} no "
            "stream, {} no indices, {} oversized",
            g_uploads.load(), g_cache_hits.load(), g_no_stream.load(),
-           g_no_indices.load(), g_too_large.load());
+           g_no_indices.load(), g_too_large.load(), g_window_space.load());
 }
 
 }
