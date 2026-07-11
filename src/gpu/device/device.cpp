@@ -161,6 +161,7 @@ bool BuildGuestPipelineLayoutLocked(VideoState &s) {
   layout_builder.addDescriptorSet(tex_builder);
   layout_builder.addDescriptorSet(tex_builder);
   layout_builder.addDescriptorSet(sampler_builder);
+  layout_builder.addDescriptorSet(tex_builder);
   layout_builder.addRootDescriptor(
       0, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
   layout_builder.addRootDescriptor(
@@ -174,6 +175,24 @@ bool BuildGuestPipelineLayoutLocked(VideoState &s) {
     EOT_ERROR("Guest pipeline layout: createPipelineLayout failed");
     return false;
   }
+  plume::RenderTextureDesc null_desc = plume::RenderTextureDesc::Texture2D(
+      1, 1, 1, plume::RenderFormat::R8G8B8A8_UNORM);
+  s.null_texture = s.device->createTexture(null_desc);
+  if (s.null_texture) {
+    plume::RenderTextureViewDesc null_view_desc;
+    null_view_desc.format = plume::RenderFormat::R8G8B8A8_UNORM;
+    null_view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+    null_view_desc.mipLevels = 1;
+    s.null_texture_view = s.null_texture->createTextureView(null_view_desc);
+  }
+  if (!s.null_texture || !s.null_texture_view) {
+    EOT_ERROR("Guest pipeline layout: null texture descriptor creation failed");
+    return false;
+  }
+  s.guest_texture_set->setTexture(0, s.null_texture.get(),
+                                  plume::RenderTextureLayout::SHADER_READ,
+                                  s.null_texture_view.get());
+
   EOT_INFO("Guest pipeline layout built: {} textures, {} samplers, 3 CBVs",
            kBindlessTextureCount, kBindlessSamplerCount);
   return true;
@@ -718,6 +737,42 @@ Video::AttachmentFormats Video::BoundAttachmentFormats() {
   if (s.depth_stencil)
     out.depth = s.depth_stencil->format;
   return out;
+}
+
+u32 Video::AcquireTextureDescriptor(GuestTexture *tex) {
+  if (!tex || !tex->texture)
+    return kInvalidDescriptorIndex;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (tex->descriptorIndex != kInvalidDescriptorIndex)
+    return tex->descriptorIndex;
+  if (!s.guest_texture_set)
+    return kInvalidDescriptorIndex;
+  if (s.next_texture_slot >= kBindlessTextureCount) {
+    static bool reported = false;
+    if (!reported) {
+      reported = true;
+      EOT_ERROR("[bindless] texture heap exhausted at {} slots; slots are not "
+                "recycled yet", kBindlessTextureCount);
+    }
+    return kInvalidDescriptorIndex;
+  }
+
+  plume::RenderTextureViewDesc view_desc;
+  view_desc.format = tex->format;
+  view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+  view_desc.mipLevels = tex->mipLevels ? tex->mipLevels : 1;
+  auto view = tex->texture->createTextureView(view_desc);
+  if (!view)
+    return kInvalidDescriptorIndex;
+
+  const u32 slot = s.next_texture_slot++;
+  s.guest_texture_set->setTexture(slot, tex->texture,
+                                  plume::RenderTextureLayout::SHADER_READ,
+                                  view.get());
+  tex->textureView = std::move(view);
+  tex->descriptorIndex = slot;
+  return slot;
 }
 
 Video::AttachmentSize Video::BoundAttachmentSize() {

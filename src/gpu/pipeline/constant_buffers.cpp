@@ -8,8 +8,11 @@
 #include <rex/runtime.h>
 
 #include "core/logging.h"
+#include "core/memory_helpers.h"
 #include "gpu/device/device.h"
+#include "gpu/device/native_texture_mirror.h"
 #include "gpu/guest/d3d.h"
+#include "gpu/guest/texture_fetch.h"
 
 namespace eot::gpu::constants {
 
@@ -45,6 +48,10 @@ UploadState &state() {
 std::atomic<u32> g_uploads{0};
 std::atomic<u32> g_failed{0};
 std::atomic<u32> g_unreadable{0};
+std::atomic<u32> g_with_textures{0};
+std::atomic<u32> g_slot_nonzero{0};
+std::atomic<u32> g_resolve_failed{0};
+std::atomic<u32> g_acquire_failed{0};
 
 bool CreateChunk(UploadChunk &chunk) {
   auto *device = Video::HostDevice();
@@ -106,6 +113,57 @@ bool CopyByteSwap32(u8 *dst, u32 guest_va, u32 bytes) {
   return true;
 }
 
+void GatherSharedConstants(u32 device_va, SharedConstants &shared,
+                           u32 &bound_textures) {
+  CopyByteSwap32(reinterpret_cast<u8 *>(shared.booleansArr),
+                 device_va + kVsBoolConstOffset, kBoolConstDwords * 4);
+  CopyByteSwap32(reinterpret_cast<u8 *>(shared.booleansArr + kBoolConstDwords),
+                 device_va + kPsBoolConstOffset, kBoolConstDwords * 4);
+
+  const auto rt = Video::BoundAttachmentSize();
+  if (rt.width && rt.height) {
+    shared.halfPixelOffset[0] = -1.0f / static_cast<float>(rt.width);
+    shared.halfPixelOffset[1] = 1.0f / static_cast<float>(rt.height);
+  }
+
+  shared.alphaThreshold =
+      mem::try_load<float>(device_va + kAlphaRefOffset);
+
+  for (u32 i = 0; i < kMaxSamplerSlots; ++i) {
+    const u32 tex_va =
+        mem::try_load<u32>(device_va + kTextureObjectShadow + i * 4);
+    if (!tex_va)
+      continue;
+    g_slot_nonzero.fetch_add(1, std::memory_order_relaxed);
+    GuestTexture *tex = ResolveGuestSurface(tex_va);
+    if (!tex)
+      tex = FindOrBuildNativeTexture(tex_va);
+    if (!tex) {
+      GuestTextureFetch fetch;
+      if (DecodeTextureFetch(device_va, i, fetch))
+        NoteTextureFetch(fetch);
+      if (g_resolve_failed.fetch_add(1, std::memory_order_relaxed) == 0)
+        EOT_WARN("[constants] sampler {}: texture object 0x{:08X} resolves to "
+                 "no host record", i, tex_va);
+      continue;
+    }
+    const u32 index = Video::AcquireTextureDescriptor(tex);
+    if (index == kInvalidDescriptorIndex) {
+      if (g_acquire_failed.fetch_add(1, std::memory_order_relaxed) == 0)
+        EOT_WARN("[constants] sampler {}: texture 0x{:08X} ({}x{}) got no "
+                 "descriptor (host tex {})",
+                 i, tex_va, tex->width, tex->height, tex->texture != nullptr);
+      continue;
+    }
+    shared.texture2DIndices[i] = index;
+    shared.texture3DIndices[i] = index;
+    shared.textureCubeIndices[i] = index;
+    shared.texture1DIndices[i] = index;
+    ++bound_textures;
+  }
+
+}
+
 }
 
 DrawConstants UploadDrawConstants(u32 device_va) {
@@ -114,6 +172,10 @@ DrawConstants UploadDrawConstants(u32 device_va) {
     g_failed.fetch_add(1, std::memory_order_relaxed);
     return out;
   }
+
+  SharedConstants shared;
+  u32 bound_textures = 0;
+  GatherSharedConstants(device_va, shared, bound_textures);
 
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -136,20 +198,10 @@ DrawConstants UploadDrawConstants(u32 device_va) {
     return {};
   }
 
-  SharedConstants shared;
-  CopyByteSwap32(reinterpret_cast<u8 *>(shared.booleansArr),
-                 device_va + kVsBoolConstOffset, kBoolConstDwords * 4);
-  CopyByteSwap32(reinterpret_cast<u8 *>(shared.booleansArr + kBoolConstDwords),
-                 device_va + kPsBoolConstOffset, kBoolConstDwords * 4);
-
-  const auto rt = Video::BoundAttachmentSize();
-  if (rt.width && rt.height) {
-    shared.halfPixelOffset[0] = -1.0f / static_cast<float>(rt.width);
-    shared.halfPixelOffset[1] = 1.0f / static_cast<float>(rt.height);
-  }
-
   std::memcpy(out.shared.memory, &shared, sizeof(shared));
 
+  if (bound_textures)
+    g_with_textures.fetch_add(1, std::memory_order_relaxed);
   if ((g_uploads.fetch_add(1, std::memory_order_relaxed) + 1) % 200000 == 0)
     LogStats();
   return out;
@@ -181,8 +233,16 @@ void Shutdown() {
 }
 
 void LogStats() {
-  EOT_INFO("[constants] {} uploads, {} failed, {} unreadable", g_uploads.load(),
-           g_failed.load(), g_unreadable.load());
+  EOT_INFO("[constants] {} uploads ({} with a bound texture), {} failed, "
+           "{} unreadable",
+           g_uploads.load(), g_with_textures.load(), g_failed.load(),
+           g_unreadable.load());
+  EOT_INFO("[constants] sampler slots: {} non-zero, {} unresolved, {} no "
+           "descriptor",
+           g_slot_nonzero.load(), g_resolve_failed.load(),
+           g_acquire_failed.load());
+  LogTextureFetchCensus();
+  LogNativeTextureStats();
 }
 
 }
