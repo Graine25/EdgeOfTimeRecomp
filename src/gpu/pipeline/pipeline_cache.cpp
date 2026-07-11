@@ -7,12 +7,18 @@
 
 #include <rex/hash.h>
 
+#include <rex/cvar.h>
+
 #include "core/logging.h"
+#include "core/settings.h"
 #include "gpu/device/device.h"
 #include "gpu/guest/resources.h"
 #include "gpu/pipeline/vertex_layout.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/shaders/shader_cache.h"
+
+REXCVAR_DEFINE_BOOL(eot_build_guest_pipelines, true, kCvarGroup,
+                    "Create host pipelines for guest draws.");
 
 namespace eot::gpu {
 
@@ -133,10 +139,10 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
 
 namespace {
 
-plume::RenderPipelineLayout *GuestPipelineLayout() { return nullptr; }
-
 std::unique_ptr<plume::RenderPipeline>
 BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
+  if (!REXCVAR_GET(eot_build_guest_pipelines))
+    return nullptr;
   auto *device = Video::HostDevice();
   GuestShader *vs = Video::BoundVertexShader();
   GuestShader *ps = Video::BoundPixelShader();
@@ -173,11 +179,12 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
         stream, stride, plume::RenderInputSlotClassification::PER_VERTEX_DATA);
   }
 
-  if (!GuestPipelineLayout())
+  plume::RenderPipelineLayout *layout_obj = Video::GuestPipelineLayout();
+  if (!layout_obj)
     return nullptr;
 
   plume::RenderGraphicsPipelineDesc desc;
-  desc.pipelineLayout = GuestPipelineLayout();
+  desc.pipelineLayout = layout_obj;
   desc.vertexShader = host_vs;
   desc.pixelShader = host_ps;
   desc.inputElements = elements;

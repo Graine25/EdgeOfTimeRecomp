@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <plume_d3d12.h>
+#include <plume_render_interface_builders.h>
 #include <rex/runtime.h>
 
 #include "core/logging.h"
@@ -81,6 +82,8 @@ void DrainDeferredDestroys(VideoState &s, u32 slot) {
 
 }
 
+bool BuildGuestPipelineLayoutLocked(VideoState &s);
+
 VideoState &state() {
   static VideoState s;
   return s;
@@ -128,6 +131,61 @@ bool Video::CreateHostDevice() {
   EOT_INFO("Video::CreateHostDevice: device created ({})",
            s.device->getDescription().name);
   return true;
+}
+
+bool BuildGuestPipelineLayoutLocked(VideoState &s) {
+  plume::RenderDescriptorSetBuilder tex_builder;
+  tex_builder.begin();
+  tex_builder.addTexture(0, kBindlessTextureCount);
+  tex_builder.end(true, kBindlessTextureCount);
+  s.guest_texture_set = tex_builder.create(s.device.get());
+  if (!s.guest_texture_set) {
+    EOT_ERROR("Guest pipeline layout: bindless texture set creation failed");
+    return false;
+  }
+
+  plume::RenderDescriptorSetBuilder sampler_builder;
+  sampler_builder.begin();
+  sampler_builder.addSampler(0, kBindlessSamplerCount);
+  sampler_builder.end(true, kBindlessSamplerCount);
+  s.guest_sampler_set = sampler_builder.create(s.device.get());
+  if (!s.guest_sampler_set) {
+    EOT_ERROR("Guest pipeline layout: bindless sampler set creation failed");
+    return false;
+  }
+
+  plume::RenderPipelineLayoutBuilder layout_builder;
+  layout_builder.begin(false, true);
+  layout_builder.addDescriptorSet(tex_builder);
+  layout_builder.addDescriptorSet(tex_builder);
+  layout_builder.addDescriptorSet(tex_builder);
+  layout_builder.addDescriptorSet(sampler_builder);
+  layout_builder.addRootDescriptor(
+      0, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
+  layout_builder.addRootDescriptor(
+      1, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
+  layout_builder.addRootDescriptor(
+      2, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
+  layout_builder.end();
+
+  s.guest_pipeline_layout = layout_builder.create(s.device.get());
+  if (!s.guest_pipeline_layout) {
+    EOT_ERROR("Guest pipeline layout: createPipelineLayout failed");
+    return false;
+  }
+  EOT_INFO("Guest pipeline layout built: {} textures, {} samplers, 3 CBVs",
+           kBindlessTextureCount, kBindlessSamplerCount);
+  return true;
+}
+
+plume::RenderPipelineLayout *Video::GuestPipelineLayout() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (!s.guest_pipeline_layout && !s.guest_layout_failed) {
+    if (!BuildGuestPipelineLayoutLocked(s))
+      s.guest_layout_failed = true;
+  }
+  return s.guest_pipeline_layout.get();
 }
 
 bool BuildFramebuffers(VideoState &s) {

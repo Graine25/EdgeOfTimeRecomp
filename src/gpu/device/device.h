@@ -38,6 +38,9 @@ namespace eot::gpu {
 
 constexpr u32 kNumFrames = 2;
 
+constexpr u32 kBindlessTextureCount = 65536;
+constexpr u32 kBindlessSamplerCount = 1024;
+
 class Video {
 public:
   static bool CreateHostDevice();
@@ -78,6 +81,8 @@ public:
 
   static u32 BoundStreamStride(u32 stream);
 
+  static plume::RenderPipelineLayout *GuestPipelineLayout();
+
   enum class FramebufferBind {
     kBound,
     kNotReady,
@@ -109,6 +114,11 @@ struct VideoState {
   std::unique_ptr<plume::RenderInterface> render_iface;
   std::unique_ptr<plume::RenderDevice> device;
   std::unique_ptr<plume::RenderCommandQueue> queue;
+
+  std::unique_ptr<plume::RenderPipelineLayout> guest_pipeline_layout;
+  std::unique_ptr<plume::RenderDescriptorSet> guest_texture_set;
+  std::unique_ptr<plume::RenderDescriptorSet> guest_sampler_set;
+  bool guest_layout_failed = false;
 
   std::unique_ptr<plume::RenderCommandList> command_lists[kNumFrames];
   std::unique_ptr<plume::RenderCommandFence> fences[kNumFrames];
