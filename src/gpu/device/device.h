@@ -160,6 +160,7 @@ struct VideoState {
   std::unique_ptr<plume::RenderDescriptorSet> guest_texture_set;
 
   u32 next_texture_slot = 1;
+  std::unique_ptr<plume::RenderSampler> guest_default_sampler;
   std::unique_ptr<plume::RenderTexture> null_texture;
   std::unique_ptr<plume::RenderTextureView> null_texture_view;
   std::unique_ptr<plume::RenderDescriptorSet> guest_sampler_set;

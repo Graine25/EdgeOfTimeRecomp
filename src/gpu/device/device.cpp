@@ -22,6 +22,7 @@
 #include "core/logging.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
+#include "gpu/device/rdc_capture.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/device/texture_upload.h"
 #include "gpu/pipeline/constant_buffers.h"
@@ -156,6 +157,20 @@ bool BuildGuestPipelineLayoutLocked(VideoState &s) {
     EOT_ERROR("Guest pipeline layout: bindless sampler set creation failed");
     return false;
   }
+
+  plume::RenderSamplerDesc guest_sampler_desc;
+  guest_sampler_desc.minFilter = plume::RenderFilter::LINEAR;
+  guest_sampler_desc.magFilter = plume::RenderFilter::LINEAR;
+  guest_sampler_desc.mipmapMode = plume::RenderMipmapMode::NEAREST;
+  guest_sampler_desc.addressU = plume::RenderTextureAddressMode::WRAP;
+  guest_sampler_desc.addressV = plume::RenderTextureAddressMode::WRAP;
+  guest_sampler_desc.addressW = plume::RenderTextureAddressMode::WRAP;
+  s.guest_default_sampler = s.device->createSampler(guest_sampler_desc);
+  if (!s.guest_default_sampler) {
+    EOT_ERROR("Guest pipeline layout: default sampler creation failed");
+    return false;
+  }
+  s.guest_sampler_set->setSampler(0, s.guest_default_sampler.get());
 
   plume::RenderPipelineLayoutBuilder layout_builder;
   layout_builder.begin(false, true);
@@ -565,6 +580,7 @@ void Video::Present(GuestTexture *front_buffer) {
   if (!s.swap_chain->present(texture_index, signals, 1))
     CheckDeviceRemoved("swapchain present");
 
+  NotePresentForCapture();
   s.frame_present_committed = true;
   AdvanceAndWaitReusedLocked(s);
   const u32 reclaimed = s.frame.load(std::memory_order_relaxed);
