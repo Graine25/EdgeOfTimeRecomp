@@ -20,8 +20,6 @@
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/shaders/shader_cache.h"
 
-REXCVAR_DEFINE_BOOL(eot_build_guest_pipelines, true, kCvarGroup, "Build pipelines for guest draws");
-
 namespace eot::gpu {
 
 constexpr u32 kSpecConstantAlphaTest = 1u << 1;
@@ -235,8 +233,6 @@ plume::RenderBlendDesc ConvertBlend(u32 blend_control) {
 
 std::unique_ptr<plume::RenderPipeline>
 BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
-  if (!REXCVAR_GET(eot_build_guest_pipelines))
-    return nullptr;
   auto *device = Video::HostDevice();
   GuestShader *vs = Video::BoundVertexShader();
   GuestShader *ps = Video::BoundPixelShader();

@@ -15,8 +15,6 @@
 #include "gpu/pipeline/geometry_upload.h"
 #include "gpu/pipeline/pipeline_cache.h"
 
-REXCVAR_DEFINE_BOOL(eot_issue_draws, false, kCvarGroup, "Record guest draws");
-
 namespace eot::gpu {
 
 namespace {
@@ -59,8 +57,6 @@ std::atomic<u32> g_no_framebuffer{0};
 void IssueDraw(u32 device_va, const PipelineKey &key,
                plume::RenderPipeline *pipeline, bool indexed,
                const DrawArgs &args) {
-  if (!REXCVAR_GET(eot_issue_draws))
-    return;
   auto *layout_obj = Video::GuestPipelineLayout();
   auto *texture_set = Video::GuestTextureSet();
   auto *sampler_set = Video::GuestSamplerSet();
