@@ -18,6 +18,7 @@ struct GuestTextureFetch {
   u32 pitch = 0;
   u32 pitchTiles = 0;
   bool tiled = false;
+  bool packedMips = false;
   rex::graphics::xenos::TextureFormat format{};
   rex::graphics::xenos::Endian endianness{};
   rex::graphics::xenos::DataDimension dimension{};

@@ -83,6 +83,7 @@ bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out) {
   out.tiled = fetch.tiled != 0;
   out.pitchTiles = fetch.pitch;
   out.pitch = out.tiled ? 0 : (fetch.pitch << 5);
+  out.packedMips = fetch.packed_mips != 0;
   out.format = fetch.format;
   out.endianness = fetch.endianness;
   out.dimension = fetch.dimension;

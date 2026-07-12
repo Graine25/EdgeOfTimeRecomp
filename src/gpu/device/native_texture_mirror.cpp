@@ -1,5 +1,6 @@
 #include "gpu/device/native_texture_mirror.h"
 
+#include <algorithm>
 #include <atomic>
 
 #include <bit>
@@ -8,6 +9,7 @@
 #include <rex/graphics/pipeline/texture/conversion.h>
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
+#include <rex/math.h>
 
 #include "gpu/device/texture_upload.h"
 #include "gpu/guest/texture_fetch.h"
@@ -84,8 +86,16 @@ GuestTexture *BuildLocked(u32 surface_va, u32 width, u32 height,
   return raw;
 }
 
+u32 ClampedMipMaxLevel(const GuestTextureFetch &f) {
+  if (!f.mipAddress || f.mipLevels <= 1)
+    return 0;
+  const u32 raw_max = f.mipLevels - 1;
+  const u32 size_max = rex::log2_floor(std::max(f.width, f.height));
+  return std::min(raw_max, size_max);
+}
+
 GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
-                                plume::RenderFormat format) {
+                                plume::RenderFormat format, u32 mip_levels) {
   auto *device = Video::HostDevice();
   if (!device)
     return nullptr;
@@ -95,7 +105,7 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   desc.width = f.width;
   desc.height = f.height;
   desc.depth = 1;
-  desc.mipLevels = 1;
+  desc.mipLevels = mip_levels;
   desc.arraySize = 1;
   desc.format = format;
   desc.flags = plume::RenderTextureFlag::NONE;
@@ -110,7 +120,7 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   mirror->selfVa = texture_va;
   mirror->width = f.width;
   mirror->height = f.height;
-  mirror->mipLevels = 1;
+  mirror->mipLevels = mip_levels;
   mirror->format = format;
   mirror->guestFormat = static_cast<u32>(f.format);
   mirror->viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
@@ -191,6 +201,97 @@ bool UntileBaseLevelLocked(GuestTexture *tex, const GuestTextureFetch &f) {
   return true;
 }
 
+void UntileMipLevelsLocked(GuestTexture *tex, const GuestTextureFetch &f,
+                           u32 mip_max_level) {
+  if (!mip_max_level || !f.mipAddress)
+    return;
+  auto *memory = REX_KERNEL_MEMORY();
+  const auto *mip_src =
+      f.physicalAddress ? memory->TranslatePhysical<const u8 *>(f.mipAddress)
+                        : memory->TranslateVirtual<const u8 *>(f.mipAddress);
+  if (!mip_src)
+    return;
+
+  const bool compressed = IsBlockCompressed(tex->format);
+  const u32 unit = compressed ? BytesPerBlock(tex->format)
+                              : BytesPerTexel(tex->format);
+  if (!unit)
+    return;
+  const u32 edge = compressed ? kTextureBlockSize : 1;
+  const u32 unit_log2 = static_cast<u32>(std::countr_zero(unit));
+
+  const tu::TextureGuestLayout layout = tu::GetGuestTextureLayout(
+      xenos::DataDimension::k2DOrStacked, f.pitchTiles, f.width, f.height, 1,
+      f.tiled, f.format, f.packedMips, true, mip_max_level);
+
+  if (layout.packed_level == 0)
+    return;
+
+  const bool tail_ok =
+      f.physicalAddress
+          ? memory->TranslatePhysical<const u8 *>(
+                f.mipAddress + layout.mips_total_extent_bytes - 1) != nullptr
+          : mem::try_at<const u8>(f.mipAddress +
+                                  layout.mips_total_extent_bytes - 1) !=
+                nullptr;
+  if (!layout.mips_total_extent_bytes || !tail_ok) {
+    static std::atomic<u32> unreadable{0};
+    if (unreadable.fetch_add(1, std::memory_order_relaxed) == 0) {
+      EOT_WARN("[native] mip base 0x{:08X} + {} bytes unusable; skipping mip "
+               "chain",
+               f.mipAddress, layout.mips_total_extent_bytes);
+    }
+    return;
+  }
+
+  static std::atomic<u32> mip_built{0};
+  u32 levels_done = 0;
+  for (u32 lvl = 1; lvl <= mip_max_level; ++lvl) {
+    const u32 lw = std::max(f.width >> lvl, 1u);
+    const u32 lh = std::max(f.height >> lvl, 1u);
+    const u32 lwb = (lw + edge - 1) / edge;
+    const u32 lhb = (lh + edge - 1) / edge;
+    const u32 dst_row = (lwb * unit + 255u) & ~255u;
+
+    const bool packed =
+        layout.packed_level != UINT32_MAX && lvl >= layout.packed_level;
+    const u32 storage_level = packed ? layout.packed_level : lvl;
+    const tu::TextureGuestLayout::Level &sl = layout.mips[storage_level];
+    if (!sl.row_pitch_bytes)
+      continue;
+    const u32 pitch_blocks = sl.row_pitch_bytes / unit;
+    const u8 *level_src = mip_src + layout.mip_offsets_bytes[storage_level];
+
+    u32 px = 0, py = 0, pz = 0;
+    if (packed) {
+      tu::GetPackedMipOffset(f.width, f.height, 1, f.format, lvl, px, py, pz);
+    }
+
+    std::vector<u8> dst(size_t(dst_row) * lhb, 0u);
+    for (u32 by = 0; by < lhb; ++by) {
+      for (u32 bx = 0; bx < lwb; ++bx) {
+        const i32 offset = tu::GetTiledOffset2D(
+            static_cast<i32>(px + bx), static_cast<i32>(py + by),
+            pitch_blocks, unit_log2);
+        if (offset < 0 || u32(offset) + unit > sl.level_data_extent_bytes)
+          continue;
+        tc::CopySwapBlock(f.endianness,
+                          dst.data() + size_t(by) * dst_row + size_t(bx) * unit,
+                          level_src + offset, unit);
+      }
+    }
+    QueueNativeUpload(tex, std::move(dst), dst_row, lhb, lvl);
+    ++levels_done;
+  }
+
+  if (levels_done && mip_built.fetch_add(1, std::memory_order_relaxed) == 0) {
+    EOT_INFO("[native] first mip chain uploaded: {}x{} fmt={} {} levels "
+             "(packed_level={})",
+             f.width, f.height, static_cast<u32>(f.format), levels_done,
+             layout.packed_level);
+  }
+}
+
 }
 
 GuestTexture *FindOrBuildNativeTextureFromFetch(const GuestTextureFetch &fetch) {
@@ -211,9 +312,13 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(const GuestTextureFetch &fetch) 
     return nullptr;
   }
 
-  GuestTexture *tex = BuildNativeLocked(fetch.baseAddress, fetch, format);
+  const u32 mip_max_level = ClampedMipMaxLevel(fetch);
+  GuestTexture *tex =
+      BuildNativeLocked(fetch.baseAddress, fetch, format, mip_max_level + 1);
   if (tex) {
     UntileBaseLevelLocked(tex, fetch);
+    if (mip_max_level)
+      UntileMipLevelsLocked(tex, fetch, mip_max_level);
     if (g_native_built.fetch_add(1, std::memory_order_relaxed) == 0) {
       EOT_INFO("[native] first engine texture mirrored from a fetch constant: "
                "base=0x{:08X} {}x{} fmt={} mips={} tiled={}",
@@ -249,9 +354,14 @@ GuestTexture *FindOrBuildNativeTexture(u32 texture_va) {
   if (!fetch.width || !fetch.height)
     return nullptr;
 
-  GuestTexture *tex = BuildNativeLocked(texture_va, fetch, format);
-  if (tex)
+  const u32 mip_max_level = ClampedMipMaxLevel(fetch);
+  GuestTexture *tex =
+      BuildNativeLocked(texture_va, fetch, format, mip_max_level + 1);
+  if (tex) {
     UntileBaseLevelLocked(tex, fetch);
+    if (mip_max_level)
+      UntileMipLevelsLocked(tex, fetch, mip_max_level);
+  }
   if (tex && g_native_built.fetch_add(1, std::memory_order_relaxed) == 0) {
     EOT_INFO("[native] first engine texture mirrored: 0x{:08X} {}x{} fmt={} "
              "mips={} tiled={}",
