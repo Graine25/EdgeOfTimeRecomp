@@ -5,7 +5,8 @@ param(
     [string] $GameData = "C:\Users\rieng\Documents\GitHub\reeot\assets",
     [string] $OutDir   = "",
     [switch] $MnkMode,
-    [switch] $IssueDraws
+    [switch] $IssueDraws,
+    [switch] $FetchBind
 )
 
 Set-StrictMode -Version Latest
@@ -39,6 +40,7 @@ public class Win32Shot {
 $args = @("--game_data_root", $GameData)
 if ($MnkMode) { $args += "--mnk_mode=true" }
 if ($IssueDraws) { $args += "--eot_issue_draws=true" }
+if ($FetchBind) { $args += "--eot_bind_from_fetch=true" }
 
 Write-Host "Launching $exePath"
 Write-Host "  shots -> $OutDir  (every ${Every}s for ${Seconds}s)"

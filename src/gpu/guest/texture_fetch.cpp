@@ -29,8 +29,11 @@ std::atomic<u32> g_mipped{0};
 bool DecodeTextureFetch(u32 device_va, u32 sampler, GuestTextureFetch &out) {
   if (!device_va || sampler >= kMaxSamplerSlots)
     return false;
-  return DecodeTextureFetchAt(device_va + kTextureFetchConstants +
-                              sampler * kTextureFetchStride, out);
+  if (!DecodeTextureFetchAt(device_va + kTextureFetchConstants +
+                            sampler * kTextureFetchStride, out))
+    return false;
+  out.physicalAddress = true;
+  return true;
 }
 
 plume::RenderFormat

@@ -14,6 +14,8 @@ void EvictSurfaceMirror(u32 surface_va);
 
 GuestTexture *FindOrBuildNativeTexture(u32 texture_va);
 
+GuestTexture *FindOrBuildNativeTextureFromFetch(const struct GuestTextureFetch &fetch);
+
 void LogNativeTextureStats();
 
 GuestTexture *ResolveGuestSurface(u32 surface_va);
