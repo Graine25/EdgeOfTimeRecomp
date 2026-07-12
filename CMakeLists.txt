@@ -74,6 +74,7 @@ set(REEOT_SOURCES
     src/gpu/device/host_heap_arena.h
     src/gpu/device/host_resource_heap.cpp
     src/gpu/device/host_resource_heap.h
+    src/gpu/device/rdc_capture.cpp
     src/gpu/device/texture_upload.cpp
     src/gpu/device/texture_upload.h
     src/gpu/device/native_texture_mirror.cpp
@@ -121,6 +122,9 @@ if(WIN32)
 else()
     add_executable(reeot ${REEOT_SOURCES})
 endif()
+
+target_include_directories(reeot PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../renderdoc/renderdoc/api/app")
 
 rexglue_setup_target(reeot GPU_PLUGINS xenos)
 
