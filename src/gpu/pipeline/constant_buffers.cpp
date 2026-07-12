@@ -5,15 +5,19 @@
 #include <mutex>
 #include <vector>
 
+#include <rex/cvar.h>
 #include <rex/runtime.h>
 
 #include "core/logging.h"
+#include "core/settings.h"
 #include "core/memory_helpers.h"
 #include "gpu/device/device.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/texture_fetch.h"
 #include "gpu/pipeline/vertex_layout.h"
+
+REXCVAR_DEFINE_BOOL(eot_bind_from_fetch, false, kCvarGroup, "Bind samplers from fetch constants");
 
 namespace eot::gpu::constants {
 
@@ -182,18 +186,30 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
       mem::try_load<float>(device_va + kAlphaRefOffset);
 
   for (u32 i = 0; i < kMaxSamplerSlots; ++i) {
+    GuestTexture *tex = nullptr;
+    GuestTextureFetch fetch;
+    const bool have_fetch = REXCVAR_GET(eot_bind_from_fetch) &&
+                            DecodeTextureFetch(device_va, i, fetch);
+    if (have_fetch) {
+      g_slot_nonzero.fetch_add(1, std::memory_order_relaxed);
+      NoteTextureFetch(fetch);
+      tex = ResolveGuestSurface(fetch.baseAddress);
+      if (!tex)
+        tex = FindOrBuildNativeTextureFromFetch(fetch);
+    }
+
     const u32 tex_va =
         mem::try_load<u32>(device_va + kTextureObjectShadow + i * 4);
-    if (!tex_va)
+    if (!tex && tex_va) {
+      if (!have_fetch)
+        g_slot_nonzero.fetch_add(1, std::memory_order_relaxed);
+      tex = ResolveGuestSurface(tex_va);
+      if (!tex)
+        tex = FindOrBuildNativeTexture(tex_va);
+    }
+    if (!tex && !tex_va && !have_fetch)
       continue;
-    g_slot_nonzero.fetch_add(1, std::memory_order_relaxed);
-    GuestTexture *tex = ResolveGuestSurface(tex_va);
-    if (!tex)
-      tex = FindOrBuildNativeTexture(tex_va);
     if (!tex) {
-      GuestTextureFetch fetch;
-      if (DecodeTextureFetch(device_va, i, fetch))
-        NoteTextureFetch(fetch);
       if (g_resolve_failed.fetch_add(1, std::memory_order_relaxed) == 0)
         EOT_WARN("[constants] sampler {}: texture object 0x{:08X} resolves to "
                  "no host record", i, tex_va);

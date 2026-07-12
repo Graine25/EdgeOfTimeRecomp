@@ -123,7 +123,9 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
 
 bool UntileBaseLevelLocked(GuestTexture *tex, const GuestTextureFetch &f) {
   auto *memory = REX_KERNEL_MEMORY();
-  const auto *src = memory->TranslateVirtual<const u8 *>(f.baseAddress);
+  const auto *src = f.physicalAddress
+                        ? memory->TranslatePhysical<const u8 *>(f.baseAddress)
+                        : memory->TranslateVirtual<const u8 *>(f.baseAddress);
   if (!src)
     return false;
 
@@ -145,6 +147,20 @@ bool UntileBaseLevelLocked(GuestTexture *tex, const GuestTextureFetch &f) {
 
   const u32 pitch_units = layout.base.row_pitch_bytes / unit;
   const u32 extent = layout.base.level_data_extent_bytes;
+
+  const bool tail_ok =
+      f.physicalAddress
+          ? memory->TranslatePhysical<const u8 *>(f.baseAddress + extent - 1) != nullptr
+          : mem::try_at<const u8>(f.baseAddress + extent - 1) != nullptr;
+  if (!extent || !tail_ok) {
+    static std::atomic<u32> unreadable{0};
+    if (unreadable.fetch_add(1, std::memory_order_relaxed) == 0) {
+      EOT_WARN("[native] physical base 0x{:08X} + {} bytes unusable; skipping "
+               "untile",
+               f.baseAddress, extent);
+    }
+    return false;
+  }
   if (!pitch_units || !extent) {
     static std::atomic<u32> reported{0};
     if (reported.fetch_add(1, std::memory_order_relaxed) < 3) {
@@ -175,6 +191,37 @@ bool UntileBaseLevelLocked(GuestTexture *tex, const GuestTextureFetch &f) {
   return true;
 }
 
+}
+
+GuestTexture *FindOrBuildNativeTextureFromFetch(const GuestTextureFetch &fetch) {
+  if (!fetch.baseAddress || !fetch.width || !fetch.height)
+    return nullptr;
+  std::lock_guard lock(g_mutex);
+
+  auto it = g_mirrors.find(fetch.baseAddress);
+  if (it != g_mirrors.end())
+    return it->second.get();
+
+  const plume::RenderFormat format = HostFormatForTextureFormat(fetch.format);
+  if (format == plume::RenderFormat::UNKNOWN) {
+    if (g_native_unmapped_format.fetch_add(1, std::memory_order_relaxed) < 4) {
+      EOT_INFO("[native] no host format for Xenos format {} ({}x{})",
+               static_cast<u32>(fetch.format), fetch.width, fetch.height);
+    }
+    return nullptr;
+  }
+
+  GuestTexture *tex = BuildNativeLocked(fetch.baseAddress, fetch, format);
+  if (tex) {
+    UntileBaseLevelLocked(tex, fetch);
+    if (g_native_built.fetch_add(1, std::memory_order_relaxed) == 0) {
+      EOT_INFO("[native] first engine texture mirrored from a fetch constant: "
+               "base=0x{:08X} {}x{} fmt={} mips={} tiled={}",
+               fetch.baseAddress, fetch.width, fetch.height,
+               static_cast<u32>(fetch.format), fetch.mipLevels, fetch.tiled);
+    }
+  }
+  return tex;
 }
 
 GuestTexture *FindOrBuildNativeTexture(u32 texture_va) {
