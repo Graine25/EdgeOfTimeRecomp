@@ -23,6 +23,8 @@ struct PipelineKey {
 
   InputLayout layout;
 
+  u32 blendControl = 0;
+
   u64 stateHash = 0;
 
   bool operator==(const PipelineKey &o) const {

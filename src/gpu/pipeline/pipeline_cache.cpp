@@ -9,7 +9,10 @@
 
 #include <rex/cvar.h>
 
+#include <rex/graphics/xenos.h>
+
 #include "core/logging.h"
+#include "core/memory_helpers.h"
 #include "core/settings.h"
 #include "gpu/device/device.h"
 #include "gpu/guest/resources.h"
@@ -20,6 +23,9 @@
 REXCVAR_DEFINE_BOOL(eot_build_guest_pipelines, true, kCvarGroup, "Build pipelines for guest draws");
 
 namespace eot::gpu {
+
+constexpr u32 kSpecConstantAlphaTest = 1u << 1;
+constexpr u32 kAlphaTestEnableBit = 1u << 3;
 
 namespace {
 
@@ -117,12 +123,24 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
     out.inputLayoutHash = HashInputLayout(input);
     out.layout = input;
   }
-  out.vertexSpecConstants = 0;
+  const u32 color_control = mem::try_load<u32>(device_va + kColorControlOffset);
+  const u32 depth_control = mem::try_load<u32>(device_va + kDepthControlOffset);
+  const u32 blend_control = mem::try_load<u32>(device_va + kBlendControl0Offset);
+  const bool alpha_test = (color_control & kAlphaTestEnableBit) != 0;
+
+  u32 spec = 0;
+  if (alpha_test)
+    spec |= kSpecConstantAlphaTest;
+
+  out.stateHash = (u64(depth_control) << 32) ^ blend_control ^
+                  (u64(color_control) << 16);
+  out.blendControl = blend_control;
+  out.vertexSpecConstants = spec;
 
   if (GuestShader *ps = Video::BoundPixelShader()) {
     if (ps->shaderCacheEntry) {
       out.pixelShaderHash = ps->hash;
-      out.pixelSpecConstants = 0;
+      out.pixelSpecConstants = spec;
     }
   }
 
@@ -137,6 +155,83 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
 }
 
 namespace {
+
+constexpr u32 kBlendColorSrcShift = 0;
+constexpr u32 kBlendColorCombShift = 5;
+constexpr u32 kBlendColorDstShift = 8;
+constexpr u32 kBlendAlphaSrcShift = 16;
+constexpr u32 kBlendAlphaCombShift = 21;
+constexpr u32 kBlendAlphaDstShift = 24;
+
+plume::RenderBlend ConvertBlendFactor(u32 factor) {
+  switch (static_cast<rex::graphics::xenos::BlendFactor>(factor)) {
+  case rex::graphics::xenos::BlendFactor::kZero:
+    return plume::RenderBlend::ZERO;
+  case rex::graphics::xenos::BlendFactor::kOne:
+    return plume::RenderBlend::ONE;
+  case rex::graphics::xenos::BlendFactor::kSrcColor:
+    return plume::RenderBlend::SRC_COLOR;
+  case rex::graphics::xenos::BlendFactor::kOneMinusSrcColor:
+    return plume::RenderBlend::INV_SRC_COLOR;
+  case rex::graphics::xenos::BlendFactor::kSrcAlpha:
+    return plume::RenderBlend::SRC_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kOneMinusSrcAlpha:
+    return plume::RenderBlend::INV_SRC_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kDstColor:
+    return plume::RenderBlend::DEST_COLOR;
+  case rex::graphics::xenos::BlendFactor::kOneMinusDstColor:
+    return plume::RenderBlend::INV_DEST_COLOR;
+  case rex::graphics::xenos::BlendFactor::kDstAlpha:
+    return plume::RenderBlend::DEST_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kOneMinusDstAlpha:
+    return plume::RenderBlend::INV_DEST_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kSrcAlphaSaturate:
+    return plume::RenderBlend::SRC_ALPHA_SAT;
+  default:
+    return plume::RenderBlend::ONE;
+  }
+}
+
+plume::RenderBlendOperation ConvertBlendOp(u32 op) {
+  switch (op) {
+  case 1:
+    return plume::RenderBlendOperation::SUBTRACT;
+  case 2:
+    return plume::RenderBlendOperation::MIN;
+  case 3:
+    return plume::RenderBlendOperation::MAX;
+  case 4:
+    return plume::RenderBlendOperation::REV_SUBTRACT;
+  default:
+    return plume::RenderBlendOperation::ADD;
+  }
+}
+
+plume::RenderBlendDesc ConvertBlend(u32 blend_control) {
+  const u32 color_src = (blend_control >> kBlendColorSrcShift) & 0x1F;
+  const u32 color_dst = (blend_control >> kBlendColorDstShift) & 0x1F;
+  const u32 color_comb = (blend_control >> kBlendColorCombShift) & 0x7;
+  const u32 alpha_src = (blend_control >> kBlendAlphaSrcShift) & 0x1F;
+  const u32 alpha_dst = (blend_control >> kBlendAlphaDstShift) & 0x1F;
+  const u32 alpha_comb = (blend_control >> kBlendAlphaCombShift) & 0x7;
+
+  plume::RenderBlendDesc desc = plume::RenderBlendDesc::Copy();
+  const bool opaque =
+      color_src == u32(rex::graphics::xenos::BlendFactor::kOne) &&
+      color_dst == u32(rex::graphics::xenos::BlendFactor::kZero) &&
+      color_comb == 0;
+  if (opaque)
+    return desc;
+
+  desc.blendEnabled = true;
+  desc.srcBlend = ConvertBlendFactor(color_src);
+  desc.dstBlend = ConvertBlendFactor(color_dst);
+  desc.blendOp = ConvertBlendOp(color_comb);
+  desc.srcBlendAlpha = ConvertBlendFactor(alpha_src);
+  desc.dstBlendAlpha = ConvertBlendFactor(alpha_dst);
+  desc.blendOpAlpha = ConvertBlendOp(alpha_comb);
+  return desc;
+}
 
 std::unique_ptr<plume::RenderPipeline>
 BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
@@ -195,7 +290,7 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
   desc.depthTargetFormat = key.depthFormat;
   if (key.renderTargetFormat != plume::RenderFormat::UNKNOWN) {
     desc.renderTargetFormat[0] = key.renderTargetFormat;
-    desc.renderTargetBlend[0] = plume::RenderBlendDesc::Copy();
+    desc.renderTargetBlend[0] = ConvertBlend(key.blendControl);
     desc.renderTargetCount = 1;
   }
   desc.specConstants = nullptr;

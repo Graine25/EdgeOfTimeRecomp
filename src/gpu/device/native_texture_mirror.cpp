@@ -95,7 +95,7 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   desc.width = f.width;
   desc.height = f.height;
   desc.depth = 1;
-  desc.mipLevels = f.mipLevels;
+  desc.mipLevels = 1;
   desc.arraySize = 1;
   desc.format = format;
   desc.flags = plume::RenderTextureFlag::NONE;
@@ -110,7 +110,7 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   mirror->selfVa = texture_va;
   mirror->width = f.width;
   mirror->height = f.height;
-  mirror->mipLevels = f.mipLevels;
+  mirror->mipLevels = 1;
   mirror->format = format;
   mirror->guestFormat = static_cast<u32>(f.format);
   mirror->viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
