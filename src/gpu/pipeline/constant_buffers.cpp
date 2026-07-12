@@ -17,9 +17,6 @@
 #include "gpu/guest/texture_fetch.h"
 #include "gpu/pipeline/vertex_layout.h"
 
-REXCVAR_DEFINE_BOOL(eot_bind_from_fetch, false, kCvarGroup,
-                    "Resolve sampler bindings from the live fetch constants.");
-
 namespace eot::gpu::constants {
 
 namespace {
@@ -189,8 +186,7 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
   for (u32 i = 0; i < kMaxSamplerSlots; ++i) {
     GuestTexture *tex = nullptr;
     GuestTextureFetch fetch;
-    const bool have_fetch = REXCVAR_GET(eot_bind_from_fetch) &&
-                            DecodeTextureFetch(device_va, i, fetch);
+    const bool have_fetch = DecodeTextureFetch(device_va, i, fetch);
     if (have_fetch) {
       g_slot_nonzero.fetch_add(1, std::memory_order_relaxed);
       NoteTextureFetch(fetch);

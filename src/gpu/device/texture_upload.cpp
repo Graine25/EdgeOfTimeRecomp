@@ -22,9 +22,6 @@
 
 namespace tu = rex::graphics::texture_util;
 
-REXCVAR_DEFINE_BOOL(eot_upload_textures, true, kCvarGroup,
-                    "Copy locked guest textures to their host texture.");
-
 namespace eot::gpu {
 
 namespace {
@@ -146,7 +143,7 @@ GuestTexture *LastUploadedTexture(u32 preferred_w, u32 preferred_h) {
 void FlushTextureUploads(plume::RenderCommandList *cmd,
                          StagingPool &pool) {
   auto *device = Video::HostDevice();
-  if (!cmd || !device || !REXCVAR_GET(eot_upload_textures))
+  if (!cmd || !device)
     return;
 
   {

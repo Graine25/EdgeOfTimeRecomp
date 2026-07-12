@@ -28,6 +28,11 @@ using System.Runtime.InteropServices;
 public class Win32Shot {
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
+    // Without this the capture runs DPI-virtualised: GetClientRect reports
+    // logical pixels while the game's swapchain is physical, so a 5120x2880
+    // window is captured as its top-left 2560x1440 quadrant and everything
+    // looks cropped and twice as large. This cost a false "text is clipped".
+    [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr ctx);
     // CopyFromScreen grabs whatever is on top at those coordinates, so the game
     // window has to be raised first or the shot is of whatever covers it.
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
@@ -36,6 +41,8 @@ public class Win32Shot {
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
 }
 "@ -ReferencedAssemblies System.Drawing
+
+try { [Win32Shot]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null } catch {}
 
 $args = @("--game_data_root", $GameData)
 if ($MnkMode) { $args += "--mnk_mode=true" }
