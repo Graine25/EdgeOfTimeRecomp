@@ -11,8 +11,12 @@ void NoteFrameStartForDraws();
 
 REX_EXTERN(__imp__D3DDevice_ClearF);
 REX_HOOK_RAW(D3DDevice_ClearF) {
+  const u32 flags = ctx.r4.u32;
+  const u32 color_va = ctx.r6.u32;
+  const float z = static_cast<float>(ctx.f1.f64);
   eot::gpu::Video::BeginGuestFrame();
   eot::gpu::NoteFrameStartForDraws();
+  eot::gpu::Video::ClearBoundTargets(flags, color_va, z);
   __imp__D3DDevice_ClearF(ctx, base);
 }
 

@@ -54,6 +54,8 @@ public:
 
   static void BeginGuestFrame();
 
+  static void ClearBoundTargets(u32 flags, u32 color_va, float z);
+
   static void ResolveRenderTarget(u32 dest_texture_va);
 
   struct RecordingList {

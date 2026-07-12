@@ -20,6 +20,7 @@
 #include <rex/runtime.h>
 
 #include "core/logging.h"
+#include "core/memory_helpers.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/device/rdc_capture.h"
@@ -978,6 +979,50 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
   if (g_resolves.fetch_add(1, std::memory_order_relaxed) == 0)
     EOT_INFO("[resolve] first resolve: {}x{} fmt={} -> 0x{:08X}", src->width,
              src->height, static_cast<u32>(src->format), dest_texture_va);
+}
+
+void Video::ClearBoundTargets(u32 flags, u32 color_va, float z) {
+  constexpr u32 kClearTarget = 0x1;
+  constexpr u32 kClearDepth = 0x10;
+  if (!(flags & (kClearTarget | kClearDepth)))
+    return;
+  if (BindDrawFramebuffer() != FramebufferBind::kBound)
+    return;
+
+  auto rec = AcquireRecordingList();
+  if (!rec || !rec.framebuffer)
+    return;
+
+  plume::RenderTextureBarrier to_write[2];
+  u32 barrier_count = 0;
+  if (rec.colorTarget && rec.colorTarget->texture &&
+      rec.colorTarget->layout != plume::RenderTextureLayout::COLOR_WRITE) {
+    to_write[barrier_count++] = plume::RenderTextureBarrier(
+        rec.colorTarget->texture, plume::RenderTextureLayout::COLOR_WRITE);
+    rec.colorTarget->layout = plume::RenderTextureLayout::COLOR_WRITE;
+  }
+  if (rec.depthTarget && rec.depthTarget->texture &&
+      rec.depthTarget->layout != plume::RenderTextureLayout::DEPTH_WRITE) {
+    to_write[barrier_count++] = plume::RenderTextureBarrier(
+        rec.depthTarget->texture, plume::RenderTextureLayout::DEPTH_WRITE);
+    rec.depthTarget->layout = plume::RenderTextureLayout::DEPTH_WRITE;
+  }
+  if (barrier_count)
+    rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, to_write,
+                      barrier_count);
+
+  rec.cmd->setFramebuffer(rec.framebuffer);
+  if ((flags & kClearTarget) && rec.colorTarget) {
+    float rgba[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    if (color_va) {
+      for (u32 i = 0; i < 4; ++i)
+        rgba[i] = mem::try_load<float>(color_va + i * 4);
+    }
+    rec.cmd->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2],
+                                              rgba[3]));
+  }
+  if ((flags & kClearDepth) && rec.depthTarget)
+    rec.cmd->clearDepth(true, z);
 }
 
 void Video::BeginGuestFrame() {
