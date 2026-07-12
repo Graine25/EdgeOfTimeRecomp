@@ -27,6 +27,7 @@ std::atomic<u32> g_no_stream{0};
 std::atomic<u32> g_no_indices{0};
 std::atomic<u32> g_too_large{0};
 std::atomic<u32> g_window_space{0};
+std::atomic<u32> g_expanded{0};
 
 constexpr u32 kMaxStreamBytesPerDraw = 8u * 1024 * 1024;
 
@@ -37,6 +38,42 @@ bool CopyIndices16(u8 *dst, u32 guest_va, u32 count) {
     out[i] = static_cast<u16>(word);
   }
   return true;
+}
+
+std::vector<u32> BuildTriangleIndices(u32 prim, u32 count) {
+  std::vector<u32> idx;
+  switch (prim) {
+  case kPrimQuadList: {
+    const u32 quads = count / 4;
+    idx.reserve(size_t(quads) * 6);
+    for (u32 q = 0; q < quads; ++q) {
+      const u32 b = q * 4;
+      idx.insert(idx.end(), {b, b + 1, b + 2, b, b + 2, b + 3});
+    }
+    break;
+  }
+  case kPrimTriangleFan:
+    if (count >= 3) {
+      idx.reserve(size_t(count - 2) * 3);
+      for (u32 i = 1; i + 1 < count; ++i)
+        idx.insert(idx.end(), {0u, i, i + 1});
+    }
+    break;
+  case kPrimTriangleStrip:
+    if (count >= 3) {
+      idx.reserve(size_t(count - 2) * 3);
+      for (u32 i = 0; i + 2 < count; ++i) {
+        if (i & 1)
+          idx.insert(idx.end(), {i + 1, i, i + 2});
+        else
+          idx.insert(idx.end(), {i, i + 1, i + 2});
+      }
+    }
+    break;
+  default:
+    break;
+  }
+  return idx;
 }
 
 bool AcquireRange(u32 guest_va, u32 bytes, bool swap16,
@@ -106,8 +143,8 @@ void ConvertWindowSpacePositions(u8 *data, u32 bytes, u32 stride, u32 posOffset,
 
 bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
                         u32 vertexCount, bool indexed, u32 startIndex,
-                        u32 indexCount, bool windowSpace, u32 targetWidth,
-                        u32 targetHeight, DrawGeometry &out) {
+                        u32 indexCount, u32 primitiveType, bool windowSpace,
+                        u32 targetWidth, u32 targetHeight, DrawGeometry &out) {
   out = DrawGeometry{};
   if (!vertexCount && !indexed)
     return false;
@@ -170,6 +207,22 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
   }
   out.vertexBufferCount = stream_count;
 
+  if (!indexed) {
+    const std::vector<u32> tri = BuildTriangleIndices(primitiveType, vertexCount);
+    if (!tri.empty()) {
+      const u32 bytes = static_cast<u32>(tri.size() * sizeof(u32));
+      auto alloc = constants::Allocate(bytes);
+      if (!alloc.valid())
+        return false;
+      std::memcpy(alloc.memory, tri.data(), bytes);
+      out.indexView = plume::RenderIndexBufferView(alloc.ref, bytes,
+                                                   plume::RenderFormat::R32_UINT);
+      out.hasIndices = true;
+      out.indexCount = static_cast<u32>(tri.size());
+      g_expanded.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
   if (indexed) {
     const auto info = Video::BoundIndexBuffer();
     if (!info.address || !indexCount) {
@@ -188,10 +241,31 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
     if (!AcquireRange(info.address + first_byte, bytes, !info.index32, ref))
       return false;
 
-    out.indexView = plume::RenderIndexBufferView(
-        ref, bytes,
-        info.index32 ? plume::RenderFormat::R32_UINT
-                     : plume::RenderFormat::R16_UINT);
+    const std::vector<u32> tri = BuildTriangleIndices(primitiveType, indexCount);
+    if (tri.empty()) {
+      out.indexView = plume::RenderIndexBufferView(
+          ref, bytes,
+          info.index32 ? plume::RenderFormat::R32_UINT
+                       : plume::RenderFormat::R16_UINT);
+      out.indexCount = indexCount;
+    } else {
+      std::vector<u32> expanded(tri.size());
+      for (size_t i = 0; i < tri.size(); ++i) {
+        const u32 slot = tri[i];
+        const u32 at = info.address + first_byte;
+        expanded[i] = info.index32 ? mem::try_load<u32>(at + slot * 4)
+                                   : mem::try_load<u16>(at + slot * 2);
+      }
+      const u32 ebytes = static_cast<u32>(expanded.size() * sizeof(u32));
+      auto ealloc = constants::Allocate(ebytes);
+      if (!ealloc.valid())
+        return false;
+      std::memcpy(ealloc.memory, expanded.data(), ebytes);
+      out.indexView = plume::RenderIndexBufferView(ealloc.ref, ebytes,
+                                                   plume::RenderFormat::R32_UINT);
+      out.indexCount = static_cast<u32>(expanded.size());
+      g_expanded.fetch_add(1, std::memory_order_relaxed);
+    }
     out.hasIndices = true;
   }
 
@@ -203,7 +277,8 @@ void LogGeometryUploadStats() {
   EOT_INFO("[geometry] {} draws fed, {} range copies reused; dropped: {} no "
            "stream, {} no indices, {} oversized",
            g_uploads.load(), g_cache_hits.load(), g_no_stream.load(),
-           g_no_indices.load(), g_too_large.load(), g_window_space.load());
+           g_no_indices.load(), g_too_large.load(), g_window_space.load(),
+           g_expanded.load());
 }
 
 }

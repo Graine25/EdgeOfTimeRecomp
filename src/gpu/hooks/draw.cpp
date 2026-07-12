@@ -82,8 +82,8 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   DrawGeometry geometry;
   if (!UploadDrawGeometry(key.layout, indexed ? 0 : args.startVertex,
                           args.vertexCount, indexed, args.startIndex,
-                          args.indexCount, window_space, target.width,
-                          target.height, geometry)) {
+                          args.indexCount, args.primitiveType, window_space,
+                          target.width, target.height, geometry)) {
     g_no_geometry.fetch_add(1, std::memory_order_relaxed);
     return;
   }
@@ -135,10 +135,10 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   rec.cmd->setScissors(plume::RenderRect(0, 0, i32(rec.targetWidth),
                                          i32(rec.targetHeight)));
 
-  if (indexed && geometry.hasIndices) {
+  if (geometry.hasIndices) {
     rec.cmd->setIndexBuffer(&geometry.indexView);
-    rec.cmd->drawIndexedInstanced(args.indexCount, 1, 0,
-                                  i32(args.baseVertexIndex), 0);
+    rec.cmd->drawIndexedInstanced(geometry.indexCount, 1, 0,
+                                  indexed ? i32(args.baseVertexIndex) : 0, 0);
   } else {
     rec.cmd->drawInstanced(args.vertexCount, 1, 0, 0);
   }

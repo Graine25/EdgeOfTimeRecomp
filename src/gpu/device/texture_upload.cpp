@@ -37,6 +37,7 @@ struct NativeUpload {
   std::vector<u8> data;
   u32 rowPitch = 0;
   u32 rows = 0;
+  u32 level = 0;
 };
 std::vector<NativeUpload> g_native_pending;
 std::atomic<u32> g_native_uploaded{0};
@@ -115,11 +116,11 @@ void QueueTextureUpload(GuestTexture *tex) {
 }
 
 void QueueNativeUpload(GuestTexture *tex, std::vector<u8> data, u32 rowPitch,
-                       u32 rows) {
+                       u32 rows, u32 level) {
   if (!tex || data.empty() || !rowPitch || !rows)
     return;
   std::lock_guard lock(g_upload_mutex);
-  g_native_pending.push_back({tex, std::move(data), rowPitch, rows});
+  g_native_pending.push_back({tex, std::move(data), rowPitch, rows, level});
 }
 
 void ForgetTextureUpload(GuestTexture *tex) {
@@ -178,10 +179,13 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
                                   : BytesPerBlock(tex->format);
       if (!unit)
         continue;
+      const u32 level_w = std::max(tex->width >> up.level, 1u);
+      const u32 level_h = std::max(tex->height >> up.level, 1u);
       cmd->copyTextureRegion(
-          plume::RenderTextureCopyLocation::Subresource(tex->texture, 0, 0),
+          plume::RenderTextureCopyLocation::Subresource(tex->texture,
+                                                         up.level, 0),
           plume::RenderTextureCopyLocation::PlacedFootprint(
-              staging, tex->format, tex->width, tex->height, 1,
+              staging, tex->format, level_w, level_h, 1,
               (up.rowPitch / unit) * block));
 
       const plume::RenderTextureBarrier to_read(
