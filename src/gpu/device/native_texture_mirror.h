@@ -20,6 +20,8 @@ void DrainEvictedNativeTextures(u32 slot);
 
 void LogNativeTextureStats();
 
+GuestTexture *ResolveMirrorByAddress(u32 address);
+
 GuestTexture *ResolveGuestSurface(u32 surface_va);
 
 }

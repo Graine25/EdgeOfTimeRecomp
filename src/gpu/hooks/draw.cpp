@@ -265,6 +265,7 @@ void CountDraw(u32 device_va, bool indexed, const DrawArgs &args) {
              g_no_list.load());
     LogGeometryUploadStats();
     LogNativeTextureStats();
+    Video::LogResolveStats();
   }
 }
 

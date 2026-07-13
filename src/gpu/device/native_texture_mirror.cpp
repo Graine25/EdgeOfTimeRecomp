@@ -51,6 +51,14 @@ std::atomic<u32> g_depth_binds{0};
 
 std::unordered_map<u32, GuestTexture *> g_surface_by_base;
 
+constexpr u32 kGuestPageShift = 12;
+std::unordered_map<u32, GuestTexture *> g_mirror_by_page;
+
+void RegisterByPageLocked(u32 base_address, GuestTexture *tex) {
+  if (base_address && tex)
+    g_mirror_by_page[base_address >> kGuestPageShift] = tex;
+}
+
 constexpr size_t kMaxNativeMirrors = 2048;
 
 std::list<u32> g_lru;
@@ -142,6 +150,7 @@ GuestTexture *BuildLocked(u32 surface_va, u32 width, u32 height,
   if (DecodeTextureFetchAt(surface_va + kTextureObjectFetchOffset, self) &&
       self.baseAddress) {
     g_surface_by_base[self.baseAddress] = raw;
+    RegisterByPageLocked(self.baseAddress, raw);
   }
   return raw;
 }
@@ -585,6 +594,17 @@ void EvictSurfaceMirror(u32 surface_va) {
     g_mirrors.erase(it);
   }
   Video::NotifyTextureDestroyed(dead.get());
+}
+
+GuestTexture *ResolveMirrorByAddress(u32 address) {
+  if (!address)
+    return nullptr;
+  std::lock_guard lock(g_mutex);
+  auto exact = g_mirrors.find(address);
+  if (exact != g_mirrors.end())
+    return exact->second.get();
+  auto page = g_mirror_by_page.find(address >> kGuestPageShift);
+  return page == g_mirror_by_page.end() ? nullptr : page->second;
 }
 
 GuestTexture *ResolveGuestSurface(u32 surface_va) {

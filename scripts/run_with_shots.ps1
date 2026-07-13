@@ -6,7 +6,8 @@ param(
     [string] $OutDir   = "",
     [switch] $MnkMode,
     [switch] $IssueDraws,
-    [switch] $FetchBind
+    [switch] $FetchBind,
+    [switch] $SkipClear
 )
 
 Set-StrictMode -Version Latest
@@ -47,7 +48,7 @@ try { [Win32Shot]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null } catc
 $args = @("--game_data_root", $GameData)
 if ($MnkMode) { $args += "--mnk_mode=true" }
 if ($IssueDraws) { $args += "--eot_issue_draws=true" }
-if ($FetchBind) { $args += "--eot_bind_from_fetch=true" }
+if ($SkipClear) { $args += "--eot_skip_clear=true" }
 
 Write-Host "Launching $exePath"
 Write-Host "  shots -> $OutDir  (every ${Every}s for ${Seconds}s)"
