@@ -16,6 +16,8 @@ GuestTexture *FindOrBuildNativeTexture(u32 texture_va);
 
 GuestTexture *FindOrBuildNativeTextureFromFetch(const struct GuestTextureFetch &fetch);
 
+void DrainEvictedNativeTextures(u32 slot);
+
 void LogNativeTextureStats();
 
 GuestTexture *ResolveGuestSurface(u32 surface_va);

@@ -11,6 +11,7 @@
 #include "gpu/device/device.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/guest/d3d.h"
+#include "gpu/device/native_texture_mirror.h"
 #include "gpu/pipeline/constant_buffers.h"
 #include "gpu/pipeline/geometry_upload.h"
 #include "gpu/pipeline/pipeline_cache.h"
@@ -76,8 +77,9 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   DrawGeometry geometry;
   if (!UploadDrawGeometry(key.layout, indexed ? 0 : args.startVertex,
                           args.vertexCount, indexed, args.startIndex,
-                          args.indexCount, args.primitiveType, window_space,
-                          target.width, target.height, geometry)) {
+                          args.indexCount, args.baseVertexIndex,
+                          args.primitiveType, window_space, target.width,
+                          target.height, geometry)) {
     g_no_geometry.fetch_add(1, std::memory_order_relaxed);
     return;
   }
@@ -131,8 +133,7 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
 
   if (geometry.hasIndices) {
     rec.cmd->setIndexBuffer(&geometry.indexView);
-    rec.cmd->drawIndexedInstanced(geometry.indexCount, 1, 0,
-                                  indexed ? i32(args.baseVertexIndex) : 0, 0);
+    rec.cmd->drawIndexedInstanced(geometry.indexCount, 1, 0, 0, 0);
   } else {
     rec.cmd->drawInstanced(args.vertexCount, 1, 0, 0);
   }
@@ -263,6 +264,7 @@ void CountDraw(u32 device_va, bool indexed, const DrawArgs &args) {
              g_issued.load(), g_no_geometry.load(), g_no_framebuffer.load(),
              g_no_list.load());
     LogGeometryUploadStats();
+    LogNativeTextureStats();
   }
 }
 

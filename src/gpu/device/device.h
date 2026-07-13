@@ -38,9 +38,10 @@ namespace eot::gpu {
 
 constexpr u32 kNumFrames = 2;
 
-constexpr u32 kHostDescriptorReserve = 512;
+constexpr u32 kHostDescriptorReserve = 8192;
 constexpr u32 kBindlessTextureCount = 65536 - kHostDescriptorReserve;
-constexpr u32 kBindlessSamplerCount = 1024 - 16;
+constexpr u32 kHostSamplerReserve = 256;
+constexpr u32 kBindlessSamplerCount = 1024 - kHostSamplerReserve;
 
 class Video {
 public:
@@ -103,7 +104,13 @@ public:
   };
   static AttachmentSize BoundAttachmentSize();
 
+  static GuestTexture *BoundDepthTexture();
+
   static u32 AcquireTextureDescriptor(GuestTexture *tex);
+
+  static void ReleaseTextureDescriptor(u32 index);
+
+  static u32 CurrentFrameSlot();
 
   static u32 BoundStreamStride(u32 stream);
 
@@ -162,8 +169,11 @@ struct VideoState {
   std::unique_ptr<plume::RenderDescriptorSet> guest_texture_set;
 
   u32 next_texture_slot = 1;
+  std::vector<u32> free_texture_slots;
   std::unique_ptr<plume::RenderSampler> guest_default_sampler;
   std::unique_ptr<plume::RenderTexture> null_texture;
+  bool null_texture_filled = false;
+  std::unique_ptr<plume::RenderBuffer> null_fill_staging;
   std::unique_ptr<plume::RenderTextureView> null_texture_view;
   std::unique_ptr<plume::RenderDescriptorSet> guest_sampler_set;
   bool guest_layout_failed = false;
@@ -183,6 +193,13 @@ struct VideoState {
   std::unique_ptr<plume::RenderSampler> blit_sampler;
   std::unique_ptr<plume::RenderPipelineLayout> blit_layout;
   std::unique_ptr<plume::RenderPipeline> blit_pipeline;
+
+  std::unordered_map<u32, std::unique_ptr<plume::RenderPipeline>>
+      resolve_pipelines;
+  std::vector<std::unique_ptr<plume::RenderDescriptorSet>>
+      resolve_sets[kNumFrames];
+  u32 resolve_set_used[kNumFrames] = {};
+
   std::unique_ptr<plume::RenderDescriptorSet> blit_descriptor_set[kNumFrames];
   std::vector<std::unique_ptr<plume::RenderTextureView>>
       blit_view_graveyard[kNumFrames];
