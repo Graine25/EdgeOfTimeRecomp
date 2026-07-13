@@ -19,13 +19,17 @@
 #include <plume_render_interface_builders.h>
 #include <rex/runtime.h>
 
+#include <rex/cvar.h>
+
 #include "core/logging.h"
+#include "core/settings.h"
 #include "core/memory_helpers.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/device/rdc_capture.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/device/texture_upload.h"
+#include "gpu/guest/texture_fetch.h"
 #include "gpu/pipeline/constant_buffers.h"
 #include "gpu/pipeline/geometry_upload.h"
 #include "platform/native_window.h"
@@ -482,6 +486,25 @@ void Video::Present(GuestTexture *front_buffer) {
   plume::RenderFramebuffer *back_fb = s.framebuffers[texture_index].get();
   auto *cmd = s.command_lists[cur].get();
 
+  if (front_buffer && !front_buffer->hasContent && front_buffer->selfVa) {
+    GuestTextureFetch fetch;
+    if (DecodeTextureFetchAt(front_buffer->selfVa + kTextureObjectFetchOffset,
+                             fetch) &&
+        fetch.baseAddress) {
+      if (GuestTexture *twin = ResolveMirrorByAddress(fetch.baseAddress);
+          twin && twin != front_buffer && twin->texture && twin->hasContent) {
+        static bool reported = false;
+        if (!reported) {
+          reported = true;
+          EOT_INFO("[present] front buffer 0x{:08X} has no content; presenting "
+                   "the resolved surface sharing its page instead",
+                   front_buffer->selfVa);
+        }
+        front_buffer = twin;
+      }
+    }
+  }
+
   if (!front_buffer || !front_buffer->hasContent) {
     const u32 want_w = front_buffer ? front_buffer->width : 0;
     const u32 want_h = front_buffer ? front_buffer->height : 0;
@@ -515,6 +538,13 @@ void Video::Present(GuestTexture *front_buffer) {
   if (reported_source != front_buffer && reported_count < 4) {
     reported_source = front_buffer;
     ++reported_count;
+    if (front_buffer && front_buffer->selfVa) {
+      GuestTextureFetch ff;
+      DecodeTextureFetchAt(front_buffer->selfVa + kTextureObjectFetchOffset,
+                           ff);
+      EOT_INFO("[present] front va=0x{:08X} base=0x{:08X} page=0x{:X}",
+               front_buffer->selfVa, ff.baseAddress, ff.baseAddress >> 12);
+    }
     EOT_INFO("[present] front={} tex={} {}x{} fmt={} samples={} pipeline={} -> "
              "{}",
              front_buffer != nullptr,
@@ -1118,6 +1148,21 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
 
 }
 
+namespace {
+std::atomic<u32> g_resolves{0};
+std::atomic<u32> g_no_dest{0};
+std::atomic<u32> g_mismatch{0};
+std::atomic<u32> g_blitted{0};
+std::atomic<u32> g_no_src{0};
+}
+
+void Video::LogResolveStats() {
+  EOT_INFO("[resolve] {} copies, {} converting blits; skipped: {} no dest, "
+           "{} no source, {} undescribable",
+           g_resolves.load(), g_blitted.load(), g_no_dest.load(),
+           g_no_src.load(), g_mismatch.load());
+}
+
 void Video::ResolveRenderTarget(u32 dest_texture_va) {
   if (!dest_texture_va)
     return;
@@ -1125,18 +1170,16 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
   if (!dest)
     dest = FindOrBuildNativeTexture(dest_texture_va);
 
-  static std::atomic<u32> g_resolves{0};
-  static std::atomic<u32> g_no_dest{0};
-  static std::atomic<u32> g_mismatch{0};
-  static std::atomic<u32> g_blitted{0};
   if (!dest || !dest->texture) {
     g_no_dest.fetch_add(1, std::memory_order_relaxed);
     return;
   }
 
   auto rec = AcquireRecordingList();
-  if (!rec || !rec.colorTarget || !rec.colorTarget->texture)
+  if (!rec || !rec.colorTarget || !rec.colorTarget->texture) {
+    g_no_src.fetch_add(1, std::memory_order_relaxed);
     return;
+  }
   auto &s = state();
   GuestTexture *src = rec.colorTarget;
   if (src == dest)

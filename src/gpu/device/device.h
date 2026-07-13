@@ -59,6 +59,8 @@ public:
 
   static void ResolveRenderTarget(u32 dest_texture_va);
 
+  static void LogResolveStats();
+
   struct RecordingList {
     plume::RenderCommandList *cmd = nullptr;
     plume::RenderFramebuffer *framebuffer = nullptr;

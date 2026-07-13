@@ -2,6 +2,7 @@
 #include <rex/types.h>
 
 #include "gpu/device/device.h"
+#include "gpu/device/native_texture_mirror.h"
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/guest/resources.h"
 
@@ -22,9 +23,9 @@ REX_HOOK_RAW(D3DDevice_ClearF) {
 
 REX_HOOK_RAW(D3DDevice_Swap) {
   (void)base;
-  auto *front_buffer =
-      eot::gpu::HostResourceHeap::FromGuest<eot::gpu::GuestTexture>(
-          ctx.r4.u32);
+  auto *front_buffer = eot::gpu::ResolveGuestSurface(ctx.r4.u32);
+  if (!front_buffer)
+    front_buffer = eot::gpu::FindOrBuildNativeTexture(ctx.r4.u32);
   eot::gpu::Video::Present(front_buffer);
 }
 
