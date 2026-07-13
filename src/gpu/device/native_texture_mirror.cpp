@@ -2,6 +2,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <algorithm>
+#include <list>
+#include <map>
+#include <tuple>
 
 #include <bit>
 #include <vector>
@@ -42,6 +46,56 @@ std::unordered_map<u32, std::unique_ptr<GuestTexture>> g_mirrors;
 std::atomic<u32> g_native_built{0};
 std::atomic<u32> g_native_unmapped_format{0};
 std::atomic<u32> g_native_undescribed{0};
+std::atomic<u32> g_evicted{0};
+std::atomic<u32> g_depth_binds{0};
+
+std::unordered_map<u32, GuestTexture *> g_surface_by_base;
+
+constexpr size_t kMaxNativeMirrors = 2048;
+
+std::list<u32> g_lru;
+std::unordered_map<u32, std::list<u32>::iterator> g_lru_pos;
+
+std::vector<std::unique_ptr<GuestTexture>> g_evict_graveyard[kNumFrames];
+
+std::mutex g_unmapped_mutex;
+std::map<std::tuple<u32, u32, u32>, u32> g_unmapped;
+
+void NoteUnmappedFormat(u32 format, u32 w, u32 h) {
+  std::lock_guard lock(g_unmapped_mutex);
+  if (g_unmapped.size() < 512)
+    ++g_unmapped[{format, w, h}];
+}
+
+bool IsDepthTextureFormat(rex::graphics::xenos::TextureFormat f) {
+  return f == rex::graphics::xenos::TextureFormat::k_24_8 ||
+         f == rex::graphics::xenos::TextureFormat::k_24_8_FLOAT;
+}
+
+void TouchLocked(u32 va) {
+  auto it = g_lru_pos.find(va);
+  if (it != g_lru_pos.end())
+    g_lru.erase(it->second);
+  g_lru.push_back(va);
+  g_lru_pos[va] = std::prev(g_lru.end());
+}
+
+void EvictLocked(size_t keep) {
+  while (g_mirrors.size() > keep && !g_lru.empty()) {
+    const u32 va = g_lru.front();
+    g_lru.pop_front();
+    g_lru_pos.erase(va);
+    auto it = g_mirrors.find(va);
+    if (it == g_mirrors.end())
+      continue;
+    std::unique_ptr<GuestTexture> dead = std::move(it->second);
+    g_mirrors.erase(it);
+    Video::ReleaseTextureDescriptor(dead->descriptorIndex);
+    dead->descriptorIndex = kInvalidDescriptorIndex;
+    g_evict_graveyard[Video::CurrentFrameSlot()].push_back(std::move(dead));
+    g_evicted.fetch_add(1, std::memory_order_relaxed);
+  }
+}
 
 std::atomic<u32> g_built{0};
 std::atomic<u32> g_refreshed{0};
@@ -83,6 +137,12 @@ GuestTexture *BuildLocked(u32 surface_va, u32 width, u32 height,
 
   auto *raw = mirror.get();
   g_mirrors[surface_va] = std::move(mirror);
+
+  GuestTextureFetch self;
+  if (DecodeTextureFetchAt(surface_va + kTextureObjectFetchOffset, self) &&
+      self.baseAddress) {
+    g_surface_by_base[self.baseAddress] = raw;
+  }
   return raw;
 }
 
@@ -108,7 +168,9 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   desc.mipLevels = mip_levels;
   desc.arraySize = 1;
   desc.format = format;
-  desc.flags = plume::RenderTextureFlag::NONE;
+  desc.flags = IsBlockCompressed(format)
+                   ? plume::RenderTextureFlag::NONE
+                   : plume::RenderTextureFlag::RENDER_TARGET;
   desc.multisampling.sampleCount = plume::RenderSampleCount::COUNT_1;
   desc.committed = true;
 
@@ -300,15 +362,51 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(const GuestTextureFetch &fetch) 
   std::lock_guard lock(g_mutex);
 
   auto it = g_mirrors.find(fetch.baseAddress);
-  if (it != g_mirrors.end())
+  if (it != g_mirrors.end()) {
+    TouchLocked(fetch.baseAddress);
     return it->second.get();
+  }
+
+  if (auto sit = g_surface_by_base.find(fetch.baseAddress);
+      sit != g_surface_by_base.end() && sit->second) {
+    if (g_depth_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
+      EOT_INFO("[native] fetch 0x{:08X} ({}x{} fmt={}) resolved to an existing "
+               "surface mirror",
+               fetch.baseAddress, fetch.width, fetch.height,
+               static_cast<u32>(fetch.format));
+    }
+    return sit->second;
+  }
+
+  if (IsDepthTextureFormat(fetch.format)) {
+    GuestTexture *depth = Video::BoundDepthTexture();
+    if (!depth || !depth->texture || depth->width != fetch.width ||
+        depth->height != fetch.height) {
+      depth = nullptr;
+      for (auto &[va, mirror] : g_mirrors) {
+        if (mirror && mirror->texture &&
+            mirror->type == ResourceType::DepthStencil &&
+            mirror->width == fetch.width && mirror->height == fetch.height) {
+          depth = mirror.get();
+          break;
+        }
+      }
+    }
+    if (depth && depth->texture) {
+      if (g_depth_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[native] depth fetch {}x{} fmt={} bound to the depth "
+                 "attachment",
+                 fetch.width, fetch.height, static_cast<u32>(fetch.format));
+      }
+      return depth;
+    }
+  }
 
   const plume::RenderFormat format = HostFormatForTextureFormat(fetch.format);
   if (format == plume::RenderFormat::UNKNOWN) {
-    if (g_native_unmapped_format.fetch_add(1, std::memory_order_relaxed) < 4) {
-      EOT_INFO("[native] no host format for Xenos format {} ({}x{})",
-               static_cast<u32>(fetch.format), fetch.width, fetch.height);
-    }
+    g_native_unmapped_format.fetch_add(1, std::memory_order_relaxed);
+    NoteUnmappedFormat(static_cast<u32>(fetch.format), fetch.width,
+                       fetch.height);
     return nullptr;
   }
 
@@ -371,11 +469,38 @@ GuestTexture *FindOrBuildNativeTexture(u32 texture_va) {
   return tex;
 }
 
+void DrainEvictedNativeTextures(u32 slot) {
+  if (slot >= kNumFrames)
+    return;
+  std::vector<std::unique_ptr<GuestTexture>> batch;
+  {
+    std::lock_guard lock(g_mutex);
+    batch.swap(g_evict_graveyard[slot]);
+  }
+  for (auto &tex : batch)
+    Video::NotifyTextureDestroyed(tex.get());
+}
+
 void LogNativeTextureStats() {
   EOT_INFO("[native] {} engine textures mirrored, {} with no host format, "
            "{} undescribed",
            g_native_built.load(), g_native_unmapped_format.load(),
            g_native_undescribed.load());
+  EOT_INFO("[native] {} live mirrors, {} evicted, {} fetches served by an "
+           "existing surface",
+           g_mirrors.size(), g_evicted.load(), g_depth_binds.load());
+  {
+    std::lock_guard lock(g_unmapped_mutex);
+    std::vector<std::pair<std::tuple<u32, u32, u32>, u32>> ranked(
+        g_unmapped.begin(), g_unmapped.end());
+    std::sort(ranked.begin(), ranked.end(),
+              [](const auto &a, const auto &b) { return a.second > b.second; });
+    for (size_t i = 0; i < ranked.size() && i < 6; ++i) {
+      const auto &[fmt, w, h] = ranked[i].first;
+      EOT_INFO("[native]   unmapped fmt={} {}x{} - {} rejects", fmt, w, h,
+               ranked[i].second);
+    }
+  }
 }
 
 GuestTexture *FindOrBuildSurfaceMirror(u32 surface_va) {
@@ -439,6 +564,15 @@ void RegisterSurfacePool(u32 record_va) {
 }
 
 void EvictSurfaceMirror(u32 surface_va) {
+  {
+    std::lock_guard lock(g_mutex);
+    for (auto it = g_surface_by_base.begin(); it != g_surface_by_base.end();) {
+      auto mit = g_mirrors.find(surface_va);
+      it = (mit != g_mirrors.end() && it->second == mit->second.get())
+               ? g_surface_by_base.erase(it)
+               : std::next(it);
+    }
+  }
   if (!surface_va)
     return;
   std::unique_ptr<GuestTexture> dead;

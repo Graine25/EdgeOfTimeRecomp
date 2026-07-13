@@ -55,6 +55,33 @@ HostFormatForTextureFormat(xenos::TextureFormat format) {
     return plume::RenderFormat::R16G16B16A16_UNORM;
   case xenos::TextureFormat::k_16_16_16_16_FLOAT:
     return plume::RenderFormat::R16G16B16A16_FLOAT;
+
+  case xenos::TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+    return plume::RenderFormat::R8G8B8A8_UNORM;
+  case xenos::TextureFormat::k_DXT1_AS_16_16_16_16:
+    return plume::RenderFormat::BC1_UNORM;
+  case xenos::TextureFormat::k_DXT2_3_AS_16_16_16_16:
+    return plume::RenderFormat::BC2_UNORM;
+  case xenos::TextureFormat::k_DXT4_5_AS_16_16_16_16:
+    return plume::RenderFormat::BC3_UNORM;
+
+  case xenos::TextureFormat::k_DXN:
+    return plume::RenderFormat::BC5_UNORM;
+  case xenos::TextureFormat::k_DXT5A:
+    return plume::RenderFormat::BC4_UNORM;
+
+  case xenos::TextureFormat::k_16:
+    return plume::RenderFormat::R16_UNORM;
+  case xenos::TextureFormat::k_16_16:
+    return plume::RenderFormat::R16G16_UNORM;
+  case xenos::TextureFormat::k_16_FLOAT:
+    return plume::RenderFormat::R16_FLOAT;
+  case xenos::TextureFormat::k_16_16_FLOAT:
+    return plume::RenderFormat::R16G16_FLOAT;
+  case xenos::TextureFormat::k_32_FLOAT:
+    return plume::RenderFormat::R32_FLOAT;
+  case xenos::TextureFormat::k_32_32_FLOAT:
+    return plume::RenderFormat::R32G32_FLOAT;
   default:
     return plume::RenderFormat::UNKNOWN;
   }

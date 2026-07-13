@@ -442,6 +442,7 @@ void AdvanceAndWaitReusedLocked(VideoState &s) {
   }
   s.blit_view_graveyard[slot].clear();
   s.upload_staging[slot].Reset();
+  s.resolve_set_used[slot] = 0;
   constants::ResetFrame(slot);
   ResetGeometryFrame();
 }
@@ -528,6 +529,32 @@ void Video::Present(GuestTexture *front_buffer) {
 
   EnsureCommandListOpenLocked(s, cur);
 
+  if (!s.null_texture_filled && s.null_texture) {
+    s.null_texture_filled = true;
+    auto staging = s.device->createBuffer(
+        plume::RenderBufferDesc::UploadBuffer(256));
+    if (staging) {
+      if (void *mapped = staging->map()) {
+        const u8 magenta[4] = {255, 0, 255, 255};
+        std::memcpy(mapped, magenta, sizeof(magenta));
+        staging->unmap();
+        const plume::RenderTextureBarrier to_copy(
+            s.null_texture.get(), plume::RenderTextureLayout::COPY_DEST);
+        cmd->barriers(plume::RenderBarrierStage::COPY, &to_copy, 1);
+        cmd->copyTextureRegion(
+            plume::RenderTextureCopyLocation::Subresource(s.null_texture.get(),
+                                                          0, 0),
+            plume::RenderTextureCopyLocation::PlacedFootprint(
+                staging.get(), plume::RenderFormat::R8G8B8A8_UNORM, 1, 1, 1,
+                64));
+        const plume::RenderTextureBarrier to_read(
+            s.null_texture.get(), plume::RenderTextureLayout::SHADER_READ);
+        cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1);
+      }
+      s.null_fill_staging = std::move(staging);
+    }
+  }
+
   cmd->setFramebuffer(nullptr);
 
   FlushTextureUploads(cmd, s.upload_staging[cur]);
@@ -587,6 +614,7 @@ void Video::Present(GuestTexture *front_buffer) {
   const u32 reclaimed = s.frame.load(std::memory_order_relaxed);
   lock.unlock();
   DrainDeferredDestroys(s, reclaimed);
+  DrainEvictedNativeTextures(reclaimed);
 }
 
 plume::RenderDevice *Video::HostDevice() { return state().device.get(); }
@@ -771,6 +799,23 @@ Video::AttachmentFormats Video::BoundAttachmentFormats() {
   return out;
 }
 
+u32 Video::CurrentFrameSlot() {
+  return state().frame.load(std::memory_order_relaxed);
+}
+
+void Video::ReleaseTextureDescriptor(u32 index) {
+  if (index == kInvalidDescriptorIndex || index == 0)
+    return;
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (s.guest_texture_set && s.null_texture && s.null_texture_view) {
+    s.guest_texture_set->setTexture(index, s.null_texture.get(),
+                                    plume::RenderTextureLayout::SHADER_READ,
+                                    s.null_texture_view.get());
+  }
+  s.free_texture_slots.push_back(index);
+}
+
 plume::RenderDescriptorSet *Video::GuestTextureSet() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -792,6 +837,23 @@ u32 Video::AcquireTextureDescriptor(GuestTexture *tex) {
     return tex->descriptorIndex;
   if (!s.guest_texture_set)
     return kInvalidDescriptorIndex;
+  if (!s.free_texture_slots.empty()) {
+    const u32 slot = s.free_texture_slots.back();
+    s.free_texture_slots.pop_back();
+    plume::RenderTextureViewDesc view_desc;
+    view_desc.format = tex->format;
+    view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+    view_desc.mipLevels = tex->mipLevels ? tex->mipLevels : 1;
+    auto view = tex->texture->createTextureView(view_desc);
+    if (!view)
+      return kInvalidDescriptorIndex;
+    s.guest_texture_set->setTexture(slot, tex->texture,
+                                    plume::RenderTextureLayout::SHADER_READ,
+                                    view.get());
+    tex->textureView = std::move(view);
+    tex->descriptorIndex = slot;
+    return slot;
+  }
   if (s.next_texture_slot >= kBindlessTextureCount) {
     static bool reported = false;
     if (!reported) {
@@ -844,6 +906,12 @@ Video::BoundIndexInfo Video::BoundIndexBuffer() {
   out.size = s.index_buffer->size;
   out.index32 = s.index_buffer->index32;
   return out;
+}
+
+GuestTexture *Video::BoundDepthTexture() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return s.depth_stencil;
 }
 
 Video::AttachmentSize Video::BoundAttachmentSize() {
@@ -925,6 +993,131 @@ void Video::NotifyTextureDestroyed(GuestTexture *dead) {
   }
 }
 
+namespace {
+
+bool SameFormatFamily(plume::RenderFormat a, plume::RenderFormat b) {
+  auto family = [](plume::RenderFormat f) {
+    switch (f) {
+    case plume::RenderFormat::R16G16B16A16_FLOAT:
+    case plume::RenderFormat::R16G16B16A16_UNORM:
+    case plume::RenderFormat::R16G16B16A16_SNORM:
+    case plume::RenderFormat::R16G16B16A16_UINT:
+    case plume::RenderFormat::R16G16B16A16_SINT:
+    case plume::RenderFormat::R16G16B16A16_TYPELESS:
+      return 1;
+    case plume::RenderFormat::R8G8B8A8_UNORM:
+    case plume::RenderFormat::R8G8B8A8_UINT:
+    case plume::RenderFormat::R8G8B8A8_SNORM:
+    case plume::RenderFormat::R8G8B8A8_SINT:
+    case plume::RenderFormat::R8G8B8A8_TYPELESS:
+      return 2;
+    default:
+      return 0;
+    }
+  };
+  const int fa = family(a);
+  return fa != 0 && fa == family(b);
+}
+
+}
+
+namespace {
+
+bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
+                         GuestTexture *src, GuestTexture *dest) {
+  if (!s.blit_vs || !s.blit_ps || !s.blit_layout || !s.device)
+    return false;
+
+  const u32 fmt_key = static_cast<u32>(dest->format);
+  auto pit = s.resolve_pipelines.find(fmt_key);
+  if (pit == s.resolve_pipelines.end()) {
+    plume::RenderGraphicsPipelineDesc desc;
+    desc.pipelineLayout = s.blit_layout.get();
+    desc.vertexShader = s.blit_vs.get();
+    desc.pixelShader = s.blit_ps.get();
+    desc.renderTargetFormat[0] = dest->format;
+    desc.renderTargetBlend[0] = plume::RenderBlendDesc::Copy();
+    desc.renderTargetCount = 1;
+    desc.primitiveTopology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+    auto pipeline = s.device->createGraphicsPipeline(desc);
+    if (!pipeline)
+      return false;
+    pit = s.resolve_pipelines.emplace(fmt_key, std::move(pipeline)).first;
+  }
+
+  const u32 cur = s.frame.load(std::memory_order_relaxed);
+
+  if (!src->textureView) {
+    plume::RenderTextureViewDesc view_desc;
+    view_desc.format = src->format;
+    view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+    view_desc.mipLevels = 1;
+    src->textureView = src->texture->createTextureView(view_desc);
+  }
+  if (!src->textureView)
+    return false;
+
+  const u32 slot = s.resolve_set_used[cur];
+  if (slot >= s.resolve_sets[cur].size()) {
+    plume::RenderDescriptorRange ranges[2] = {
+        plume::RenderDescriptorRange(plume::RenderDescriptorRangeType::TEXTURE,
+                                     0, 1),
+        plume::RenderDescriptorRange(plume::RenderDescriptorRangeType::SAMPLER,
+                                     1, 1)};
+    plume::RenderDescriptorSetDesc set_desc(ranges, 2);
+    auto set = s.device->createDescriptorSet(set_desc);
+    if (!set)
+      return false;
+    set->setSampler(1, s.blit_sampler.get());
+    s.resolve_sets[cur].push_back(std::move(set));
+  }
+  plume::RenderDescriptorSet *set = s.resolve_sets[cur][slot].get();
+  ++s.resolve_set_used[cur];
+  static std::atomic<u32> peak{0};
+  if (s.resolve_set_used[cur] > peak.load(std::memory_order_relaxed)) {
+    peak.store(s.resolve_set_used[cur], std::memory_order_relaxed);
+    if ((s.resolve_set_used[cur] % 25) == 0)
+      EOT_INFO("[resolve] {} blits in one frame (pool {})",
+               s.resolve_set_used[cur], s.resolve_sets[cur].size());
+  }
+
+  plume::RenderFramebuffer *fb = GetFramebufferLocked(s, dest, nullptr);
+  if (!fb)
+    return false;
+
+  const plume::RenderTextureBarrier to_blit[] = {
+      plume::RenderTextureBarrier(src->texture,
+                                  plume::RenderTextureLayout::SHADER_READ),
+      plume::RenderTextureBarrier(dest->texture,
+                                  plume::RenderTextureLayout::COLOR_WRITE)};
+  rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, to_blit, 2);
+  src->layout = plume::RenderTextureLayout::SHADER_READ;
+  dest->layout = plume::RenderTextureLayout::COLOR_WRITE;
+
+  set->setTexture(0, src->texture, plume::RenderTextureLayout::SHADER_READ,
+                  src->textureView.get());
+
+  rec.cmd->setFramebuffer(fb);
+  rec.cmd->setPipeline(pit->second.get());
+  rec.cmd->setGraphicsPipelineLayout(s.blit_layout.get());
+  rec.cmd->setGraphicsDescriptorSet(set, 0);
+  rec.cmd->setViewports(plume::RenderViewport(0.0f, 0.0f, float(dest->width),
+                                              float(dest->height)));
+  rec.cmd->setScissors(plume::RenderRect(0, 0, i32(dest->width),
+                                         i32(dest->height)));
+  rec.cmd->drawInstanced(3, 1, 0, 0);
+  rec.cmd->setFramebuffer(nullptr);
+
+  const plume::RenderTextureBarrier to_read(
+      dest->texture, plume::RenderTextureLayout::SHADER_READ);
+  rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1);
+  dest->layout = plume::RenderTextureLayout::SHADER_READ;
+
+  return true;
+}
+
+}
+
 void Video::ResolveRenderTarget(u32 dest_texture_va) {
   if (!dest_texture_va)
     return;
@@ -935,6 +1128,7 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
   static std::atomic<u32> g_resolves{0};
   static std::atomic<u32> g_no_dest{0};
   static std::atomic<u32> g_mismatch{0};
+  static std::atomic<u32> g_blitted{0};
   if (!dest || !dest->texture) {
     g_no_dest.fetch_add(1, std::memory_order_relaxed);
     return;
@@ -943,16 +1137,33 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
   auto rec = AcquireRecordingList();
   if (!rec || !rec.colorTarget || !rec.colorTarget->texture)
     return;
+  auto &s = state();
   GuestTexture *src = rec.colorTarget;
   if (src == dest)
     return;
 
-  if (src->format != dest->format || src->width != dest->width ||
-      src->height != dest->height) {
+  if (src->format != dest->format) {
+    if (src->width == dest->width && src->height == dest->height &&
+        ResolveByBlitLocked(s, rec, src, dest)) {
+      dest->hasContent = src->hasContent;
+      if (g_blitted.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[resolve] first converting blit: fmt={} -> fmt={} ({}x{})",
+                 static_cast<u32>(src->format), static_cast<u32>(dest->format),
+                 dest->width, dest->height);
+      }
+      return;
+    }
     if (g_mismatch.fetch_add(1, std::memory_order_relaxed) == 0) {
-      EOT_INFO("[resolve] {}x{} fmt={} -> {}x{} fmt={}: not a straight copy",
+      EOT_INFO("[resolve] {}x{} fmt={} -> {}x{} fmt={}: cannot convert",
                src->width, src->height, static_cast<u32>(src->format),
                dest->width, dest->height, static_cast<u32>(dest->format));
+    }
+    return;
+  }
+  if (src->width != dest->width || src->height != dest->height) {
+    if (g_mismatch.fetch_add(1, std::memory_order_relaxed) == 0) {
+      EOT_INFO("[resolve] {}x{} -> {}x{}: size mismatch",
+               src->width, src->height, dest->width, dest->height);
     }
     return;
   }

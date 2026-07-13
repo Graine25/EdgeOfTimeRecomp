@@ -43,6 +43,11 @@ RENDERDOC_API_1_4_0 *Api() {
 }
 
 void NotePresentForCapture() {
+  static std::atomic<u32> presents{0};
+  const u32 n = presents.fetch_add(1, std::memory_order_relaxed) + 1;
+  if (n % 100 == 0)
+    EOT_INFO("[present] frame {}", n);
+
   const int wanted = REXCVAR_GET(eot_rdc_capture_frame);
   if (wanted < 0)
     return;

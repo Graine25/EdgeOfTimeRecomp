@@ -32,8 +32,9 @@ struct DrawGeometry {
 
 bool UploadDrawGeometry(const struct InputLayout &layout, u32 firstVertex,
                         u32 vertexCount, bool indexed, u32 startIndex,
-                        u32 indexCount, u32 primitiveType, bool windowSpace,
-                        u32 targetWidth, u32 targetHeight, DrawGeometry &out);
+                        u32 indexCount, u32 baseVertexIndex, u32 primitiveType,
+                        bool windowSpace, u32 targetWidth, u32 targetHeight,
+                        DrawGeometry &out);
 
 void ResetGeometryFrame();
 
