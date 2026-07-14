@@ -138,8 +138,7 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
     rec.cmd->drawInstanced(args.vertexCount, 1, 0, 0);
   }
 
-  if (rec.colorTarget)
-    rec.colorTarget->hasContent = true;
+  Video::NoteAttachmentsDrawnLocked(rec.colorTarget, rec.depthTarget);
 
   if (g_issued.fetch_add(1, std::memory_order_relaxed) == 0)
     EOT_INFO("[draw] first host draw issued: {} {} into {}x{}",

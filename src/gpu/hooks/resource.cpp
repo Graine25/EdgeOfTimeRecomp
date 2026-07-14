@@ -122,6 +122,7 @@ eot::gpu::GuestTexture *D3DDevice_CreateSurface_hook(u32 width, u32 height,
   surface->guestFormat = format;
   surface->viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
   surface->sampleCount = desc.multisampling.sampleCount;
+  surface->desc_flags = desc.flags;
   return surface;
 }
 
@@ -195,6 +196,7 @@ D3DDevice_CreateTexture_hook(u32 width, u32 height, u32 depth, u32 levels,
   texture->mipLevels = levels;
   texture->format = plume_format;
   texture->guestFormat = format;
+  texture->desc_flags = desc.flags;
   return texture;
 }
 

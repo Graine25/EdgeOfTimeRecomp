@@ -14,7 +14,9 @@ void EvictSurfaceMirror(u32 surface_va);
 
 GuestTexture *FindOrBuildNativeTexture(u32 texture_va);
 
-GuestTexture *FindOrBuildNativeTextureFromFetch(const struct GuestTextureFetch &fetch);
+GuestTexture *FindOrBuildNativeTextureFromFetch(
+    const struct GuestTextureFetch &fetch,
+    plume::RenderFormat preferred_format = plume::RenderFormat::UNKNOWN);
 
 void DrainEvictedNativeTextures(u32 slot);
 
