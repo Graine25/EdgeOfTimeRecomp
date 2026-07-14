@@ -43,6 +43,9 @@ namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
 }
 
+REXCVAR_DEFINE_BOOL(eot_present_busiest, false, kCvarGroup,
+                    "Present the frame's busiest render surface directly.");
+
 REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup,
                     "TEMP: paint resolve destinations green.");
 
@@ -445,6 +448,10 @@ void EnsureCommandListOpenLocked(VideoState &s, u32 slot) {
 }
 
 void AdvanceAndWaitReusedLocked(VideoState &s) {
+  ++s.frame_serial;
+  const u32 next = s.next_frame;
+  s.busiest_rt[next] = nullptr;
+  s.busiest_rt_draws[next] = 0;
   DrainValidationMessages();
   CheckDeviceRemoved("present");
   const u32 slot = s.next_frame;
@@ -512,6 +519,22 @@ void Video::Present(GuestTexture *front_buffer) {
         }
         front_buffer = twin;
       }
+    }
+  }
+
+  if (REXCVAR_GET(eot_present_busiest)) {
+    const u32 pslot = s.frame.load(std::memory_order_relaxed);
+    if (GuestTexture *busiest = s.busiest_rt[pslot];
+        busiest && busiest->texture && busiest->hasContent) {
+      static bool reported = false;
+      if (!reported) {
+        reported = true;
+        EOT_INFO("[present] showing the frame's busiest surface {}x{} fmt={} "
+                 "({} draws)",
+                 busiest->width, busiest->height,
+                 static_cast<u32>(busiest->format), busiest->drawsThisFrame);
+      }
+      front_buffer = busiest;
     }
   }
 
@@ -1263,7 +1286,9 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
                               src->drawnSerial == s.frame_serial;
   if (!src_is_current) {
     GuestTexture *fallback =
-        wants_depth ? s.last_drawn_ds[slot] : s.last_drawn_rt[slot];
+        wants_depth ? s.last_drawn_ds[slot]
+                    : (s.busiest_rt[slot] ? s.busiest_rt[slot]
+                                          : s.last_drawn_rt[slot]);
     if (fallback && (!fallback->texture || !fallback->hasContent ||
                      fallback->width != dest->width ||
                      fallback->height != dest->height ||
@@ -1446,9 +1471,6 @@ void Video::BeginGuestFrame() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
   s.frame_present_committed = false;
-  ++s.frame_serial;
-  const u32 open_slot = s.frame.load(std::memory_order_relaxed);
-  s.busiest_rt_draws[open_slot] = 0;
   EnsureCommandListOpenLocked(s, s.frame.load(std::memory_order_relaxed));
 }
 

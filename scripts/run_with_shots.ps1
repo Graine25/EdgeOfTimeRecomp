@@ -8,6 +8,7 @@ param(
     [switch] $IssueDraws,
     [switch] $ProtectResolved,
     [switch] $GreenProbe,
+    [switch] $PresentBusiest,
     [switch] $FetchBind,
     [switch] $SkipClear
 )
@@ -51,6 +52,7 @@ $args = @("--game_data_root", $GameData)
 if ($MnkMode) { $args += "--mnk_mode=true" }
 if ($ProtectResolved) { $args += "--eot_protect_resolved=true" }
 if ($GreenProbe) { $args += "--eot_probe_resolve_green=true" }
+if ($PresentBusiest) { $args += "--eot_present_busiest=true" }
 if ($SkipClear) { $args += "--eot_skip_clear=true" }
 
 Write-Host "Launching $exePath"
