@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <string>
 #include <cmath>
 #include <cstring>
 #include <map>
@@ -28,6 +29,7 @@ std::atomic<u32> g_no_indices{0};
 std::atomic<u32> g_too_large{0};
 std::atomic<u32> g_window_space{0};
 std::atomic<u32> g_expanded{0};
+std::atomic<u32> g_rects{0};
 
 constexpr u32 kMaxStreamBytesPerDraw = 8u * 1024 * 1024;
 
@@ -41,6 +43,20 @@ bool CopyIndices16(u8 *dst, u32 guest_va, u32 count) {
 }
 
 std::vector<u32> BuildTriangleIndices(u32 prim, u32 count) {
+  static std::atomic<u32> seen[16]{};
+  if (prim < 16)
+    seen[prim].fetch_add(1, std::memory_order_relaxed);
+  static std::atomic<u32> ticks{0};
+  if ((ticks.fetch_add(1, std::memory_order_relaxed) % 20000) == 19999) {
+    std::string line;
+    for (u32 i = 0; i < 16; ++i) {
+      const u32 n = seen[i].load(std::memory_order_relaxed);
+      if (n)
+        line += std::to_string(i) + ":" + std::to_string(n) + " ";
+    }
+    EOT_INFO("[geometry] primitive types seen: {}", line);
+  }
+
   std::vector<u32> idx;
   switch (prim) {
   case kPrimQuadList: {
@@ -49,6 +65,15 @@ std::vector<u32> BuildTriangleIndices(u32 prim, u32 count) {
     for (u32 q = 0; q < quads; ++q) {
       const u32 b = q * 4;
       idx.insert(idx.end(), {b, b + 1, b + 2, b, b + 2, b + 3});
+    }
+    break;
+  }
+  case kPrimRectList: {
+    const u32 rects = count / 3;
+    idx.reserve(size_t(rects) * 6);
+    for (u32 r = 0; r < rects; ++r) {
+      const u32 b = r * 4;
+      idx.insert(idx.end(), {b, b + 1, b + 2, b + 1, b + 3, b + 2});
     }
     break;
   }
@@ -141,6 +166,47 @@ void ConvertWindowSpacePositions(u8 *data, u32 bytes, u32 stride, u32 posOffset,
   }
 }
 
+void ExtrapolateRectCorner(const InputLayout &layout, u32 stream, u32 stride,
+                           const u8 *v0, const u8 *v1, const u8 *v2, u8 *v3) {
+  std::memcpy(v3, v1, stride);
+
+  for (u32 e = 0; e < layout.count; ++e) {
+    const auto &el = layout.elements[e];
+    if (el.stream != stream)
+      continue;
+
+    u32 components = 0;
+    switch (el.format) {
+    case plume::RenderFormat::R32_FLOAT:
+      components = 1;
+      break;
+    case plume::RenderFormat::R32G32_FLOAT:
+      components = 2;
+      break;
+    case plume::RenderFormat::R32G32B32_FLOAT:
+      components = 3;
+      break;
+    case plume::RenderFormat::R32G32B32A32_FLOAT:
+      components = 4;
+      break;
+    default:
+      continue;
+    }
+    if (el.offset + components * 4u > stride)
+      continue;
+
+    for (u32 c = 0; c < components; ++c) {
+      const u32 at = el.offset + c * 4;
+      float a = 0, b = 0, d = 0;
+      std::memcpy(&a, v0 + at, 4);
+      std::memcpy(&b, v1 + at, 4);
+      std::memcpy(&d, v2 + at, 4);
+      const float derived = b + d - a;
+      std::memcpy(v3 + at, &derived, 4);
+    }
+  }
+}
+
 bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
                         u32 vertexCount, bool indexed, u32 startIndex,
                         u32 indexCount, u32 baseVertexIndex, u32 primitiveType,
@@ -149,6 +215,9 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
   out = DrawGeometry{};
   if (!vertexCount && !indexed)
     return false;
+
+  const bool rect_list =
+      primitiveType == kPrimRectList && !indexed && vertexCount >= 3;
 
   u32 streams[kMaxStreamSources];
   u32 stream_count = 0;
@@ -212,6 +281,53 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
     if (bytes > kMaxStreamBytesPerDraw) {
       g_too_large.fetch_add(1, std::memory_order_relaxed);
       return false;
+    }
+
+    if (rect_list) {
+      const u32 rects = vertexCount / 3;
+      const u32 expanded = rects * 4 * info.stride;
+      if (expanded > kMaxStreamBytesPerDraw) {
+        g_too_large.fetch_add(1, std::memory_order_relaxed);
+        return false;
+      }
+      auto alloc = constants::Allocate(expanded);
+      if (!alloc.valid())
+        return false;
+
+      for (u32 r = 0; r < rects; ++r) {
+        u8 *quad = alloc.memory + size_t(r) * 4 * info.stride;
+        for (u32 k = 0; k < 3; ++k) {
+          const u32 src = (first_needed + r * 3 + k) * info.stride;
+          if (src + info.stride > info.size ||
+              !CopyGuestSwapped32(quad + size_t(k) * info.stride,
+                                  info.address + src, info.stride)) {
+            g_no_stream.fetch_add(1, std::memory_order_relaxed);
+            return false;
+          }
+        }
+        ExtrapolateRectCorner(layout, streams[i], info.stride, quad,
+                              quad + info.stride, quad + 2u * info.stride,
+                              quad + 3u * info.stride);
+      }
+
+      if (windowSpace) {
+        for (u32 e = 0; e < layout.count; ++e) {
+          const auto &el = layout.elements[e];
+          if (el.usage != VertexUsage::kPosition || el.stream != streams[i])
+            continue;
+          ConvertWindowSpacePositions(alloc.memory, expanded, info.stride,
+                                      el.offset, targetWidth, targetHeight);
+          g_window_space.fetch_add(1, std::memory_order_relaxed);
+          break;
+        }
+      }
+
+      g_rects.fetch_add(rects, std::memory_order_relaxed);
+      out.vertexViews[i] = plume::RenderVertexBufferView(alloc.ref, expanded);
+      out.vertexSlots[i] = plume::RenderInputSlot(
+          streams[i], info.stride,
+          plume::RenderInputSlotClassification::PER_VERTEX_DATA);
+      continue;
     }
 
     plume::RenderBufferReference ref;
@@ -285,11 +401,12 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
 }
 
 void LogGeometryUploadStats() {
-  EOT_INFO("[geometry] {} draws fed, {} range copies reused; dropped: {} no "
+  EOT_INFO("[geometry] {} draws fed, {} range copies reused, {} topologies "
+           "expanded ({} rectangles), {} window-space rewrites; dropped: {} no "
            "stream, {} no indices, {} oversized",
-           g_uploads.load(), g_cache_hits.load(), g_no_stream.load(),
-           g_no_indices.load(), g_too_large.load(), g_window_space.load(),
-           g_expanded.load());
+           g_uploads.load(), g_cache_hits.load(), g_expanded.load(),
+           g_rects.load(), g_window_space.load(), g_no_stream.load(),
+           g_no_indices.load(), g_too_large.load());
 }
 
 }

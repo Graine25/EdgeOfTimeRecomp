@@ -15,6 +15,7 @@ enum GuestPrimitiveType : u32 {
   kPrimTriangleList = 4,
   kPrimTriangleFan = 5,
   kPrimTriangleStrip = 6,
+  kPrimRectList = 8,
   kPrimQuadList = 13,
 };
 
