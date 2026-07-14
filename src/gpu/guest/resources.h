@@ -62,12 +62,16 @@ struct GuestTexture {
   plume::RenderFormat format = plume::RenderFormat::UNKNOWN;
   u32 guestFormat = 0;
   u32 descriptorIndex = ~u32{0};
+  plume::RenderTextureFlags desc_flags = plume::RenderTextureFlag::NONE;
   plume::RenderTextureLayout layout = plume::RenderTextureLayout::UNKNOWN;
   plume::RenderTextureViewDimension viewDimension =
       plume::RenderTextureViewDimension::UNKNOWN;
   plume::RenderSampleCounts sampleCount = plume::RenderSampleCount::COUNT_1;
 
   u32 mappedMemory = 0;
+
+  u64 drawnSerial = 0;
+  u32 drawsThisFrame = 0;
 
   bool hasContent = false;
   bool sawNonZeroSource = false;

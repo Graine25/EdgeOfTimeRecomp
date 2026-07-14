@@ -10,7 +10,9 @@
  */
 #include "gpu/device/device.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <mutex>
 #include <unordered_set>
 #include <vector>
@@ -41,11 +43,19 @@ namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
 }
 
+REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup,
+                    "TEMP: paint resolve destinations green.");
+
+REXCVAR_DEFINE_BOOL(eot_protect_resolved, false, kCvarGroup,
+                    "TEMP: skip guest clears entirely.");
+
 namespace eot::gpu {
 
 namespace {
 
 std::atomic<bool> g_device_lost{false};
+std::atomic<const GuestTexture *> g_last_front{nullptr};
+std::atomic<u32> g_identity_probe{0};
 
 std::mutex g_destroy_pending_mutex;
 std::unordered_set<u32> g_destroy_pending;
@@ -639,6 +649,7 @@ void Video::Present(GuestTexture *front_buffer) {
     CheckDeviceRemoved("swapchain present");
 
   NotePresentForCapture();
+  g_last_front.store(front_buffer, std::memory_order_relaxed);
   s.frame_present_committed = true;
   AdvanceAndWaitReusedLocked(s);
   const u32 reclaimed = s.frame.load(std::memory_order_relaxed);
@@ -714,6 +725,17 @@ plume::RenderFramebuffer *GetFramebufferLocked(VideoState &s, GuestTexture *rt,
     rt = nullptr;
   if (ds && !ds->texture)
     ds = nullptr;
+
+  static std::atomic<u32> not_target{0};
+  if (rt && !(rt->desc_flags & plume::RenderTextureFlag::RENDER_TARGET)) {
+    if (not_target.fetch_add(1, std::memory_order_relaxed) == 0) {
+      EOT_WARN("[fb] colour attachment {}x{} fmt={} was not created as a "
+               "render target; skipping the framebuffer",
+               rt->width, rt->height, static_cast<u32>(rt->format));
+    }
+    return nullptr;
+  }
+
   if (!rt && !ds)
     return nullptr;
 
@@ -827,6 +849,29 @@ Video::AttachmentFormats Video::BoundAttachmentFormats() {
   if (s.depth_stencil)
     out.depth = s.depth_stencil->format;
   return out;
+}
+
+void Video::NoteAttachmentsDrawnLocked(GuestTexture *color,
+                                       GuestTexture *depth) {
+  auto &s = state();
+  const u32 slot = s.frame.load(std::memory_order_relaxed);
+  if (color) {
+    if (color->drawnSerial != s.frame_serial) {
+      color->drawnSerial = s.frame_serial;
+      color->drawsThisFrame = 0;
+    }
+    ++color->drawsThisFrame;
+    color->hasContent = true;
+    s.last_drawn_rt[slot] = color;
+    if (color->drawsThisFrame >= s.busiest_rt_draws[slot]) {
+      s.busiest_rt[slot] = color;
+      s.busiest_rt_draws[slot] = color->drawsThisFrame;
+    }
+  }
+  if (depth) {
+    depth->drawnSerial = s.frame_serial;
+    s.last_drawn_ds[slot] = depth;
+  }
 }
 
 u32 Video::CurrentFrameSlot() {
@@ -1057,6 +1102,8 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
                          GuestTexture *src, GuestTexture *dest) {
   if (!s.blit_vs || !s.blit_ps || !s.blit_layout || !s.device)
     return false;
+  if (IsBlockCompressed(dest->format))
+    return false;
 
   const u32 fmt_key = static_cast<u32>(dest->format);
   auto pit = s.resolve_pipelines.find(fmt_key);
@@ -1154,19 +1201,40 @@ std::atomic<u32> g_no_dest{0};
 std::atomic<u32> g_mismatch{0};
 std::atomic<u32> g_blitted{0};
 std::atomic<u32> g_no_src{0};
+std::atomic<u32> g_mip_publishes{0};
+std::atomic<u32> g_self_copies{0};
+std::atomic<u32> g_edram_fallbacks{0};
+std::atomic<u32> g_exp_bias{0};
+std::atomic<u32> g_front_probe{0};
 }
 
 void Video::LogResolveStats() {
   EOT_INFO("[resolve] {} copies, {} converting blits; skipped: {} no dest, "
-           "{} no source, {} undescribable",
+           "{} no source, {} undescribable, {} self-copies; {} EDRAM fallbacks, {} with an exponent bias; {} into a mip above 0",
            g_resolves.load(), g_blitted.load(), g_no_dest.load(),
-           g_no_src.load(), g_mismatch.load());
+           g_no_src.load(), g_mismatch.load(), g_self_copies.load(),
+           g_edram_fallbacks.load(), g_exp_bias.load(),
+           g_mip_publishes.load());
 }
 
-void Video::ResolveRenderTarget(u32 dest_texture_va) {
+void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
+                                u32 dest_level) {
   if (!dest_texture_va)
     return;
+  plume::RenderFormat preferred = plume::RenderFormat::UNKNOWN;
+  if (const AttachmentFormats bound = BoundAttachmentFormats();
+      bound.color != plume::RenderFormat::UNKNOWN) {
+    preferred = bound.color;
+  }
+
   GuestTexture *dest = ResolveGuestSurface(dest_texture_va);
+  if (!dest) {
+    GuestTextureFetch df;
+    if (DecodeTextureFetchAt(dest_texture_va + kTextureObjectFetchOffset, df) &&
+        df.baseAddress) {
+      dest = FindOrBuildNativeTextureFromFetch(df, preferred);
+    }
+  }
   if (!dest)
     dest = FindOrBuildNativeTexture(dest_texture_va);
 
@@ -1176,14 +1244,58 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
   }
 
   auto rec = AcquireRecordingList();
-  if (!rec || !rec.colorTarget || !rec.colorTarget->texture) {
+  if (!rec) {
     g_no_src.fetch_add(1, std::memory_order_relaxed);
     return;
   }
   auto &s = state();
-  GuestTexture *src = rec.colorTarget;
-  if (src == dest)
+  const u32 slot = s.frame.load(std::memory_order_relaxed);
+
+  const u32 source_index = flags & 0x7;
+  const bool wants_depth = source_index == 4;
+  GuestTexture *src = nullptr;
+  if (wants_depth)
+    src = rec.depthTarget;
+  else if (source_index < kMaxRenderTargets)
+    src = rec.colorTargets[source_index];
+
+  const bool src_is_current = src && src->texture &&
+                              src->drawnSerial == s.frame_serial;
+  if (!src_is_current) {
+    GuestTexture *fallback =
+        wants_depth ? s.last_drawn_ds[slot] : s.last_drawn_rt[slot];
+    if (fallback && (!fallback->texture || !fallback->hasContent ||
+                     fallback->width != dest->width ||
+                     fallback->height != dest->height ||
+                     fallback->format != dest->format)) {
+      static std::atomic<u32> reject_probe{0};
+      if (reject_probe.fetch_add(1, std::memory_order_relaxed) < 4) {
+        EOT_INFO("[resolve] fallback rejected: cand={} {}x{} fmt={} "
+                 "hasContent={} vs dest {}x{} fmt={}",
+                 static_cast<const void *>(fallback), fallback->width,
+                 fallback->height, static_cast<u32>(fallback->format),
+                 fallback->hasContent, dest->width, dest->height,
+                 static_cast<u32>(dest->format));
+      }
+      fallback = nullptr;
+    } else if (!fallback) {
+      static std::atomic<u32> null_probe{0};
+      if (null_probe.fetch_add(1, std::memory_order_relaxed) < 2)
+        EOT_INFO("[resolve] no last-drawn surface for slot {} yet", slot);
+    }
+    if (fallback) {
+      src = fallback;
+      g_edram_fallbacks.fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+  if (!src || !src->texture) {
+    g_no_src.fetch_add(1, std::memory_order_relaxed);
     return;
+  }
+  if (src == dest) {
+    g_self_copies.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
 
   if (src->format != dest->format) {
     if (src->width == dest->width && src->height == dest->height &&
@@ -1203,10 +1315,15 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
     }
     return;
   }
-  if (src->width != dest->width || src->height != dest->height) {
+  const u32 level = std::min(dest_level, dest->mipLevels ? dest->mipLevels - 1
+                                                         : 0u);
+  const u32 dst_w = std::max(dest->width >> level, 1u);
+  const u32 dst_h = std::max(dest->height >> level, 1u);
+  if (src->width < dst_w || src->height < dst_h) {
     if (g_mismatch.fetch_add(1, std::memory_order_relaxed) == 0) {
-      EOT_INFO("[resolve] {}x{} -> {}x{}: size mismatch",
-               src->width, src->height, dest->width, dest->height);
+      EOT_INFO("[resolve] source {}x{} smaller than destination level {} "
+               "({}x{})",
+               src->width, src->height, level, dst_w, dst_h);
     }
     return;
   }
@@ -1222,7 +1339,31 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
   src->layout = plume::RenderTextureLayout::COPY_SOURCE;
   dest->layout = plume::RenderTextureLayout::COPY_DEST;
 
-  rec.cmd->copyTexture(dest->texture, src->texture);
+  if (REXCVAR_GET(eot_probe_resolve_green)) {
+    if (plume::RenderFramebuffer *pfb = GetFramebufferLocked(s, dest, nullptr)) {
+      const plume::RenderTextureBarrier to_write(
+          dest->texture, plume::RenderTextureLayout::COLOR_WRITE);
+      rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_write, 1);
+      dest->layout = plume::RenderTextureLayout::COLOR_WRITE;
+      rec.cmd->setFramebuffer(pfb);
+      rec.cmd->clearColor(0, plume::RenderColor(0.0f, 1.0f, 0.0f, 1.0f));
+      rec.cmd->setFramebuffer(nullptr);
+      const plume::RenderTextureBarrier to_read(
+          dest->texture, plume::RenderTextureLayout::SHADER_READ);
+      rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1);
+      dest->layout = plume::RenderTextureLayout::SHADER_READ;
+      dest->hasContent = true;
+      return;
+    }
+  }
+
+  const plume::RenderBox src_box(0, 0, 0, i32(dst_w), i32(dst_h), 1);
+  rec.cmd->copyTextureRegion(
+      plume::RenderTextureCopyLocation::Subresource(dest->texture, level, 0),
+      plume::RenderTextureCopyLocation::Subresource(src->texture, 0, 0), 0, 0,
+      0, &src_box);
+  if (level != 0)
+    g_mip_publishes.fetch_add(1, std::memory_order_relaxed);
 
   const plume::RenderTextureBarrier to_read(
       dest->texture, plume::RenderTextureLayout::SHADER_READ);
@@ -1230,12 +1371,34 @@ void Video::ResolveRenderTarget(u32 dest_texture_va) {
   dest->layout = plume::RenderTextureLayout::SHADER_READ;
   dest->hasContent = src->hasContent;
 
+  if (g_identity_probe.fetch_add(1, std::memory_order_relaxed) < 3) {
+    const GuestTexture *front = g_last_front.load(std::memory_order_relaxed);
+    EOT_INFO("[resolve] src={} ({}x{} fmt={}) dest={} ({}x{} fmt={}) "
+             "front={} src==dest:{} dest==front:{}",
+             static_cast<const void *>(src), src->width, src->height,
+             static_cast<u32>(src->format), static_cast<const void *>(dest),
+             dest->width, dest->height, static_cast<u32>(dest->format),
+             static_cast<const void *>(front), src == dest, dest == front);
+  }
+
+  if (dest == g_last_front.load(std::memory_order_relaxed) &&
+      (g_front_probe.fetch_add(1, std::memory_order_relaxed) % 400) == 399) {
+    EOT_INFO("[resolve] -> FRONT: flags=0x{:X} idx={} src={} {}x{} fmt={} "
+             "drawnThisFrame={} hasContent={} fellBack={}",
+             flags, source_index, static_cast<const void *>(src), src->width,
+             src->height, static_cast<u32>(src->format),
+             src->drawnSerial == s.frame_serial, src->hasContent,
+             !src_is_current);
+  }
+
   if (g_resolves.fetch_add(1, std::memory_order_relaxed) == 0)
     EOT_INFO("[resolve] first resolve: {}x{} fmt={} -> 0x{:08X}", src->width,
              src->height, static_cast<u32>(src->format), dest_texture_va);
 }
 
 void Video::ClearBoundTargets(u32 flags, u32 color_va, float z) {
+  if (REXCVAR_GET(eot_protect_resolved))
+    return;
   constexpr u32 kClearTarget = 0x1;
   constexpr u32 kClearDepth = 0x10;
   if (!(flags & (kClearTarget | kClearDepth)))
@@ -1283,6 +1446,9 @@ void Video::BeginGuestFrame() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
   s.frame_present_committed = false;
+  ++s.frame_serial;
+  const u32 open_slot = s.frame.load(std::memory_order_relaxed);
+  s.busiest_rt_draws[open_slot] = 0;
   EnsureCommandListOpenLocked(s, s.frame.load(std::memory_order_relaxed));
 }
 
@@ -1297,6 +1463,8 @@ Video::RecordingList Video::AcquireRecordingList() {
   out.framebuffer = s.bound_framebuffer;
   out.colorTarget = s.render_targets[0];
   out.depthTarget = s.depth_stencil;
+  for (u32 i = 0; i < kMaxRenderTargets; ++i)
+    out.colorTargets[i] = s.render_targets[i];
   const GuestTexture *target =
       s.render_targets[0] ? s.render_targets[0] : s.depth_stencil;
   if (target) {

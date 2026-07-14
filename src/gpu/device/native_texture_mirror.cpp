@@ -142,6 +142,7 @@ GuestTexture *BuildLocked(u32 surface_va, u32 width, u32 height,
   mirror->guestFormat = guest_format;
   mirror->viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
   mirror->sampleCount = desc.multisampling.sampleCount;
+  mirror->desc_flags = desc.flags;
 
   auto *raw = mirror.get();
   g_mirrors[surface_va] = std::move(mirror);
@@ -365,7 +366,8 @@ void UntileMipLevelsLocked(GuestTexture *tex, const GuestTextureFetch &f,
 
 }
 
-GuestTexture *FindOrBuildNativeTextureFromFetch(const GuestTextureFetch &fetch) {
+GuestTexture *FindOrBuildNativeTextureFromFetch(
+    const GuestTextureFetch &fetch, plume::RenderFormat preferred_format) {
   if (!fetch.baseAddress || !fetch.width || !fetch.height)
     return nullptr;
   std::lock_guard lock(g_mutex);
@@ -411,7 +413,10 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(const GuestTextureFetch &fetch) 
     }
   }
 
-  const plume::RenderFormat format = HostFormatForTextureFormat(fetch.format);
+  const plume::RenderFormat format =
+      preferred_format != plume::RenderFormat::UNKNOWN
+          ? preferred_format
+          : HostFormatForTextureFormat(fetch.format);
   if (format == plume::RenderFormat::UNKNOWN) {
     g_native_unmapped_format.fetch_add(1, std::memory_order_relaxed);
     NoteUnmappedFormat(static_cast<u32>(fetch.format), fetch.width,

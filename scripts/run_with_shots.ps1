@@ -6,6 +6,8 @@ param(
     [string] $OutDir   = "",
     [switch] $MnkMode,
     [switch] $IssueDraws,
+    [switch] $ProtectResolved,
+    [switch] $GreenProbe,
     [switch] $FetchBind,
     [switch] $SkipClear
 )
@@ -47,7 +49,8 @@ try { [Win32Shot]::SetProcessDpiAwarenessContext([IntPtr](-4)) | Out-Null } catc
 
 $args = @("--game_data_root", $GameData)
 if ($MnkMode) { $args += "--mnk_mode=true" }
-if ($IssueDraws) { $args += "--eot_issue_draws=true" }
+if ($ProtectResolved) { $args += "--eot_protect_resolved=true" }
+if ($GreenProbe) { $args += "--eot_probe_resolve_green=true" }
 if ($SkipClear) { $args += "--eot_skip_clear=true" }
 
 Write-Host "Launching $exePath"

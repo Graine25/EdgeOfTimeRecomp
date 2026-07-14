@@ -57,7 +57,8 @@ public:
 
   static void ClearBoundTargets(u32 flags, u32 color_va, float z);
 
-  static void ResolveRenderTarget(u32 dest_texture_va);
+  static void ResolveRenderTarget(u32 flags, u32 dest_texture_va,
+                                  u32 dest_level);
 
   static void LogResolveStats();
 
@@ -68,6 +69,7 @@ public:
     u32 targetHeight = 0;
     GuestTexture *colorTarget = nullptr;
     GuestTexture *depthTarget = nullptr;
+    GuestTexture *colorTargets[kMaxRenderTargets] = {};
     std::unique_lock<std::mutex> lock;
 
     explicit operator bool() const { return cmd != nullptr; }
@@ -113,6 +115,9 @@ public:
   static void ReleaseTextureDescriptor(u32 index);
 
   static u32 CurrentFrameSlot();
+
+  static void NoteAttachmentsDrawnLocked(GuestTexture *color,
+                                         GuestTexture *depth);
 
   static u32 BoundStreamStride(u32 stream);
 
@@ -229,6 +234,13 @@ struct VideoState {
 
   GuestTexture *render_targets[kMaxRenderTargets] = {};
   GuestTexture *depth_stencil = nullptr;
+
+  u64 frame_serial = 1;
+
+  GuestTexture *last_drawn_rt[kNumFrames] = {};
+  GuestTexture *busiest_rt[kNumFrames] = {};
+  u32 busiest_rt_draws[kNumFrames] = {};
+  GuestTexture *last_drawn_ds[kNumFrames] = {};
 
   bool draw_framebuffer_bound = false;
   plume::RenderFramebuffer *bound_framebuffer = nullptr;
