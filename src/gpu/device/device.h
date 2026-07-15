@@ -238,8 +238,16 @@ struct VideoState {
   u64 frame_serial = 1;
 
   GuestTexture *last_drawn_rt[kNumFrames] = {};
-  GuestTexture *busiest_rt[kNumFrames] = {};
-  u32 busiest_rt_draws[kNumFrames] = {};
+  GuestTexture *busiest_rt = nullptr;
+  u32 busiest_rt_draws = 0;
+  u64 busiest_rt_serial = 0;
+  u32 frame_draw_total = 0;
+  u32 frame_surface_count = 0;
+  u32 peak_frame_draws = 0;
+  GuestTexture *last_front_src = nullptr;
+  u32 front_resolves = 0;
+  u64 front_resolve_serial = 0;
+  GuestTexture *frame_surfaces[16] = {};
   GuestTexture *last_drawn_ds[kNumFrames] = {};
 
   bool draw_framebuffer_bound = false;

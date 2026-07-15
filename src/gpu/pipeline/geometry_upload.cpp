@@ -299,8 +299,9 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
         for (u32 k = 0; k < 3; ++k) {
           const u32 src = (first_needed + r * 3 + k) * info.stride;
           if (src + info.stride > info.size ||
-              !CopyGuestSwapped32(quad + size_t(k) * info.stride,
-                                  info.address + src, info.stride)) {
+              !constants::CopyGuestSwapped32(quad + size_t(k) * info.stride,
+                                             info.address + src,
+                                             info.stride)) {
             g_no_stream.fetch_add(1, std::memory_order_relaxed);
             return false;
           }
