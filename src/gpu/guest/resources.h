@@ -58,6 +58,7 @@ struct GuestTexture {
   u32 width = 0;
   u32 height = 0;
   u32 depth = 0;
+  u32 arraySize = 1;
   u32 mipLevels = 1;
   plume::RenderFormat format = plume::RenderFormat::UNKNOWN;
   u32 guestFormat = 0;

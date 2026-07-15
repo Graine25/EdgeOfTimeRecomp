@@ -12,7 +12,7 @@ namespace eot::gpu {
 void QueueTextureUpload(GuestTexture *tex);
 
 void QueueNativeUpload(GuestTexture *tex, std::vector<u8> data, u32 rowPitch,
-                       u32 rows, u32 level = 0);
+                       u32 rows, u32 level = 0, u32 faces = 1);
 
 void ForgetTextureUpload(GuestTexture *tex);
 
