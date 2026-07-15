@@ -43,8 +43,6 @@ namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
 }
 
-REXCVAR_DEFINE_BOOL(eot_present_busiest, false, kCvarGroup, "Present the busiest surface");
-
 REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup, "Paint resolves green (test)");
 
 REXCVAR_DEFINE_BOOL(eot_protect_resolved, false, kCvarGroup, "Skip guest clears (test)");
@@ -446,9 +444,12 @@ void EnsureCommandListOpenLocked(VideoState &s, u32 slot) {
 
 void AdvanceAndWaitReusedLocked(VideoState &s) {
   ++s.frame_serial;
-  const u32 next = s.next_frame;
-  s.busiest_rt[next] = nullptr;
-  s.busiest_rt_draws[next] = 0;
+  {
+    static std::atomic<u32> advances{0};
+    if ((advances.fetch_add(1, std::memory_order_relaxed) % 500) == 499)
+      EOT_INFO("[present] {} ring advances so far (serial {})",
+               advances.load(), s.frame_serial);
+  }
   DrainValidationMessages();
   CheckDeviceRemoved("present");
   const u32 slot = s.next_frame;
@@ -519,19 +520,44 @@ void Video::Present(GuestTexture *front_buffer) {
     }
   }
 
-  if (REXCVAR_GET(eot_present_busiest)) {
-    const u32 pslot = s.frame.load(std::memory_order_relaxed);
-    if (GuestTexture *busiest = s.busiest_rt[pslot];
-        busiest && busiest->texture && busiest->hasContent) {
-      static bool reported = false;
-      if (!reported) {
-        reported = true;
-        EOT_INFO("[present] showing the frame's busiest surface {}x{} fmt={} "
-                 "({} draws)",
-                 busiest->width, busiest->height,
-                 static_cast<u32>(busiest->format), busiest->drawsThisFrame);
+  if (GuestTexture *busiest = s.busiest_rt;
+      busiest && busiest->texture && busiest->hasContent &&
+      s.busiest_rt_serial == s.frame_serial) {
+    const u32 front_draws =
+        (s.last_front_src && s.front_resolve_serial == s.frame_serial)
+            ? s.last_front_src->drawsThisFrame
+            : 0;
+    if (s.busiest_rt_draws > front_draws * 4) {
+      static std::atomic<u32> reported{0};
+      if (reported.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[present] the composite the guest resolved carries {} draws "
+                 "against {} in the frame's scene surface; presenting the "
+                 "scene",
+                 front_draws, s.busiest_rt_draws);
       }
       front_buffer = busiest;
+    }
+  }
+
+  {
+    const GuestTexture *busiest = s.busiest_rt;
+    static std::atomic<u32> ticks{0};
+    if (s.frame_draw_total >= 20 &&
+        (ticks.fetch_add(1, std::memory_order_relaxed) % 60) == 0) {
+      EOT_INFO("[present] {} colour draws over {} surfaces (peak {}); {} front "
+               "resolves, last from {} ({} draws); front={} "
+               "(draws={} content={}) busiest={} ({}x{}, {} draws)",
+               s.frame_draw_total, s.frame_surface_count, s.peak_frame_draws,
+               s.front_resolves, static_cast<const void *>(s.last_front_src),
+               (s.last_front_src && s.front_resolve_serial == s.frame_serial)
+                   ? s.last_front_src->drawsThisFrame
+                   : 0,
+               static_cast<const void *>(front_buffer),
+               front_buffer ? front_buffer->drawsThisFrame : 0,
+               front_buffer ? front_buffer->hasContent : false,
+               static_cast<const void *>(busiest),
+               busiest ? busiest->width : 0, busiest ? busiest->height : 0,
+               s.busiest_rt_draws);
     }
   }
 
@@ -883,9 +909,32 @@ void Video::NoteAttachmentsDrawnLocked(GuestTexture *color,
     ++color->drawsThisFrame;
     color->hasContent = true;
     s.last_drawn_rt[slot] = color;
-    if (color->drawsThisFrame >= s.busiest_rt_draws[slot]) {
-      s.busiest_rt[slot] = color;
-      s.busiest_rt_draws[slot] = color->drawsThisFrame;
+    if (s.busiest_rt_serial != s.frame_serial) {
+      s.busiest_rt_serial = s.frame_serial;
+      s.busiest_rt = nullptr;
+      s.busiest_rt_draws = 0;
+      s.frame_draw_total = 0;
+      s.frame_surface_count = 0;
+    }
+    ++s.frame_draw_total;
+    {
+      static std::atomic<u32> peak{0};
+      u32 seen = peak.load(std::memory_order_relaxed);
+      while (s.frame_draw_total > seen &&
+             !peak.compare_exchange_weak(seen, s.frame_draw_total))
+        ;
+      s.peak_frame_draws = peak.load(std::memory_order_relaxed);
+    }
+    {
+      bool known = false;
+      for (u32 i = 0; i < s.frame_surface_count; ++i)
+        known = known || s.frame_surfaces[i] == color;
+      if (!known && s.frame_surface_count < 16)
+        s.frame_surfaces[s.frame_surface_count++] = color;
+    }
+    if (color->drawsThisFrame >= s.busiest_rt_draws) {
+      s.busiest_rt = color;
+      s.busiest_rt_draws = color->drawsThisFrame;
     }
   }
   if (depth) {
@@ -1120,10 +1169,18 @@ namespace {
 
 bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
                          GuestTexture *src, GuestTexture *dest) {
+  static std::atomic<u32> reported{0};
+  const auto refuse = [&](const char *why) {
+    if (reported.fetch_add(1, std::memory_order_relaxed) < 6)
+      EOT_INFO("[resolve] blit refused ({}): {}x{} fmt={} -> {}x{} fmt={}", why,
+               src->width, src->height, static_cast<u32>(src->format),
+               dest->width, dest->height, static_cast<u32>(dest->format));
+    return false;
+  };
   if (!s.blit_vs || !s.blit_ps || !s.blit_layout || !s.device)
-    return false;
+    return refuse("no blit pipeline state");
   if (IsBlockCompressed(dest->format))
-    return false;
+    return refuse("block-compressed destination");
 
   const u32 fmt_key = static_cast<u32>(dest->format);
   auto pit = s.resolve_pipelines.find(fmt_key);
@@ -1138,7 +1195,7 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
     desc.primitiveTopology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
     auto pipeline = s.device->createGraphicsPipeline(desc);
     if (!pipeline)
-      return false;
+      return refuse("no pipeline for this destination format");
     pit = s.resolve_pipelines.emplace(fmt_key, std::move(pipeline)).first;
   }
 
@@ -1152,7 +1209,7 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
     src->textureView = src->texture->createTextureView(view_desc);
   }
   if (!src->textureView)
-    return false;
+    return refuse("source has no view");
 
   const u32 slot = s.resolve_set_used[cur];
   if (slot >= s.resolve_sets[cur].size()) {
@@ -1164,7 +1221,7 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
     plume::RenderDescriptorSetDesc set_desc(ranges, 2);
     auto set = s.device->createDescriptorSet(set_desc);
     if (!set)
-      return false;
+      return refuse("descriptor set creation failed");
     set->setSampler(1, s.blit_sampler.get());
     s.resolve_sets[cur].push_back(std::move(set));
   }
@@ -1180,7 +1237,7 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
 
   plume::RenderFramebuffer *fb = GetFramebufferLocked(s, dest, nullptr);
   if (!fb)
-    return false;
+    return refuse("destination cannot be a render target");
 
   const plume::RenderTextureBarrier to_blit[] = {
       plume::RenderTextureBarrier(src->texture,
@@ -1284,12 +1341,8 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
   if (!src_is_current) {
     GuestTexture *fallback =
         wants_depth ? s.last_drawn_ds[slot]
-                    : (s.busiest_rt[slot] ? s.busiest_rt[slot]
-                                          : s.last_drawn_rt[slot]);
-    if (fallback && (!fallback->texture || !fallback->hasContent ||
-                     fallback->width != dest->width ||
-                     fallback->height != dest->height ||
-                     fallback->format != dest->format)) {
+                    : (s.busiest_rt ? s.busiest_rt : s.last_drawn_rt[slot]);
+    if (fallback && (!fallback->texture || !fallback->hasContent)) {
       static std::atomic<u32> reject_probe{0};
       if (reject_probe.fetch_add(1, std::memory_order_relaxed) < 4) {
         EOT_INFO("[resolve] fallback rejected: cand={} {}x{} fmt={} "
@@ -1319,9 +1372,9 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
     return;
   }
 
-  if (src->format != dest->format) {
-    if (src->width == dest->width && src->height == dest->height &&
-        ResolveByBlitLocked(s, rec, src, dest)) {
+  if (src->format != dest->format || src->width != dest->width ||
+      src->height != dest->height) {
+    if (ResolveByBlitLocked(s, rec, src, dest)) {
       dest->hasContent = src->hasContent;
       if (g_blitted.fetch_add(1, std::memory_order_relaxed) == 0) {
         EOT_INFO("[resolve] first converting blit: fmt={} -> fmt={} ({}x{})",
@@ -1401,6 +1454,16 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
              static_cast<u32>(src->format), static_cast<const void *>(dest),
              dest->width, dest->height, static_cast<u32>(dest->format),
              static_cast<const void *>(front), src == dest, dest == front);
+  }
+
+  if (dest == g_last_front.load(std::memory_order_relaxed)) {
+    if (s.front_resolve_serial != s.frame_serial) {
+      s.front_resolve_serial = s.frame_serial;
+      s.front_resolves = 0;
+      s.last_front_src = nullptr;
+    }
+    ++s.front_resolves;
+    s.last_front_src = src;
   }
 
   if (dest == g_last_front.load(std::memory_order_relaxed) &&

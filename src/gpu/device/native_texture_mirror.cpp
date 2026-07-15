@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <algorithm>
 #include <list>
 #include <map>
@@ -48,6 +49,7 @@ std::atomic<u32> g_native_unmapped_format{0};
 std::atomic<u32> g_native_undescribed{0};
 std::atomic<u32> g_evicted{0};
 std::atomic<u32> g_depth_binds{0};
+std::atomic<u32> g_page_binds{0};
 
 std::unordered_map<u32, GuestTexture *> g_surface_by_base;
 
@@ -189,6 +191,7 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   if (!mirror->textureHolder)
     return nullptr;
   mirror->texture = mirror->textureHolder.get();
+  mirror->desc_flags = desc.flags;
   mirror->selfVa = texture_va;
   mirror->width = f.width;
   mirror->height = f.height;
@@ -372,12 +375,6 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
     return nullptr;
   std::lock_guard lock(g_mutex);
 
-  auto it = g_mirrors.find(fetch.baseAddress);
-  if (it != g_mirrors.end()) {
-    TouchLocked(fetch.baseAddress);
-    return it->second.get();
-  }
-
   if (auto sit = g_surface_by_base.find(fetch.baseAddress);
       sit != g_surface_by_base.end() && sit->second) {
     if (g_depth_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
@@ -387,6 +384,29 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
                static_cast<u32>(fetch.format));
     }
     return sit->second;
+  }
+
+  auto it = g_mirrors.find(fetch.baseAddress);
+  if (it != g_mirrors.end()) {
+    TouchLocked(fetch.baseAddress);
+    return it->second.get();
+  }
+
+  if (!IsDepthTextureFormat(fetch.format)) {
+    if (auto pit = g_mirror_by_page.find(fetch.baseAddress >> kGuestPageShift);
+        pit != g_mirror_by_page.end() && pit->second) {
+      GuestTexture *shared = pit->second;
+      if (shared->texture && shared->hasContent &&
+          shared->type != ResourceType::DepthStencil &&
+          shared->width == fetch.width && shared->height == fetch.height) {
+        if (g_page_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
+          EOT_INFO("[native] fetch 0x{:08X} ({}x{}) served by the resolved "
+                   "surface sharing its page",
+                   fetch.baseAddress, fetch.width, fetch.height);
+        }
+        return shared;
+      }
+    }
   }
 
   if (IsDepthTextureFormat(fetch.format)) {
