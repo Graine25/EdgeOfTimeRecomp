@@ -26,6 +26,7 @@ namespace xenos = rex::graphics::xenos;
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <unordered_map>
 
 #include "core/logging.h"
@@ -58,6 +59,7 @@ constexpr u32 kGuestPageShift = 12;
 std::unordered_map<u32, GuestTexture *> g_mirror_by_page;
 
 std::unordered_map<u32, GuestTexture *> g_resolved_by_physical;
+std::set<u32> g_publish_log;
 
 void RegisterByPageLocked(u32 base_address, GuestTexture *tex) {
   if (base_address && tex)
@@ -643,7 +645,13 @@ void PublishResolvedSurface(u32 base_address, GuestTexture *tex) {
   if (!base_address || !tex || !tex->texture)
     return;
   std::lock_guard lock(g_mutex);
-  g_resolved_by_physical[PhysicalTextureKey(base_address)] = tex;
+  const u32 key = PhysicalTextureKey(base_address);
+  if (g_publish_log.size() < 16 && g_publish_log.insert(key).second) {
+    EOT_INFO("[native] published a resolved surface at physical 0x{:08X} "
+             "({}x{}) from 0x{:08X}",
+             key, tex->width, tex->height, base_address);
+  }
+  g_resolved_by_physical[key] = tex;
 }
 
 GuestTexture *ResolveMirrorByAddress(u32 address) {

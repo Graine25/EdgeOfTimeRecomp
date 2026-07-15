@@ -211,6 +211,17 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
       if (g_resolve_failed.fetch_add(1, std::memory_order_relaxed) == 0)
         EOT_WARN("[constants] sampler {}: texture object 0x{:08X} resolves to "
                  "no host record", i, tex_va);
+      if (have_fetch) {
+        static std::mutex m;
+        static std::set<u32> seen;
+        std::lock_guard g(m);
+        if (seen.size() < 12 && seen.insert(fetch.baseAddress).second) {
+          EOT_INFO("[constants] no host texture for fetch 0x{:08X} {}x{} "
+                   "fmt={} tiled={}",
+                   fetch.baseAddress, fetch.width, fetch.height,
+                   static_cast<u32>(fetch.format), fetch.tiled);
+        }
+      }
       continue;
     }
     {
@@ -220,6 +231,18 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
       if ((ticks.fetch_add(1, std::memory_order_relaxed) % 200000) == 199999) {
         EOT_INFO("[constants] {} sampler binds with content, {} without",
                  filled.load(), empty.load());
+      }
+      if (!tex->hasContent && have_fetch && tex->width >= 140 &&
+          tex->width <= 1120 && tex->height * 2 < tex->width * 3) {
+        static std::mutex m;
+        static std::set<u32> seen;
+        std::lock_guard g(m);
+        if (seen.size() < 16 && seen.insert(fetch.baseAddress).second) {
+          EOT_INFO("[constants] still unwritten at sample: 0x{:08X} {}x{} "
+                   "fmt={}",
+                   fetch.baseAddress, tex->width, tex->height,
+                   static_cast<u32>(tex->format));
+        }
       }
     }
 
