@@ -1299,6 +1299,7 @@ std::atomic<u32> g_mismatch{0};
 std::atomic<u32> g_blitted{0};
 std::atomic<u32> g_no_src{0};
 std::atomic<u32> g_mip_publishes{0};
+std::atomic<u32> g_regional{0};
 std::atomic<u32> g_self_copies{0};
 std::atomic<u32> g_edram_fallbacks{0};
 std::atomic<u32> g_exp_bias{0};
@@ -1314,8 +1315,8 @@ void Video::LogResolveStats() {
            g_mip_publishes.load());
 }
 
-void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
-                                u32 dest_level) {
+void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
+                                const ResolveRegion &region) {
   if (!dest_texture_va)
     return;
   plume::RenderFormat preferred = plume::RenderFormat::UNKNOWN;
@@ -1421,9 +1422,34 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
   }
   const u32 level = std::min(dest_level, dest->mipLevels ? dest->mipLevels - 1
                                                          : 0u);
-  const u32 dst_w = std::max(dest->width >> level, 1u);
-  const u32 dst_h = std::max(dest->height >> level, 1u);
-  if (src->width < dst_w || src->height < dst_h) {
+  u32 dst_w = std::max(dest->width >> level, 1u);
+  u32 dst_h = std::max(dest->height >> level, 1u);
+
+  u32 src_x = 0, src_y = 0, dst_x = 0, dst_y = 0;
+  if (region.valid) {
+    const u32 w = static_cast<u32>(region.right - region.left);
+    const u32 h = static_cast<u32>(region.bottom - region.top);
+    const bool fits_source = region.left >= 0 && region.top >= 0 &&
+                             static_cast<u32>(region.right) <= src->width &&
+                             static_cast<u32>(region.bottom) <= src->height;
+    const bool fits_dest = region.destX >= 0 && region.destY >= 0 &&
+                           static_cast<u32>(region.destX) + w <= dst_w &&
+                           static_cast<u32>(region.destY) + h <= dst_h;
+    if (w && h && fits_source && fits_dest) {
+      src_x = static_cast<u32>(region.left);
+      src_y = static_cast<u32>(region.top);
+      dst_x = static_cast<u32>(region.destX);
+      dst_y = static_cast<u32>(region.destY);
+      dst_w = w;
+      dst_h = h;
+      if (g_regional.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[resolve] first placed resolve: {}x{} from ({},{}) to ({},{})",
+                 dst_w, dst_h, src_x, src_y, dst_x, dst_y);
+      }
+    }
+  }
+
+  if (src->width < src_x + dst_w || src->height < src_y + dst_h) {
     if (g_mismatch.fetch_add(1, std::memory_order_relaxed) == 0) {
       EOT_INFO("[resolve] source {}x{} smaller than destination level {} "
                "({}x{})",
@@ -1461,11 +1487,12 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
     }
   }
 
-  const plume::RenderBox src_box(0, 0, 0, i32(dst_w), i32(dst_h), 1);
+  const plume::RenderBox src_box(i32(src_x), i32(src_y), i32(src_x + dst_w),
+                                i32(src_y + dst_h));
   rec.cmd->copyTextureRegion(
       plume::RenderTextureCopyLocation::Subresource(dest->texture, level, 0),
-      plume::RenderTextureCopyLocation::Subresource(src->texture, 0, 0), 0, 0,
-      0, &src_box);
+      plume::RenderTextureCopyLocation::Subresource(src->texture, 0, 0), dst_x,
+      dst_y, 0, &src_box);
   if (level != 0)
     g_mip_publishes.fetch_add(1, std::memory_order_relaxed);
 

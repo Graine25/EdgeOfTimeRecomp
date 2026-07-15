@@ -43,6 +43,16 @@ constexpr u32 kBindlessTextureCount = 65536 - kHostDescriptorReserve;
 constexpr u32 kHostSamplerReserve = 256;
 constexpr u32 kBindlessSamplerCount = 1024 - kHostSamplerReserve;
 
+struct ResolveRegion {
+  bool valid = false;
+  i32 left = 0;
+  i32 top = 0;
+  i32 right = 0;
+  i32 bottom = 0;
+  i32 destX = 0;
+  i32 destY = 0;
+};
+
 class Video {
 public:
   static bool CreateHostDevice();
@@ -58,7 +68,8 @@ public:
   static void ClearBoundTargets(u32 flags, u32 color_va, float z);
 
   static void ResolveRenderTarget(u32 flags, u32 dest_texture_va,
-                                  u32 dest_level);
+                                  u32 dest_level,
+                                  const ResolveRegion &region = {});
 
   static void LogResolveStats();
 
