@@ -42,6 +42,13 @@ RENDERDOC_API_1_4_0 *Api() {
 
 }
 
+void TriggerCaptureNow() {
+  if (auto *api = Api()) {
+    api->TriggerCapture();
+    EOT_INFO("[rdc] capture triggered on demand");
+  }
+}
+
 void NotePresentForCapture() {
   static std::atomic<u32> presents{0};
   const u32 n = presents.fetch_add(1, std::memory_order_relaxed) + 1;

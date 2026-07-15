@@ -24,6 +24,8 @@ void LogNativeTextureStats();
 
 GuestTexture *ResolveMirrorByAddress(u32 address);
 
+void PublishResolvedSurface(u32 base_address, GuestTexture *tex);
+
 GuestTexture *ResolveGuestSurface(u32 surface_va);
 
 }

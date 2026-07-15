@@ -87,6 +87,14 @@ HostFormatForTextureFormat(xenos::TextureFormat format) {
   }
 }
 
+u32 PhysicalTextureKey(u32 address) {
+  constexpr u32 kPhysical4KWindow = 0xE0000000u;
+  constexpr u32 kWindowPageOffset = 0x1000u;
+  if (address >= kPhysical4KWindow)
+    return address - kPhysical4KWindow + kWindowPageOffset;
+  return address;
+}
+
 bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out) {
   if (!fetch_va)
     return false;

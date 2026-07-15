@@ -109,6 +109,7 @@ public:
   static AttachmentSize BoundAttachmentSize();
 
   static GuestTexture *BoundDepthTexture();
+  static GuestTexture *BoundColorTexture();
 
   static u32 AcquireTextureDescriptor(GuestTexture *tex);
 

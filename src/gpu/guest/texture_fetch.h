@@ -31,6 +31,8 @@ bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out);
 plume::RenderFormat HostFormatForTextureFormat(
     rex::graphics::xenos::TextureFormat format);
 
+u32 PhysicalTextureKey(u32 address);
+
 void NoteTextureFetch(const GuestTextureFetch &fetch);
 void LogTextureFetchCensus();
 

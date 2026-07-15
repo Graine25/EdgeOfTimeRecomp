@@ -4,4 +4,6 @@ namespace eot::gpu {
 
 void NotePresentForCapture();
 
+void TriggerCaptureNow();
+
 }
