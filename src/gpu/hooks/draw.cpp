@@ -1,4 +1,6 @@
 #include <atomic>
+#include <mutex>
+#include <set>
 
 #include <rex/hook.h>
 #include <rex/types.h>
@@ -13,6 +15,7 @@
 #include "gpu/guest/d3d.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/pipeline/constant_buffers.h"
+#include "gpu/guest/texture_fetch.h"
 #include "gpu/pipeline/geometry_upload.h"
 #include "gpu/pipeline/pipeline_cache.h"
 

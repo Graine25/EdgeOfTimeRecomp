@@ -35,6 +35,7 @@ struct NativeUpload {
   u32 rowPitch = 0;
   u32 rows = 0;
   u32 level = 0;
+  u32 faces = 1;
 };
 std::vector<NativeUpload> g_native_pending;
 std::atomic<u32> g_native_uploaded{0};
@@ -113,11 +114,12 @@ void QueueTextureUpload(GuestTexture *tex) {
 }
 
 void QueueNativeUpload(GuestTexture *tex, std::vector<u8> data, u32 rowPitch,
-                       u32 rows, u32 level) {
+                       u32 rows, u32 level, u32 faces) {
   if (!tex || data.empty() || !rowPitch || !rows)
     return;
   std::lock_guard lock(g_upload_mutex);
-  g_native_pending.push_back({tex, std::move(data), rowPitch, rows, level});
+  g_native_pending.push_back(
+      {tex, std::move(data), rowPitch, rows, level, faces});
 }
 
 void ForgetTextureUpload(GuestTexture *tex) {
@@ -178,12 +180,18 @@ void FlushTextureUploads(plume::RenderCommandList *cmd,
         continue;
       const u32 level_w = std::max(tex->width >> up.level, 1u);
       const u32 level_h = std::max(tex->height >> up.level, 1u);
-      cmd->copyTextureRegion(
-          plume::RenderTextureCopyLocation::Subresource(tex->texture,
-                                                         up.level, 0),
-          plume::RenderTextureCopyLocation::PlacedFootprint(
-              staging, tex->format, level_w, level_h, 1,
-              (up.rowPitch / unit) * block));
+      const u32 level_d = std::max(tex->depth, 1u);
+      const u32 faces = std::max(up.faces, 1u);
+      const u32 face_rows = up.rows / faces;
+      for (u32 face = 0; face < faces; ++face) {
+        cmd->copyTextureRegion(
+            plume::RenderTextureCopyLocation::Subresource(tex->texture,
+                                                          up.level, face),
+            plume::RenderTextureCopyLocation::PlacedFootprint(
+                staging, tex->format, level_w, level_h, level_d,
+                (up.rowPitch / unit) * block,
+                u64(face) * face_rows * up.rowPitch));
+      }
 
       const plume::RenderTextureBarrier to_read(
           tex->texture, plume::RenderTextureLayout::SHADER_READ);

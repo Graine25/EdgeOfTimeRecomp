@@ -1002,7 +1002,7 @@ u32 Video::AcquireTextureDescriptor(GuestTexture *tex) {
     s.free_texture_slots.pop_back();
     plume::RenderTextureViewDesc view_desc;
     view_desc.format = tex->format;
-    view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+    view_desc.dimension = tex->viewDimension;
     view_desc.mipLevels = tex->mipLevels ? tex->mipLevels : 1;
     auto view = tex->texture->createTextureView(view_desc);
     if (!view)
@@ -1026,7 +1026,7 @@ u32 Video::AcquireTextureDescriptor(GuestTexture *tex) {
 
   plume::RenderTextureViewDesc view_desc;
   view_desc.format = tex->format;
-  view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+  view_desc.dimension = tex->viewDimension;
   view_desc.mipLevels = tex->mipLevels ? tex->mipLevels : 1;
   auto view = tex->texture->createTextureView(view_desc);
   if (!view)

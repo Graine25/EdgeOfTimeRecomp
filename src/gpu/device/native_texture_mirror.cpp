@@ -51,6 +51,8 @@ std::atomic<u32> g_native_undescribed{0};
 std::atomic<u32> g_evicted{0};
 std::atomic<u32> g_depth_binds{0};
 std::atomic<u32> g_resolved_binds{0};
+std::atomic<u32> g_volumes_built{0};
+std::atomic<u32> g_cubes_built{0};
 std::atomic<u32> g_page_binds{0};
 
 std::unordered_map<u32, GuestTexture *> g_surface_by_base;
@@ -177,15 +179,19 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   if (!device)
     return nullptr;
 
+  const bool volume = f.dimension == xenos::DataDimension::k3D && f.depth > 1;
+  const bool cube = f.dimension == xenos::DataDimension::kCube;
+
   plume::RenderTextureDesc desc;
-  desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
+  desc.dimension = volume ? plume::RenderTextureDimension::TEXTURE_3D
+                          : plume::RenderTextureDimension::TEXTURE_2D;
   desc.width = f.width;
   desc.height = f.height;
-  desc.depth = 1;
+  desc.depth = volume ? f.depth : 1;
   desc.mipLevels = mip_levels;
-  desc.arraySize = 1;
+  desc.arraySize = cube ? 6 : 1;
   desc.format = format;
-  desc.flags = IsBlockCompressed(format)
+  desc.flags = (IsBlockCompressed(format) || volume || cube)
                    ? plume::RenderTextureFlag::NONE
                    : plume::RenderTextureFlag::RENDER_TARGET;
   desc.multisampling.sampleCount = plume::RenderSampleCount::COUNT_1;
@@ -203,7 +209,20 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   mirror->mipLevels = mip_levels;
   mirror->format = format;
   mirror->guestFormat = static_cast<u32>(f.format);
-  mirror->viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+  mirror->depth = desc.depth;
+  mirror->arraySize = desc.arraySize;
+  mirror->viewDimension =
+      volume ? plume::RenderTextureViewDimension::TEXTURE_3D
+             : (cube ? plume::RenderTextureViewDimension::TEXTURE_CUBE
+                     : plume::RenderTextureViewDimension::TEXTURE_2D);
+  if (cube && g_cubes_built.fetch_add(1, std::memory_order_relaxed) == 0) {
+    EOT_INFO("[native] first cube map {}x{} fmt={}", f.width, f.height,
+             static_cast<u32>(f.format));
+  }
+  if (volume && g_volumes_built.fetch_add(1, std::memory_order_relaxed) == 0) {
+    EOT_INFO("[native] first volume texture {}x{}x{} fmt={}", f.width, f.height,
+             f.depth, static_cast<u32>(f.format));
+  }
   mirror->sampleCount = desc.multisampling.sampleCount;
 
   auto *raw = mirror.get();
@@ -211,7 +230,156 @@ GuestTexture *BuildNativeLocked(u32 texture_va, const GuestTextureFetch &f,
   return raw;
 }
 
+bool UntileVolumeLocked(GuestTexture *tex, const GuestTextureFetch &f) {
+  auto *memory = REX_KERNEL_MEMORY();
+  const auto *src = f.physicalAddress
+                        ? memory->TranslatePhysical<const u8 *>(f.baseAddress)
+                        : memory->TranslateVirtual<const u8 *>(f.baseAddress);
+  if (!src)
+    return false;
+
+  const u32 unit = BytesPerTexel(tex->format);
+  if (!unit || IsBlockCompressed(tex->format)) {
+    EOT_WARN("[native] volume {}x{}x{} has no usable texel size", f.width,
+             f.height, f.depth);
+    return false;
+  }
+
+  const u32 depth = std::max(f.depth, 1u);
+  const tu::TextureGuestLayout layout = tu::GetGuestTextureLayout(
+      xenos::DataDimension::k3D, f.pitchTiles, f.width, f.height, depth,
+      f.tiled, f.format, false, true,
+      0);
+
+  const u32 pitch_units = layout.base.row_pitch_bytes / unit;
+  const u32 extent = layout.base.level_data_extent_bytes;
+  const u32 slice_rows = layout.base.z_slice_stride_block_rows;
+  if (!pitch_units || !extent || !slice_rows) {
+    EOT_WARN("[native] volume {}x{}x{} has no usable layout (pitch={} extent={} "
+             "slice_rows={})",
+             f.width, f.height, depth, pitch_units, extent, slice_rows);
+    return false;
+  }
+
+  const bool tail_ok =
+      f.physicalAddress
+          ? memory->TranslatePhysical<const u8 *>(f.baseAddress + extent - 1) !=
+                nullptr
+          : mem::try_at<const u8>(f.baseAddress + extent - 1) != nullptr;
+  if (!tail_ok) {
+    EOT_WARN("[native] volume base 0x{:08X} + {} bytes unreadable",
+             f.baseAddress, extent);
+    return false;
+  }
+
+  const u32 dst_row = (f.width * unit + 255u) & ~255u;
+  const u32 unit_log2 = static_cast<u32>(std::countr_zero(unit));
+  std::vector<u8> dst(size_t(dst_row) * f.height * depth, 0u);
+
+  for (u32 z = 0; z < depth; ++z) {
+    for (u32 y = 0; y < f.height; ++y) {
+      u8 *row = dst.data() + (size_t(z) * f.height + y) * dst_row;
+      for (u32 x = 0; x < f.width; ++x) {
+        const i32 offset =
+            f.tiled ? tu::GetTiledOffset3D(static_cast<i32>(x),
+                                           static_cast<i32>(y),
+                                           static_cast<i32>(z), pitch_units,
+                                           slice_rows, unit_log2)
+                    : static_cast<i32>((size_t(z) * slice_rows + y) *
+                                           layout.base.row_pitch_bytes +
+                                       size_t(x) * unit);
+        if (offset < 0 || u32(offset) + unit > extent)
+          continue;
+        tc::CopySwapBlock(f.endianness, row + size_t(x) * unit, src + offset,
+                          unit);
+      }
+    }
+  }
+
+  static std::atomic<u32> filled{0};
+  if (filled.fetch_add(1, std::memory_order_relaxed) < 3) {
+    EOT_INFO("[native] volume {}x{}x{} untiled ({} bytes, tiled={})", f.width,
+             f.height, depth, dst.size(), f.tiled);
+  }
+  QueueNativeUpload(tex, std::move(dst), dst_row, f.height * depth);
+  return true;
+}
+
+bool UntileCubeLocked(GuestTexture *tex, const GuestTextureFetch &f) {
+  auto *memory = REX_KERNEL_MEMORY();
+  const auto *src = f.physicalAddress
+                        ? memory->TranslatePhysical<const u8 *>(f.baseAddress)
+                        : memory->TranslateVirtual<const u8 *>(f.baseAddress);
+  if (!src)
+    return false;
+
+  const bool compressed = IsBlockCompressed(tex->format);
+  const u32 unit =
+      compressed ? BytesPerBlock(tex->format) : BytesPerTexel(tex->format);
+  if (!unit)
+    return false;
+  const u32 edge = compressed ? kTextureBlockSize : 1;
+  const u32 units_x = (f.width + edge - 1) / edge;
+  const u32 units_y = (f.height + edge - 1) / edge;
+  const u32 dst_row = (units_x * unit + 255u) & ~255u;
+
+  const tu::TextureGuestLayout layout = tu::GetGuestTextureLayout(
+      xenos::DataDimension::kCube, f.pitchTiles, f.width, f.height, 6, f.tiled,
+      f.format, false, true,
+      0);
+
+  const u32 pitch_units = layout.base.row_pitch_bytes / unit;
+  const u32 extent = layout.base.level_data_extent_bytes;
+  const u32 face_stride = layout.base.array_slice_stride_bytes;
+  if (!pitch_units || !extent || !face_stride)
+    return false;
+
+  const bool tail_ok =
+      f.physicalAddress
+          ? memory->TranslatePhysical<const u8 *>(f.baseAddress + extent - 1) !=
+                nullptr
+          : mem::try_at<const u8>(f.baseAddress + extent - 1) != nullptr;
+  if (!tail_ok)
+    return false;
+
+  const u32 unit_log2 = static_cast<u32>(std::countr_zero(unit));
+
+  const u32 face_rows =
+      (dst_row % 512u == 0) ? units_y : ((units_y + 1u) & ~1u);
+  std::vector<u8> dst(size_t(dst_row) * face_rows * 6, 0u);
+
+  for (u32 face = 0; face < 6; ++face) {
+    const u8 *face_src = src + size_t(face) * face_stride;
+    for (u32 y = 0; y < units_y; ++y) {
+      u8 *row = dst.data() + (size_t(face) * face_rows + y) * dst_row;
+      for (u32 x = 0; x < units_x; ++x) {
+        const i32 offset = tu::GetTiledOffset2D(static_cast<i32>(x),
+                                                static_cast<i32>(y),
+                                                pitch_units, unit_log2);
+        if (offset < 0 ||
+            size_t(face) * face_stride + u32(offset) + unit > extent)
+          continue;
+        tc::CopySwapBlock(f.endianness, row + size_t(x) * unit,
+                          face_src + offset, unit);
+      }
+    }
+  }
+
+  static std::atomic<u32> filled{0};
+  if (filled.fetch_add(1, std::memory_order_relaxed) < 2) {
+    EOT_INFO("[native] cube {}x{} untiled, {} bytes per face", f.width,
+             f.height, face_stride);
+  }
+  QueueNativeUpload(tex, std::move(dst), dst_row, face_rows * 6, 0, 6);
+  return true;
+}
+
 bool UntileBaseLevelLocked(GuestTexture *tex, const GuestTextureFetch &f) {
+  if (tex->viewDimension == plume::RenderTextureViewDimension::TEXTURE_3D)
+    return UntileVolumeLocked(tex, f);
+  if (tex->viewDimension == plume::RenderTextureViewDimension::TEXTURE_CUBE)
+    return UntileCubeLocked(tex, f);
+
   auto *memory = REX_KERNEL_MEMORY();
   const auto *src = f.physicalAddress
                         ? memory->TranslatePhysical<const u8 *>(f.baseAddress)
