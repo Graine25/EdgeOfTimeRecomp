@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <set>
 #include <cmath>
 #include <mutex>
 #include <unordered_set>
@@ -694,6 +695,19 @@ void Video::Present(GuestTexture *front_buffer) {
   if (!s.swap_chain->present(texture_index, signals, 1))
     CheckDeviceRemoved("swapchain present");
 
+  {
+    static std::atomic<bool> armed{true};
+    if (const char *want = getenv("EOT_RDC_BUSY_FRAME")) {
+      const u32 threshold = static_cast<u32>(std::atoi(want));
+      if (threshold && s.frame_draw_total >= threshold &&
+          armed.exchange(false)) {
+        EOT_INFO("[rdc] frame carries {} colour draws; asking for a capture",
+                 s.frame_draw_total);
+        TriggerCaptureNow();
+      }
+    }
+  }
+
   NotePresentForCapture();
   g_last_front.store(front_buffer, std::memory_order_relaxed);
   s.frame_present_committed = true;
@@ -1058,6 +1072,12 @@ GuestTexture *Video::BoundDepthTexture() {
   return s.depth_stencil;
 }
 
+GuestTexture *Video::BoundColorTexture() {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  return s.render_targets[0];
+}
+
 Video::AttachmentSize Video::BoundAttachmentSize() {
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -1304,6 +1324,12 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
     preferred = bound.color;
   }
 
+  GuestTextureFetch dest_fetch;
+  const bool have_dest_fetch =
+      DecodeTextureFetchAt(dest_texture_va + kTextureObjectFetchOffset,
+                           dest_fetch) &&
+      dest_fetch.baseAddress != 0;
+
   GuestTexture *dest = ResolveGuestSurface(dest_texture_va);
   if (!dest) {
     GuestTextureFetch df;
@@ -1319,6 +1345,9 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va,
     g_no_dest.fetch_add(1, std::memory_order_relaxed);
     return;
   }
+
+  if (have_dest_fetch)
+    PublishResolvedSurface(dest_fetch.baseAddress, dest);
 
   auto rec = AcquireRecordingList();
   if (!rec) {

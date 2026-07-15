@@ -49,12 +49,15 @@ std::atomic<u32> g_native_unmapped_format{0};
 std::atomic<u32> g_native_undescribed{0};
 std::atomic<u32> g_evicted{0};
 std::atomic<u32> g_depth_binds{0};
+std::atomic<u32> g_resolved_binds{0};
 std::atomic<u32> g_page_binds{0};
 
 std::unordered_map<u32, GuestTexture *> g_surface_by_base;
 
 constexpr u32 kGuestPageShift = 12;
 std::unordered_map<u32, GuestTexture *> g_mirror_by_page;
+
+std::unordered_map<u32, GuestTexture *> g_resolved_by_physical;
 
 void RegisterByPageLocked(u32 base_address, GuestTexture *tex) {
   if (base_address && tex)
@@ -375,6 +378,21 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
     return nullptr;
   std::lock_guard lock(g_mutex);
 
+  if (fetch.physicalAddress) {
+    if (auto rit = g_resolved_by_physical.find(fetch.baseAddress);
+        rit != g_resolved_by_physical.end() && rit->second &&
+        rit->second->texture && rit->second->hasContent &&
+        rit->second != Video::BoundColorTexture() &&
+        rit->second->width == fetch.width &&
+        rit->second->height == fetch.height) {
+      if (g_resolved_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
+        EOT_INFO("[native] fetch 0x{:08X} ({}x{}) served by a resolved surface",
+                 fetch.baseAddress, fetch.width, fetch.height);
+      }
+      return rit->second;
+    }
+  }
+
   if (auto sit = g_surface_by_base.find(fetch.baseAddress);
       sit != g_surface_by_base.end() && sit->second) {
     if (g_depth_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
@@ -619,6 +637,13 @@ void EvictSurfaceMirror(u32 surface_va) {
     g_mirrors.erase(it);
   }
   Video::NotifyTextureDestroyed(dead.get());
+}
+
+void PublishResolvedSurface(u32 base_address, GuestTexture *tex) {
+  if (!base_address || !tex || !tex->texture)
+    return;
+  std::lock_guard lock(g_mutex);
+  g_resolved_by_physical[PhysicalTextureKey(base_address)] = tex;
 }
 
 GuestTexture *ResolveMirrorByAddress(u32 address) {

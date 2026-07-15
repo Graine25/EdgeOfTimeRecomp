@@ -1,6 +1,7 @@
 #include "gpu/pipeline/constant_buffers.h"
 
 #include <atomic>
+#include <set>
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -190,9 +191,9 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
     if (have_fetch) {
       g_slot_nonzero.fetch_add(1, std::memory_order_relaxed);
       NoteTextureFetch(fetch);
-      tex = ResolveGuestSurface(fetch.baseAddress);
+      tex = FindOrBuildNativeTextureFromFetch(fetch);
       if (!tex)
-        tex = FindOrBuildNativeTextureFromFetch(fetch);
+        tex = ResolveGuestSurface(fetch.baseAddress);
     }
 
     const u32 tex_va =
@@ -212,6 +213,16 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
                  "no host record", i, tex_va);
       continue;
     }
+    {
+      static std::atomic<u32> filled{0}, empty{0};
+      (tex->hasContent ? filled : empty).fetch_add(1, std::memory_order_relaxed);
+      static std::atomic<u32> ticks{0};
+      if ((ticks.fetch_add(1, std::memory_order_relaxed) % 200000) == 199999) {
+        EOT_INFO("[constants] {} sampler binds with content, {} without",
+                 filled.load(), empty.load());
+      }
+    }
+
     const u32 index = Video::AcquireTextureDescriptor(tex);
     if (index == kInvalidDescriptorIndex) {
       if (g_acquire_failed.fetch_add(1, std::memory_order_relaxed) == 0)
