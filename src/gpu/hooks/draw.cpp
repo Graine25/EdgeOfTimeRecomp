@@ -77,33 +77,6 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
                             vs->shaderCacheEntry->uses_float_constants == 0;
   const auto target = Video::BoundAttachmentSize();
 
-  {
-    bool skinned = false;
-    for (u32 e = 0; e < key.layout.count; ++e)
-      skinned = skinned || key.layout.elements[e].usage ==
-                               VertexUsage::kBlendIndices;
-    if (skinned) {
-      static std::atomic<u32> once{0};
-      if ((once.fetch_add(1, std::memory_order_relaxed) % 5000) == 0) {
-        u32 nonzero = 0, first_nonzero = 0xFFFFFFFFu;
-        for (u32 r = 0; r < kVsFloatConstCount; ++r) {
-          bool any = false;
-          for (u32 c = 0; c < 4; ++c)
-            any = any || eot::mem::try_load<u32>(device_va + kVsFloatConstOffset +
-                                                 r * 16 + c * 4) != 0;
-          if (any) {
-            ++nonzero;
-            if (first_nonzero == 0xFFFFFFFFu)
-              first_nonzero = r;
-          }
-        }
-        EOT_INFO("[draw] skinned draw: {} of {} vertex constant registers "
-                 "non-zero, first at c{}",
-                 nonzero, kVsFloatConstCount, first_nonzero);
-      }
-    }
-  }
-
   DrawGeometry geometry;
   if (!UploadDrawGeometry(key.layout, indexed ? 0 : args.startVertex,
                           args.vertexCount, indexed, args.startIndex,
