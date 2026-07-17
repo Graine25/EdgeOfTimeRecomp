@@ -148,6 +148,9 @@ inline constexpr u32 kVsBoolConstOffset = 0x2780;
 inline constexpr u32 kPsBoolConstOffset = 0x2790;
 inline constexpr u32 kBoolConstDwords = 4;
 
+inline constexpr u32 kLoopConstOffset = 0x27A0;
+inline constexpr u32 kLoopConstCount = 32;
+
 inline constexpr u32 kDeviceVertexDeclShadow = 0x2FB8;
 
 inline constexpr u32 kVertexDeclCommonSignature = 0x100005;

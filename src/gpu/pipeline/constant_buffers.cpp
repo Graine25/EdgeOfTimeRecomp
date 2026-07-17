@@ -175,6 +175,16 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
   CopyByteSwap32(reinterpret_cast<u8 *>(shared.booleansArr + kBoolConstDwords),
                  device_va + kPsBoolConstOffset, kBoolConstDwords * 4);
 
+  for (u32 i = 0; i < kLoopConstCount; ++i) {
+    const u32 packed =
+        mem::try_load<u32>(device_va + kLoopConstOffset + i * 4);
+    shared.loopConstants[i][0] = packed & 0xFFu;
+    shared.loopConstants[i][1] = (packed >> 8) & 0xFFu;
+    shared.loopConstants[i][2] =
+        static_cast<u32>(static_cast<i32>(static_cast<i8>((packed >> 16) & 0xFFu)));
+    shared.loopConstants[i][3] = 0;
+  }
+
   const auto rt = Video::BoundAttachmentSize();
   if (rt.width && rt.height) {
     shared.halfPixelOffset[0] = -1.0f / static_cast<float>(rt.width);
