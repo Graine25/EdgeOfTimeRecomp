@@ -59,8 +59,6 @@ HostFormatForTextureFormat(xenos::TextureFormat format) {
   case xenos::TextureFormat::k_16_16_16_16_FLOAT:
     return plume::RenderFormat::R16G16B16A16_FLOAT;
 
-  case xenos::TextureFormat::k_8_8_8_8_AS_16_16_16_16:
-    return plume::RenderFormat::R16G16B16A16_FLOAT;
   case xenos::TextureFormat::k_DXT1_AS_16_16_16_16:
     return plume::RenderFormat::BC1_UNORM;
   case xenos::TextureFormat::k_DXT2_3_AS_16_16_16_16:
@@ -90,12 +88,12 @@ HostFormatForTextureFormat(xenos::TextureFormat format) {
   }
 }
 
-u32 PhysicalTextureKey(u32 address) {
-  constexpr u32 kPhysical4KWindow = 0xE0000000u;
-  constexpr u32 kWindowPageOffset = 0x1000u;
-  if (address >= kPhysical4KWindow)
-    return address - kPhysical4KWindow + kWindowPageOffset;
-  return address;
+u32 PhysicalTextureKey(u32 address, bool already_physical) {
+  if (!address || already_physical)
+    return address;
+  constexpr u32 kPhysicalMask = 0x1FFFFFFFu;
+  constexpr u32 kPageOffset = 0x1000u;
+  return (address & kPhysicalMask) + kPageOffset;
 }
 
 bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out) {
