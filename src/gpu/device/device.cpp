@@ -1579,8 +1579,9 @@ void Video::ClearBoundTargets(u32 flags, u32 color_va, float z) {
     rec.cmd->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2],
                                               rgba[3]));
   }
-  if ((flags & kClearDepth) && rec.depthTarget)
+  if ((flags & kClearDepth) && rec.depthTarget) {
     rec.cmd->clearDepth(true, z);
+  }
 }
 
 void Video::BeginGuestFrame() {

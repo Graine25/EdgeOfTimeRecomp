@@ -9,6 +9,7 @@
 
 #include <rex/cvar.h>
 
+#include <rex/graphics/registers.h>
 #include <rex/graphics/xenos.h>
 
 #include "core/logging.h"
@@ -133,26 +134,51 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
   out.stateHash = (u64(depth_control) << 32) ^ blend_control ^
                   (u64(color_control) << 16);
   out.blendControl = blend_control;
-  out.vertexSpecConstants = spec;
-
-  if (GuestShader *ps = Video::BoundPixelShader()) {
-    if (ps->shaderCacheEntry) {
-      out.pixelShaderHash = ps->hash;
-      out.pixelSpecConstants = spec;
-    }
-  }
-
+  out.depthControl = depth_control;
   const Video::AttachmentFormats fmts = Video::BoundAttachmentFormats();
   if (fmts.color == plume::RenderFormat::UNKNOWN &&
       fmts.depth == plume::RenderFormat::UNKNOWN)
     return false;
   out.renderTargetFormat = fmts.color;
   out.depthFormat = fmts.depth;
+  if (const GuestTexture *ds = Video::BoundDepthTexture()) {
+    constexpr u32 kD3DFMT_D24FS8 = 0x1A220197;
+    out.reverseZ = false;
+    (void)kD3DFMT_D24FS8;
+    (void)ds;
+  }
   out.sampleCount = fmts.sampleCount;
   return true;
 }
 
 namespace {
+
+constexpr bool kEnableDepthTest = false;
+
+plume::RenderComparisonFunction
+ConvertCompareFunction(rex::graphics::xenos::CompareFunction f, bool reverse_z) {
+  using CF = rex::graphics::xenos::CompareFunction;
+  using RC = plume::RenderComparisonFunction;
+  switch (f) {
+  case CF::kNever:
+    return RC::NEVER;
+  case CF::kLess:
+    return reverse_z ? RC::GREATER : RC::LESS;
+  case CF::kEqual:
+    return RC::EQUAL;
+  case CF::kLessEqual:
+    return reverse_z ? RC::GREATER_EQUAL : RC::LESS_EQUAL;
+  case CF::kGreater:
+    return reverse_z ? RC::LESS : RC::GREATER;
+  case CF::kNotEqual:
+    return RC::NOT_EQUAL;
+  case CF::kGreaterEqual:
+    return reverse_z ? RC::LESS_EQUAL : RC::GREATER_EQUAL;
+  case CF::kAlways:
+  default:
+    return RC::ALWAYS;
+  }
+}
 
 constexpr u32 kBlendColorSrcShift = 0;
 constexpr u32 kBlendColorCombShift = 5;
@@ -284,6 +310,13 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
   desc.primitiveTopology = key.topology;
   desc.multisampling.sampleCount = key.sampleCount;
   desc.depthTargetFormat = key.depthFormat;
+
+  if (key.depthFormat != plume::RenderFormat::UNKNOWN && kEnableDepthTest) {
+    const rex::graphics::reg::RB_DEPTHCONTROL dc{key.depthControl};
+    desc.depthEnabled = dc.z_enable != 0;
+    desc.depthWriteEnabled = dc.z_write_enable != 0;
+    desc.depthFunction = ConvertCompareFunction(dc.zfunc, key.reverseZ);
+  }
   if (key.renderTargetFormat != plume::RenderFormat::UNKNOWN) {
     desc.renderTargetFormat[0] = key.renderTargetFormat;
     desc.renderTargetBlend[0] = ConvertBlend(key.blendControl);
