@@ -159,8 +159,9 @@ GuestTexture *BuildLocked(u32 surface_va, u32 width, u32 height,
   GuestTextureFetch self;
   if (DecodeTextureFetchAt(surface_va + kTextureObjectFetchOffset, self) &&
       self.baseAddress) {
-    g_surface_by_base[self.baseAddress] = raw;
-    RegisterByPageLocked(self.baseAddress, raw);
+    const u32 key = PhysicalTextureKey(self.baseAddress, self.physicalAddress);
+    g_surface_by_base[key] = raw;
+    RegisterByPageLocked(key, raw);
   }
   return raw;
 }
@@ -384,14 +385,24 @@ bool UntileBaseLevelLocked(GuestTexture *tex, const GuestTextureFetch &f) {
   const auto *src = f.physicalAddress
                         ? memory->TranslatePhysical<const u8 *>(f.baseAddress)
                         : memory->TranslateVirtual<const u8 *>(f.baseAddress);
-  if (!src)
+  if (!src) {
+    static std::atomic<u32> n{0};
+    if (n.fetch_add(1, std::memory_order_relaxed) < 3)
+      EOT_WARN("[native] untile: 0x{:08X} does not translate ({}x{} fmt={})",
+               f.baseAddress, f.width, f.height, static_cast<u32>(f.format));
     return false;
+  }
 
   const bool compressed = IsBlockCompressed(tex->format);
   const u32 unit = compressed ? BytesPerBlock(tex->format)
                               : BytesPerTexel(tex->format);
-  if (!unit)
+  if (!unit) {
+    static std::atomic<u32> n{0};
+    if (n.fetch_add(1, std::memory_order_relaxed) < 3)
+      EOT_WARN("[native] untile: no texel size for host format {} ({}x{})",
+               static_cast<u32>(tex->format), f.width, f.height);
     return false;
+  }
   const u32 edge = compressed ? kTextureBlockSize : 1;
 
   const u32 units_x = (f.width + edge - 1) / edge;
@@ -547,9 +558,12 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
   if (!fetch.baseAddress || !fetch.width || !fetch.height)
     return nullptr;
   std::lock_guard lock(g_mutex);
+  const u32 fetch_key =
+      PhysicalTextureKey(fetch.baseAddress, fetch.physicalAddress);
 
   if (fetch.physicalAddress) {
-    if (auto rit = g_resolved_by_physical.find(fetch.baseAddress);
+    if (auto rit = g_resolved_by_physical.find(
+            PhysicalTextureKey(fetch.baseAddress, fetch.physicalAddress));
         rit != g_resolved_by_physical.end() && rit->second &&
         rit->second->texture && rit->second->hasContent &&
         rit->second != Video::BoundColorTexture() &&
@@ -563,7 +577,7 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
     }
   }
 
-  if (auto sit = g_surface_by_base.find(fetch.baseAddress);
+  if (auto sit = g_surface_by_base.find(fetch_key);
       sit != g_surface_by_base.end() && sit->second) {
     if (g_depth_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
       EOT_INFO("[native] fetch 0x{:08X} ({}x{} fmt={}) resolved to an existing "
@@ -574,14 +588,14 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
     return sit->second;
   }
 
-  auto it = g_mirrors.find(fetch.baseAddress);
+  auto it = g_mirrors.find(fetch_key);
   if (it != g_mirrors.end()) {
-    TouchLocked(fetch.baseAddress);
+    TouchLocked(fetch_key);
     return it->second.get();
   }
 
   if (!IsDepthTextureFormat(fetch.format)) {
-    if (auto pit = g_mirror_by_page.find(fetch.baseAddress >> kGuestPageShift);
+    if (auto pit = g_mirror_by_page.find(fetch_key >> kGuestPageShift);
         pit != g_mirror_by_page.end() && pit->second) {
       GuestTexture *shared = pit->second;
       if (shared->texture && shared->hasContent &&
@@ -634,7 +648,7 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
 
   const u32 mip_max_level = ClampedMipMaxLevel(fetch);
   GuestTexture *tex =
-      BuildNativeLocked(fetch.baseAddress, fetch, format, mip_max_level + 1);
+      BuildNativeLocked(fetch_key, fetch, format, mip_max_level + 1);
   if (tex) {
     UntileBaseLevelLocked(tex, fetch);
     if (mip_max_level)
@@ -813,7 +827,7 @@ void PublishResolvedSurface(u32 base_address, GuestTexture *tex) {
   if (!base_address || !tex || !tex->texture)
     return;
   std::lock_guard lock(g_mutex);
-  const u32 key = PhysicalTextureKey(base_address);
+  const u32 key = PhysicalTextureKey(base_address, false);
   if (g_publish_log.size() < 16 && g_publish_log.insert(key).second) {
     EOT_INFO("[native] published a resolved surface at physical 0x{:08X} "
              "({}x{}) from 0x{:08X}",

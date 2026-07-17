@@ -232,18 +232,6 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
         EOT_INFO("[constants] {} sampler binds with content, {} without",
                  filled.load(), empty.load());
       }
-      if (!tex->hasContent && have_fetch && tex->width >= 140 &&
-          tex->width <= 1120 && tex->height * 2 < tex->width * 3) {
-        static std::mutex m;
-        static std::set<u32> seen;
-        std::lock_guard g(m);
-        if (seen.size() < 16 && seen.insert(fetch.baseAddress).second) {
-          EOT_INFO("[constants] still unwritten at sample: 0x{:08X} {}x{} "
-                   "fmt={}",
-                   fetch.baseAddress, tex->width, tex->height,
-                   static_cast<u32>(tex->format));
-        }
-      }
     }
 
     const u32 index = Video::AcquireTextureDescriptor(tex);
