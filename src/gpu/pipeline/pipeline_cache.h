@@ -25,6 +25,9 @@ struct PipelineKey {
 
   u32 blendControl = 0;
 
+  u32 depthControl = 0;
+  bool reverseZ = false;
+
   u64 stateHash = 0;
 
   bool operator==(const PipelineKey &o) const {

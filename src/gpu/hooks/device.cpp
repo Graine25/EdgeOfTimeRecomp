@@ -1,4 +1,6 @@
 #include <atomic>
+#include <set>
+#include <mutex>
 
 #include <rex/hook.h>
 #include <rex/types.h>
