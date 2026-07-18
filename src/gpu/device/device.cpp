@@ -1614,16 +1614,8 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
     rec.cmd->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2],
                                               rgba[3]));
   }
-  const float z_scale =
-      mem::try_load<float>(device_va + kViewportZScaleOffset);
-  const float z_offset =
-      mem::try_load<float>(device_va + kViewportZOffsetOffset);
-  float buffer_z = z;
-  if (z_scale != 0.0f || z_offset != 0.0f)
-    buffer_z = std::clamp(z_offset + z_scale * z, 0.0f, 1.0f);
-
   if ((flags & kClearDepth) && rec.depthTarget) {
-    rec.cmd->clearDepth(true, buffer_z);
+    rec.cmd->clearDepth(true, z);
   }
 }
 

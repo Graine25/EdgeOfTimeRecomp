@@ -4,6 +4,7 @@
 
 #include "core/logging.h"
 #include "gpu/device/device.h"
+#include "gpu/pipeline/sampler_cache.h"
 #include "gpu/device/texture_upload.h"
 #include "gpu/guest/buffers.h"
 #include "gpu/pipeline/pipeline_cache.h"
@@ -42,5 +43,6 @@ class ReeotApp : public rex::ReXApp {
     eot::gpu::LogPipelineStats();
     eot::gpu::LogVertexLayoutStats();
     eot::gpu::LogTextureUploadStats();
+    eot::gpu::samplers::LogStats();
   }
 };
