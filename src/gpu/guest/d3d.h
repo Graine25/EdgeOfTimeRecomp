@@ -129,6 +129,10 @@ inline constexpr u32 kTextureObjectFetchOffset = 0x1C;
 inline constexpr u32 kTextureFetchConstants = 0x480;
 inline constexpr u32 kTextureFetchStride = 24;
 
+inline constexpr u32 kModeControlOffset = 0x2948;
+
+inline constexpr u32 kColorMaskOffset = 0x28DC;
+
 inline constexpr u32 kDepthControlOffset = 0x2934;
 inline constexpr u32 kBlendControl0Offset = 0x2938;
 inline constexpr u32 kColorControlOffset = 0x293C;
