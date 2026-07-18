@@ -130,8 +130,23 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   rec.cmd->setGraphicsRootDescriptor(cb.shared.ref, 2);
   rec.cmd->setVertexBuffers(0, geometry.vertexViews, geometry.vertexBufferCount,
                             geometry.vertexSlots);
-  rec.cmd->setViewports(plume::RenderViewport(
-      0.0f, 0.0f, float(rec.targetWidth), float(rec.targetHeight)));
+  plume::RenderViewport viewport(0.0f, 0.0f, float(rec.targetWidth),
+                                 float(rec.targetHeight));
+  {
+    const u32 at = device_va + kViewportOffset;
+    const float x = eot::mem::try_load<float>(at);
+    const float y = eot::mem::try_load<float>(at + 4);
+    const float w = eot::mem::try_load<float>(at + 8);
+    const float h = eot::mem::try_load<float>(at + 12);
+    const float min_z = eot::mem::try_load<float>(at + 16);
+    const float max_z = eot::mem::try_load<float>(at + 20);
+    if (w > 0.0f && h > 0.0f && x >= 0.0f && y >= 0.0f &&
+        x + w <= float(rec.targetWidth) + 1.0f &&
+        y + h <= float(rec.targetHeight) + 1.0f) {
+      viewport = plume::RenderViewport(x, y, w, h, min_z, max_z);
+    }
+  }
+  rec.cmd->setViewports(viewport);
   rec.cmd->setScissors(plume::RenderRect(0, 0, i32(rec.targetWidth),
                                          i32(rec.targetHeight)));
 

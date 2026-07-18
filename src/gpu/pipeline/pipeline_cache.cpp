@@ -246,7 +246,10 @@ plume::RenderBlendDesc ConvertBlend(u32 blend_control) {
   const bool opaque =
       color_src == u32(rex::graphics::xenos::BlendFactor::kOne) &&
       color_dst == u32(rex::graphics::xenos::BlendFactor::kZero) &&
-      color_comb == 0;
+      color_comb == 0 &&
+      alpha_src == u32(rex::graphics::xenos::BlendFactor::kOne) &&
+      alpha_dst == u32(rex::graphics::xenos::BlendFactor::kZero) &&
+      alpha_comb == 0;
   if (opaque)
     return desc;
 

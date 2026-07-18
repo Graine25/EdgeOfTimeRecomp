@@ -121,6 +121,13 @@ bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out) {
   out.pitch = out.tiled ? 0 : (fetch.pitch << 5);
   out.packedMips = fetch.packed_mips != 0;
   out.format = fetch.format;
+  out.clampX = fetch.clamp_x;
+  out.clampY = fetch.clamp_y;
+  out.clampZ = fetch.clamp_z;
+  out.magFilter = fetch.mag_filter;
+  out.minFilter = fetch.min_filter;
+  out.mipFilter = fetch.mip_filter;
+  out.borderWhite = fetch.border_size != 0;
   out.endianness = fetch.endianness;
   out.dimension = fetch.dimension;
 
