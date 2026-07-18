@@ -134,6 +134,13 @@ inline constexpr u32 kViewportOffset = 0x32C8;
 inline constexpr u32 kViewportZScaleOffset = 0x2918;
 inline constexpr u32 kViewportZOffsetOffset = 0x291C;
 
+inline constexpr u32 kStencilRefMaskOffset = 0x2900;
+
+inline constexpr u32 kPolyOffsetFrontScaleOffset = 0x2A50;
+inline constexpr u32 kPolyOffsetFrontOffset = 0x2A54;
+inline constexpr u32 kPolyOffsetBackScaleOffset = 0x2A58;
+inline constexpr u32 kPolyOffsetBackOffset = 0x2A5C;
+
 inline constexpr u32 kModeControlOffset = 0x2948;
 
 inline constexpr u32 kColorMaskOffset = 0x28DC;

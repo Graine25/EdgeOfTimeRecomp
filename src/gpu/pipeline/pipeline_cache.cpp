@@ -1,6 +1,7 @@
 #include "gpu/pipeline/pipeline_cache.h"
 
 #include <atomic>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -133,11 +134,25 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
 
   out.stateHash = (u64(depth_control) << 32) ^ blend_control ^
                   (u64(color_control) << 16) ^
-                  (u64(out.modeControl) << 8) ^ (u64(out.colorMask) << 48);
+                  (u64(out.modeControl) << 8) ^ (u64(out.colorMask) << 48) ^
+                  (u64(out.stencilRefMask) << 24) ^
+                  (u64(out.polyOffsetScale) << 4) ^ u64(out.polyOffsetBias);
   out.blendControl = blend_control;
   out.depthControl = depth_control;
   out.modeControl = mem::try_load<u32>(device_va + kModeControlOffset);
   out.colorMask = mem::try_load<u32>(device_va + kColorMaskOffset);
+  out.stencilRefMask = mem::try_load<u32>(device_va + kStencilRefMaskOffset);
+  {
+    const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{out.modeControl};
+    const bool use_back = mode.poly_offset_back_enable && !mode.poly_offset_front_enable;
+    const u32 scale_at = use_back ? kPolyOffsetBackScaleOffset
+                                  : kPolyOffsetFrontScaleOffset;
+    const u32 bias_at = use_back ? kPolyOffsetBackOffset : kPolyOffsetFrontOffset;
+    if (mode.poly_offset_front_enable || mode.poly_offset_back_enable) {
+      out.polyOffsetScale = mem::try_load<u32>(device_va + scale_at);
+      out.polyOffsetBias = mem::try_load<u32>(device_va + bias_at);
+    }
+  }
   const Video::AttachmentFormats fmts = Video::BoundAttachmentFormats();
   if (fmts.color == plume::RenderFormat::UNKNOWN &&
       fmts.depth == plume::RenderFormat::UNKNOWN)
@@ -156,7 +171,31 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
 
 namespace {
 
-constexpr bool kEnableDepthTest = false;
+constexpr bool kEnableDepthTest = true;
+
+plume::RenderStencilOp ConvertStencilOp(rex::graphics::xenos::StencilOp op) {
+  using SO = rex::graphics::xenos::StencilOp;
+  using RS = plume::RenderStencilOp;
+  switch (op) {
+  case SO::kZero:
+    return RS::ZERO;
+  case SO::kReplace:
+    return RS::REPLACE;
+  case SO::kIncrementClamp:
+    return RS::INCREMENT_AND_CLAMP;
+  case SO::kDecrementClamp:
+    return RS::DECREMENT_AND_CLAMP;
+  case SO::kInvert:
+    return RS::INVERT;
+  case SO::kIncrementWrap:
+    return RS::INCREMENT_AND_WRAP;
+  case SO::kDecrementWrap:
+    return RS::DECREMENT_AND_WRAP;
+  case SO::kKeep:
+  default:
+    return RS::KEEP;
+  }
+}
 
 plume::RenderComparisonFunction
 ConvertCompareFunction(rex::graphics::xenos::CompareFunction f, bool reverse_z) {
@@ -330,6 +369,43 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
         static_cast<u8>(key.colorMask & 0xFu);
     desc.renderTargetCount = 1;
   }
+  if (key.depthFormat != plume::RenderFormat::UNKNOWN) {
+    const rex::graphics::reg::RB_DEPTHCONTROL dc{key.depthControl};
+    desc.stencilEnabled = dc.stencil_enable != 0;
+    if (desc.stencilEnabled) {
+      desc.stencilReference = key.stencilRefMask & 0xFFu;
+      desc.stencilReadMask = (key.stencilRefMask >> 8) & 0xFFu;
+      desc.stencilWriteMask = (key.stencilRefMask >> 16) & 0xFFu;
+
+      desc.stencilFrontFace.compareFunction =
+          ConvertCompareFunction(dc.stencilfunc, key.reverseZ);
+      desc.stencilFrontFace.failOp = ConvertStencilOp(dc.stencilfail);
+      desc.stencilFrontFace.passOp = ConvertStencilOp(dc.stencilzpass);
+      desc.stencilFrontFace.depthFailOp = ConvertStencilOp(dc.stencilzfail);
+
+      const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{key.modeControl};
+      if (dc.backface_enable) {
+        desc.stencilBackFace.compareFunction =
+            ConvertCompareFunction(dc.stencilfunc_bf, key.reverseZ);
+        desc.stencilBackFace.failOp = ConvertStencilOp(dc.stencilfail_bf);
+        desc.stencilBackFace.passOp = ConvertStencilOp(dc.stencilzpass_bf);
+        desc.stencilBackFace.depthFailOp = ConvertStencilOp(dc.stencilzfail_bf);
+      } else {
+        desc.stencilBackFace = desc.stencilFrontFace;
+      }
+      (void)mode;
+    }
+  }
+
+  if (key.polyOffsetScale || key.polyOffsetBias) {
+    float scale = 0.0f;
+    float bias = 0.0f;
+    std::memcpy(&scale, &key.polyOffsetScale, sizeof(scale));
+    std::memcpy(&bias, &key.polyOffsetBias, sizeof(bias));
+    desc.slopeScaledDepthBias = scale;
+    desc.depthBias = static_cast<i32>(bias * 16777216.0f);
+  }
+
   {
     const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{key.modeControl};
     if (mode.cull_front && mode.cull_back) {

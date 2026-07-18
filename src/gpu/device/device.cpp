@@ -1345,6 +1345,19 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
     preferred = bound.color;
   }
 
+  {
+    const i32 exp_bias = static_cast<i32>(flags) >> 26;
+    if (exp_bias != 0) {
+      g_exp_bias.fetch_add(1, std::memory_order_relaxed);
+      static std::atomic<u32> reported{0};
+      if (reported.fetch_add(1, std::memory_order_relaxed) < 4) {
+        EOT_INFO("[resolve] copy exponent bias {} (flags 0x{:08X}) - decoded, "
+                 "not yet applied",
+                 exp_bias, flags);
+      }
+    }
+  }
+
   GuestTextureFetch dest_fetch;
   const bool have_dest_fetch =
       DecodeTextureFetchAt(dest_texture_va + kTextureObjectFetchOffset,
