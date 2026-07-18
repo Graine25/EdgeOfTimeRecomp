@@ -90,7 +90,6 @@ set(REEOT_SOURCES
     src/gpu/hooks/buffer.cpp
     src/gpu/hooks/device.cpp
     src/gpu/hooks/draw.cpp
-    src/gpu/hooks/movie.cpp
     src/gpu/hooks/resource.cpp
     src/gpu/hooks/shader.cpp
     src/gpu/hooks/state.cpp
