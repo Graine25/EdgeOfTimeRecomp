@@ -27,6 +27,9 @@ struct PipelineKey {
 
   u32 modeControl = 0;
   u32 colorMask = 0xFu;
+  u32 stencilRefMask = 0;
+  u32 polyOffsetScale = 0;
+  u32 polyOffsetBias = 0;
 
   u32 depthControl = 0;
   bool reverseZ = false;
