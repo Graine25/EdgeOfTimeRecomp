@@ -21,7 +21,7 @@ namespace eot::gpu {
 namespace {
 
 std::mutex g_cache_mutex;
-std::map<std::pair<u32, u32>, plume::RenderBufferReference> g_frame_cache;
+std::map<std::tuple<u32, u32, u32>, plume::RenderBufferReference> g_frame_cache;
 std::atomic<u32> g_cache_hits{0};
 
 std::atomic<u32> g_uploads{0};
@@ -30,6 +30,8 @@ std::atomic<u32> g_no_indices{0};
 std::atomic<u32> g_too_large{0};
 std::atomic<u32> g_window_space{0};
 std::atomic<u32> g_expanded{0};
+std::atomic<u32> g_restarts{0};
+constexpr u32 kRestartIndex = 0xFFFFu;
 std::atomic<u32> g_rects{0};
 
 constexpr u32 kMaxStreamBytesPerDraw = 8u * 1024 * 1024;
@@ -102,9 +104,10 @@ std::vector<u32> BuildTriangleIndices(u32 prim, u32 count) {
   return idx;
 }
 
-bool AcquireRange(u32 guest_va, u32 bytes, bool swap16,
+bool AcquireRange(u32 guest_va, u32 bytes, bool swap16, u32 conversion,
                   plume::RenderBufferReference &out, u8 **mapped = nullptr) {
-  const std::pair<u32, u32> key{guest_va, bytes};
+  const std::tuple<u32, u32, u32> key{guest_va, bytes,
+                                      conversion ^ (swap16 ? 0x8000000u : 0u)};
   {
     std::lock_guard lock(g_cache_mutex);
     auto it = g_frame_cache.find(key);
@@ -267,21 +270,31 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
     const u32 avail = (ib.size - ib_first) / unit;
     const u32 count = std::min(indexCount, avail);
     guest_indices.resize(count);
+    const u32 kRestart = ib.index32 ? 0xFFFFFFFFu : 0xFFFFu;
     u32 lo = ~0u, hi = 0;
+    u32 restarts = 0;
     for (u32 k = 0; k < count; ++k) {
       const u32 at = ib.address + ib_first + k * unit;
       const u32 v = ib.index32 ? mem::try_load<u32>(at) : mem::try_load<u16>(at);
+      if (v == kRestart) {
+        guest_indices[k] = kRestart;
+        ++restarts;
+        continue;
+      }
       const u32 eff = v + baseVertexIndex;
       guest_indices[k] = eff;
       lo = std::min(lo, eff);
       hi = std::max(hi, eff);
     }
+    if (restarts)
+      g_restarts.fetch_add(restarts, std::memory_order_relaxed);
     if (lo > hi)
       return false;
     first_needed = lo;
     needed_count = hi - lo + 1;
     for (u32 &v : guest_indices)
-      v -= lo;
+      if (v != kRestart)
+        v -= lo;
   }
 
   for (u32 i = 0; i < stream_count; ++i) {
@@ -355,10 +368,24 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
       continue;
     }
 
+    u32 conversion = 0;
+    for (u32 e = 0; e < layout.count; ++e) {
+      const auto &el = layout.elements[e];
+      if (el.stream != streams[i])
+        continue;
+      if (el.format == plume::RenderFormat::R8G8B8A8_UINT ||
+          el.format == plume::RenderFormat::R8G8B8A8_UNORM)
+        conversion = conversion * 31u + el.offset + 1u;
+      if (windowSpace && el.usage == VertexUsage::kPosition)
+        conversion = conversion * 31u + 0x1000u + el.offset;
+    }
+    if (windowSpace)
+      conversion ^= (targetWidth << 16) ^ targetHeight;
+
     plume::RenderBufferReference ref;
     u8 *fresh = nullptr;
-    if (!AcquireRange(info.address + first_byte, bytes, false, ref,
-                      &fresh))
+    if (!AcquireRange(info.address + first_byte, bytes, false,
+                      conversion, ref, &fresh))
       return false;
 
     if (fresh)
@@ -411,6 +438,16 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
         final_indices[k] = guest_indices[tri[k]];
       g_expanded.fetch_add(1, std::memory_order_relaxed);
     }
+    for (size_t k = 0; k + 2 < final_indices.size(); k += 3) {
+      if (final_indices[k] == kRestartIndex ||
+          final_indices[k + 1] == kRestartIndex ||
+          final_indices[k + 2] == kRestartIndex) {
+        final_indices[k] = 0;
+        final_indices[k + 1] = 0;
+        final_indices[k + 2] = 0;
+      }
+    }
+
     const u32 bytes = static_cast<u32>(final_indices.size() * sizeof(u32));
     if (!bytes)
       return false;
@@ -430,10 +467,11 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
 
 void LogGeometryUploadStats() {
   EOT_INFO("[geometry] {} draws fed, {} range copies reused, {} topologies "
-           "expanded ({} rectangles), {} window-space rewrites; dropped: {} no "
-           "stream, {} no indices, {} oversized",
+           "expanded ({} rectangles), {} window-space rewrites, {} strip cuts; "
+           "dropped: {} no stream, {} no indices, {} oversized",
            g_uploads.load(), g_cache_hits.load(), g_expanded.load(),
-           g_rects.load(), g_window_space.load(), g_no_stream.load(),
+           g_rects.load(), g_window_space.load(), g_restarts.load(),
+           g_no_stream.load(),
            g_no_indices.load(), g_too_large.load());
 }
 
