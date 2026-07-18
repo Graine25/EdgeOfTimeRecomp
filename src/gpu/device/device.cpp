@@ -1041,6 +1041,24 @@ u32 Video::AcquireTextureDescriptor(GuestTexture *tex) {
   return slot;
 }
 
+u32 Video::AcquireSamplerDescriptor(const plume::RenderSamplerDesc &desc) {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (!s.guest_sampler_set || !s.device)
+    return kInvalidDescriptorIndex;
+  if (s.next_sampler_slot >= kBindlessSamplerCount)
+    return kInvalidDescriptorIndex;
+
+  auto sampler = s.device->createSampler(desc);
+  if (!sampler)
+    return kInvalidDescriptorIndex;
+
+  const u32 slot = s.next_sampler_slot++;
+  s.guest_sampler_set->setSampler(slot, sampler.get());
+  s.guest_samplers.push_back(std::move(sampler));
+  return slot;
+}
+
 Video::BoundStreamInfo Video::BoundStream(u32 stream) {
   BoundStreamInfo out;
   if (stream >= kMaxStreamSources)
@@ -1539,12 +1557,14 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
              src->height, static_cast<u32>(src->format), dest_texture_va);
 }
 
-void Video::ClearBoundTargets(u32 flags, u32 color_va, float z) {
+void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
+                              float z) {
   if (REXCVAR_GET(eot_protect_resolved))
     return;
   constexpr u32 kClearTarget = 0x1;
   constexpr u32 kClearDepth = 0x10;
-  if (!(flags & (kClearTarget | kClearDepth)))
+  constexpr u32 kClearStencil = 0x20;
+  if (!(flags & (kClearTarget | kClearDepth | kClearStencil)))
     return;
   if (BindDrawFramebuffer() != FramebufferBind::kBound)
     return;
@@ -1581,8 +1601,16 @@ void Video::ClearBoundTargets(u32 flags, u32 color_va, float z) {
     rec.cmd->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2],
                                               rgba[3]));
   }
+  const float z_scale =
+      mem::try_load<float>(device_va + kViewportZScaleOffset);
+  const float z_offset =
+      mem::try_load<float>(device_va + kViewportZOffsetOffset);
+  float buffer_z = z;
+  if (z_scale != 0.0f || z_offset != 0.0f)
+    buffer_z = std::clamp(z_offset + z_scale * z, 0.0f, 1.0f);
+
   if ((flags & kClearDepth) && rec.depthTarget) {
-    rec.cmd->clearDepth(true, z);
+    rec.cmd->clearDepth(true, buffer_z);
   }
 }
 

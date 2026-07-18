@@ -98,6 +98,7 @@ set(REEOT_SOURCES
     src/gpu/pipeline/constant_buffers.cpp
     src/gpu/pipeline/geometry_upload.cpp
     src/gpu/pipeline/pipeline_cache.cpp
+    src/gpu/pipeline/sampler_cache.cpp
     src/gpu/pipeline/vertex_layout.cpp
     src/gpu/pipeline/vertex_layout.h
     src/gpu/pipeline/pipeline_cache.h

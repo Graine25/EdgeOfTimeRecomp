@@ -65,7 +65,8 @@ public:
 
   static void BeginGuestFrame();
 
-  static void ClearBoundTargets(u32 flags, u32 color_va, float z);
+  static void ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
+                                float z);
 
   static void ResolveRenderTarget(u32 flags, u32 dest_texture_va,
                                   u32 dest_level,
@@ -123,6 +124,8 @@ public:
   static GuestTexture *BoundColorTexture();
 
   static u32 AcquireTextureDescriptor(GuestTexture *tex);
+
+  static u32 AcquireSamplerDescriptor(const plume::RenderSamplerDesc &desc);
 
   static void ReleaseTextureDescriptor(u32 index);
 
@@ -188,6 +191,8 @@ struct VideoState {
   std::unique_ptr<plume::RenderDescriptorSet> guest_texture_set;
 
   u32 next_texture_slot = 1;
+  u32 next_sampler_slot = 1;
+  std::vector<std::unique_ptr<plume::RenderSampler>> guest_samplers;
   std::vector<u32> free_texture_slots;
   std::unique_ptr<plume::RenderSampler> guest_default_sampler;
   std::unique_ptr<plume::RenderTexture> null_texture;

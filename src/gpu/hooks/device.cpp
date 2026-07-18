@@ -23,7 +23,7 @@ REX_HOOK_RAW(D3DDevice_ClearF) {
   const float z = static_cast<float>(ctx.f1.f64);
   eot::gpu::Video::BeginGuestFrame();
   eot::gpu::NoteFrameStartForDraws();
-  eot::gpu::Video::ClearBoundTargets(flags, color_va, z);
+  eot::gpu::Video::ClearBoundTargets(ctx.r3.u32, flags, color_va, z);
   __imp__D3DDevice_ClearF(ctx, base);
 }
 

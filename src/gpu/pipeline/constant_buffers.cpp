@@ -1,5 +1,7 @@
 #include "gpu/pipeline/constant_buffers.h"
 
+#include "gpu/pipeline/sampler_cache.h"
+
 #include <atomic>
 #include <set>
 #include <cstring>
@@ -161,6 +163,9 @@ void ApplySwapMasks(const InputLayout &layout, SharedConstants &shared) {
       break;
     case VertexUsage::kTexCoord:
       shared.swappedTexcoords |= bit;
+      if (e.format == plume::RenderFormat::R16G16_SINT ||
+          e.format == plume::RenderFormat::R16G16B16A16_SINT)
+        shared.sintTexcoords |= bit;
       break;
     default:
       break;
@@ -256,6 +261,13 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
     shared.texture3DIndices[i] = index;
     shared.textureCubeIndices[i] = index;
     shared.texture1DIndices[i] = index;
+
+    if (have_fetch) {
+      const bool screen_space =
+          tex->type == ResourceType::RenderTarget ||
+          tex->type == ResourceType::DepthStencil;
+      shared.samplerIndices[i] = samplers::ResolveSlot(fetch, screen_space);
+    }
     ++bound_textures;
   }
 

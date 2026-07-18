@@ -20,6 +20,14 @@ struct GuestTextureFetch {
   bool tiled = false;
   bool packedMips = false;
   rex::graphics::xenos::TextureFormat format{};
+
+  rex::graphics::xenos::ClampMode clampX{};
+  rex::graphics::xenos::ClampMode clampY{};
+  rex::graphics::xenos::ClampMode clampZ{};
+  rex::graphics::xenos::TextureFilter magFilter{};
+  rex::graphics::xenos::TextureFilter minFilter{};
+  rex::graphics::xenos::TextureFilter mipFilter{};
+  bool borderWhite = false;
   rex::graphics::xenos::Endian endianness{};
   rex::graphics::xenos::DataDimension dimension{};
 };
