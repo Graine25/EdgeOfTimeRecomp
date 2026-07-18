@@ -171,7 +171,7 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
 
 namespace {
 
-constexpr bool kEnableDepthTest = true;
+constexpr bool kEnableDepthTest = false;
 
 plume::RenderStencilOp ConvertStencilOp(rex::graphics::xenos::StencilOp op) {
   using SO = rex::graphics::xenos::StencilOp;
