@@ -132,9 +132,12 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
     spec |= kSpecConstantAlphaTest;
 
   out.stateHash = (u64(depth_control) << 32) ^ blend_control ^
-                  (u64(color_control) << 16);
+                  (u64(color_control) << 16) ^
+                  (u64(out.modeControl) << 8) ^ (u64(out.colorMask) << 48);
   out.blendControl = blend_control;
   out.depthControl = depth_control;
+  out.modeControl = mem::try_load<u32>(device_va + kModeControlOffset);
+  out.colorMask = mem::try_load<u32>(device_va + kColorMaskOffset);
   const Video::AttachmentFormats fmts = Video::BoundAttachmentFormats();
   if (fmts.color == plume::RenderFormat::UNKNOWN &&
       fmts.depth == plume::RenderFormat::UNKNOWN)
@@ -320,8 +323,28 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
   if (key.renderTargetFormat != plume::RenderFormat::UNKNOWN) {
     desc.renderTargetFormat[0] = key.renderTargetFormat;
     desc.renderTargetBlend[0] = ConvertBlend(key.blendControl);
+    desc.renderTargetBlend[0].renderTargetWriteMask =
+        static_cast<u8>(key.colorMask & 0xFu);
     desc.renderTargetCount = 1;
   }
+  {
+    const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{key.modeControl};
+    if (mode.cull_front && mode.cull_back) {
+      static std::atomic<u32> both{0};
+      if (both.fetch_add(1, std::memory_order_relaxed) == 0)
+        EOT_WARN("[pipeline] a draw asks to cull both faces; culling back only");
+      desc.cullMode = plume::RenderCullMode::BACK;
+    } else if (mode.cull_front) {
+      desc.cullMode = plume::RenderCullMode::FRONT;
+    } else if (mode.cull_back) {
+      desc.cullMode = plume::RenderCullMode::BACK;
+    } else {
+      desc.cullMode = plume::RenderCullMode::NONE;
+    }
+    desc.frontFace = mode.face ? plume::RenderFrontFace::CLOCKWISE
+                               : plume::RenderFrontFace::COUNTER_CLOCKWISE;
+  }
+
   desc.specConstants = nullptr;
   desc.specConstantsCount = 0;
 
