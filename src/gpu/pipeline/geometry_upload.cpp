@@ -45,7 +45,8 @@ bool CopyIndices16(u8 *dst, u32 guest_va, u32 count) {
   return true;
 }
 
-std::vector<u32> BuildTriangleIndices(u32 prim, u32 count) {
+std::vector<u32> BuildTriangleIndices(u32 prim, u32 count,
+                                      const std::vector<u32> *guest) {
   static std::atomic<u32> seen[16]{};
   if (prim < 16)
     seen[prim].fetch_add(1, std::memory_order_relaxed);
@@ -90,8 +91,16 @@ std::vector<u32> BuildTriangleIndices(u32 prim, u32 count) {
   case kPrimTriangleStrip:
     if (count >= 3) {
       idx.reserve(size_t(count - 2) * 3);
+      u32 run_start = 0;
       for (u32 i = 0; i + 2 < count; ++i) {
-        if (i & 1)
+        if (guest && (*guest)[i] == kRestartIndex) {
+          run_start = i + 1;
+          continue;
+        }
+        if (guest && ((*guest)[i + 1] == kRestartIndex ||
+                      (*guest)[i + 2] == kRestartIndex))
+          continue;
+        if ((i - run_start) & 1)
           idx.insert(idx.end(), {i + 1, i, i + 2});
         else
           idx.insert(idx.end(), {i, i + 1, i + 2});
@@ -257,7 +266,7 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
       const u32 at = ib.address + ib_first + k * unit;
       const u32 v = ib.index32 ? mem::try_load<u32>(at) : mem::try_load<u16>(at);
       if (v == kRestart) {
-        guest_indices[k] = kRestart;
+        guest_indices[k] = kRestartIndex;
         ++restarts;
         continue;
       }
@@ -273,7 +282,7 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
     first_needed = lo;
     needed_count = hi - lo + 1;
     for (u32 &v : guest_indices)
-      if (v != kRestart)
+      if (v != kRestartIndex)
         v -= lo;
   }
 
@@ -382,7 +391,7 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
   out.vertexBufferCount = stream_count;
 
   if (!indexed) {
-    const std::vector<u32> tri = BuildTriangleIndices(primitiveType, vertexCount);
+    const std::vector<u32> tri = BuildTriangleIndices(primitiveType, vertexCount, nullptr);
     if (!tri.empty()) {
       const u32 bytes = static_cast<u32>(tri.size() * sizeof(u32));
       auto alloc = constants::Allocate(bytes);
@@ -399,7 +408,9 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
 
   if (indexed) {
     const std::vector<u32> tri =
-        BuildTriangleIndices(primitiveType, static_cast<u32>(guest_indices.size()));
+        BuildTriangleIndices(primitiveType,
+                             static_cast<u32>(guest_indices.size()),
+                             &guest_indices);
     std::vector<u32> final_indices;
     if (tri.empty()) {
       final_indices = std::move(guest_indices);
