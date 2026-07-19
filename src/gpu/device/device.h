@@ -88,6 +88,8 @@ public:
   };
   static RecordingList AcquireRecordingList();
 
+  static bool TakePendingDepthClear(const RecordingList &rec, float &z);
+
   static void RequestResize();
 
   static u32 OutputWidth();
@@ -251,6 +253,8 @@ struct VideoState {
 
   GuestTexture *render_targets[kMaxRenderTargets] = {};
   GuestTexture *depth_stencil = nullptr;
+  u64 depth_clear_serial = 0;
+  float depth_clear_z = 0.0f;
 
   u64 frame_serial = 1;
 

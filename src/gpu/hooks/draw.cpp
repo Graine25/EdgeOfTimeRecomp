@@ -1,4 +1,5 @@
 #include <atomic>
+#include <map>
 #include <string>
 #include <mutex>
 #include <set>
@@ -118,6 +119,11 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
                       barrier_count);
 
   rec.cmd->setFramebuffer(rec.framebuffer);
+
+  if (float clear_z = 0.0f;
+      Video::TakePendingDepthClear(rec, clear_z))
+    rec.cmd->clearDepth(true, clear_z);
+
   rec.cmd->setPipeline(pipeline);
   rec.cmd->setGraphicsPipelineLayout(layout_obj);
   rec.cmd->setGraphicsDescriptorSet(texture_set, 0);
