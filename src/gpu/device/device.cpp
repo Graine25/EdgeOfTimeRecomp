@@ -849,6 +849,18 @@ void Video::SetRenderTarget(u32 index, GuestTexture *surface) {
   }
 }
 
+bool Video::TakePendingDepthClear(const RecordingList &rec, float &z) {
+  GuestTexture *surface = rec.depthTarget;
+  if (!surface || !surface->texture)
+    return false;
+  auto &s = state();
+  if (!s.depth_clear_serial || surface->depthClearSerial == s.depth_clear_serial)
+    return false;
+  surface->depthClearSerial = s.depth_clear_serial;
+  z = s.depth_clear_z;
+  return true;
+}
+
 void Video::SetDepthStencil(GuestTexture *surface) {
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -1614,8 +1626,14 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
     rec.cmd->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2],
                                               rgba[3]));
   }
-  if ((flags & kClearDepth) && rec.depthTarget) {
-    rec.cmd->clearDepth(true, z);
+  if (flags & kClearDepth) {
+    auto &st = state();
+    ++st.depth_clear_serial;
+    st.depth_clear_z = z;
+    if (rec.depthTarget)
+      rec.depthTarget->depthClearSerial = st.depth_clear_serial;
+    if (rec.depthTarget)
+      rec.cmd->clearDepth(true, z);
   }
 }
 

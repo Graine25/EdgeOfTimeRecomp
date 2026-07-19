@@ -74,6 +74,8 @@ struct GuestTexture {
   u64 drawnSerial = 0;
   u32 drawsThisFrame = 0;
 
+  u64 depthClearSerial = 0;
+
   bool hasContent = false;
   bool sawNonZeroSource = false;
   u32 emptyUploadAttempts = 0;
