@@ -59,6 +59,8 @@ HostFormatForTextureFormat(xenos::TextureFormat format) {
   case xenos::TextureFormat::k_16_16_16_16_FLOAT:
     return plume::RenderFormat::R16G16B16A16_FLOAT;
 
+  case xenos::TextureFormat::k_8_8_8_8_AS_16_16_16_16:
+    return plume::RenderFormat::R8G8B8A8_UNORM;
   case xenos::TextureFormat::k_DXT1_AS_16_16_16_16:
     return plume::RenderFormat::BC1_UNORM;
   case xenos::TextureFormat::k_DXT2_3_AS_16_16_16_16:
