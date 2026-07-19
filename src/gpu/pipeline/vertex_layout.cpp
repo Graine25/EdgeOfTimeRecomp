@@ -286,6 +286,11 @@ bool BuildInputLayout(const VertexLayout &fetches, const VertexDeclaration &decl
       }
       continue;
     }
+    if (fmt == plume::RenderFormat::R32_UINT &&
+        (f.usage == VertexUsage::kNormal || f.usage == VertexUsage::kTangent ||
+         f.usage == VertexUsage::kBinormal))
+      out.packedNormal = true;
+
     InputElement &e = out.elements[out.count++];
     e.usage = f.usage;
     e.usageIndex = f.usageIndex;

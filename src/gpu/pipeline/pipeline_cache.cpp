@@ -24,6 +24,7 @@
 
 namespace eot::gpu {
 
+constexpr u32 kSpecConstantR11G11B10Normal = 1u << 0;
 constexpr u32 kSpecConstantAlphaTest = 1u << 1;
 constexpr u32 kAlphaTestEnableBit = 1u << 3;
 
@@ -95,6 +96,7 @@ u64 HashInputLayout(const InputLayout &layout) {
                (u64(e.stream) << 24) | e.offset);
     Mix(h, static_cast<u32>(e.format));
   }
+  Mix(h, layout.packedNormal ? 1u : 0u);
   return h;
 }
 
@@ -131,6 +133,10 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
   u32 spec = 0;
   if (alpha_test)
     spec |= kSpecConstantAlphaTest;
+  if (out.layout.packedNormal)
+    spec |= kSpecConstantR11G11B10Normal;
+  out.vertexSpecConstants = spec;
+  out.pixelSpecConstants = spec;
 
   out.stateHash = (u64(depth_control) << 32) ^ blend_control ^
                   (u64(color_control) << 16) ^
