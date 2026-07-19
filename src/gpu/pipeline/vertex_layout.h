@@ -80,6 +80,7 @@ struct InputLayout {
   InputElement elements[kMaxVertexFetches];
   u32 count = 0;
   bool incomplete = false;
+  bool packedNormal = false;
 };
 
 bool BuildInputLayout(const VertexLayout &fetches, const VertexDeclaration &decl,
