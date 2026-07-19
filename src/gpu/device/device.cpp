@@ -856,6 +856,9 @@ bool Video::TakePendingDepthClear(const RecordingList &rec, float &z) {
   auto &s = state();
   if (!s.depth_clear_serial || surface->depthClearSerial == s.depth_clear_serial)
     return false;
+  if (surface->width != s.depth_clear_width ||
+      surface->height != s.depth_clear_height)
+    return false;
   surface->depthClearSerial = s.depth_clear_serial;
   z = s.depth_clear_z;
   return true;
@@ -1630,8 +1633,14 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
     auto &st = state();
     ++st.depth_clear_serial;
     st.depth_clear_z = z;
-    if (rec.depthTarget)
+    if (rec.depthTarget) {
       rec.depthTarget->depthClearSerial = st.depth_clear_serial;
+      st.depth_clear_width = rec.depthTarget->width;
+      st.depth_clear_height = rec.depthTarget->height;
+    } else {
+      st.depth_clear_width = 0;
+      st.depth_clear_height = 0;
+    }
     if (rec.depthTarget)
       rec.cmd->clearDepth(true, z);
   }

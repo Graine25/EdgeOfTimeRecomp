@@ -255,6 +255,8 @@ struct VideoState {
   GuestTexture *depth_stencil = nullptr;
   u64 depth_clear_serial = 0;
   float depth_clear_z = 0.0f;
+  u32 depth_clear_width = 0;
+  u32 depth_clear_height = 0;
 
   u64 frame_serial = 1;
 
