@@ -170,26 +170,6 @@ void ConvertWindowSpacePositions(u8 *data, u32 bytes, u32 stride, u32 posOffset,
   }
 }
 
-void RestoreByteAttributeOrder(const InputLayout &layout, u32 stream, u8 *data,
-                               u32 bytes, u32 stride) {
-  if (!stride)
-    return;
-  for (u32 e = 0; e < layout.count; ++e) {
-    const auto &el = layout.elements[e];
-    if (el.stream != stream)
-      continue;
-    if (el.format != plume::RenderFormat::R8G8B8A8_UINT &&
-        el.format != plume::RenderFormat::R8G8B8A8_UNORM)
-      continue;
-    if (el.offset + 4 > stride)
-      continue;
-    for (u32 at = el.offset; at + 4 <= bytes; at += stride) {
-      std::swap(data[at + 0], data[at + 3]);
-      std::swap(data[at + 1], data[at + 2]);
-    }
-  }
-}
-
 void ExtrapolateRectCorner(const InputLayout &layout, u32 stream, u32 stride,
                            const u8 *v0, const u8 *v1, const u8 *v2, u8 *v3) {
   std::memcpy(v3, v1, stride);
@@ -345,9 +325,6 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
                               quad + 3u * info.stride);
       }
 
-      RestoreByteAttributeOrder(layout, streams[i], alloc.memory, expanded,
-                                info.stride);
-
       if (windowSpace) {
         for (u32 e = 0; e < layout.count; ++e) {
           const auto &el = layout.elements[e];
@@ -373,9 +350,6 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
       const auto &el = layout.elements[e];
       if (el.stream != streams[i])
         continue;
-      if (el.format == plume::RenderFormat::R8G8B8A8_UINT ||
-          el.format == plume::RenderFormat::R8G8B8A8_UNORM)
-        conversion = conversion * 31u + el.offset + 1u;
       if (windowSpace && el.usage == VertexUsage::kPosition)
         conversion = conversion * 31u + 0x1000u + el.offset;
     }
@@ -387,9 +361,6 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
     if (!AcquireRange(info.address + first_byte, bytes, false,
                       conversion, ref, &fresh))
       return false;
-
-    if (fresh)
-      RestoreByteAttributeOrder(layout, streams[i], fresh, bytes, info.stride);
 
     if (windowSpace && fresh) {
       for (u32 e = 0; e < layout.count; ++e) {
