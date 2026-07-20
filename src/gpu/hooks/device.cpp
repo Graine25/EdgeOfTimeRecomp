@@ -21,9 +21,10 @@ REX_HOOK_RAW(D3DDevice_ClearF) {
   const u32 flags = ctx.r4.u32;
   const u32 color_va = ctx.r6.u32;
   const float z = static_cast<float>(ctx.f1.f64);
+  const u32 stencil = ctx.r7.u32;
   eot::gpu::Video::BeginGuestFrame();
   eot::gpu::NoteFrameStartForDraws();
-  eot::gpu::Video::ClearBoundTargets(ctx.r3.u32, flags, color_va, z);
+  eot::gpu::Video::ClearBoundTargets(ctx.r3.u32, flags, color_va, z, stencil);
   __imp__D3DDevice_ClearF(ctx, base);
 }
 
