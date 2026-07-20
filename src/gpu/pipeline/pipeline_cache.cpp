@@ -107,6 +107,8 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
 
   out = PipelineKey{};
   out.vertexShaderHash = vs->hash;
+  if (GuestShader *ps = Video::BoundPixelShader())
+    out.pixelShaderHash = ps->hash;
 
   VertexLayout fetches;
   VertexDeclaration decl;
