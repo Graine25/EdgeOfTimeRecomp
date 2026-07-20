@@ -968,6 +968,7 @@ void Video::NoteAttachmentsDrawnLocked(GuestTexture *color,
   }
   if (depth) {
     depth->drawnSerial = s.frame_serial;
+    depth->hasContent = true;
     s.last_drawn_ds[slot] = depth;
   }
 }
