@@ -65,8 +65,8 @@ public:
 
   static void BeginGuestFrame();
 
-  static void ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
-                                float z);
+  static void ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
+                                u32 stencil);
 
   static void ResolveRenderTarget(u32 flags, u32 dest_texture_va,
                                   u32 dest_level,
@@ -88,7 +88,8 @@ public:
   };
   static RecordingList AcquireRecordingList();
 
-  static bool TakePendingDepthClear(const RecordingList &rec, float &z);
+  static bool TakePendingDepthClear(const RecordingList &rec, float &z,
+                                    u32 &stencil);
 
   static void RequestResize();
 
@@ -255,6 +256,7 @@ struct VideoState {
   GuestTexture *depth_stencil = nullptr;
   u64 depth_clear_serial = 0;
   float depth_clear_z = 0.0f;
+  u32 depth_clear_stencil = 0;
   u32 depth_clear_width = 0;
   u32 depth_clear_height = 0;
 

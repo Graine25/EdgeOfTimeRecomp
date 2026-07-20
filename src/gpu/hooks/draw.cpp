@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <atomic>
+#include <vector>
 #include <map>
 #include <string>
 #include <mutex>
@@ -120,9 +122,10 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
 
   rec.cmd->setFramebuffer(rec.framebuffer);
 
-  if (float clear_z = 0.0f;
-      Video::TakePendingDepthClear(rec, clear_z))
-    rec.cmd->clearDepth(true, clear_z);
+  float clear_z = 0.0f;
+  u32 clear_stencil = 0;
+  if (Video::TakePendingDepthClear(rec, clear_z, clear_stencil))
+    rec.cmd->clearDepthStencil(true, true, clear_z, clear_stencil);
 
   rec.cmd->setPipeline(pipeline);
   rec.cmd->setGraphicsPipelineLayout(layout_obj);

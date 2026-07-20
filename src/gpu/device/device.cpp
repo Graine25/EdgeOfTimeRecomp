@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <set>
 #include <cmath>
 #include <mutex>
@@ -43,6 +44,9 @@
 namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
 }
+
+REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup,
+                     "Present the Nth colour surface of the frame (-1 = off).");
 
 REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup,
                     "TEMP: paint resolve destinations green.");
@@ -542,6 +546,12 @@ void Video::Present(GuestTexture *front_buffer) {
     }
   }
 
+  if (const int pick = REXCVAR_GET(eot_present_surface); pick >= 0) {
+    if (static_cast<u32>(pick) < s.frame_surface_count &&
+        s.frame_surfaces[pick] && s.frame_surfaces[pick]->texture)
+      front_buffer = s.frame_surfaces[pick];
+  }
+
   {
     const GuestTexture *busiest = s.busiest_rt;
     static std::atomic<u32> ticks{0};
@@ -849,7 +859,8 @@ void Video::SetRenderTarget(u32 index, GuestTexture *surface) {
   }
 }
 
-bool Video::TakePendingDepthClear(const RecordingList &rec, float &z) {
+bool Video::TakePendingDepthClear(const RecordingList &rec, float &z,
+                                  u32 &stencil) {
   GuestTexture *surface = rec.depthTarget;
   if (!surface || !surface->texture)
     return false;
@@ -861,6 +872,7 @@ bool Video::TakePendingDepthClear(const RecordingList &rec, float &z) {
     return false;
   surface->depthClearSerial = s.depth_clear_serial;
   z = s.depth_clear_z;
+  stencil = s.depth_clear_stencil;
   return true;
 }
 
@@ -1586,8 +1598,8 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
              src->height, static_cast<u32>(src->format), dest_texture_va);
 }
 
-void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
-                              float z) {
+void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
+                              u32 stencil) {
   if (REXCVAR_GET(eot_protect_resolved))
     return;
   constexpr u32 kClearTarget = 0x1;
@@ -1634,6 +1646,7 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
     auto &st = state();
     ++st.depth_clear_serial;
     st.depth_clear_z = z;
+    st.depth_clear_stencil = (flags & kClearStencil) ? stencil : 0u;
     if (rec.depthTarget) {
       rec.depthTarget->depthClearSerial = st.depth_clear_serial;
       st.depth_clear_width = rec.depthTarget->width;
@@ -1643,7 +1656,7 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va,
       st.depth_clear_height = 0;
     }
     if (rec.depthTarget)
-      rec.cmd->clearDepth(true, z);
+      rec.cmd->clearDepthStencil(true, true, z, st.depth_clear_stencil);
   }
 }
 
