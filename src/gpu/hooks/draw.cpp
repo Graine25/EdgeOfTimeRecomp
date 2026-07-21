@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <set>
@@ -158,8 +159,21 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   Video::NoteReducedViewportDraw(rec, u32(viewport.width),
                                  u32(viewport.height));
   rec.cmd->setViewports(viewport);
-  rec.cmd->setScissors(plume::RenderRect(0, 0, i32(rec.targetWidth),
-                                         i32(rec.targetHeight)));
+  {
+    const u32 tl = eot::mem::try_load<u32>(device_va + kWindowScissorTLOffset);
+    const u32 br = eot::mem::try_load<u32>(device_va + kWindowScissorBROffset);
+    const u32 left = std::min(ScissorX(tl), rec.targetWidth);
+    const u32 top = std::min(ScissorY(tl), rec.targetHeight);
+    const u32 right = std::min(ScissorX(br), rec.targetWidth);
+    const u32 bottom = std::min(ScissorY(br), rec.targetHeight);
+    if (right > left && bottom > top) {
+      rec.cmd->setScissors(plume::RenderRect(i32(left), i32(top), i32(right),
+                                             i32(bottom)));
+    } else {
+      rec.cmd->setScissors(plume::RenderRect(0, 0, i32(rec.targetWidth),
+                                             i32(rec.targetHeight)));
+    }
+  }
 
   if (geometry.hasIndices) {
     rec.cmd->setIndexBuffer(&geometry.indexView);

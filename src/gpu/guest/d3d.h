@@ -131,6 +131,12 @@ inline constexpr u32 kTextureFetchStride = 24;
 
 inline constexpr u32 kViewportOffset = 0x32C8;
 
+inline constexpr u32 kWindowScissorTLOffset = 0x28C4;
+inline constexpr u32 kWindowScissorBROffset = 0x28C8;
+
+inline constexpr u32 ScissorX(u32 packed) { return packed & 0x7FFFu; }
+inline constexpr u32 ScissorY(u32 packed) { return (packed >> 16) & 0x7FFFu; }
+
 inline constexpr u32 kViewportZScaleOffset = 0x2918;
 inline constexpr u32 kViewportZOffsetOffset = 0x291C;
 
