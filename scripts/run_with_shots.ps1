@@ -9,7 +9,8 @@ param(
     [switch] $ProtectResolved,
     [switch] $GreenProbe,
     [switch] $FetchBind,
-    [switch] $SkipClear
+    [switch] $SkipClear,
+    [string[]] $ExtraArgs = @()
 )
 
 Set-StrictMode -Version Latest
@@ -52,6 +53,7 @@ if ($MnkMode) { $args += "--mnk_mode=true" }
 if ($ProtectResolved) { $args += "--eot_protect_resolved=true" }
 if ($GreenProbe) { $args += "--eot_probe_resolve_green=true" }
 if ($SkipClear) { $args += "--eot_skip_clear=true" }
+if ($ExtraArgs.Count -gt 0) { $args += $ExtraArgs }
 
 Write-Host "Launching $exePath"
 Write-Host "  shots -> $OutDir  (every ${Every}s for ${Seconds}s)"

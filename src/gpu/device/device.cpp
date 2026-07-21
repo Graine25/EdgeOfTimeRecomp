@@ -543,6 +543,10 @@ void Video::Present(GuestTexture *front_buffer) {
                  front_draws, s.busiest_rt_draws);
       }
       front_buffer = busiest;
+      if (s.scene_snapshot && s.scene_snapshot->texture &&
+          s.scene_snapshot_serial == s.frame_serial) {
+        front_buffer = s.scene_snapshot.get();
+      }
     }
   }
 
@@ -1467,7 +1471,7 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
       src->height != dest->height) {
     if (ResolveByBlitLocked(s, rec, src, dest)) {
       dest->hasContent = src->hasContent;
-      if (g_blitted.fetch_add(1, std::memory_order_relaxed) == 0) {
+          if (g_blitted.fetch_add(1, std::memory_order_relaxed) == 0) {
         EOT_INFO("[resolve] first converting blit: fmt={} -> fmt={} ({}x{})",
                  static_cast<u32>(src->format), static_cast<u32>(dest->format),
                  dest->width, dest->height);
@@ -1596,6 +1600,50 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
   if (g_resolves.fetch_add(1, std::memory_order_relaxed) == 0)
     EOT_INFO("[resolve] first resolve: {}x{} fmt={} -> 0x{:08X}", src->width,
              src->height, static_cast<u32>(src->format), dest_texture_va);
+}
+
+void Video::NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,
+                                    u32 vp_h) {
+  auto &s = state();
+  GuestTexture *rt = rec.colorTarget;
+  if (!rt || !rt->texture || !s.device)
+    return;
+  if (s.busiest_rt_serial != s.frame_serial || rt != s.busiest_rt)
+    return;
+  if (s.scene_snapshot_serial == s.frame_serial)
+    return;
+  if (!vp_w || !vp_h || vp_w * 2 > rt->width)
+    return;
+  if (rt->drawsThisFrame < 32 || !rt->hasContent)
+    return;
+
+  GuestTexture *snap = s.scene_snapshot.get();
+  if (!snap || snap->width != rt->width || snap->height != rt->height ||
+      snap->format != rt->format) {
+    auto fresh = std::make_unique<GuestTexture>();
+    plume::RenderTextureDesc desc = plume::RenderTextureDesc::Texture2D(
+        rt->width, rt->height, 1, rt->format);
+    desc.flags = plume::RenderTextureFlag::RENDER_TARGET;
+    desc.committed = true;
+    fresh->textureHolder = CreateHostTexture(s.device.get(), desc, "scene snapshot");
+    if (!fresh->textureHolder)
+      return;
+    fresh->texture = fresh->textureHolder.get();
+    fresh->width = rt->width;
+    fresh->height = rt->height;
+    fresh->depth = 1;
+    fresh->mipLevels = 1;
+    fresh->format = rt->format;
+    fresh->desc_flags = desc.flags;
+    fresh->type = ResourceType::RenderTarget;
+    s.scene_snapshot = std::move(fresh);
+    snap = s.scene_snapshot.get();
+  }
+
+  if (!ResolveByBlitLocked(s, const_cast<RecordingList &>(rec), rt, snap))
+    return;
+  snap->hasContent = true;
+  s.scene_snapshot_serial = s.frame_serial;
 }
 
 void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
