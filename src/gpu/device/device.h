@@ -149,6 +149,8 @@ public:
   };
   static BoundStreamInfo BoundStream(u32 stream);
 
+  static void SetImmediateStream(u32 address, u32 stride, u32 size);
+
   struct BoundIndexInfo {
     u32 address = 0;
     u32 size = 0;
@@ -267,6 +269,9 @@ struct VideoState {
 
   GuestTexture *last_drawn_rt[kNumFrames] = {};
   GuestTexture *busiest_rt = nullptr;
+  u32 immediate_address = 0;
+  u32 immediate_stride = 0;
+  u32 immediate_size = 0;
   std::unique_ptr<GuestTexture> scene_snapshot;
   u64 scene_snapshot_serial = 0;
   u32 busiest_rt_draws = 0;

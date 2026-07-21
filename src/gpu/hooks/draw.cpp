@@ -13,6 +13,7 @@
 #include "core/memory_helpers.h"
 #include "gpu/device/device.h"
 #include "gpu/guest/buffers.h"
+#include "gpu/guest/immediate.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/pipeline/constant_buffers.h"
@@ -295,6 +296,7 @@ void LogDrawStats() {
 namespace {
 
 void CountDraw(u32 device_va, bool indexed, const DrawArgs &args) {
+  FlushImmediateVertices();
   auto &counter = indexed ? g_draws.indexed : g_draws.vertices;
   counter.fetch_add(1, std::memory_order_relaxed);
   Classify(device_va, indexed, args);
@@ -312,6 +314,75 @@ void CountDraw(u32 device_va, bool indexed, const DrawArgs &args) {
   }
 }
 
+}
+
+namespace {
+
+struct PendingImmediate {
+  u32 device_va = 0;
+  u32 primitiveType = 0;
+  u32 vertexCount = 0;
+  u32 stride = 0;
+  u32 address = 0;
+};
+std::mutex g_immediate_mutex;
+PendingImmediate g_immediate;
+std::atomic<u32> g_immediate_seen{0};
+std::atomic<u32> g_immediate_issued{0};
+
+}
+
+void NoteImmediateVertices(u32 device_va, u32 primitiveType, u32 vertexCount,
+                           u32 stride, u32 address) {
+  FlushImmediateVertices();
+  if (!device_va || !vertexCount || !stride || !address)
+    return;
+  std::lock_guard lock(g_immediate_mutex);
+  g_immediate = {device_va, primitiveType, vertexCount, stride, address};
+  if (g_immediate_seen.fetch_add(1, std::memory_order_relaxed) < 4) {
+    EOT_INFO("[immediate] BeginVertices prim={} count={} stride={} at 0x{:08X}",
+             primitiveType, vertexCount, stride, address);
+  }
+}
+
+void FlushImmediateVertices() {
+  PendingImmediate pending;
+  {
+    std::lock_guard lock(g_immediate_mutex);
+    if (!g_immediate.address)
+      return;
+    pending = g_immediate;
+    g_immediate = {};
+  }
+
+  Video::SetImmediateStream(pending.address, pending.stride,
+                            pending.vertexCount * pending.stride);
+
+  if (Video::BindDrawFramebuffer() == Video::FramebufferBind::kBound) {
+    PipelineKey key;
+    if (BuildPipelineKeyForCurrentState(pending.device_va, key)) {
+      if (auto *pipeline = GetOrCreatePipeline(key, key.layout)) {
+        DrawArgs args;
+        args.primitiveType = pending.primitiveType;
+        args.vertexCount = pending.vertexCount;
+        IssueDraw(pending.device_va, key, pipeline, false, args);
+        if (g_immediate_issued.fetch_add(1, std::memory_order_relaxed) < 4) {
+          EOT_INFO("[immediate] issued prim={} count={} stride={}",
+                   pending.primitiveType, pending.vertexCount, pending.stride);
+        }
+      }
+    }
+  }
+
+  Video::SetImmediateStream(0, 0, 0);
+}
+
+void LogImmediateStats() {
+  const u32 seen = g_immediate_seen.load();
+  if (!seen)
+    return;
+  EOT_INFO("[immediate] {} BeginVertices allocations, {} issued as draws", seen,
+           g_immediate_issued.load());
 }
 
 void NoteFrameStartForDraws() {
@@ -341,4 +412,15 @@ REX_HOOK_RAW(D3DDevice_DrawIndexedVertices) {
   args.indexCount = ctx.r7.u32;
   __imp__D3DDevice_DrawIndexedVertices(ctx, base);
   eot::gpu::CountDraw(device_va, true, args);
+}
+
+REX_EXTERN(__imp__D3DDevice_BeginVertices);
+REX_HOOK_RAW(D3DDevice_BeginVertices) {
+  const u32 device_va = ctx.r3.u32;
+  const u32 primitive_type = ctx.r4.u32;
+  const u32 vertex_count = ctx.r5.u32;
+  const u32 stride = ctx.r6.u32;
+  __imp__D3DDevice_BeginVertices(ctx, base);
+  eot::gpu::NoteImmediateVertices(device_va, primitive_type, vertex_count,
+                                  stride, ctx.r3.u32);
 }

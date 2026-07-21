@@ -8,6 +8,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gpu/device/device.h"
+#include "gpu/guest/immediate.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/guest/resources.h"
@@ -22,6 +23,7 @@ REX_HOOK_RAW(D3DDevice_ClearF) {
   const u32 color_va = ctx.r6.u32;
   const float z = static_cast<float>(ctx.f1.f64);
   const u32 stencil = ctx.r7.u32;
+  eot::gpu::FlushImmediateVertices();
   eot::gpu::Video::BeginGuestFrame();
   eot::gpu::NoteFrameStartForDraws();
   eot::gpu::Video::ClearBoundTargets(ctx.r3.u32, flags, color_va, z, stencil);
@@ -30,6 +32,7 @@ REX_HOOK_RAW(D3DDevice_ClearF) {
 
 REX_HOOK_RAW(D3DDevice_Swap) {
   (void)base;
+  eot::gpu::FlushImmediateVertices();
   auto *front_buffer = eot::gpu::ResolveGuestSurface(ctx.r4.u32);
   if (!front_buffer)
     front_buffer = eot::gpu::FindOrBuildNativeTexture(ctx.r4.u32);
@@ -57,6 +60,8 @@ REX_HOOK_RAW(D3DDevice_Resolve) {
     region.destX = static_cast<i32>(eot::mem::try_load<u32>(dest_point_va));
     region.destY = static_cast<i32>(eot::mem::try_load<u32>(dest_point_va + 4));
   }
+
+  eot::gpu::FlushImmediateVertices();
 
   __imp__D3DDevice_Resolve(ctx, base);
   eot::gpu::Video::ResolveRenderTarget(flags, dest_texture_va, dest_level,

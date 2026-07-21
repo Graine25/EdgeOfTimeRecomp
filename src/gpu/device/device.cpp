@@ -1091,12 +1091,26 @@ u32 Video::AcquireSamplerDescriptor(const plume::RenderSamplerDesc &desc) {
   return slot;
 }
 
+void Video::SetImmediateStream(u32 address, u32 stride, u32 size) {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  s.immediate_address = address;
+  s.immediate_stride = stride;
+  s.immediate_size = size;
+}
+
 Video::BoundStreamInfo Video::BoundStream(u32 stream) {
   BoundStreamInfo out;
   if (stream >= kMaxStreamSources)
     return out;
   auto &s = state();
   std::lock_guard lock(s.mutex);
+  if (stream == 0 && s.immediate_address) {
+    out.address = s.immediate_address;
+    out.stride = s.immediate_stride;
+    out.size = s.immediate_size;
+    return out;
+  }
   const VideoState::StreamSource &src = s.streams[stream];
   if (!src.buffer)
     return out;
