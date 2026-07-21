@@ -45,6 +45,8 @@ namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
 }
 
+REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup, "Sync frames to display");
+
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup, "Present the Nth surface");
 
 REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup, "Paint resolves green (test)");
@@ -373,6 +375,8 @@ bool Video::CreateSwapChain(rex::ui::Window *window) {
     EOT_ERROR("Plume createSwapChain failed");
     return false;
   }
+  s.swap_chain->setVsyncEnabled(REXCVAR_GET(eot_vsync));
+  s.vsync_enabled = REXCVAR_GET(eot_vsync);
   if (!BuildFramebuffers(s) || !BuildPresentSemaphores(s))
     return false;
   if (!BuildBlitPipelineLocked(s))
@@ -705,6 +709,10 @@ void Video::Present(GuestTexture *front_buffer) {
                                s.fences[cur].get());
   s.command_list_submitted[cur] = true;
 
+  if (const bool want = REXCVAR_GET(eot_vsync); want != s.vsync_enabled) {
+    s.swap_chain->setVsyncEnabled(want);
+    s.vsync_enabled = want;
+  }
   if (!s.swap_chain->present(texture_index, signals, 1))
     CheckDeviceRemoved("swapchain present");
 
