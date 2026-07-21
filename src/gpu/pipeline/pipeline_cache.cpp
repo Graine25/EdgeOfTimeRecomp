@@ -146,6 +146,7 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
                   (u64(out.stencilRefMask) << 24) ^
                   (u64(out.polyOffsetScale) << 4) ^ u64(out.polyOffsetBias);
   out.blendControl = blend_control;
+  out.colorControl = color_control;
   out.depthControl = depth_control;
   out.modeControl = mem::try_load<u32>(device_va + kModeControlOffset);
   out.colorMask = mem::try_load<u32>(device_va + kColorMaskOffset);
@@ -370,6 +371,12 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
     desc.depthWriteEnabled = dc.z_write_enable != 0;
     desc.depthFunction = ConvertCompareFunction(dc.zfunc, key.reverseZ);
   }
+  {
+    const rex::graphics::reg::RB_COLORCONTROL cc{key.colorControl};
+    desc.alphaToCoverageEnabled =
+        cc.alpha_to_mask_enable != 0 && key.sampleCount > 1;
+  }
+
   if (key.renderTargetFormat != plume::RenderFormat::UNKNOWN) {
     desc.renderTargetFormat[0] = key.renderTargetFormat;
     desc.renderTargetBlend[0] = ConvertBlend(key.blendControl);

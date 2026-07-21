@@ -25,6 +25,7 @@ struct PipelineKey {
 
   u32 blendControl = 0;
 
+  u32 colorControl = 0;
   u32 modeControl = 0;
   u32 colorMask = 0xFu;
   u32 stencilRefMask = 0;
