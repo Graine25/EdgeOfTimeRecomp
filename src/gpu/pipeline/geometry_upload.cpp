@@ -247,7 +247,8 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
 
   u32 first_needed = firstVertex;
   u32 needed_count = vertexCount;
-  std::vector<u32> guest_indices;
+  static thread_local std::vector<u32> guest_indices;
+  guest_indices.clear();
   if (indexed) {
     const auto ib = Video::BoundIndexBuffer();
     const u32 unit = ib.index32 ? 4u : 2u;
@@ -259,12 +260,20 @@ bool UploadDrawGeometry(const InputLayout &layout, u32 firstVertex,
     const u32 avail = (ib.size - ib_first) / unit;
     const u32 count = std::min(indexCount, avail);
     guest_indices.resize(count);
+    const u8 *ib_base = mem::try_at<const u8>(ib.address + ib_first);
+    if (!ib_base ||
+        !mem::try_at<const u8>(ib.address + ib_first + count * unit - 1)) {
+      g_no_indices.fetch_add(1, std::memory_order_relaxed);
+      return false;
+    }
     const u32 kRestart = ib.index32 ? 0xFFFFFFFFu : 0xFFFFu;
     u32 lo = ~0u, hi = 0;
     u32 restarts = 0;
     for (u32 k = 0; k < count; ++k) {
-      const u32 at = ib.address + ib_first + k * unit;
-      const u32 v = ib.index32 ? mem::try_load<u32>(at) : mem::try_load<u16>(at);
+      const u32 v =
+          ib.index32
+              ? u32(*reinterpret_cast<const be<u32> *>(ib_base + k * 4))
+              : u32(*reinterpret_cast<const be<u16> *>(ib_base + k * 2));
       if (v == kRestart) {
         guest_indices[k] = kRestartIndex;
         ++restarts;
