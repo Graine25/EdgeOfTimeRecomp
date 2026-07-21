@@ -1,8 +1,4 @@
-#include <algorithm>
 #include <atomic>
-#include <vector>
-#include <map>
-#include <string>
 #include <mutex>
 #include <set>
 
@@ -81,12 +77,32 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
                             vs->shaderCacheEntry->uses_float_constants == 0;
   const auto target = Video::BoundAttachmentSize();
 
+  plume::RenderViewport viewport(0.0f, 0.0f, float(target.width),
+                                 float(target.height));
+  {
+    const u32 at = device_va + kViewportOffset;
+    const float x = eot::mem::try_load<float>(at);
+    const float y = eot::mem::try_load<float>(at + 4);
+    const float w = eot::mem::try_load<float>(at + 8);
+    const float h = eot::mem::try_load<float>(at + 12);
+    const float min_z = eot::mem::try_load<float>(at + 16);
+    const float max_z = eot::mem::try_load<float>(at + 20);
+    if (w > 0.0f && h > 0.0f && x >= 0.0f && y >= 0.0f &&
+        x + w <= float(target.width) + 1.0f &&
+        y + h <= float(target.height) + 1.0f) {
+      viewport = plume::RenderViewport(x, y, w, h, min_z, max_z);
+    }
+  }
+
+  const u32 space_w = u32(viewport.width);
+  const u32 space_h = u32(viewport.height);
+
   DrawGeometry geometry;
   if (!UploadDrawGeometry(key.layout, indexed ? 0 : args.startVertex,
                           args.vertexCount, indexed, args.startIndex,
                           args.indexCount, args.baseVertexIndex,
-                          args.primitiveType, window_space, target.width,
-                          target.height, geometry)) {
+                          args.primitiveType, window_space, space_w, space_h,
+                          geometry)) {
     g_no_geometry.fetch_add(1, std::memory_order_relaxed);
     return;
   }
@@ -139,22 +155,8 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   rec.cmd->setGraphicsRootDescriptor(cb.shared.ref, 2);
   rec.cmd->setVertexBuffers(0, geometry.vertexViews, geometry.vertexBufferCount,
                             geometry.vertexSlots);
-  plume::RenderViewport viewport(0.0f, 0.0f, float(rec.targetWidth),
-                                 float(rec.targetHeight));
-  {
-    const u32 at = device_va + kViewportOffset;
-    const float x = eot::mem::try_load<float>(at);
-    const float y = eot::mem::try_load<float>(at + 4);
-    const float w = eot::mem::try_load<float>(at + 8);
-    const float h = eot::mem::try_load<float>(at + 12);
-    const float min_z = eot::mem::try_load<float>(at + 16);
-    const float max_z = eot::mem::try_load<float>(at + 20);
-    if (w > 0.0f && h > 0.0f && x >= 0.0f && y >= 0.0f &&
-        x + w <= float(rec.targetWidth) + 1.0f &&
-        y + h <= float(rec.targetHeight) + 1.0f) {
-      viewport = plume::RenderViewport(x, y, w, h, min_z, max_z);
-    }
-  }
+  Video::NoteReducedViewportDraw(rec, u32(viewport.width),
+                                 u32(viewport.height));
   rec.cmd->setViewports(viewport);
   rec.cmd->setScissors(plume::RenderRect(0, 0, i32(rec.targetWidth),
                                          i32(rec.targetHeight)));

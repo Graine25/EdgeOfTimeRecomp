@@ -91,6 +91,9 @@ public:
   static bool TakePendingDepthClear(const RecordingList &rec, float &z,
                                     u32 &stencil);
 
+  static void NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,
+                                      u32 vp_h);
+
   static void RequestResize();
 
   static u32 OutputWidth();
@@ -264,6 +267,8 @@ struct VideoState {
 
   GuestTexture *last_drawn_rt[kNumFrames] = {};
   GuestTexture *busiest_rt = nullptr;
+  std::unique_ptr<GuestTexture> scene_snapshot;
+  u64 scene_snapshot_serial = 0;
   u32 busiest_rt_draws = 0;
   u64 busiest_rt_serial = 0;
   u32 frame_draw_total = 0;
