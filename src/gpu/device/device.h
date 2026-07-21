@@ -269,6 +269,7 @@ struct VideoState {
 
   GuestTexture *last_drawn_rt[kNumFrames] = {};
   GuestTexture *busiest_rt = nullptr;
+  bool vsync_enabled = true;
   u32 immediate_address = 0;
   u32 immediate_stride = 0;
   u32 immediate_size = 0;
