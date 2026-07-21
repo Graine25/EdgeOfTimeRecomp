@@ -16,6 +16,7 @@
  *            See LICENSE file in the project root for full license text.
  */
 #include <cstring>
+#include <algorithm>
 #include <mutex>
 #include <unordered_set>
 
@@ -327,6 +328,16 @@ u32 D3DTexture_GetSurfaceLevel_hook(u32 texture_guest, u32 level) {
   eot::gpu::InitResourceHeader(surf->resource, eot::gpu::D3DResourceType::kSurface);
   surf->SurfaceInfo = texture_guest;
   surf->DepthInfo = level << 28;
+  if (auto *parent =
+          eot::gpu::HostResourceHeap::FromGuest<eot::gpu::GuestTexture>(
+              texture_guest)) {
+    const u32 w = parent->width > level ? std::max(parent->width >> level, 1u)
+                                        : 1u;
+    const u32 h = parent->height > level ? std::max(parent->height >> level, 1u)
+                                         : 1u;
+    surf->SizeBits = ((w - 1u) << 18) | ((h - 1u) << 3);
+    surf->Format = parent->guestFormat;
+  }
   if (auto *parent = eot::mem::at<eot::gpu::D3DResource>(texture_guest)) {
     parent->ReferenceCount = u32(parent->ReferenceCount) + 1;
   }
