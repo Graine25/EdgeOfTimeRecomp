@@ -869,7 +869,7 @@ void Video::SetRenderTarget(u32 index, GuestTexture *surface) {
 }
 
 bool Video::TakePendingDepthClear(const RecordingList &rec, float &z,
-                                  u32 &stencil) {
+                                  u32 &stencil, bool &clear_depth) {
   GuestTexture *surface = rec.depthTarget;
   if (!surface || !surface->texture)
     return false;
@@ -886,6 +886,7 @@ bool Video::TakePendingDepthClear(const RecordingList &rec, float &z,
   surface->depthClearSerial = s.depth_clear_serial;
   z = s.depth_clear_z;
   stencil = s.depth_clear_stencil;
+  clear_depth = s.depth_clear_depth_aspect;
   return true;
 }
 
@@ -1713,11 +1714,14 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
     rec.cmd->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2],
                                               rgba[3]));
   }
-  if (flags & kClearDepth) {
+  const bool want_depth = (flags & kClearDepth) != 0;
+  const bool want_stencil = (flags & kClearStencil) != 0;
+  if (want_depth || want_stencil) {
     auto &st = state();
     ++st.depth_clear_serial;
     st.depth_clear_z = z;
-    st.depth_clear_stencil = (flags & kClearStencil) ? stencil : 0u;
+    st.depth_clear_stencil = want_stencil ? stencil : 0u;
+    st.depth_clear_depth_aspect = want_depth;
     if (rec.depthTarget) {
       rec.depthTarget->depthClearSerial = st.depth_clear_serial;
       st.depth_clear_width = rec.depthTarget->width;
@@ -1728,8 +1732,9 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
       st.depth_clear_height = 0;
       st.depth_clear_edram = ~0u;
     }
-    if (rec.depthTarget)
-      rec.cmd->clearDepthStencil(true, true, z, st.depth_clear_stencil);
+    if (rec.depthTarget) {
+      rec.cmd->clearDepthStencil(want_depth, true, z, st.depth_clear_stencil);
+    }
   }
 }
 
