@@ -142,8 +142,9 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
 
   float clear_z = 0.0f;
   u32 clear_stencil = 0;
-  if (Video::TakePendingDepthClear(rec, clear_z, clear_stencil))
-    rec.cmd->clearDepthStencil(true, true, clear_z, clear_stencil);
+  bool clear_depth = true;
+  if (Video::TakePendingDepthClear(rec, clear_z, clear_stencil, clear_depth))
+    rec.cmd->clearDepthStencil(clear_depth, true, clear_z, clear_stencil);
 
   rec.cmd->setPipeline(pipeline);
   rec.cmd->setGraphicsPipelineLayout(layout_obj);

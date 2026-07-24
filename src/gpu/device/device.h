@@ -89,7 +89,7 @@ public:
   static RecordingList AcquireRecordingList();
 
   static bool TakePendingDepthClear(const RecordingList &rec, float &z,
-                                    u32 &stencil);
+                                    u32 &stencil, bool &clear_depth);
 
   static void NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,
                                       u32 vp_h);
@@ -262,6 +262,7 @@ struct VideoState {
   u64 depth_clear_serial = 0;
   float depth_clear_z = 0.0f;
   u32 depth_clear_stencil = 0;
+  bool depth_clear_depth_aspect = true;
   u32 depth_clear_width = 0;
   u32 depth_clear_height = 0;
   u32 depth_clear_edram = ~0u;
