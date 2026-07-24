@@ -76,6 +76,8 @@ struct GuestTexture {
 
   u64 depthClearSerial = 0;
 
+  u32 edramBase = ~0u;
+
   bool hasContent = false;
   bool sawNonZeroSource = false;
   u32 emptyUploadAttempts = 0;

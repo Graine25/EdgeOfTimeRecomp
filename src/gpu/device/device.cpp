@@ -880,9 +880,13 @@ bool Video::TakePendingDepthClear(const RecordingList &rec, float &z,
   auto &s = state();
   if (!s.depth_clear_serial || surface->depthClearSerial == s.depth_clear_serial)
     return false;
-  if (surface->width != s.depth_clear_width ||
-      surface->height != s.depth_clear_height)
+  if (surface->edramBase != ~0u && s.depth_clear_edram != ~0u) {
+    if (surface->edramBase != s.depth_clear_edram)
+      return false;
+  } else if (surface->width != s.depth_clear_width ||
+             surface->height != s.depth_clear_height) {
     return false;
+  }
   surface->depthClearSerial = s.depth_clear_serial;
   z = s.depth_clear_z;
   stencil = s.depth_clear_stencil;
@@ -1722,9 +1726,11 @@ void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
       rec.depthTarget->depthClearSerial = st.depth_clear_serial;
       st.depth_clear_width = rec.depthTarget->width;
       st.depth_clear_height = rec.depthTarget->height;
+      st.depth_clear_edram = rec.depthTarget->edramBase;
     } else {
       st.depth_clear_width = 0;
       st.depth_clear_height = 0;
+      st.depth_clear_edram = ~0u;
     }
     if (rec.depthTarget)
       rec.cmd->clearDepthStencil(true, true, z, st.depth_clear_stencil);
