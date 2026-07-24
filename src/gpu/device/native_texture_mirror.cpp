@@ -854,7 +854,14 @@ GuestTexture *ResolveGuestSurface(u32 surface_va) {
     return owned;
   std::lock_guard lock(g_mutex);
   auto it = g_mirrors.find(surface_va);
-  return it == g_mirrors.end() ? nullptr : it->second.get();
+  if (it == g_mirrors.end())
+    return nullptr;
+  GuestTexture *tex = it->second.get();
+  if (tex && tex->edramBase == ~0u) {
+    if (const auto *hdr = mem::try_at<const D3DSurface>(surface_va))
+      tex->edramBase = u32(hdr->DepthInfo) & 0xFFFu;
+  }
+  return tex;
 }
 
 }

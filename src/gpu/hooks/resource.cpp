@@ -18,6 +18,7 @@
 #include <cstring>
 #include <algorithm>
 #include <mutex>
+#include <set>
 #include <unordered_set>
 
 #include <rex/hook.h>
@@ -73,7 +74,7 @@ u32 ReleaseSurfaceLevel(rex::MappedPtr<eot::gpu::D3DResource> res) {
 eot::gpu::GuestTexture *D3DDevice_CreateSurface_hook(u32 width, u32 height,
                                                       u32 format,
                                                       u32 multi_sample,
-                                                      u32) {
+                                                      u32 params_va) {
   const plume::RenderFormat plume_format =
       eot::gpu::ConvertGuestFormat(format);
   const bool is_depth = eot::gpu::IsDepthFormat(plume_format);
@@ -124,6 +125,19 @@ eot::gpu::GuestTexture *D3DDevice_CreateSurface_hook(u32 width, u32 height,
   surface->viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
   surface->sampleCount = desc.multisampling.sampleCount;
   surface->desc_flags = desc.flags;
+
+  auto &hdr = surface->x360.as_surface;
+  hdr.SizeBits = ((width - 1u) << 18) | ((height - 1u) << 3);
+  hdr.Format = format;
+  hdr.Size = 0;
+  if (params_va) {
+    const u32 base = eot::mem::try_load<u32>(params_va) & 0xFFFu;
+    surface->edramBase = base;
+    hdr.DepthInfo = (u32(hdr.DepthInfo) & 0xFFFFF000u) | base;
+    hdr.HiControl = eot::mem::try_load<u32>(params_va + 4);
+  }
+  hdr.resource.Common =
+      u32(hdr.resource.Common) | 0x100000u | (params_va ? 0x80000000u : 0u);
   return surface;
 }
 
