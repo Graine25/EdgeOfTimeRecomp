@@ -8,6 +8,7 @@
 namespace eot::gpu {
 
 struct GuestTextureFetch {
+  i32 expAdjust = 0;
   u32 baseAddress = 0;
   bool physicalAddress = false;
   u32 mipAddress = 0;

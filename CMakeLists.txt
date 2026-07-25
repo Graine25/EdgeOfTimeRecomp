@@ -18,6 +18,7 @@ add_subdirectory(thirdparty)
 
 reeot_host_shader(present_blit_vs vs_6_0)
 reeot_host_shader(present_blit_ps ps_6_0)
+reeot_host_shader(resolve_blit_ps ps_6_0)
 
 #
 set(REEOT_SHADER_PAK_DIR

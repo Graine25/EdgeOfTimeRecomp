@@ -40,6 +40,7 @@
 
 #include "src/gpu/shaders/hlsl/present_blit_ps.hlsl.dxil.h"
 #include "src/gpu/shaders/hlsl/present_blit_vs.hlsl.dxil.h"
+#include "src/gpu/shaders/hlsl/resolve_blit_ps.hlsl.dxil.h"
 
 namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
@@ -289,7 +290,10 @@ bool BuildBlitPipelineLocked(VideoState &s) {
   s.blit_ps = s.device->createShader(g_present_blit_ps_dxil,
                                      sizeof(g_present_blit_ps_dxil), "main",
                                      plume::RenderShaderFormat::DXIL);
-  if (!s.blit_vs || !s.blit_ps) {
+  s.resolve_ps = s.device->createShader(g_resolve_blit_ps_dxil,
+                                        sizeof(g_resolve_blit_ps_dxil), "main",
+                                        plume::RenderShaderFormat::DXIL);
+  if (!s.blit_vs || !s.blit_ps || !s.resolve_ps) {
     EOT_ERROR("Present blit: shader creation failed");
     return false;
   }
@@ -324,6 +328,14 @@ bool BuildBlitPipelineLocked(VideoState &s) {
   plume::RenderPipelineLayoutDesc layout_desc;
   layout_desc.descriptorSetDescs = &set_desc;
   layout_desc.descriptorSetDescsCount = 1;
+  plume::RenderPushConstantRange exponent_range;
+  exponent_range.binding = 0;
+  exponent_range.set = 0;
+  exponent_range.offset = 0;
+  exponent_range.size = sizeof(float);
+  exponent_range.stageFlags = plume::RenderShaderStageFlag::PIXEL;
+  layout_desc.pushConstantRanges = &exponent_range;
+  layout_desc.pushConstantRangesCount = 1;
   s.blit_layout = s.device->createPipelineLayout(layout_desc);
   if (!s.blit_layout) {
     EOT_ERROR("Present blit: pipeline layout creation failed");
@@ -1264,7 +1276,8 @@ bool SameFormatFamily(plume::RenderFormat a, plume::RenderFormat b) {
 namespace {
 
 bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
-                         GuestTexture *src, GuestTexture *dest) {
+                         GuestTexture *src, GuestTexture *dest,
+                         float exponent_scale = 1.0f) {
   static std::atomic<u32> reported{0};
   const auto refuse = [&](const char *why) {
     if (reported.fetch_add(1, std::memory_order_relaxed) < 6)
@@ -1284,7 +1297,7 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
     plume::RenderGraphicsPipelineDesc desc;
     desc.pipelineLayout = s.blit_layout.get();
     desc.vertexShader = s.blit_vs.get();
-    desc.pixelShader = s.blit_ps.get();
+    desc.pixelShader = s.resolve_ps.get();
     desc.renderTargetFormat[0] = dest->format;
     desc.renderTargetBlend[0] = plume::RenderBlendDesc::Copy();
     desc.renderTargetCount = 1;
@@ -1350,6 +1363,7 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
   rec.cmd->setFramebuffer(fb);
   rec.cmd->setPipeline(pit->second.get());
   rec.cmd->setGraphicsPipelineLayout(s.blit_layout.get());
+  rec.cmd->setGraphicsPushConstants(0, &exponent_scale, 0, sizeof(float));
   rec.cmd->setGraphicsDescriptorSet(set, 0);
   rec.cmd->setViewports(plume::RenderViewport(0.0f, 0.0f, float(dest->width),
                                               float(dest->height)));
@@ -1401,15 +1415,23 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
     preferred = bound.color;
   }
 
+  float exponent_scale = 1.0f;
   {
     const i32 exp_bias = static_cast<i32>(flags) >> 26;
     if (exp_bias != 0) {
       g_exp_bias.fetch_add(1, std::memory_order_relaxed);
+      i32 adjust = 0;
+      GuestTextureFetch dest_fetch;
+      if (DecodeTextureFetchAt(dest_texture_va + kTextureObjectFetchOffset,
+                               dest_fetch))
+        adjust = dest_fetch.expAdjust;
+      const i32 net = exp_bias + adjust;
+      exponent_scale = std::ldexp(1.0f, net);
       static std::atomic<u32> reported{0};
-      if (reported.fetch_add(1, std::memory_order_relaxed) < 4) {
-        EOT_INFO("[resolve] copy exponent bias {} (flags 0x{:08X}) - decoded, "
-                 "not yet applied",
-                 exp_bias, flags);
+      if (reported.fetch_add(1, std::memory_order_relaxed) < 6) {
+        EOT_INFO("[resolve] copy exponent {} + texture ExpAdjust {} = net {} "
+                 "(x{})",
+                 exp_bias, adjust, net, exponent_scale);
       }
     }
   }
@@ -1493,7 +1515,7 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
 
   if (src->format != dest->format || src->width != dest->width ||
       src->height != dest->height) {
-    if (ResolveByBlitLocked(s, rec, src, dest)) {
+    if (ResolveByBlitLocked(s, rec, src, dest, exponent_scale)) {
       dest->hasContent = src->hasContent;
           if (g_blitted.fetch_add(1, std::memory_order_relaxed) == 0) {
         EOT_INFO("[resolve] first converting blit: fmt={} -> fmt={} ({}x{})",
