@@ -58,6 +58,7 @@ std::atomic<u32> g_with_textures{0};
 std::atomic<u32> g_slot_nonzero{0};
 std::atomic<u32> g_resolve_failed{0};
 std::atomic<u32> g_acquire_failed{0};
+std::atomic<u32> g_substituted{0};
 
 bool CreateChunk(UploadChunk &chunk) {
   auto *device = Video::HostDevice();
@@ -239,6 +240,17 @@ void GatherSharedConstants(u32 device_va, SharedConstants &shared,
       }
       continue;
     }
+    if (tex && tex->sourceSurface) {
+      GuestTexture *link = tex->sourceSurface;
+      if (link->texture &&
+          link->sampleCount == plume::RenderSampleCount::COUNT_1 &&
+          link != Video::BoundColorTexture() &&
+          link != Video::BoundDepthTexture()) {
+        tex = link;
+        g_substituted.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+
     {
       static std::atomic<u32> filled{0}, empty{0};
       (tex->hasContent ? filled : empty).fetch_add(1, std::memory_order_relaxed);
@@ -362,9 +374,9 @@ void LogStats() {
            g_uploads.load(), g_with_textures.load(), g_failed.load(),
            g_unreadable.load());
   EOT_INFO("[constants] sampler slots: {} non-zero, {} unresolved, {} no "
-           "descriptor",
+           "descriptor, {} served by the resolve source",
            g_slot_nonzero.load(), g_resolve_failed.load(),
-           g_acquire_failed.load());
+           g_acquire_failed.load(), g_substituted.load());
   LogTextureFetchCensus();
   LogNativeTextureStats();
 }

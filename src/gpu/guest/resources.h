@@ -78,6 +78,8 @@ struct GuestTexture {
 
   u32 edramBase = ~0u;
 
+  GuestTexture *sourceSurface = nullptr;
+
   bool hasContent = false;
   bool sawNonZeroSource = false;
   u32 emptyUploadAttempts = 0;
