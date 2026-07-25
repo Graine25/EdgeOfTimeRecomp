@@ -1,3 +1,5 @@
+#include <array>
+#include <unordered_map>
 #include "gpu/guest/texture_fetch.h"
 
 #include <algorithm>
@@ -98,17 +100,11 @@ u32 PhysicalTextureKey(u32 address, bool already_physical) {
   return (address & kPhysicalMask) + kPageOffset;
 }
 
-bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out) {
-  if (!fetch_va)
+bool DecodeTextureFetchWords(const u32 *words, GuestTextureFetch &out) {
+  if (!words)
     return false;
-
-  const u32 base = fetch_va;
-  u32 words[6];
-  for (u32 i = 0; i < 6; ++i)
-    words[i] = mem::try_load<u32>(base + i * 4);
-
   xenos::xe_gpu_texture_fetch_t fetch;
-  std::memcpy(&fetch, words, sizeof(words));
+  std::memcpy(&fetch, words, 6 * sizeof(u32));
 
   if (fetch.type != xenos::FetchConstantType::kTexture)
     return false;
@@ -183,6 +179,91 @@ void LogTextureFetchCensus() {
     EOT_INFO("[texfetch]   fmt={} {}x{} - {} binds", format, width, height,
              ranked[i].second);
   }
+}
+
+bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out) {
+  if (!fetch_va)
+    return false;
+  u32 words[6];
+  for (u32 i = 0; i < 6; ++i)
+    words[i] = mem::try_load<u32>(fetch_va + i * 4);
+  return DecodeTextureFetchWords(words, out);
+}
+
+namespace {
+
+std::mutex g_canonical_mutex;
+std::unordered_map<u32, std::array<u32, 6>> g_canonical;
+std::atomic<u32> g_canon_registered{0};
+std::atomic<u32> g_canon_served{0};
+std::atomic<u32> g_canon_missed{0};
+
+bool ReadFetchWords(u32 fetch_va, std::array<u32, 6> &out) {
+  if (!fetch_va)
+    return false;
+  for (u32 i = 0; i < 6; ++i)
+    out[i] = mem::try_load<u32>(fetch_va + i * 4);
+  return out[0] != 0 || out[1] != 0 || out[2] != 0;
+}
+
+}
+
+void RegisterCanonicalTexture(u32 texture_va, bool replace) {
+  if (texture_va < 0x1000)
+    return;
+  std::array<u32, 6> words{};
+  if (!ReadFetchWords(texture_va + kTextureObjectFetchOffset, words))
+    return;
+  std::lock_guard lock(g_canonical_mutex);
+  auto it = g_canonical.find(texture_va);
+  if (it == g_canonical.end() || replace) {
+    g_canonical[texture_va] = words;
+    g_canon_registered.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
+void RegisterCanonicalTexturePool(u32 record_va) {
+  if (record_va < 0x1000)
+    return;
+  for (u32 i = 0; i < 35; ++i)
+    RegisterCanonicalTexture(record_va + 0x10 + i * 0x34, true);
+}
+
+void RetireCanonicalTexture(u32 texture_va) {
+  std::lock_guard lock(g_canonical_mutex);
+  g_canonical.erase(texture_va);
+}
+
+bool DecodeTextureObjectFetch(u32 texture_va, GuestTextureFetch &out) {
+  if (!texture_va)
+    return false;
+  const u32 fetch_va = texture_va + kTextureObjectFetchOffset;
+
+  std::array<u32, 6> canonical{};
+  {
+    std::lock_guard lock(g_canonical_mutex);
+    auto it = g_canonical.find(texture_va);
+    if (it == g_canonical.end()) {
+      g_canon_missed.fetch_add(1, std::memory_order_relaxed);
+      return DecodeTextureFetchAt(fetch_va, out);
+    }
+    canonical = it->second;
+  }
+
+  std::array<u32, 6> live{};
+  if (ReadFetchWords(fetch_va, live)) {
+    canonical[1] = (canonical[1] & 0xFFFu) | (live[1] & 0xFFFFF000u);
+    canonical[5] = (canonical[5] & 0xFFFu) | (live[5] & 0xFFFFF000u);
+  }
+  g_canon_served.fetch_add(1, std::memory_order_relaxed);
+  return DecodeTextureFetchWords(canonical.data(), out);
+}
+
+void LogCanonicalTextureStats() {
+  EOT_INFO("[canon] {} texture objects registered; {} fetches served from the "
+           "canonical header, {} decoded live",
+           g_canon_registered.load(), g_canon_served.load(),
+           g_canon_missed.load());
 }
 
 }

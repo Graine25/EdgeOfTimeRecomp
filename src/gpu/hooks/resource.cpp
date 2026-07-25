@@ -35,6 +35,7 @@
 #include "gpu/device/texture_upload.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/guest/d3d.h"
+#include "gpu/guest/texture_fetch.h"
 #include "gpu/guest/format.h"
 
 namespace {
@@ -395,5 +396,6 @@ REX_HOOK_RAW(eot_RenderTargetResource_PopulateHeaders) {
   const u32 record = ctx.r3.u32;
   __imp__eot_RenderTargetResource_PopulateHeaders(ctx, base);
   eot::gpu::RegisterSurfacePool(record);
+  eot::gpu::RegisterCanonicalTexturePool(record);
 }
 REX_HOOK(D3D_DestroyResource, D3D_DestroyResource_hook);
