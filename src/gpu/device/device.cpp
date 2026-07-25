@@ -46,6 +46,8 @@ namespace plume {
 extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
 }
 
+REXCVAR_DEFINE_BOOL(eot_preserve_aspect, true, kCvarGroup, "Letterbox instead of stretch");
+
 REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup, "Sync frames to display");
 
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup, "Present the Nth surface");
@@ -690,10 +692,27 @@ void Video::Present(GuestTexture *front_buffer) {
     const u32 w = s.swap_chain->getWidth();
     const u32 h = s.swap_chain->getHeight();
     cmd->setFramebuffer(back_fb);
+
+    float vx = 0.0f, vy = 0.0f, vw = float(w), vh = float(h);
+    if (REXCVAR_GET(eot_preserve_aspect) && front_buffer->width &&
+        front_buffer->height && w && h) {
+      const float want = float(front_buffer->width) /
+                         float(front_buffer->height);
+      const float have = float(w) / float(h);
+      if (have > want) {
+        vw = float(h) * want;
+        vx = (float(w) - vw) * 0.5f;
+      } else if (have < want) {
+        vh = float(w) / want;
+        vy = (float(h) - vh) * 0.5f;
+      }
+      if (vx > 0.5f || vy > 0.5f)
+        cmd->clearColor(0, plume::RenderColor(0.0f, 0.0f, 0.0f, 1.0f));
+    }
     cmd->setPipeline(s.blit_pipeline.get());
     cmd->setGraphicsPipelineLayout(s.blit_layout.get());
     cmd->setGraphicsDescriptorSet(blit_set, 0);
-    cmd->setViewports(plume::RenderViewport(0.0f, 0.0f, float(w), float(h)));
+    cmd->setViewports(plume::RenderViewport(vx, vy, vw, vh));
     cmd->setScissors(
         plume::RenderRect(0, 0, static_cast<i32>(w), static_cast<i32>(h)));
     cmd->drawInstanced(3, 1, 0, 0);
