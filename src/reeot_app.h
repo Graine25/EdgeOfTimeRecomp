@@ -42,6 +42,7 @@ class ReeotApp : public rex::ReXApp {
     eot::gpu::LogBufferStats();
     eot::gpu::LogDrawStats();
     eot::gpu::LogImmediateStats();
+    eot::gpu::LogCanonicalTextureStats();
     eot::gpu::LogPipelineStats();
     eot::gpu::LogVertexLayoutStats();
     eot::gpu::LogTextureUploadStats();

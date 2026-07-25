@@ -157,7 +157,7 @@ GuestTexture *BuildLocked(u32 surface_va, u32 width, u32 height,
   g_mirrors[surface_va] = std::move(mirror);
 
   GuestTextureFetch self;
-  if (DecodeTextureFetchAt(surface_va + kTextureObjectFetchOffset, self) &&
+  if (DecodeTextureObjectFetch(surface_va, self) &&
       self.baseAddress) {
     const u32 key = PhysicalTextureKey(self.baseAddress, self.physicalAddress);
     g_surface_by_base[key] = raw;
@@ -674,7 +674,7 @@ GuestTexture *FindOrBuildNativeTexture(u32 texture_va) {
     return it->second.get();
 
   GuestTextureFetch fetch;
-  if (!DecodeTextureFetchAt(texture_va + kTextureObjectFetchOffset, fetch)) {
+  if (!DecodeTextureObjectFetch(texture_va, fetch)) {
     g_native_undescribed.fetch_add(1, std::memory_order_relaxed);
     return nullptr;
   }

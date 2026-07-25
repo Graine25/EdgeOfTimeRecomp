@@ -525,8 +525,7 @@ void Video::Present(GuestTexture *front_buffer) {
 
   if (front_buffer && !front_buffer->hasContent && front_buffer->selfVa) {
     GuestTextureFetch fetch;
-    if (DecodeTextureFetchAt(front_buffer->selfVa + kTextureObjectFetchOffset,
-                             fetch) &&
+    if (DecodeTextureObjectFetch(front_buffer->selfVa, fetch) &&
         fetch.baseAddress) {
       if (GuestTexture *twin = ResolveMirrorByAddress(fetch.baseAddress);
           twin && twin != front_buffer && twin->texture && twin->hasContent) {
@@ -628,8 +627,7 @@ void Video::Present(GuestTexture *front_buffer) {
     ++reported_count;
     if (front_buffer && front_buffer->selfVa) {
       GuestTextureFetch ff;
-      DecodeTextureFetchAt(front_buffer->selfVa + kTextureObjectFetchOffset,
-                           ff);
+      DecodeTextureObjectFetch(front_buffer->selfVa, ff);
       EOT_INFO("[present] front va=0x{:08X} base=0x{:08X} page=0x{:X}",
                front_buffer->selfVa, ff.baseAddress, ff.baseAddress >> 12);
     }
@@ -1447,8 +1445,7 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
       g_exp_bias.fetch_add(1, std::memory_order_relaxed);
       i32 adjust = 0;
       GuestTextureFetch dest_fetch;
-      if (DecodeTextureFetchAt(dest_texture_va + kTextureObjectFetchOffset,
-                               dest_fetch))
+      if (DecodeTextureObjectFetch(dest_texture_va, dest_fetch))
         adjust = dest_fetch.expAdjust;
       const i32 net = exp_bias + adjust;
       exponent_scale = std::ldexp(1.0f, net);
@@ -1463,14 +1460,13 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
 
   GuestTextureFetch dest_fetch;
   const bool have_dest_fetch =
-      DecodeTextureFetchAt(dest_texture_va + kTextureObjectFetchOffset,
-                           dest_fetch) &&
+      DecodeTextureObjectFetch(dest_texture_va, dest_fetch) &&
       dest_fetch.baseAddress != 0;
 
   GuestTexture *dest = ResolveGuestSurface(dest_texture_va);
   if (!dest) {
     GuestTextureFetch df;
-    if (DecodeTextureFetchAt(dest_texture_va + kTextureObjectFetchOffset, df) &&
+    if (DecodeTextureObjectFetch(dest_texture_va, df) &&
         df.baseAddress) {
       dest = FindOrBuildNativeTextureFromFetch(df, preferred);
     }

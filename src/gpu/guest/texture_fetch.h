@@ -37,6 +37,18 @@ bool DecodeTextureFetch(u32 device_va, u32 sampler, GuestTextureFetch &out);
 
 bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out);
 
+bool DecodeTextureFetchWords(const u32 *words, GuestTextureFetch &out);
+
+void RegisterCanonicalTexture(u32 texture_va, bool replace);
+
+void RegisterCanonicalTexturePool(u32 record_va);
+
+void RetireCanonicalTexture(u32 texture_va);
+
+bool DecodeTextureObjectFetch(u32 texture_va, GuestTextureFetch &out);
+
+void LogCanonicalTextureStats();
+
 plume::RenderFormat HostFormatForTextureFormat(
     rex::graphics::xenos::TextureFormat format);
 
