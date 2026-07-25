@@ -64,6 +64,6 @@ REX_HOOK_RAW(D3DDevice_Resolve) {
   eot::gpu::FlushImmediateVertices();
 
   __imp__D3DDevice_Resolve(ctx, base);
-  eot::gpu::Video::ResolveRenderTarget(flags, dest_texture_va, dest_level,
-                                       region);
+  eot::gpu::Video::ResolveRenderTarget(ctx.r3.u32, flags, dest_texture_va,
+                                       dest_level, region);
 }

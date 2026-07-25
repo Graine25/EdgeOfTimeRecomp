@@ -131,6 +131,14 @@ inline constexpr u32 kTextureFetchStride = 24;
 
 inline constexpr u32 kViewportOffset = 0x32C8;
 
+inline constexpr u32 kDestColor0InfoOffset = 0x2884;
+inline constexpr u32 kDestDepthInfoOffset = 0x2888;
+
+inline constexpr u32 DestColorInfoOffset(u32 index) {
+  return index == 0 ? kDestColor0InfoOffset
+                    : kDestDepthInfoOffset + index * 4u;
+}
+
 inline constexpr u32 kWindowScissorTLOffset = 0x28C4;
 inline constexpr u32 kWindowScissorBROffset = 0x28C8;
 

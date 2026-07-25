@@ -1396,20 +1396,22 @@ std::atomic<u32> g_mip_publishes{0};
 std::atomic<u32> g_regional{0};
 std::atomic<u32> g_self_copies{0};
 std::atomic<u32> g_edram_fallbacks{0};
+std::atomic<u32> g_edram_named{0};
 std::atomic<u32> g_exp_bias{0};
 std::atomic<u32> g_front_probe{0};
 }
 
 void Video::LogResolveStats() {
   EOT_INFO("[resolve] {} copies, {} converting blits; skipped: {} no dest, "
-           "{} no source, {} undescribable, {} self-copies; {} EDRAM fallbacks, {} with an exponent bias; {} into a mip above 0",
+           "{} no source, {} undescribable, {} self-copies; {} by EDRAM base, "
+           "{} EDRAM fallbacks, {} with an exponent bias; {} into a mip above 0",
            g_resolves.load(), g_blitted.load(), g_no_dest.load(),
            g_no_src.load(), g_mismatch.load(), g_self_copies.load(),
-           g_edram_fallbacks.load(), g_exp_bias.load(),
+           g_edram_named.load(), g_edram_fallbacks.load(), g_exp_bias.load(),
            g_mip_publishes.load());
 }
 
-void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
+void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u32 dest_level,
                                 const ResolveRegion &region) {
   if (!dest_texture_va)
     return;
@@ -1481,9 +1483,27 @@ void Video::ResolveRenderTarget(u32 flags, u32 dest_texture_va, u32 dest_level,
   else if (source_index < kMaxRenderTargets)
     src = rec.colorTargets[source_index];
 
+  const u32 named_base =
+      mem::try_load<u32>(device_va + (wants_depth
+                                          ? kDestDepthInfoOffset
+                                          : DestColorInfoOffset(source_index))) &
+      0xFFFu;
   const bool src_is_current = src && src->texture &&
                               src->drawnSerial == s.frame_serial;
-  if (!src_is_current) {
+  if (!src_is_current && device_va && !wants_depth) {
+    for (u32 i = 0; i < s.frame_surface_count; ++i) {
+      GuestTexture *cand = s.frame_surfaces[i];
+      if (!cand || !cand->texture || cand->edramBase == ~0u)
+        continue;
+      if (cand->edramBase != named_base ||
+          cand->drawnSerial != s.frame_serial)
+        continue;
+      src = cand;
+      g_edram_named.fetch_add(1, std::memory_order_relaxed);
+      break;
+    }
+  }
+  if (!(src && src->texture && src->drawnSerial == s.frame_serial)) {
     GuestTexture *fallback =
         wants_depth ? s.last_drawn_ds[slot]
                     : (s.busiest_rt ? s.busiest_rt : s.last_drawn_rt[slot]);

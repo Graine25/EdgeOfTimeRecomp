@@ -68,7 +68,7 @@ public:
   static void ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
                                 u32 stencil);
 
-  static void ResolveRenderTarget(u32 flags, u32 dest_texture_va,
+  static void ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va,
                                   u32 dest_level,
                                   const ResolveRegion &region = {});
 
