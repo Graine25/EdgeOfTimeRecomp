@@ -578,7 +578,8 @@ GuestTexture *FindOrBuildNativeTextureFromFetch(
   }
 
   if (auto sit = g_surface_by_base.find(fetch_key);
-      sit != g_surface_by_base.end() && sit->second) {
+      sit != g_surface_by_base.end() && sit->second &&
+      IsDepthFormat(sit->second->format) == IsDepthTextureFormat(fetch.format)) {
     if (g_depth_binds.fetch_add(1, std::memory_order_relaxed) == 0) {
       EOT_INFO("[native] fetch 0x{:08X} ({}x{} fmt={}) resolved to an existing "
                "surface mirror",
