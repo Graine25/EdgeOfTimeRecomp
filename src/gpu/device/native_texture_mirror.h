@@ -28,4 +28,6 @@ void PublishResolvedSurface(u32 base_address, GuestTexture *tex);
 
 GuestTexture *ResolveGuestSurface(u32 surface_va);
 
+void ScrubResolveLinks(GuestTexture *dead);
+
 }

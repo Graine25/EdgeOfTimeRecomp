@@ -1244,6 +1244,7 @@ void Video::NotifyTextureDestroyed(GuestTexture *dead) {
   if (!dead)
     return;
   ForgetTextureUpload(dead);
+  ScrubResolveLinks(dead);
 
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -1254,6 +1255,9 @@ void Video::NotifyTextureDestroyed(GuestTexture *dead) {
   }
   if (s.depth_stencil == dead)
     s.depth_stencil = nullptr;
+  for (auto &entry : s.render_targets)
+    if (entry && entry->sourceSurface == dead)
+      entry->sourceSurface = nullptr;
   if (s.bound_fb_rt == dead || s.bound_fb_ds == dead) {
     s.bound_fb_rt = nullptr;
     s.bound_fb_ds = nullptr;
@@ -1556,6 +1560,8 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
     g_self_copies.fetch_add(1, std::memory_order_relaxed);
     return;
   }
+
+  dest->sourceSurface = src;
 
   if (src->format != dest->format || src->width != dest->width ||
       src->height != dest->height) {

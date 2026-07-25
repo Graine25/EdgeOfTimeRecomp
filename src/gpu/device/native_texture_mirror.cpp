@@ -847,6 +847,18 @@ GuestTexture *ResolveMirrorByAddress(u32 address) {
   return page == g_mirror_by_page.end() ? nullptr : page->second;
 }
 
+void ScrubResolveLinks(GuestTexture *dead) {
+  if (!dead)
+    return;
+  std::lock_guard lock(g_mutex);
+  dead->sourceSurface = nullptr;
+  for (auto &[va, tex] : g_mirrors) {
+    (void)va;
+    if (tex && tex->sourceSurface == dead)
+      tex->sourceSurface = nullptr;
+  }
+}
+
 GuestTexture *ResolveGuestSurface(u32 surface_va) {
   if (!surface_va)
     return nullptr;
