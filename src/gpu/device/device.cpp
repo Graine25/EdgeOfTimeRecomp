@@ -334,7 +334,7 @@ bool BuildBlitPipelineLocked(VideoState &s) {
   exponent_range.binding = 0;
   exponent_range.set = 0;
   exponent_range.offset = 0;
-  exponent_range.size = sizeof(float);
+  exponent_range.size = sizeof(float) * 5;
   exponent_range.stageFlags = plume::RenderShaderStageFlag::PIXEL;
   layout_desc.pushConstantRanges = &exponent_range;
   layout_desc.pushConstantRangesCount = 1;
@@ -1238,6 +1238,8 @@ void Video::NotifyTextureDestroyed(GuestTexture *dead) {
     return;
   ForgetTextureUpload(dead);
   ScrubResolveLinks(dead);
+  if (dead->selfVa)
+    RetireCanonicalTexture(dead->selfVa);
 
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -1298,7 +1300,8 @@ namespace {
 
 bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
                          GuestTexture *src, GuestTexture *dest,
-                         float exponent_scale = 1.0f) {
+                         float exponent_scale = 1.0f,
+                         const ResolveRegion *region = nullptr) {
   static std::atomic<u32> reported{0};
   const auto refuse = [&](const char *why) {
     if (reported.fetch_add(1, std::memory_order_relaxed) < 6)
@@ -1384,7 +1387,14 @@ bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
   rec.cmd->setFramebuffer(fb);
   rec.cmd->setPipeline(pit->second.get());
   rec.cmd->setGraphicsPipelineLayout(s.blit_layout.get());
-  rec.cmd->setGraphicsPushConstants(0, &exponent_scale, 0, sizeof(float));
+  float constants[5] = {exponent_scale, 0.0f, 0.0f, 1.0f, 1.0f};
+  if (region && region->valid && src->width && src->height) {
+    constants[1] = float(region->left) / float(src->width);
+    constants[2] = float(region->top) / float(src->height);
+    constants[3] = float(region->right) / float(src->width);
+    constants[4] = float(region->bottom) / float(src->height);
+  }
+  rec.cmd->setGraphicsPushConstants(0, constants, 0, sizeof(constants));
   rec.cmd->setGraphicsDescriptorSet(set, 0);
   rec.cmd->setViewports(plume::RenderViewport(0.0f, 0.0f, float(dest->width),
                                               float(dest->height)));
@@ -1556,7 +1566,7 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
 
   if (src->format != dest->format || src->width != dest->width ||
       src->height != dest->height) {
-    if (ResolveByBlitLocked(s, rec, src, dest, exponent_scale)) {
+    if (ResolveByBlitLocked(s, rec, src, dest, exponent_scale, &region)) {
       dest->hasContent = src->hasContent;
           if (g_blitted.fetch_add(1, std::memory_order_relaxed) == 0) {
         EOT_INFO("[resolve] first converting blit: fmt={} -> fmt={} ({}x{})",
