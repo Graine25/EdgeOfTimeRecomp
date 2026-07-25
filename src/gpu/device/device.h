@@ -222,6 +222,7 @@ struct VideoState {
 
   std::unique_ptr<plume::RenderShader> blit_vs;
   std::unique_ptr<plume::RenderShader> blit_ps;
+  std::unique_ptr<plume::RenderShader> resolve_ps;
   std::unique_ptr<plume::RenderSampler> blit_sampler;
   std::unique_ptr<plume::RenderPipelineLayout> blit_layout;
   std::unique_ptr<plume::RenderPipeline> blit_pipeline;

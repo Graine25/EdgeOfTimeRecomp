@@ -53,7 +53,7 @@ HostFormatForTextureFormat(xenos::TextureFormat format) {
     return plume::RenderFormat::R8G8B8A8_UNORM;
   case xenos::TextureFormat::k_24_8:
   case xenos::TextureFormat::k_24_8_FLOAT:
-    return plume::RenderFormat::R32_FLOAT;
+    return plume::RenderFormat::R8G8B8A8_UNORM;
   case xenos::TextureFormat::k_16_16_16_16:
     return plume::RenderFormat::R16G16B16A16_UNORM;
   case xenos::TextureFormat::k_16_16_16_16_FLOAT:
@@ -132,6 +132,7 @@ bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out) {
   out.borderWhite = fetch.border_size != 0;
   out.endianness = fetch.endianness;
   out.dimension = fetch.dimension;
+  out.expAdjust = fetch.exp_adjust;
 
   switch (fetch.dimension) {
   case xenos::DataDimension::k1D:
