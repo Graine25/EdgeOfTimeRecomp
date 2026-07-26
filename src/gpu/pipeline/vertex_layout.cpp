@@ -244,6 +244,39 @@ bool CurrentVertexDeclaration(u32 device_va, VertexDeclaration &out) {
   return DecodeVertexDeclaration(decl_va, out);
 }
 
+u32 VertexFormatSize(plume::RenderFormat format) {
+  switch (format) {
+  case plume::RenderFormat::R8_UNORM:
+    return 1;
+  case plume::RenderFormat::R8G8_UNORM:
+  case plume::RenderFormat::R16_UNORM:
+  case plume::RenderFormat::R16_FLOAT:
+    return 2;
+  case plume::RenderFormat::R8G8B8A8_UINT:
+  case plume::RenderFormat::R8G8B8A8_UNORM:
+  case plume::RenderFormat::B8G8R8A8_UNORM:
+  case plume::RenderFormat::R16G16_SINT:
+  case plume::RenderFormat::R16G16_SNORM:
+  case plume::RenderFormat::R16G16_UNORM:
+  case plume::RenderFormat::R16G16_FLOAT:
+  case plume::RenderFormat::R32_UINT:
+  case plume::RenderFormat::R32_FLOAT:
+    return 4;
+  case plume::RenderFormat::R16G16B16A16_SINT:
+  case plume::RenderFormat::R16G16B16A16_SNORM:
+  case plume::RenderFormat::R16G16B16A16_UNORM:
+  case plume::RenderFormat::R16G16B16A16_FLOAT:
+  case plume::RenderFormat::R32G32_FLOAT:
+    return 8;
+  case plume::RenderFormat::R32G32B32_FLOAT:
+    return 12;
+  case plume::RenderFormat::R32G32B32A32_FLOAT:
+    return 16;
+  default:
+    return 0;
+  }
+}
+
 bool BuildInputLayout(const VertexLayout &fetches, const VertexDeclaration &decl,
                       InputLayout &out) {
   out = InputLayout{};

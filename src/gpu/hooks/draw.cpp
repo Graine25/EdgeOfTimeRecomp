@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <atomic>
+#include <string>
+#include <cstdlib>
 #include <mutex>
 #include <set>
 
@@ -20,6 +22,10 @@
 #include "gpu/guest/texture_fetch.h"
 #include "gpu/pipeline/geometry_upload.h"
 #include "gpu/pipeline/pipeline_cache.h"
+
+REXCVAR_DEFINE_BOOL(eot_immediate_draws, false, "gpu",
+                    "Issue geometry from D3DDevice_BeginVertices. Off until "
+                    "its vertex format is recovered - see FlushImmediateVertices.");
 
 namespace eot::gpu {
 
@@ -330,6 +336,7 @@ std::mutex g_immediate_mutex;
 PendingImmediate g_immediate;
 std::atomic<u32> g_immediate_seen{0};
 std::atomic<u32> g_immediate_issued{0};
+std::atomic<u32> g_immediate_unlayouted{0};
 
 }
 
@@ -347,6 +354,11 @@ void NoteImmediateVertices(u32 device_va, u32 primitiveType, u32 vertexCount,
 }
 
 void FlushImmediateVertices() {
+  if (!REXCVAR_GET(eot_immediate_draws)) {
+    std::lock_guard lock(g_immediate_mutex);
+    g_immediate = {};
+    return;
+  }
   PendingImmediate pending;
   {
     std::lock_guard lock(g_immediate_mutex);
@@ -362,6 +374,21 @@ void FlushImmediateVertices() {
   if (Video::BindDrawFramebuffer() == Video::FramebufferBind::kBound) {
     PipelineKey key;
     if (BuildPipelineKeyForCurrentState(pending.device_va, key)) {
+      u32 span = 0;
+      for (u32 e = 0; e < key.layout.count; ++e) {
+        const u32 size = VertexFormatSize(key.layout.elements[e].format);
+        if (!size) {
+          span = ~0u;
+          break;
+        }
+        span = std::max(span, key.layout.elements[e].offset + size);
+      }
+      if (!key.layout.count || span > pending.stride) {
+        g_immediate_unlayouted.fetch_add(1, std::memory_order_relaxed);
+        Video::SetImmediateStream(0, 0, 0);
+        return;
+      }
+
       if (auto *pipeline = GetOrCreatePipeline(key, key.layout)) {
         DrawArgs args;
         args.primitiveType = pending.primitiveType;
@@ -382,8 +409,9 @@ void LogImmediateStats() {
   const u32 seen = g_immediate_seen.load();
   if (!seen)
     return;
-  EOT_INFO("[immediate] {} BeginVertices allocations, {} issued as draws", seen,
-           g_immediate_issued.load());
+  EOT_INFO("[immediate] {} BeginVertices allocations, {} issued as draws, {} "
+           "skipped for a declaration that does not fit the stride",
+           seen, g_immediate_issued.load(), g_immediate_unlayouted.load());
 }
 
 void NoteFrameStartForDraws() {
