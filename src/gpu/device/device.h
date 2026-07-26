@@ -107,6 +107,19 @@ public:
   static void SetVertexShader(GuestShader *shader);
   static void SetPixelShader(GuestShader *shader);
   static GuestShader *BoundVertexShader();
+
+  class ScopedBoundShaders {
+  public:
+    ScopedBoundShaders(GuestShader *vertex, GuestShader *pixel);
+    ~ScopedBoundShaders();
+    ScopedBoundShaders(const ScopedBoundShaders &) = delete;
+    ScopedBoundShaders &operator=(const ScopedBoundShaders &) = delete;
+
+  private:
+    GuestShader *previous_vertex_ = nullptr;
+    GuestShader *previous_pixel_ = nullptr;
+    bool was_active_ = false;
+  };
   static GuestShader *BoundPixelShader();
 
   static void SetStreamSource(u32 stream, GuestBuffer *buffer, u32 offset,
