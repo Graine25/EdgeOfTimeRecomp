@@ -191,6 +191,7 @@ GuestShader *RegisterShaderObject(u32 object_va, ResourceType type,
     return nullptr;
   shader->objectVa = object_va;
   shader->hash = hash;
+  shader->physicalVa = physical_va;
   shader->shaderCacheEntry = entry;
 
   std::lock_guard lock(g_shader_mutex);

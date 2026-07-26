@@ -118,6 +118,7 @@ struct GuestShader {
 
   u32 objectVa = 0;
   u64 hash = 0;
+  u32 physicalVa = 0;
 
   const ShaderCacheEntry *shaderCacheEntry = nullptr;
 
