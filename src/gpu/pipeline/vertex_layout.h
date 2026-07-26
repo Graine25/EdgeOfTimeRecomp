@@ -8,6 +8,8 @@
 
 namespace eot::gpu {
 
+struct GuestShader;
+
 enum class VertexUsage : u32 {
   kPosition = 0,
   kBlendWeight = 1,
@@ -36,6 +38,7 @@ struct VertexFetch {
   u32 usageIndex = 0;
   bool miniFetch = false;
   u32 instructionAddress = 0;
+  u32 parentAddress = 0;
 };
 
 inline constexpr u32 kMaxVertexFetches = 32;
@@ -84,6 +87,10 @@ struct InputLayout {
 };
 
 u32 VertexFormatSize(plume::RenderFormat format);
+
+bool BuildInputLayoutFromMicrocode(const GuestShader &shader,
+                                   const VertexLayout &fetches,
+                                   u32 buffer_stride, InputLayout &out);
 
 bool BuildInputLayout(const VertexLayout &fetches, const VertexDeclaration &decl,
                       InputLayout &out);

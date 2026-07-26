@@ -96,6 +96,7 @@ set(REEOT_SOURCES
     src/gpu/hooks/state.cpp
     src/gpu/hooks/stubs.cpp
     src/gpu/guest/texture_fetch.cpp
+    src/gpu/guest/vfetch_microcode.cpp
     src/gpu/pipeline/constant_buffers.cpp
     src/gpu/pipeline/geometry_upload.cpp
     src/gpu/pipeline/pipeline_cache.cpp

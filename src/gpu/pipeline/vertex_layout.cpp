@@ -1,5 +1,9 @@
 #include "gpu/pipeline/vertex_layout.h"
 
+#include <rex/graphics/xenos.h>
+
+#include "gpu/guest/vfetch_microcode.h"
+
 #include <algorithm>
 #include <atomic>
 #include <mutex>
@@ -16,11 +20,14 @@ namespace eot::gpu {
 
 namespace {
 
+namespace xenos = rex::graphics::xenos;
+
 constexpr u32 kUsageMask = 0xF;
 constexpr u32 kUsageIndexShift = 4;
 constexpr u32 kUsageIndexMask = 0xF;
 constexpr u32 kMiniFetchShift = 8;
 constexpr u32 kInstrAddressMask = 0xFFFF;
+constexpr u32 kParentAddressShift = 16;
 
 std::atomic<u32> g_decls{0};
 std::atomic<u32> g_decl_bad{0};
@@ -122,6 +129,7 @@ bool DecodeVertexLayout(const GuestShader *vs, VertexLayout &out) {
     f.usageIndex = (w0 >> kUsageIndexShift) & kUsageIndexMask;
     f.miniFetch = ((w0 >> kMiniFetchShift) & 1) != 0;
     f.instructionAddress = w1 & kInstrAddressMask;
+    f.parentAddress = (w1 >> kParentAddressShift) & kInstrAddressMask;
   }
   out.count = count;
 
@@ -275,6 +283,82 @@ u32 VertexFormatSize(plume::RenderFormat format) {
   default:
     return 0;
   }
+}
+
+namespace {
+
+plume::RenderFormat HostFormatOf(u32 xenos_format, bool normalized,
+                                 bool is_signed) {
+  using VF = xenos::VertexFormat;
+  using RF = plume::RenderFormat;
+  switch (static_cast<VF>(xenos_format)) {
+  case VF::k_8_8_8_8:
+    return normalized ? RF::R8G8B8A8_UNORM : RF::R8G8B8A8_UINT;
+  case VF::k_2_10_10_10:
+  case VF::k_10_11_11:
+  case VF::k_11_11_10:
+    return RF::R32_UINT;
+  case VF::k_16_16:
+    if (normalized)
+      return is_signed ? RF::R16G16_SNORM : RF::R16G16_UNORM;
+    return RF::R16G16_SINT;
+  case VF::k_16_16_16_16:
+    if (normalized)
+      return is_signed ? RF::R16G16B16A16_SNORM : RF::R16G16B16A16_UNORM;
+    return RF::R16G16B16A16_SINT;
+  case VF::k_16_16_FLOAT:
+    return RF::R16G16_FLOAT;
+  case VF::k_16_16_16_16_FLOAT:
+    return RF::R16G16B16A16_FLOAT;
+  case VF::k_32:
+  case VF::k_32_FLOAT:
+    return RF::R32_FLOAT;
+  case VF::k_32_32:
+  case VF::k_32_32_FLOAT:
+    return RF::R32G32_FLOAT;
+  case VF::k_32_32_32_FLOAT:
+    return RF::R32G32B32_FLOAT;
+  case VF::k_32_32_32_32:
+  case VF::k_32_32_32_32_FLOAT:
+    return RF::R32G32B32A32_FLOAT;
+  default:
+    return RF::UNKNOWN;
+  }
+}
+
+}
+
+bool BuildInputLayoutFromMicrocode(const GuestShader &shader,
+                                   const VertexLayout &fetches,
+                                   u32 buffer_stride, InputLayout &out) {
+  FetchMicrocode decoded[kMaxVertexFetches];
+  u32 microcode_stride = 0;
+  if (!buffer_stride ||
+      !DecodeLayoutFromMicrocode(shader, fetches, decoded, microcode_stride))
+    return false;
+
+  InputLayout built;
+  for (u32 i = 0; i < fetches.count; ++i) {
+    const plume::RenderFormat format = HostFormatOf(
+        decoded[i].format, decoded[i].normalized, decoded[i].signedValue);
+    if (format == plume::RenderFormat::UNKNOWN)
+      return false;
+
+    const u32 size = VertexFormatSize(format);
+    if (!size || decoded[i].offset + size > buffer_stride)
+      return false;
+
+    InputElement &e = built.elements[built.count++];
+    e.usage = fetches.fetches[i].usage;
+    e.usageIndex = fetches.fetches[i].usageIndex;
+    e.stream = 0;
+    e.offset = decoded[i].offset;
+    e.format = format;
+    built.packedNormal |= format == plume::RenderFormat::R32_UINT;
+  }
+
+  out = built;
+  return true;
 }
 
 bool BuildInputLayout(const VertexLayout &fetches, const VertexDeclaration &decl,

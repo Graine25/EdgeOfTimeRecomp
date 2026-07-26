@@ -21,9 +21,10 @@
 #include "gpu/pipeline/constant_buffers.h"
 #include "gpu/guest/texture_fetch.h"
 #include "gpu/pipeline/geometry_upload.h"
+#include "gpu/guest/vfetch_microcode.h"
 #include "gpu/pipeline/pipeline_cache.h"
 
-REXCVAR_DEFINE_BOOL(eot_immediate_draws, false, "gpu", "Draw immediate mode geometry");
+REXCVAR_DEFINE_BOOL(eot_immediate_draws, true, "gpu", "Draw immediate mode geometry");
 
 namespace eot::gpu {
 
@@ -329,6 +330,7 @@ struct PendingImmediate {
   u32 vertexCount = 0;
   u32 stride = 0;
   u32 address = 0;
+  GuestShader *shader = nullptr;
 };
 std::mutex g_immediate_mutex;
 PendingImmediate g_immediate;
@@ -344,7 +346,8 @@ void NoteImmediateVertices(u32 device_va, u32 primitiveType, u32 vertexCount,
   if (!device_va || !vertexCount || !stride || !address)
     return;
   std::lock_guard lock(g_immediate_mutex);
-  g_immediate = {device_va, primitiveType, vertexCount, stride, address};
+  g_immediate = {device_va,  primitiveType,           vertexCount,
+                 stride,     address,                 Video::BoundVertexShader()};
   if (g_immediate_seen.fetch_add(1, std::memory_order_relaxed) < 4) {
     EOT_INFO("[immediate] BeginVertices prim={} count={} stride={} at 0x{:08X}",
              primitiveType, vertexCount, stride, address);
@@ -372,17 +375,37 @@ void FlushImmediateVertices() {
   if (Video::BindDrawFramebuffer() == Video::FramebufferBind::kBound) {
     PipelineKey key;
     if (BuildPipelineKeyForCurrentState(pending.device_va, key)) {
-      u32 span = 0;
-      for (u32 e = 0; e < key.layout.count; ++e) {
-        const u32 size = VertexFormatSize(key.layout.elements[e].format);
-        if (!size) {
-          span = ~0u;
-          break;
+      GuestShader *vs = pending.shader;
+      VertexLayout fetches;
+      if (!vs || !DecodeVertexLayout(vs, fetches) ||
+          !BuildInputLayoutFromMicrocode(*vs, fetches, pending.stride,
+                                         key.layout)) {
+        if (g_immediate_unlayouted.fetch_add(1, std::memory_order_relaxed) < 6) {
+          std::string why;
+          if (!vs) {
+            why = "no vertex shader bound";
+          } else {
+            VertexLayout f2;
+            if (!DecodeVertexLayout(vs, f2)) {
+              why = "no fetch records";
+            } else {
+              const u32 micro = MicrocodeAddress(*vs);
+              why = fmt::format("micro{:08X} n{}", micro, f2.count);
+              for (u32 i = 0; i < f2.count; ++i) {
+                const FetchMicrocode d = DecodeFetch(micro, f2.fetches[i]);
+                why += fmt::format(" {}{}[a{} p{}{} off{} strd{} fmt{}]",
+                                   VertexUsageName(f2.fetches[i].usage),
+                                   f2.fetches[i].usageIndex,
+                                   f2.fetches[i].instructionAddress,
+                                   f2.fetches[i].parentAddress,
+                                   f2.fetches[i].miniFetch ? " mini" : "",
+                                   d.offset, d.stride, d.format);
+              }
+            }
+          }
+          EOT_WARN("[immediate] skipped stride={} prim={}: {}", pending.stride,
+                   pending.primitiveType, why);
         }
-        span = std::max(span, key.layout.elements[e].offset + size);
-      }
-      if (!key.layout.count || span > pending.stride) {
-        g_immediate_unlayouted.fetch_add(1, std::memory_order_relaxed);
         Video::SetImmediateStream(0, 0, 0);
         return;
       }
@@ -393,8 +416,16 @@ void FlushImmediateVertices() {
         args.vertexCount = pending.vertexCount;
         IssueDraw(pending.device_va, key, pipeline, false, args);
         if (g_immediate_issued.fetch_add(1, std::memory_order_relaxed) < 4) {
-          EOT_INFO("[immediate] issued prim={} count={} stride={}",
-                   pending.primitiveType, pending.vertexCount, pending.stride);
+          std::string lay;
+          for (u32 e = 0; e < key.layout.count; ++e)
+            lay += fmt::format(" {}{}@{}:{}",
+                               VertexUsageName(key.layout.elements[e].usage),
+                               key.layout.elements[e].usageIndex,
+                               key.layout.elements[e].offset,
+                               u32(key.layout.elements[e].format));
+          EOT_INFO("[immediate] issued prim={} count={} stride={} vs{:08X}:{}",
+                   pending.primitiveType, pending.vertexCount, pending.stride,
+                   vs ? vs->objectVa : 0, lay);
         }
       }
     }
@@ -408,7 +439,7 @@ void LogImmediateStats() {
   if (!seen)
     return;
   EOT_INFO("[immediate] {} BeginVertices allocations, {} issued as draws, {} "
-           "skipped for a declaration that does not fit the stride",
+           "skipped for microcode that does not fit the stride",
            seen, g_immediate_issued.load(), g_immediate_unlayouted.load());
 }
 
