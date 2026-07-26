@@ -83,6 +83,8 @@ struct InputLayout {
   bool packedNormal = false;
 };
 
+u32 VertexFormatSize(plume::RenderFormat format);
+
 bool BuildInputLayout(const VertexLayout &fetches, const VertexDeclaration &decl,
                       InputLayout &out);
 
