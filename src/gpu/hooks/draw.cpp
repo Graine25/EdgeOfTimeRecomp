@@ -334,6 +334,7 @@ struct PendingImmediate {
   u32 stride = 0;
   u32 address = 0;
   GuestShader *shader = nullptr;
+  FetchConstantSnapshot fetches;
 };
 std::mutex g_immediate_mutex;
 PendingImmediate g_immediate;
@@ -349,8 +350,9 @@ void NoteImmediateVertices(u32 device_va, u32 primitiveType, u32 vertexCount,
   if (!device_va || !vertexCount || !stride || !address)
     return;
   std::lock_guard lock(g_immediate_mutex);
-  g_immediate = {device_va,  primitiveType,           vertexCount,
-                 stride,     address,                 Video::BoundVertexShader()};
+  g_immediate = {device_va, primitiveType, vertexCount,
+                 stride,    address,       Video::BoundVertexShader()};
+  CaptureFetchConstants(device_va, g_immediate.fetches);
   if (g_immediate_seen.fetch_add(1, std::memory_order_relaxed) < 4) {
     EOT_INFO("[immediate] BeginVertices prim={} count={} stride={} at 0x{:08X}",
              primitiveType, vertexCount, stride, address);
@@ -412,6 +414,8 @@ void FlushImmediateVertices() {
         Video::SetImmediateStream(0, 0, 0);
         return;
       }
+
+      ScopedFetchConstants bound_fetches(pending.fetches);
 
       if (auto *pipeline = GetOrCreatePipeline(key, key.layout)) {
         DrawArgs args;

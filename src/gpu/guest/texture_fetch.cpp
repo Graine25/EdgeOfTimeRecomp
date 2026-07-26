@@ -28,9 +28,43 @@ std::atomic<u32> g_mipped{0};
 
 }
 
+namespace {
+thread_local const FetchConstantSnapshot *t_fetch_snapshot = nullptr;
+constexpr u32 kFetchDwords = kTextureFetchStride / 4;
+}
+
+void CaptureFetchConstants(u32 device_va, FetchConstantSnapshot &out) {
+  out = FetchConstantSnapshot{};
+  if (!device_va)
+    return;
+  for (u32 slot = 0; slot < kMaxSamplerSlots; ++slot) {
+    const u32 base =
+        device_va + kTextureFetchConstants + slot * kTextureFetchStride;
+    for (u32 w = 0; w < kFetchDwords; ++w)
+      out.words[slot * kFetchDwords + w] = mem::try_load<u32>(base + w * 4);
+  }
+  out.valid = true;
+}
+
+ScopedFetchConstants::ScopedFetchConstants(
+    const FetchConstantSnapshot &snapshot)
+    : previous_(t_fetch_snapshot) {
+  if (snapshot.valid)
+    t_fetch_snapshot = &snapshot;
+}
+
+ScopedFetchConstants::~ScopedFetchConstants() { t_fetch_snapshot = previous_; }
+
 bool DecodeTextureFetch(u32 device_va, u32 sampler, GuestTextureFetch &out) {
   if (!device_va || sampler >= kMaxSamplerSlots)
     return false;
+  if (t_fetch_snapshot) {
+    if (!DecodeTextureFetchWords(
+            t_fetch_snapshot->words + sampler * kFetchDwords, out))
+      return false;
+    out.physicalAddress = true;
+    return true;
+  }
   if (!DecodeTextureFetchAt(device_va + kTextureFetchConstants +
                             sampler * kTextureFetchStride, out))
     return false;

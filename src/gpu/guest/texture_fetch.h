@@ -5,6 +5,8 @@
 
 #include <plume_render_interface.h>
 
+#include "gpu/guest/d3d.h"
+
 namespace eot::gpu {
 
 struct GuestTextureFetch {
@@ -34,6 +36,24 @@ struct GuestTextureFetch {
 };
 
 bool DecodeTextureFetch(u32 device_va, u32 sampler, GuestTextureFetch &out);
+
+struct FetchConstantSnapshot {
+  u32 words[kMaxSamplerSlots * (kTextureFetchStride / 4)] = {};
+  bool valid = false;
+};
+
+void CaptureFetchConstants(u32 device_va, FetchConstantSnapshot &out);
+
+class ScopedFetchConstants {
+public:
+  explicit ScopedFetchConstants(const FetchConstantSnapshot &snapshot);
+  ~ScopedFetchConstants();
+  ScopedFetchConstants(const ScopedFetchConstants &) = delete;
+  ScopedFetchConstants &operator=(const ScopedFetchConstants &) = delete;
+
+private:
+  const FetchConstantSnapshot *previous_ = nullptr;
+};
 
 bool DecodeTextureFetchAt(u32 fetch_va, GuestTextureFetch &out);
 
