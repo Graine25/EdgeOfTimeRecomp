@@ -945,13 +945,38 @@ void Video::SetPixelShader(GuestShader *shader) {
   s.pixel_shader = shader;
 }
 
+namespace {
+thread_local GuestShader *t_override_vertex = nullptr;
+thread_local GuestShader *t_override_pixel = nullptr;
+thread_local bool t_override_active = false;
+}
+
+Video::ScopedBoundShaders::ScopedBoundShaders(GuestShader *vertex,
+                                              GuestShader *pixel)
+    : previous_vertex_(t_override_vertex), previous_pixel_(t_override_pixel),
+      was_active_(t_override_active) {
+  t_override_vertex = vertex;
+  t_override_pixel = pixel;
+  t_override_active = true;
+}
+
+Video::ScopedBoundShaders::~ScopedBoundShaders() {
+  t_override_vertex = previous_vertex_;
+  t_override_pixel = previous_pixel_;
+  t_override_active = was_active_;
+}
+
 GuestShader *Video::BoundVertexShader() {
+  if (t_override_active)
+    return t_override_vertex;
   auto &s = state();
   std::lock_guard lock(s.mutex);
   return s.vertex_shader;
 }
 
 GuestShader *Video::BoundPixelShader() {
+  if (t_override_active)
+    return t_override_pixel;
   auto &s = state();
   std::lock_guard lock(s.mutex);
   return s.pixel_shader;
