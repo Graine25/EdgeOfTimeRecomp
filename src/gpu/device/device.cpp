@@ -55,6 +55,10 @@ REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup,
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup,
                      "Present the Nth colour surface of the frame (-1 = off).");
 
+REXCVAR_DEFINE_BOOL(eot_no_scene_snapshot, false, kCvarGroup,
+                    "Present the scene surface itself rather than the copy "
+                    "taken before the post chain reused its tiles.");
+
 REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup,
                     "TEMP: paint resolve destinations green.");
 
@@ -64,6 +68,9 @@ REXCVAR_DEFINE_BOOL(eot_protect_resolved, false, kCvarGroup,
 namespace eot::gpu {
 
 namespace {
+
+std::atomic<u32> g_snapshot_used{0};
+std::atomic<u32> g_snapshot_stale{0};
 
 std::atomic<bool> g_device_lost{false};
 std::atomic<const GuestTexture *> g_last_front{nullptr};
@@ -563,8 +570,14 @@ void Video::Present(GuestTexture *front_buffer) {
       }
       front_buffer = busiest;
       if (s.scene_snapshot && s.scene_snapshot->texture &&
-          s.scene_snapshot_serial == s.frame_serial) {
-        front_buffer = s.scene_snapshot.get();
+          s.scene_snapshot_serial == s.frame_serial &&
+          !REXCVAR_GET(eot_no_scene_snapshot)) {
+        if (s.scene_snapshot_draws == busiest->drawsThisFrame) {
+          g_snapshot_used.fetch_add(1, std::memory_order_relaxed);
+          front_buffer = s.scene_snapshot.get();
+        } else {
+          g_snapshot_stale.fetch_add(1, std::memory_order_relaxed);
+        }
       }
     }
   }
@@ -594,6 +607,10 @@ void Video::Present(GuestTexture *front_buffer) {
                static_cast<const void *>(busiest),
                busiest ? busiest->width : 0, busiest ? busiest->height : 0,
                s.busiest_rt_draws);
+      EOT_INFO("[present] scene copy: {} frames used it, {} rejected as stale "
+               "(last taken at draw {} of {})",
+               g_snapshot_used.load(), g_snapshot_stale.load(),
+               s.scene_snapshot_draws, s.busiest_rt_draws);
     }
   }
 
@@ -1771,6 +1788,7 @@ void Video::NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,
     return;
   snap->hasContent = true;
   s.scene_snapshot_serial = s.frame_serial;
+  s.scene_snapshot_draws = rt->drawsThisFrame;
 }
 
 void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
