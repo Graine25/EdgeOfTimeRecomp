@@ -40,6 +40,12 @@ public class Win32Shot {
     // CopyFromScreen grabs whatever is on top at those coordinates, so the game
     // window has to be raised first or the shot is of whatever covers it.
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    // SetForegroundWindow is refused when the caller is not already the
+    // foreground process, and it fails silently. Any window left on top then
+    // ends up in the shot instead of the game, which looks like a rendering
+    // fault rather than a capture one. Forcing topmost does not need that
+    // permission.
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref System.Drawing.Point p);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
@@ -89,6 +95,7 @@ try {
         try {
             [Win32Shot]::ShowWindow($h, 5) | Out-Null   # SW_SHOW
             [Win32Shot]::SetForegroundWindow($h) | Out-Null
+            [Win32Shot]::SetWindowPos($h, [IntPtr](-1), 0, 0, 0, 0, 0x0043) | Out-Null
             Start-Sleep -Milliseconds 400
             $g.CopyFromScreen($origin.X, $origin.Y, 0, 0, $bmp.Size)
             $index++
