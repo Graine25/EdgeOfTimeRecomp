@@ -24,6 +24,12 @@
 #include "gpu/guest/vfetch_microcode.h"
 #include "gpu/pipeline/pipeline_cache.h"
 
+namespace {
+std::atomic<u32> g_post_passes_skipped{0};
+}
+
+REXCVAR_DEFINE_BOOL(eot_post_passes_on_scene, false, "gpu", "Post passes draw on scene");
+
 REXCVAR_DEFINE_BOOL(eot_immediate_draws, true, "gpu", "Draw immediate mode geometry");
 
 namespace eot::gpu {
@@ -163,6 +169,14 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
   rec.cmd->setGraphicsRootDescriptor(cb.shared.ref, 2);
   rec.cmd->setVertexBuffers(0, geometry.vertexViews, geometry.vertexBufferCount,
                             geometry.vertexSlots);
+  if (rec.colorTarget && viewport.width > 0 &&
+      u32(viewport.width) * 2 <= rec.colorTarget->width &&
+      !REXCVAR_GET(eot_post_passes_on_scene) &&
+      Video::IsBusiestSurface(rec.colorTarget)) {
+    g_post_passes_skipped.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
   Video::NoteReducedViewportDraw(rec, u32(viewport.width),
                                  u32(viewport.height));
   rec.cmd->setViewports(viewport);

@@ -1739,6 +1739,11 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
              src->height, static_cast<u32>(src->format), dest_texture_va);
 }
 
+bool Video::IsBusiestSurface(const GuestTexture *tex) {
+  auto &s = state();
+  return tex && tex == s.busiest_rt && s.busiest_rt_serial == s.frame_serial;
+}
+
 void Video::NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,
                                     u32 vp_h) {
   auto &s = state();
