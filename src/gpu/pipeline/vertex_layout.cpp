@@ -333,8 +333,12 @@ bool BuildInputLayoutFromMicrocode(const GuestShader &shader,
                                    u32 buffer_stride, InputLayout &out) {
   FetchMicrocode decoded[kMaxVertexFetches];
   u32 microcode_stride = 0;
-  if (!buffer_stride ||
-      !DecodeLayoutFromMicrocode(shader, fetches, decoded, microcode_stride))
+  if (!DecodeLayoutFromMicrocode(shader, fetches, decoded, microcode_stride))
+    return false;
+
+  if (!buffer_stride)
+    buffer_stride = microcode_stride;
+  if (!buffer_stride)
     return false;
 
   InputLayout built;

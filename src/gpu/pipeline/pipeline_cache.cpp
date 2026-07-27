@@ -1,5 +1,7 @@
 #include "gpu/pipeline/pipeline_cache.h"
 
+#include "gpu/guest/vfetch_microcode.h"
+
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -42,6 +44,7 @@ std::atomic<u32> g_lookups{0};
 std::atomic<u32> g_undescribable{0};
 std::atomic<u32> g_layout_ok{0};
 std::atomic<u32> g_layout_failed{0};
+std::atomic<u32> g_layout_from_microcode{0};
 std::atomic<u32> g_layout_reported{0};
 std::atomic<u32> g_layout_no_fetches{0};
 std::atomic<u32> g_layout_no_decl{0};
@@ -117,8 +120,20 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
     g_layout_no_fetches.fetch_add(1, std::memory_order_relaxed);
     NoteInputLayout(input, false);
   } else if (!CurrentVertexDeclaration(device_va, decl)) {
-    g_layout_no_decl.fetch_add(1, std::memory_order_relaxed);
-    NoteInputLayout(input, false);
+    if (BuildInputLayoutFromMicrocode(*vs, fetches,
+                                      Video::BoundStreamStride(0), input)) {
+      g_layout_from_microcode.fetch_add(1, std::memory_order_relaxed);
+      NoteInputLayout(input, true);
+      out.inputLayoutHash = HashInputLayout(input);
+      out.layout = input;
+    } else {
+      if (g_layout_no_decl.fetch_add(1, std::memory_order_relaxed) < 4) {
+        EOT_WARN("[pso] no declaration and no usable microcode for vs 0x{:08X} "
+                 "({} fetches)",
+                 vs->objectVa, fetches.count);
+      }
+      NoteInputLayout(input, false);
+    }
   } else if (!BuildInputLayout(fetches, decl, input)) {
     g_layout_join_failed.fetch_add(1, std::memory_order_relaxed);
     NoteInputLayout(input, false);
@@ -504,6 +519,10 @@ void LogPipelineStatsLocked() {
            g_pipelines.size(), g_lookups.load(), depth_only,
            g_undescribable.load(), g_layout_ok.load(),
            g_layout_failed.load(), g_built.load(), g_build_failed.load());
+  EOT_INFO("[pso] layout failures: {} no fetch records, {} no declaration, {} "
+           "join failed; {} recovered from vfetch microcode",
+           g_layout_no_fetches.load(), g_layout_no_decl.load(),
+           g_layout_join_failed.load(), g_layout_from_microcode.load());
 }
 
 }
