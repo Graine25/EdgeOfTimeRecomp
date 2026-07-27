@@ -106,6 +106,8 @@ public:
 
   static void SetVertexShader(GuestShader *shader);
   static void SetPixelShader(GuestShader *shader);
+  static bool IsBusiestSurface(const GuestTexture *tex);
+
   static GuestShader *BoundVertexShader();
 
   class ScopedBoundShaders {
