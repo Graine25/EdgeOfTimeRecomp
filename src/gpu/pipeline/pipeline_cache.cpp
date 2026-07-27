@@ -8,6 +8,8 @@
 #include <mutex>
 #include <unordered_map>
 
+#include <plume_d3d12.h>
+
 #include <rex/hash.h>
 
 #include <rex/cvar.h>
@@ -457,7 +459,17 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
   desc.specConstants = nullptr;
   desc.specConstantsCount = 0;
 
-  return device->createGraphicsPipeline(desc);
+  auto pipeline = device->createGraphicsPipeline(desc);
+
+  if (pipeline) {
+    auto *d3d12_pipeline =
+        static_cast<plume::D3D12Pipeline *>(pipeline.get());
+    if (d3d12_pipeline->type == plume::D3D12Pipeline::Type::Graphics) {
+      static_cast<plume::D3D12GraphicsPipeline *>(d3d12_pipeline)->stencilRef =
+          desc.stencilEnabled ? desc.stencilReference : 0;
+    }
+  }
+  return pipeline;
 }
 
 }
