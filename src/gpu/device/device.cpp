@@ -67,6 +67,7 @@ std::atomic<u32> g_snapshot_stale{0};
 
 std::atomic<bool> g_device_lost{false};
 std::atomic<const GuestTexture *> g_last_front{nullptr};
+std::atomic<const GuestTexture *> g_guest_front{nullptr};
 std::atomic<u32> g_identity_probe{0};
 
 std::mutex g_destroy_pending_mutex;
@@ -496,6 +497,7 @@ void AdvanceAndWaitReusedLocked(VideoState &s) {
 }
 
 void Video::Present(GuestTexture *front_buffer) {
+  g_guest_front.store(front_buffer, std::memory_order_relaxed);
   auto &s = state();
   std::unique_lock lock(s.mutex);
   if (!s.present_ready || DeviceIsLost())
@@ -1705,7 +1707,7 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
   dest->hasContent = src->hasContent;
 
   if (g_identity_probe.fetch_add(1, std::memory_order_relaxed) < 3) {
-    const GuestTexture *front = g_last_front.load(std::memory_order_relaxed);
+    const GuestTexture *front = g_guest_front.load(std::memory_order_relaxed);
     EOT_INFO("[resolve] src={} ({}x{} fmt={}) dest={} ({}x{} fmt={}) "
              "front={} src==dest:{} dest==front:{}",
              static_cast<const void *>(src), src->width, src->height,
@@ -1714,7 +1716,7 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
              static_cast<const void *>(front), src == dest, dest == front);
   }
 
-  if (dest == g_last_front.load(std::memory_order_relaxed)) {
+  if (dest == g_guest_front.load(std::memory_order_relaxed)) {
     if (s.front_resolve_serial != s.frame_serial) {
       s.front_resolve_serial = s.frame_serial;
       s.front_resolves = 0;
@@ -1724,7 +1726,7 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
     s.last_front_src = src;
   }
 
-  if (dest == g_last_front.load(std::memory_order_relaxed) &&
+  if (dest == g_guest_front.load(std::memory_order_relaxed) &&
       (g_front_probe.fetch_add(1, std::memory_order_relaxed) % 400) == 399) {
     EOT_INFO("[resolve] -> FRONT: flags=0x{:X} idx={} src={} {}x{} fmt={} "
              "drawnThisFrame={} hasContent={} fellBack={}",
