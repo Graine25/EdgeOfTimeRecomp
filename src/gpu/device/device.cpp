@@ -56,6 +56,11 @@ REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup,
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup,
                      "Present the Nth colour surface of the frame (-1 = off).");
 
+REXCVAR_DEFINE_BOOL(eot_present_guest_front, false, kCvarGroup,
+                    "Present the surface the guest names, not the scene "
+                    "surface this port substitutes when the composite is "
+                    "empty. Needs eot_seed_fullscreen_chain to be worth it.");
+
 REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, false, kCvarGroup,
                     "Give a full-size colour target the previous pass's pixels,"
                     " the way the shared EDRAM tile would have. Off: it feeds a"
@@ -569,7 +574,8 @@ void Video::Present(GuestTexture *front_buffer) {
         (s.last_front_src && s.front_resolve_serial == s.frame_serial)
             ? s.last_front_src->drawsThisFrame
             : 0;
-    if (s.busiest_rt_draws > front_draws * 4) {
+    if (s.busiest_rt_draws > front_draws * 4 &&
+        !REXCVAR_GET(eot_present_guest_front)) {
       static std::atomic<u32> reported{0};
       if (reported.fetch_add(1, std::memory_order_relaxed) == 0) {
         EOT_INFO("[present] the composite the guest resolved carries {} draws "
@@ -1785,14 +1791,11 @@ void Video::SeedFullscreenChain(RecordingList &rec) {
   if (!rt || !rt->texture || !FullscreenChainClassLocked(s, rt))
     return;
 
-  if (rt == s.busiest_rt) {
-    s.chain_head = rt;
-    s.chain_head_serial = s.frame_serial;
+  if (rt == s.busiest_rt)
     return;
-  }
 
   const bool first_this_frame = rt->drawnSerial != s.frame_serial;
-  GuestTexture *head = s.chain_head;
+  GuestTexture *head = s.busiest_rt;
   if (first_this_frame && head && head != rt && head->texture &&
       head->format == rt->format && s.chain_head_serial == s.frame_serial &&
       FullscreenChainClassLocked(s, head)) {
