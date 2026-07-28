@@ -31,6 +31,7 @@
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
 #include "gpu/device/rdc_capture.h"
+#include "gpu/guest/format.h"
 #include "gpu/device/native_texture_mirror.h"
 #include "gpu/device/texture_upload.h"
 #include "gpu/guest/texture_fetch.h"
@@ -52,6 +53,8 @@ REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup, "Sync frames to display");
 
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup, "Present the Nth surface");
 
+REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, false, kCvarGroup, "Rebuild the 2D layer tile");
+
 REXCVAR_DEFINE_BOOL(eot_no_scene_snapshot, false, kCvarGroup, "Present the raw scene");
 
 REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup, "Paint resolves green (test)");
@@ -68,6 +71,7 @@ std::atomic<u32> g_snapshot_stale{0};
 std::atomic<bool> g_device_lost{false};
 std::atomic<const GuestTexture *> g_last_front{nullptr};
 std::atomic<const GuestTexture *> g_guest_front{nullptr};
+std::atomic<u32> g_chain_seeds{0};
 std::atomic<u32> g_identity_probe{0};
 
 std::mutex g_destroy_pending_mutex;
@@ -602,6 +606,7 @@ void Video::Present(GuestTexture *front_buffer) {
                static_cast<const void *>(busiest),
                busiest ? busiest->width : 0, busiest ? busiest->height : 0,
                s.busiest_rt_draws);
+      EOT_INFO("[present] chain seeds so far: {}", g_chain_seeds.load());
       EOT_INFO("[present] scene copy: {} frames used it, {} rejected as stale "
                "(last taken at draw {} of {})",
                g_snapshot_used.load(), g_snapshot_stale.load(),
@@ -1340,6 +1345,22 @@ bool SameFormatFamily(plume::RenderFormat a, plume::RenderFormat b) {
 
 namespace {
 
+bool FullscreenChainClassLocked(const VideoState &s, const GuestTexture *t) {
+  if (!t || !t->texture || IsDepthFormat(t->format))
+    return false;
+  const GuestTexture *ref = g_guest_front.load(std::memory_order_relaxed);
+  const u32 rw = ref ? ref->width : 0;
+  const u32 rh = ref ? ref->height : 0;
+  if (!rw || !rh)
+    return false;
+  if (t->width < rw || t->height < rh)
+    return false;
+  const u64 a = u64(t->width) * rh;
+  const u64 b = u64(t->height) * rw;
+  const u64 diff = a > b ? a - b : b - a;
+  return diff * 100ull <= b * 3ull;
+}
+
 bool ResolveByBlitLocked(VideoState &s, Video::RecordingList &rec,
                          GuestTexture *src, GuestTexture *dest,
                          float exponent_scale = 1.0f,
@@ -1744,6 +1765,39 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
 bool Video::IsBusiestSurface(const GuestTexture *tex) {
   auto &s = state();
   return tex && tex == s.busiest_rt && s.busiest_rt_serial == s.frame_serial;
+}
+
+void Video::SeedFullscreenChain(RecordingList &rec) {
+  if (!REXCVAR_GET(eot_seed_fullscreen_chain))
+    return;
+  auto &s = state();
+  GuestTexture *rt = rec.colorTarget;
+  if (!rt || !rt->texture || !FullscreenChainClassLocked(s, rt))
+    return;
+
+  if (rt == s.busiest_rt) {
+    s.chain_head = rt;
+    s.chain_head_serial = s.frame_serial;
+    return;
+  }
+
+  const bool first_this_frame = rt->drawnSerial != s.frame_serial;
+  GuestTexture *head = s.chain_head;
+  if (first_this_frame && head && head != rt && head->texture &&
+      head->format == rt->format && s.chain_head_serial == s.frame_serial &&
+      FullscreenChainClassLocked(s, head)) {
+    rec.cmd->setFramebuffer(nullptr);
+    if (ResolveByBlitLocked(s, rec, head, rt))
+      g_chain_seeds.fetch_add(1, std::memory_order_relaxed);
+    if (rt->layout != plume::RenderTextureLayout::COLOR_WRITE) {
+      const plume::RenderTextureBarrier back(
+          rt->texture, plume::RenderTextureLayout::COLOR_WRITE);
+      rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &back, 1);
+      rt->layout = plume::RenderTextureLayout::COLOR_WRITE;
+    }
+  }
+  s.chain_head = rt;
+  s.chain_head_serial = s.frame_serial;
 }
 
 void Video::NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,
