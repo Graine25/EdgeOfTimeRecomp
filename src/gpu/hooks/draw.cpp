@@ -154,6 +154,8 @@ void IssueDraw(u32 device_va, const PipelineKey &key,
     rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, to_write,
                       barrier_count);
 
+  Video::SeedFullscreenChain(rec);
+
   rec.cmd->setFramebuffer(rec.framebuffer);
 
   float clear_z = 0.0f;
