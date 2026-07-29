@@ -1,5 +1,7 @@
 #include "gpu/device/native_texture_mirror.h"
 
+#include <rex/graphics/registers.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
@@ -871,8 +873,11 @@ GuestTexture *ResolveGuestSurface(u32 surface_va) {
     return nullptr;
   GuestTexture *tex = it->second.get();
   if (tex && tex->edramBase == ~0u) {
-    if (const auto *hdr = mem::try_at<const D3DSurface>(surface_va))
-      tex->edramBase = u32(hdr->DepthInfo) & 0xFFFu;
+    if (const auto *hdr = mem::try_at<const D3DSurface>(surface_va)) {
+      rex::graphics::reg::RB_COLOR_INFO info;
+      info.value = u32(hdr->DepthInfo);
+      tex->edramBase = info.color_base | (info.color_base_bit_11 << 11);
+    }
   }
   return tex;
 }
