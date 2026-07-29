@@ -1,5 +1,7 @@
 #include "gpu/guest/vfetch_microcode.h"
 
+#include <rex/graphics/format/ucode.h>
+
 #include <rex/graphics/xenos.h>
 
 #include "core/memory_helpers.h"
@@ -12,11 +14,6 @@ namespace {
 namespace xenos = rex::graphics::xenos;
 
 constexpr u32 kInstructionSize = 12;
-constexpr u32 kFormatShift = 16;
-constexpr u32 kFormatMask = 0x3F;
-constexpr u32 kNumFormatAllShift = 13;
-constexpr u32 kSignedShift = 14;
-constexpr u32 kStrideMask = 0xFF;
 
 constexpr u32 kObjectMicrocodePointer = 0x20;
 
@@ -55,16 +52,23 @@ FetchMicrocode DecodeFetch(u32 microcode_va, const VertexFetch &fetch) {
   if (!mem::try_at<const u8>(shape_addr) || !mem::try_at<const u8>(offset_addr))
     return out;
 
-  const u32 shape1 = mem::try_load<u32>(shape_addr + 4);
-  const u32 shape2 = mem::try_load<u32>(shape_addr + 8);
-  const u32 own2 = mem::try_load<u32>(offset_addr + 8);
+  const auto read = [](u32 at) {
+    rex::graphics::ucode::VertexFetchInstruction insn{};
+    u32 words[3] = {mem::try_load<u32>(at), mem::try_load<u32>(at + 4),
+                    mem::try_load<u32>(at + 8)};
+    std::memcpy(&insn, words, sizeof(insn));
+    return insn;
+  };
 
-  out.format = (shape1 >> kFormatShift) & kFormatMask;
-  out.expAdjust = SignExtend(shape1 >> 24, 6);
-  out.normalized = ((shape1 >> kNumFormatAllShift) & 1) == 0;
-  out.signedValue = ((shape1 >> kSignedShift) & 1) != 0;
-  out.stride = (shape2 & kStrideMask) * 4u;
-  out.offset = static_cast<u32>(SignExtend(own2 >> 8, 23) * 4);
+  const auto shape = read(shape_addr);
+  const auto own = read(offset_addr);
+
+  out.format = static_cast<u32>(shape.data_format());
+  out.expAdjust = shape.exp_adjust();
+  out.normalized = shape.is_normalized();
+  out.signedValue = shape.is_signed();
+  out.stride = shape.stride() * 4u;
+  out.offset = static_cast<u32>(own.offset() * 4);
   out.valid = out.stride != 0 && out.format != 0;
   return out;
 }
