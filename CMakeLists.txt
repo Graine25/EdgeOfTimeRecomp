@@ -45,6 +45,18 @@ reeot_shader_cache(
 reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
 # Sources
+set(REEOT_SDK_GPU_SOURCES
+    ${REXSDK_DIR}/src/graphics/pipeline/render_target/cache.cpp
+    ${REXSDK_DIR}/src/graphics/flags.cpp
+    ${REXSDK_DIR}/src/graphics/format/ucode.cpp
+    ${REXSDK_DIR}/src/graphics/pipeline/shader/shader.cpp
+    ${REXSDK_DIR}/src/graphics/pipeline/shader/translator.cpp
+    ${REXSDK_DIR}/src/graphics/pipeline/shader/translator_disasm.cpp
+    ${REXSDK_DIR}/src/graphics/pipeline/shader/interpreter.cpp
+    ${REXSDK_DIR}/src/graphics/register_file.cpp
+    ${REXSDK_DIR}/src/graphics/registers.cpp
+    ${REXSDK_DIR}/src/graphics/util/draw_extent_estimator.cpp)
+
 set(REEOT_SOURCES
     src/main.cpp
 
@@ -70,6 +82,7 @@ set(REEOT_SOURCES
     src/core/windows_lean.h
 
     src/gpu/device/device.cpp
+    src/gpu/device/edram_cache.cpp
     src/gpu/device/device.h
     src/gpu/device/host_heap_arena.cpp
     src/gpu/device/host_heap_arena.h
@@ -120,9 +133,9 @@ set(REEOT_SOURCES
 )
 
 if(WIN32)
-    add_executable(reeot WIN32 ${REEOT_SOURCES})
+    add_executable(reeot WIN32 ${REEOT_SOURCES} ${REEOT_SDK_GPU_SOURCES})
 else()
-    add_executable(reeot ${REEOT_SOURCES})
+    add_executable(reeot ${REEOT_SOURCES} ${REEOT_SDK_GPU_SOURCES})
 endif()
 
 target_include_directories(reeot PRIVATE
