@@ -1,42 +1,36 @@
 #include "gpu/device/native_texture_mirror.h"
 
-#include <rex/graphics/registers.h>
-
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <cstdlib>
-#include <algorithm>
 #include <list>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <set>
 #include <tuple>
-
-#include <bit>
+#include <unordered_map>
 #include <vector>
 
 #include <rex/graphics/pipeline/texture/conversion.h>
 #include <rex/graphics/pipeline/texture/util.h>
+#include <rex/graphics/registers.h>
 #include <rex/graphics/xenos.h>
 #include <rex/math.h>
-
-#include "gpu/device/texture_upload.h"
-#include "gpu/guest/texture_fetch.h"
-
-namespace tu = rex::graphics::texture_util;
-namespace tc = rex::graphics::texture_conversion;
-namespace xenos = rex::graphics::xenos;
-
-#include <atomic>
-#include <memory>
-#include <mutex>
-#include <set>
-#include <unordered_map>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gpu/device/device.h"
 #include "gpu/device/host_resource_heap.h"
+#include "gpu/device/texture_upload.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/format.h"
+#include "gpu/guest/texture_fetch.h"
+
+namespace tu = rex::graphics::texture_util;
+namespace tc = rex::graphics::texture_conversion;
+namespace xenos = rex::graphics::xenos;
 
 namespace eot::gpu {
 namespace {
