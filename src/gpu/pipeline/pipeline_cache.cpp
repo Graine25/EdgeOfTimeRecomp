@@ -1,8 +1,5 @@
 #include "gpu/pipeline/pipeline_cache.h"
 
-#include "gpu/guest/format.h"
-#include "gpu/guest/vfetch_microcode.h"
-
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -10,19 +7,18 @@
 #include <unordered_map>
 
 #include <plume_d3d12.h>
-
-#include <rex/hash.h>
-
 #include <rex/cvar.h>
-
 #include <rex/graphics/registers.h>
 #include <rex/graphics/xenos.h>
+#include <rex/hash.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "core/settings.h"
 #include "gpu/device/device.h"
+#include "gpu/guest/format.h"
 #include "gpu/guest/resources.h"
+#include "gpu/guest/vfetch_microcode.h"
 #include "gpu/pipeline/vertex_layout.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/shaders/shader_cache.h"

@@ -3,14 +3,14 @@
 #include <atomic>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
+
+#include <plume_render_interface.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/format.h"
-
-#include <plume_render_interface.h>
-#include <unordered_set>
 
 namespace eot::gpu {
 

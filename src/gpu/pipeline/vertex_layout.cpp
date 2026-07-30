@@ -1,19 +1,18 @@
 #include "gpu/pipeline/vertex_layout.h"
 
-#include <rex/graphics/xenos.h>
-
-#include "gpu/guest/vfetch_microcode.h"
-
 #include <algorithm>
 #include <atomic>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 
+#include <rex/graphics/xenos.h>
+
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gpu/guest/d3d.h"
 #include "gpu/guest/format.h"
+#include "gpu/guest/vfetch_microcode.h"
 #include "gpu/shaders/shader_cache.h"
 
 namespace eot::gpu {
