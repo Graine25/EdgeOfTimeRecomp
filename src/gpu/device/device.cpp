@@ -30,6 +30,7 @@
 #include "core/memory_helpers.h"
 #include "gpu/device/host_heap_arena.h"
 #include "gpu/device/host_resource_heap.h"
+#include "gpu/device/edram_cache.h"
 #include "gpu/device/rdc_capture.h"
 #include "gpu/guest/format.h"
 #include "gpu/device/native_texture_mirror.h"
@@ -580,6 +581,35 @@ void Video::Present(GuestTexture *front_buffer) {
         } else {
           g_snapshot_stale.fetch_add(1, std::memory_order_relaxed);
         }
+      }
+    }
+  }
+
+  if (getenv("EOT_EDRAM_CACHE")) {
+    static std::atomic<bool> built{false};
+    if (!built.exchange(true))
+      InitEdramCache(s.device.get());
+    static std::atomic<u32> t{0};
+    if ((t.fetch_add(1, std::memory_order_relaxed) % 120) == 60) {
+      const GuestTexture *rt = s.busiest_rt;
+      rex::graphics::reg::RB_SURFACE_INFO si;
+      si.value = 0;
+      si.surface_pitch = rt ? rt->width : 0;
+      si.msaa_samples = rex::graphics::xenos::MsaaSamples::k1X;
+      const EdramProbe p =
+          ProbeEdramCache(0, rt ? rt->edramBase : 0,
+                          s.depth_stencil ? s.depth_stencil->edramBase : 0,
+                          si.value);
+      if (p.valid) {
+        static const u32 kNullVs[] = {
+            0x0000102Bu, 0x00000000u, 0x00000000u, 0x00000000u,
+            0x00000000u, 0x00000000u, 0x00000000u, 0x00000000u,
+        };
+        const bool ok =
+            RunEdramUpdate(kNullVs, u32(std::size(kNullVs)), 0u, 0xFu);
+        EOT_INFO("[edram] cache: colorBase={} pitch={} depthBase={} targets={}"
+                 " update={}",
+                 p.colorBase, p.pitchTiles, p.depthBase, p.ownedRanges, ok);
       }
     }
   }
