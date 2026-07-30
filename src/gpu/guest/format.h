@@ -13,6 +13,7 @@
  */
 #pragma once
 
+#include <rex/graphics/xenos.h>
 #include <rex/types.h>
 
 #include <plume_render_interface.h>
@@ -51,6 +52,25 @@ plume::RenderFormat ConvertDeclType(u32 decl_type);
 inline constexpr u32 kGuestFormatMask = 0x3F;
 
 plume::RenderFormat ConvertGuestFormat(u32 guest_format);
+
+plume::RenderStencilOp ConvertStencilOp(rex::graphics::xenos::StencilOp op);
+
+plume::RenderComparisonFunction
+ConvertCompareFunc(rex::graphics::xenos::CompareFunction f);
+
+plume::RenderComparisonFunction
+ConvertDepthCompareFunc(rex::graphics::xenos::CompareFunction f,
+                        bool reverse_z);
+
+inline constexpr u32 kBlendColorSrcShift = 0;
+inline constexpr u32 kBlendColorCombShift = 5;
+inline constexpr u32 kBlendColorDstShift = 8;
+inline constexpr u32 kBlendAlphaSrcShift = 16;
+inline constexpr u32 kBlendAlphaCombShift = 21;
+inline constexpr u32 kBlendAlphaDstShift = 24;
+
+plume::RenderBlend ConvertBlendMode(u32 factor);
+plume::RenderBlendOperation ConvertBlendOp(u32 op);
 
 bool IsRenderTargetCapable(plume::RenderFormat format);
 

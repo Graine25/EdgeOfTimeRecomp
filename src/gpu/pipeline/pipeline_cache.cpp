@@ -1,5 +1,6 @@
 #include "gpu/pipeline/pipeline_cache.h"
 
+#include "gpu/guest/format.h"
 #include "gpu/guest/vfetch_microcode.h"
 
 #include <atomic>
@@ -199,106 +200,6 @@ namespace {
 
 constexpr bool kEnableDepthTest = true;
 
-plume::RenderStencilOp ConvertStencilOp(rex::graphics::xenos::StencilOp op) {
-  using SO = rex::graphics::xenos::StencilOp;
-  using RS = plume::RenderStencilOp;
-  switch (op) {
-  case SO::kZero:
-    return RS::ZERO;
-  case SO::kReplace:
-    return RS::REPLACE;
-  case SO::kIncrementClamp:
-    return RS::INCREMENT_AND_CLAMP;
-  case SO::kDecrementClamp:
-    return RS::DECREMENT_AND_CLAMP;
-  case SO::kInvert:
-    return RS::INVERT;
-  case SO::kIncrementWrap:
-    return RS::INCREMENT_AND_WRAP;
-  case SO::kDecrementWrap:
-    return RS::DECREMENT_AND_WRAP;
-  case SO::kKeep:
-  default:
-    return RS::KEEP;
-  }
-}
-
-plume::RenderComparisonFunction
-ConvertCompareFunction(rex::graphics::xenos::CompareFunction f, bool reverse_z) {
-  using CF = rex::graphics::xenos::CompareFunction;
-  using RC = plume::RenderComparisonFunction;
-  switch (f) {
-  case CF::kNever:
-    return RC::NEVER;
-  case CF::kLess:
-    return reverse_z ? RC::GREATER : RC::LESS;
-  case CF::kEqual:
-    return RC::EQUAL;
-  case CF::kLessEqual:
-    return reverse_z ? RC::GREATER_EQUAL : RC::LESS_EQUAL;
-  case CF::kGreater:
-    return reverse_z ? RC::LESS : RC::GREATER;
-  case CF::kNotEqual:
-    return RC::NOT_EQUAL;
-  case CF::kGreaterEqual:
-    return reverse_z ? RC::LESS_EQUAL : RC::GREATER_EQUAL;
-  case CF::kAlways:
-  default:
-    return RC::ALWAYS;
-  }
-}
-
-constexpr u32 kBlendColorSrcShift = 0;
-constexpr u32 kBlendColorCombShift = 5;
-constexpr u32 kBlendColorDstShift = 8;
-constexpr u32 kBlendAlphaSrcShift = 16;
-constexpr u32 kBlendAlphaCombShift = 21;
-constexpr u32 kBlendAlphaDstShift = 24;
-
-plume::RenderBlend ConvertBlendFactor(u32 factor) {
-  switch (static_cast<rex::graphics::xenos::BlendFactor>(factor)) {
-  case rex::graphics::xenos::BlendFactor::kZero:
-    return plume::RenderBlend::ZERO;
-  case rex::graphics::xenos::BlendFactor::kOne:
-    return plume::RenderBlend::ONE;
-  case rex::graphics::xenos::BlendFactor::kSrcColor:
-    return plume::RenderBlend::SRC_COLOR;
-  case rex::graphics::xenos::BlendFactor::kOneMinusSrcColor:
-    return plume::RenderBlend::INV_SRC_COLOR;
-  case rex::graphics::xenos::BlendFactor::kSrcAlpha:
-    return plume::RenderBlend::SRC_ALPHA;
-  case rex::graphics::xenos::BlendFactor::kOneMinusSrcAlpha:
-    return plume::RenderBlend::INV_SRC_ALPHA;
-  case rex::graphics::xenos::BlendFactor::kDstColor:
-    return plume::RenderBlend::DEST_COLOR;
-  case rex::graphics::xenos::BlendFactor::kOneMinusDstColor:
-    return plume::RenderBlend::INV_DEST_COLOR;
-  case rex::graphics::xenos::BlendFactor::kDstAlpha:
-    return plume::RenderBlend::DEST_ALPHA;
-  case rex::graphics::xenos::BlendFactor::kOneMinusDstAlpha:
-    return plume::RenderBlend::INV_DEST_ALPHA;
-  case rex::graphics::xenos::BlendFactor::kSrcAlphaSaturate:
-    return plume::RenderBlend::SRC_ALPHA_SAT;
-  default:
-    return plume::RenderBlend::ONE;
-  }
-}
-
-plume::RenderBlendOperation ConvertBlendOp(u32 op) {
-  switch (op) {
-  case 1:
-    return plume::RenderBlendOperation::SUBTRACT;
-  case 2:
-    return plume::RenderBlendOperation::MIN;
-  case 3:
-    return plume::RenderBlendOperation::MAX;
-  case 4:
-    return plume::RenderBlendOperation::REV_SUBTRACT;
-  default:
-    return plume::RenderBlendOperation::ADD;
-  }
-}
-
 plume::RenderBlendDesc ConvertBlend(u32 blend_control) {
   const u32 color_src = (blend_control >> kBlendColorSrcShift) & 0x1F;
   const u32 color_dst = (blend_control >> kBlendColorDstShift) & 0x1F;
@@ -319,11 +220,11 @@ plume::RenderBlendDesc ConvertBlend(u32 blend_control) {
     return desc;
 
   desc.blendEnabled = true;
-  desc.srcBlend = ConvertBlendFactor(color_src);
-  desc.dstBlend = ConvertBlendFactor(color_dst);
+  desc.srcBlend = ConvertBlendMode(color_src);
+  desc.dstBlend = ConvertBlendMode(color_dst);
   desc.blendOp = ConvertBlendOp(color_comb);
-  desc.srcBlendAlpha = ConvertBlendFactor(alpha_src);
-  desc.dstBlendAlpha = ConvertBlendFactor(alpha_dst);
+  desc.srcBlendAlpha = ConvertBlendMode(alpha_src);
+  desc.dstBlendAlpha = ConvertBlendMode(alpha_dst);
   desc.blendOpAlpha = ConvertBlendOp(alpha_comb);
   return desc;
 }
@@ -386,7 +287,7 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
     const rex::graphics::reg::RB_DEPTHCONTROL dc{key.depthControl};
     desc.depthEnabled = dc.z_enable != 0;
     desc.depthWriteEnabled = dc.z_write_enable != 0;
-    desc.depthFunction = ConvertCompareFunction(dc.zfunc, key.reverseZ);
+    desc.depthFunction = ConvertDepthCompareFunc(dc.zfunc, key.reverseZ);
   }
   {
     const rex::graphics::reg::RB_COLORCONTROL cc{key.colorControl};
@@ -410,7 +311,7 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
       desc.stencilWriteMask = (key.stencilRefMask >> 16) & 0xFFu;
 
       desc.stencilFrontFace.compareFunction =
-          ConvertCompareFunction(dc.stencilfunc, key.reverseZ);
+          ConvertCompareFunc(dc.stencilfunc);
       desc.stencilFrontFace.failOp = ConvertStencilOp(dc.stencilfail);
       desc.stencilFrontFace.passOp = ConvertStencilOp(dc.stencilzpass);
       desc.stencilFrontFace.depthFailOp = ConvertStencilOp(dc.stencilzfail);
@@ -418,7 +319,7 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
       const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{key.modeControl};
       if (dc.backface_enable) {
         desc.stencilBackFace.compareFunction =
-            ConvertCompareFunction(dc.stencilfunc_bf, key.reverseZ);
+            ConvertCompareFunc(dc.stencilfunc_bf);
         desc.stencilBackFace.failOp = ConvertStencilOp(dc.stencilfail_bf);
         desc.stencilBackFace.passOp = ConvertStencilOp(dc.stencilzpass_bf);
         desc.stencilBackFace.depthFailOp = ConvertStencilOp(dc.stencilzfail_bf);
