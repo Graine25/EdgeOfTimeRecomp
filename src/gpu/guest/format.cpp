@@ -166,4 +166,118 @@ plume::RenderFormat ConvertDeclType(u32 decl_type) {
   }
 }
 
+plume::RenderStencilOp ConvertStencilOp(rex::graphics::xenos::StencilOp op) {
+  using SO = rex::graphics::xenos::StencilOp;
+  using RS = plume::RenderStencilOp;
+  switch (op) {
+  case SO::kZero:
+    return RS::ZERO;
+  case SO::kReplace:
+    return RS::REPLACE;
+  case SO::kIncrementClamp:
+    return RS::INCREMENT_AND_CLAMP;
+  case SO::kDecrementClamp:
+    return RS::DECREMENT_AND_CLAMP;
+  case SO::kInvert:
+    return RS::INVERT;
+  case SO::kIncrementWrap:
+    return RS::INCREMENT_AND_WRAP;
+  case SO::kDecrementWrap:
+    return RS::DECREMENT_AND_WRAP;
+  case SO::kKeep:
+  default:
+    return RS::KEEP;
+  }
+}
+
+plume::RenderComparisonFunction
+ConvertCompareFunc(rex::graphics::xenos::CompareFunction f) {
+  using CF = rex::graphics::xenos::CompareFunction;
+  using RC = plume::RenderComparisonFunction;
+  switch (f) {
+  case CF::kNever:
+    return RC::NEVER;
+  case CF::kLess:
+    return RC::LESS;
+  case CF::kEqual:
+    return RC::EQUAL;
+  case CF::kLessEqual:
+    return RC::LESS_EQUAL;
+  case CF::kGreater:
+    return RC::GREATER;
+  case CF::kNotEqual:
+    return RC::NOT_EQUAL;
+  case CF::kGreaterEqual:
+    return RC::GREATER_EQUAL;
+  case CF::kAlways:
+  default:
+    return RC::ALWAYS;
+  }
+}
+
+plume::RenderComparisonFunction
+ConvertDepthCompareFunc(rex::graphics::xenos::CompareFunction f,
+                        bool reverse_z) {
+  using RC = plume::RenderComparisonFunction;
+  const RC direct = ConvertCompareFunc(f);
+  if (!reverse_z)
+    return direct;
+  switch (direct) {
+  case RC::LESS:
+    return RC::GREATER;
+  case RC::LESS_EQUAL:
+    return RC::GREATER_EQUAL;
+  case RC::GREATER:
+    return RC::LESS;
+  case RC::GREATER_EQUAL:
+    return RC::LESS_EQUAL;
+  default:
+    return direct;
+  }
+}
+
+plume::RenderBlend ConvertBlendMode(u32 factor) {
+  switch (static_cast<rex::graphics::xenos::BlendFactor>(factor)) {
+  case rex::graphics::xenos::BlendFactor::kZero:
+    return plume::RenderBlend::ZERO;
+  case rex::graphics::xenos::BlendFactor::kOne:
+    return plume::RenderBlend::ONE;
+  case rex::graphics::xenos::BlendFactor::kSrcColor:
+    return plume::RenderBlend::SRC_COLOR;
+  case rex::graphics::xenos::BlendFactor::kOneMinusSrcColor:
+    return plume::RenderBlend::INV_SRC_COLOR;
+  case rex::graphics::xenos::BlendFactor::kSrcAlpha:
+    return plume::RenderBlend::SRC_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kOneMinusSrcAlpha:
+    return plume::RenderBlend::INV_SRC_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kDstColor:
+    return plume::RenderBlend::DEST_COLOR;
+  case rex::graphics::xenos::BlendFactor::kOneMinusDstColor:
+    return plume::RenderBlend::INV_DEST_COLOR;
+  case rex::graphics::xenos::BlendFactor::kDstAlpha:
+    return plume::RenderBlend::DEST_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kOneMinusDstAlpha:
+    return plume::RenderBlend::INV_DEST_ALPHA;
+  case rex::graphics::xenos::BlendFactor::kSrcAlphaSaturate:
+    return plume::RenderBlend::SRC_ALPHA_SAT;
+  default:
+    return plume::RenderBlend::ONE;
+  }
+}
+
+plume::RenderBlendOperation ConvertBlendOp(u32 op) {
+  switch (op) {
+  case 1:
+    return plume::RenderBlendOperation::SUBTRACT;
+  case 2:
+    return plume::RenderBlendOperation::MIN;
+  case 3:
+    return plume::RenderBlendOperation::MAX;
+  case 4:
+    return plume::RenderBlendOperation::REV_SUBTRACT;
+  default:
+    return plume::RenderBlendOperation::ADD;
+  }
+}
+
 }
