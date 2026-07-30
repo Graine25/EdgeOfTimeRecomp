@@ -61,8 +61,8 @@ void ReportDepthStencil(u32 surface_va,
 
 }
 
+REX_EXTERN(__imp__D3DDevice_SetRenderTarget);
 REX_HOOK_RAW(D3DDevice_SetRenderTarget) {
-  (void)base;
   const u32 device_va = ctx.r3.u32;
   const u32 index = ctx.r4.u32;
   const u32 surface_va = ctx.r5.u32;
@@ -73,13 +73,15 @@ REX_HOOK_RAW(D3DDevice_SetRenderTarget) {
         surface_va);
   }
 
+  __imp__D3DDevice_SetRenderTarget(ctx, base);
+
   auto *surface = eot::gpu::ResolveGuestSurface(surface_va);
   ReportRenderTarget(index, surface_va, surface);
   eot::gpu::Video::SetRenderTarget(index, surface);
 }
 
+REX_EXTERN(__imp__D3DDevice_SetDepthStencilSurface);
 REX_HOOK_RAW(D3DDevice_SetDepthStencilSurface) {
-  (void)base;
   const u32 device_va = ctx.r3.u32;
   const u32 surface_va = ctx.r4.u32;
 
@@ -87,6 +89,8 @@ REX_HOOK_RAW(D3DDevice_SetDepthStencilSurface) {
     eot::mem::store<u32>(device_va + eot::gpu::kDeviceDepthStencilShadow,
                          surface_va);
   }
+
+  __imp__D3DDevice_SetDepthStencilSurface(ctx, base);
 
   auto *surface = eot::gpu::ResolveGuestSurface(surface_va);
   ReportDepthStencil(surface_va, surface);
