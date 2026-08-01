@@ -57,10 +57,11 @@ REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup,
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup,
                      "Present the Nth colour surface of the frame (-1 = off).");
 
-REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, false, kCvarGroup,
+REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, true, kCvarGroup,
                     "Reconstruct the EDRAM tile the guest's 2D layer inherits, "
                     "and present the composite it resolves. Off: the scene "
-                    "surface is presented instead, untonemapped.");
+                    "surface is presented instead, untonemapped and without "
+                    "the guest's colour grade or its 2D layer.");
 
 REXCVAR_DEFINE_BOOL(eot_no_scene_snapshot, false, kCvarGroup,
                     "Present the scene surface itself rather than the copy "
