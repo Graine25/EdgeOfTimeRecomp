@@ -44,6 +44,7 @@ std::atomic<u32> g_undescribable{0};
 std::atomic<u32> g_layout_ok{0};
 std::atomic<u32> g_layout_failed{0};
 std::atomic<u32> g_layout_from_microcode{0};
+std::atomic<u32> g_layout_join_recovered{0};
 std::atomic<u32> g_layout_reported{0};
 std::atomic<u32> g_layout_no_fetches{0};
 std::atomic<u32> g_layout_no_decl{0};
@@ -134,8 +135,16 @@ bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
       NoteInputLayout(input, false);
     }
   } else if (!BuildInputLayout(fetches, decl, input)) {
-    g_layout_join_failed.fetch_add(1, std::memory_order_relaxed);
-    NoteInputLayout(input, false);
+    if (BuildInputLayoutFromMicrocode(*vs, fetches,
+                                      Video::BoundStreamStride(0), input)) {
+      g_layout_join_recovered.fetch_add(1, std::memory_order_relaxed);
+      NoteInputLayout(input, true);
+      out.inputLayoutHash = HashInputLayout(input);
+      out.layout = input;
+    } else {
+      g_layout_join_failed.fetch_add(1, std::memory_order_relaxed);
+      NoteInputLayout(input, false);
+    }
   } else {
     NoteInputLayout(input, true);
     out.inputLayoutHash = HashInputLayout(input);
@@ -429,9 +438,11 @@ void LogPipelineStatsLocked() {
            g_undescribable.load(), g_layout_ok.load(),
            g_layout_failed.load(), g_built.load(), g_build_failed.load());
   EOT_INFO("[pso] layout failures: {} no fetch records, {} no declaration, {} "
-           "join failed; {} recovered from vfetch microcode",
+           "join failed; {} recovered from vfetch microcode ({} of them after "
+           "a failed join)",
            g_layout_no_fetches.load(), g_layout_no_decl.load(),
-           g_layout_join_failed.load(), g_layout_from_microcode.load());
+           g_layout_join_failed.load(), g_layout_from_microcode.load(),
+           g_layout_join_recovered.load());
 }
 
 }
