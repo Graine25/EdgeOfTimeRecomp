@@ -215,7 +215,10 @@ bool BuildInputLayoutFromMicrocode(const GuestShader &shader,
     e.stream = 0;
     e.offset = decoded[i].offset;
     e.format = format;
-    built.packedNormal |= format == plume::RenderFormat::R32_UINT;
+    if (format == plume::RenderFormat::R32_UINT &&
+        (e.usage == VertexUsage::kNormal || e.usage == VertexUsage::kTangent ||
+         e.usage == VertexUsage::kBinormal))
+      built.packedNormal = true;
   }
 
   out = built;
