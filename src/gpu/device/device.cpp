@@ -75,6 +75,9 @@ std::atomic<bool> g_device_lost{false};
 std::atomic<const GuestTexture *> g_last_front{nullptr};
 std::atomic<const GuestTexture *> g_guest_front{nullptr};
 std::atomic<u32> g_chain_seeds{0};
+
+std::atomic<i32> g_graph_countdown{-1};
+std::atomic<bool> g_graph_active{false};
 std::atomic<u32> g_identity_probe{0};
 
 std::mutex g_destroy_pending_mutex;
@@ -582,6 +585,19 @@ void Video::Present(GuestTexture *front_buffer) {
           g_snapshot_stale.fetch_add(1, std::memory_order_relaxed);
         }
       }
+    }
+  }
+
+  if (getenv("EOT_TRACE_GRAPH")) {
+    if (g_graph_active.load()) {
+      g_graph_active.store(false);
+      g_graph_countdown.store(0);
+      EOT_INFO("[graph] ---- frame ends, front self{:08X} ----",
+               front_buffer ? front_buffer->selfVa : 0);
+    } else if (g_graph_countdown.load() < 0 && s.busiest_rt_draws > 150) {
+      g_graph_active.store(true);
+      EOT_INFO("[graph] ---- frame begins, {} draws on the scene ----",
+               s.busiest_rt_draws);
     }
   }
 
@@ -1302,6 +1318,12 @@ Video::FramebufferBind Video::BindDrawFramebuffer() {
   if (!rt && !ds->texture)
     return FramebufferBind::kNoHostTexture;
 
+  if (g_graph_active.load(std::memory_order_relaxed) && rt) {
+    EOT_INFO("[graph] bind rt self{:08X} {}x{} fmt{} draws={} ds={:08X}",
+             rt->selfVa, rt->width, rt->height, u32(rt->format),
+             rt->drawsThisFrame, ds ? ds->selfVa : 0);
+  }
+
   plume::RenderFramebuffer *fb = GetFramebufferLocked(s, rt, ds);
   if (!fb)
     return FramebufferBind::kCreateFailed;
@@ -1659,6 +1681,13 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
   }
 
   dest->sourceSurface = src;
+  if (g_graph_active.load(std::memory_order_relaxed)) {
+    EOT_INFO("[graph] resolve src self{:08X} {}x{} fmt{} draws={} -> dest "
+             "self{:08X} objva{:08X} {}x{} fmt{}",
+             src->selfVa, src->width, src->height, u32(src->format),
+             src->drawsThisFrame, dest->selfVa, dest_texture_va, dest->width,
+             dest->height, u32(dest->format));
+  }
 
   if (src->format != dest->format || src->width != dest->width ||
       src->height != dest->height) {
@@ -1778,6 +1807,7 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
     }
     ++s.front_resolves;
     s.last_front_src = src;
+    s.prev_front_src = src;
   }
 
   if (dest == g_guest_front.load(std::memory_order_relaxed) &&
@@ -1812,9 +1842,11 @@ void Video::SeedFullscreenChain(RecordingList &rec) {
     return;
 
   const bool first_this_frame = rt->drawnSerial != s.frame_serial;
+  if (rt != s.prev_front_src)
+    return;
   GuestTexture *head = s.busiest_rt;
   if (first_this_frame && head && head != rt && head->texture &&
-      head->format == rt->format && s.chain_head_serial == s.frame_serial &&
+      head->format == rt->format && s.busiest_rt_serial == s.frame_serial &&
       FullscreenChainClassLocked(s, head)) {
     rec.cmd->setFramebuffer(nullptr);
     if (ResolveByBlitLocked(s, rec, head, rt))
@@ -1826,8 +1858,6 @@ void Video::SeedFullscreenChain(RecordingList &rec) {
       rt->layout = plume::RenderTextureLayout::COLOR_WRITE;
     }
   }
-  s.chain_head = rt;
-  s.chain_head_serial = s.frame_serial;
 }
 
 void Video::NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,

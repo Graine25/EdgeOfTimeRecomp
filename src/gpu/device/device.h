@@ -296,8 +296,7 @@ struct VideoState {
   std::unique_ptr<GuestTexture> scene_snapshot;
   u64 scene_snapshot_serial = 0;
   u32 scene_snapshot_draws = 0;
-  GuestTexture *chain_head = nullptr;
-  u64 chain_head_serial = 0;
+  GuestTexture *prev_front_src = nullptr;
   u32 busiest_rt_draws = 0;
   u64 busiest_rt_serial = 0;
   u32 frame_draw_total = 0;
