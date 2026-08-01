@@ -558,7 +558,7 @@ void Video::Present(GuestTexture *front_buffer) {
       busiest && busiest->texture && busiest->hasContent &&
       s.busiest_rt_serial == s.frame_serial) {
     const bool composite_is_whole =
-        REXCVAR_GET(eot_seed_fullscreen_chain) && s.last_front_src &&
+        s.chain_seed_serial == s.frame_serial && s.last_front_src &&
         s.front_resolve_serial == s.frame_serial;
     if (!composite_is_whole) {
       static std::atomic<u32> reported{0};
@@ -1817,8 +1817,10 @@ void Video::SeedFullscreenChain(RecordingList &rec) {
       head->format == rt->format && s.busiest_rt_serial == s.frame_serial &&
       FullscreenChainClassLocked(s, head)) {
     rec.cmd->setFramebuffer(nullptr);
-    if (ResolveByBlitLocked(s, rec, head, rt))
+    if (ResolveByBlitLocked(s, rec, head, rt)) {
       g_chain_seeds.fetch_add(1, std::memory_order_relaxed);
+      s.chain_seed_serial = s.frame_serial;
+    }
     if (rt->layout != plume::RenderTextureLayout::COLOR_WRITE) {
       const plume::RenderTextureBarrier back(
           rt->texture, plume::RenderTextureLayout::COLOR_WRITE);
