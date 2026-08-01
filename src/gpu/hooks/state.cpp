@@ -61,7 +61,6 @@ void ReportDepthStencil(u32 surface_va,
 
 }
 
-REX_EXTERN(__imp__D3DDevice_SetRenderTarget);
 REX_HOOK_RAW(D3DDevice_SetRenderTarget) {
   const u32 device_va = ctx.r3.u32;
   const u32 index = ctx.r4.u32;
@@ -72,8 +71,6 @@ REX_HOOK_RAW(D3DDevice_SetRenderTarget) {
         device_va + eot::gpu::kDeviceRenderTargetShadow + index * 4,
         surface_va);
   }
-
-  __imp__D3DDevice_SetRenderTarget(ctx, base);
 
   auto *surface = eot::gpu::ResolveGuestSurface(surface_va);
   ReportRenderTarget(index, surface_va, surface);

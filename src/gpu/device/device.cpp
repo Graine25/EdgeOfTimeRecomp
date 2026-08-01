@@ -54,24 +54,11 @@ REXCVAR_DEFINE_BOOL(eot_preserve_aspect, true, kCvarGroup,
 REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup,
                     "Synchronise Present with the display's refresh.");
 
-REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup,
-                     "Present the Nth colour surface of the frame (-1 = off).");
-
 REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, true, kCvarGroup,
                     "Reconstruct the EDRAM tile the guest's 2D layer inherits, "
                     "and present the composite it resolves. Off: the scene "
                     "surface is presented instead, untonemapped and without "
                     "the guest's colour grade or its 2D layer.");
-
-REXCVAR_DEFINE_BOOL(eot_no_scene_snapshot, false, kCvarGroup,
-                    "Present the scene surface itself rather than the copy "
-                    "taken before the post chain reused its tiles.");
-
-REXCVAR_DEFINE_BOOL(eot_probe_resolve_green, false, kCvarGroup,
-                    "TEMP: paint resolve destinations green.");
-
-REXCVAR_DEFINE_BOOL(eot_protect_resolved, false, kCvarGroup,
-                    "TEMP: skip guest clears entirely.");
 
 namespace eot::gpu {
 
@@ -582,8 +569,7 @@ void Video::Present(GuestTexture *front_buffer) {
       }
       front_buffer = busiest;
       if (s.scene_snapshot && s.scene_snapshot->texture &&
-          s.scene_snapshot_serial == s.frame_serial &&
-          !REXCVAR_GET(eot_no_scene_snapshot)) {
+          s.scene_snapshot_serial == s.frame_serial) {
         if (s.scene_snapshot_draws == busiest->drawsThisFrame) {
           g_snapshot_used.fetch_add(1, std::memory_order_relaxed);
           front_buffer = s.scene_snapshot.get();
@@ -634,12 +620,6 @@ void Video::Present(GuestTexture *front_buffer) {
                  p.colorBase, p.pitchTiles, p.depthBase, p.ownedRanges, ok);
       }
     }
-  }
-
-  if (const int pick = REXCVAR_GET(eot_present_surface); pick >= 0) {
-    if (static_cast<u32>(pick) < s.frame_surface_count &&
-        s.frame_surfaces[pick] && s.frame_surfaces[pick]->texture)
-      front_buffer = s.frame_surfaces[pick];
   }
 
   {
@@ -1762,24 +1742,6 @@ void Video::ResolveRenderTarget(u32 device_va, u32 flags, u32 dest_texture_va, u
   src->layout = plume::RenderTextureLayout::COPY_SOURCE;
   dest->layout = plume::RenderTextureLayout::COPY_DEST;
 
-  if (REXCVAR_GET(eot_probe_resolve_green)) {
-    if (plume::RenderFramebuffer *pfb = GetFramebufferLocked(s, dest, nullptr)) {
-      const plume::RenderTextureBarrier to_write(
-          dest->texture, plume::RenderTextureLayout::COLOR_WRITE);
-      rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_write, 1);
-      dest->layout = plume::RenderTextureLayout::COLOR_WRITE;
-      rec.cmd->setFramebuffer(pfb);
-      rec.cmd->clearColor(0, plume::RenderColor(0.0f, 1.0f, 0.0f, 1.0f));
-      rec.cmd->setFramebuffer(nullptr);
-      const plume::RenderTextureBarrier to_read(
-          dest->texture, plume::RenderTextureLayout::SHADER_READ);
-      rec.cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1);
-      dest->layout = plume::RenderTextureLayout::SHADER_READ;
-      dest->hasContent = true;
-      return;
-    }
-  }
-
   const plume::RenderBox src_box(i32(src_x), i32(src_y), i32(src_x + dst_w),
                                 i32(src_y + dst_h));
   rec.cmd->copyTextureRegion(
@@ -1913,8 +1875,6 @@ void Video::NoteReducedViewportDraw(const RecordingList &rec, u32 vp_w,
 
 void Video::ClearBoundTargets(u32 device_va, u32 flags, u32 color_va, float z,
                               u32 stencil) {
-  if (REXCVAR_GET(eot_protect_resolved))
-    return;
   constexpr u32 kClearTarget = 0x1;
   constexpr u32 kClearDepth = 0x10;
   constexpr u32 kClearStencil = 0x20;
