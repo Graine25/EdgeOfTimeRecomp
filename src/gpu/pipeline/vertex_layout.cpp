@@ -221,6 +221,7 @@ bool BuildInputLayoutFromMicrocode(const GuestShader &shader,
       built.packedNormal = true;
   }
 
+  built.recoveredStride = buffer_stride;
   out = built;
   return true;
 }

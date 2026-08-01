@@ -265,7 +265,9 @@ BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
       seen = seen || slots[j].index == stream;
     if (seen)
       continue;
-    const u32 stride = Video::BoundStreamStride(stream);
+    u32 stride = Video::BoundStreamStride(stream);
+    if (stride == 0 && stream == 0)
+      stride = layout.recoveredStride;
     if (stride == 0)
       return nullptr;
     slots[slot_count++] = plume::RenderInputSlot(
