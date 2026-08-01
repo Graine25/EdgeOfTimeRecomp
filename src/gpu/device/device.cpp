@@ -54,8 +54,6 @@ REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup, "Sync frames to display");
 
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup, "Present the Nth surface");
 
-REXCVAR_DEFINE_BOOL(eot_present_guest_front, false, kCvarGroup, "Present the guest's surface");
-
 REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, false, kCvarGroup, "Rebuild the 2D layer tile");
 
 REXCVAR_DEFINE_BOOL(eot_no_scene_snapshot, false, kCvarGroup, "Present the raw scene");
@@ -561,18 +559,15 @@ void Video::Present(GuestTexture *front_buffer) {
   if (GuestTexture *busiest = s.busiest_rt;
       busiest && busiest->texture && busiest->hasContent &&
       s.busiest_rt_serial == s.frame_serial) {
-    const u32 front_draws =
-        (s.last_front_src && s.front_resolve_serial == s.frame_serial)
-            ? s.last_front_src->drawsThisFrame
-            : 0;
-    if (s.busiest_rt_draws > front_draws * 4 &&
-        !REXCVAR_GET(eot_present_guest_front)) {
+    const bool composite_is_whole =
+        REXCVAR_GET(eot_seed_fullscreen_chain) && s.last_front_src &&
+        s.front_resolve_serial == s.frame_serial;
+    if (!composite_is_whole) {
       static std::atomic<u32> reported{0};
       if (reported.fetch_add(1, std::memory_order_relaxed) == 0) {
-        EOT_INFO("[present] the composite the guest resolved carries {} draws "
-                 "against {} in the frame's scene surface; presenting the "
-                 "scene",
-                 front_draws, s.busiest_rt_draws);
+        EOT_INFO("[present] the guest's composite is not reconstructed; "
+                 "presenting the scene surface's {} draws instead",
+                 s.busiest_rt_draws);
       }
       front_buffer = busiest;
       if (s.scene_snapshot && s.scene_snapshot->texture &&
