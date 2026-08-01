@@ -54,7 +54,7 @@ REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup, "Sync frames to display");
 
 REXCVAR_DEFINE_INT32(eot_present_surface, -1, kCvarGroup, "Present the Nth surface");
 
-REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, false, kCvarGroup, "Rebuild the 2D layer tile");
+REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, true, kCvarGroup, "Rebuild the 2D layer tile");
 
 REXCVAR_DEFINE_BOOL(eot_no_scene_snapshot, false, kCvarGroup, "Present the raw scene");
 
