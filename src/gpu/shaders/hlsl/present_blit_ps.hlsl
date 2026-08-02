@@ -1,3 +1,10 @@
+struct PresentConstants {
+  float encode;
+  float3 unused;
+  float unused2;
+};
+[[vk::push_constant]] ConstantBuffer<PresentConstants> g_Present : register(b0);
+
 Texture2D<float4> g_Source : register(t0);
 SamplerState g_Sampler : register(s1);
 
@@ -11,5 +18,7 @@ float3 LinearToSrgb(float3 c) {
 float4 main(in float4 position : SV_Position, in float2 texCoord : TEXCOORD)
     : SV_Target {
   const float3 c = g_Source.Sample(g_Sampler, texCoord).rgb;
+  if (g_Present.encode == 0.0)
+    return float4(max(c, 0.0), 1.0);
   return float4(LinearToSrgb(c), 1.0);
 }

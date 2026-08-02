@@ -554,12 +554,16 @@ void Video::Present(GuestTexture *front_buffer) {
     }
   }
 
+  bool presenting_graded_composite = false;
+
   if (GuestTexture *busiest = s.busiest_rt;
       busiest && busiest->texture && busiest->hasContent &&
       s.busiest_rt_serial == s.frame_serial) {
     const bool composite_is_whole =
         s.chain_seed_serial == s.frame_serial && s.last_front_src &&
         s.front_resolve_serial == s.frame_serial;
+    presenting_graded_composite = composite_is_whole;
+
     if (!composite_is_whole) {
       static std::atomic<u32> reported{0};
       if (reported.fetch_add(1, std::memory_order_relaxed) == 0) {
@@ -767,6 +771,9 @@ void Video::Present(GuestTexture *front_buffer) {
     cmd->setPipeline(s.blit_pipeline.get());
     cmd->setGraphicsPipelineLayout(s.blit_layout.get());
     cmd->setGraphicsDescriptorSet(blit_set, 0);
+    const float encode[5] = {presenting_graded_composite ? 0.0f : 1.0f, 0.0f,
+                             0.0f, 0.0f, 0.0f};
+    cmd->setGraphicsPushConstants(0, encode, 0, sizeof(encode));
     cmd->setViewports(plume::RenderViewport(vx, vy, vw, vh));
     cmd->setScissors(
         plume::RenderRect(0, 0, static_cast<i32>(w), static_cast<i32>(h)));
