@@ -571,6 +571,7 @@ void Video::Present(GuestTexture *front_buffer) {
                  "presenting the scene surface's {} draws instead",
                  s.busiest_rt_draws);
       }
+      presenting_graded_composite = s.last_front_src == busiest;
       front_buffer = busiest;
       if (s.scene_snapshot && s.scene_snapshot->texture &&
           s.scene_snapshot_serial == s.frame_serial) {
