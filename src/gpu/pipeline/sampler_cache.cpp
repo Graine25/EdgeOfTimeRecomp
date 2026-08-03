@@ -49,6 +49,25 @@ plume::RenderMipmapMode ConvertMipFilter(xenos::TextureFilter filter) {
              : plume::RenderMipmapMode::NEAREST;
 }
 
+u32 ConvertAniso(xenos::AnisoFilter aniso) {
+  switch (aniso) {
+  case xenos::AnisoFilter::kMax_1_1:
+    return 1;
+  case xenos::AnisoFilter::kMax_2_1:
+    return 2;
+  case xenos::AnisoFilter::kMax_4_1:
+    return 4;
+  case xenos::AnisoFilter::kMax_8_1:
+    return 8;
+  case xenos::AnisoFilter::kMax_16_1:
+  case xenos::AnisoFilter::kUseFetchConst:
+    return 16;
+  case xenos::AnisoFilter::kDisabled:
+  default:
+    return 0;
+  }
+}
+
 }
 
 u32 ResolveSlot(const GuestTextureFetch &fetch, bool force_clamp) {
@@ -64,10 +83,14 @@ u32 ResolveSlot(const GuestTextureFetch &fetch, bool force_clamp) {
   const auto border = fetch.borderWhite
                           ? plume::RenderBorderColor::OPAQUE_WHITE
                           : plume::RenderBorderColor::TRANSPARENT_BLACK;
+  const u32 aniso = min == plume::RenderFilter::LINEAR
+                        ? ConvertAniso(fetch.anisoFilter)
+                        : 0;
 
   const u64 key = (u64(address_u) << 0) | (u64(address_v) << 4) |
                   (u64(address_w) << 8) | (u64(mag) << 12) |
-                  (u64(min) << 16) | (u64(mip) << 20) | (u64(border) << 24);
+                  (u64(min) << 16) | (u64(mip) << 20) | (u64(border) << 24) |
+                  (u64(aniso) << 28);
 
   {
     std::lock_guard lock(g_mutex);
@@ -85,6 +108,9 @@ u32 ResolveSlot(const GuestTextureFetch &fetch, bool force_clamp) {
   desc.minFilter = min;
   desc.mipmapMode = mip;
   desc.borderColor = border;
+  desc.anisotropyEnabled = aniso != 0;
+  if (aniso)
+    desc.maxAnisotropy = aniso;
 
   const u32 slot = Video::AcquireSamplerDescriptor(desc);
   if (slot == kInvalidDescriptorIndex) {

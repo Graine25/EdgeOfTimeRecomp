@@ -27,6 +27,7 @@ struct GuestTextureFetch {
   rex::graphics::xenos::ClampMode clampX{};
   rex::graphics::xenos::ClampMode clampY{};
   rex::graphics::xenos::ClampMode clampZ{};
+  rex::graphics::xenos::AnisoFilter anisoFilter{};
   rex::graphics::xenos::TextureFilter magFilter{};
   rex::graphics::xenos::TextureFilter minFilter{};
   rex::graphics::xenos::TextureFilter mipFilter{};

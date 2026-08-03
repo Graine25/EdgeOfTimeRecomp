@@ -156,6 +156,7 @@ bool DecodeTextureFetchWords(const u32 *words, GuestTextureFetch &out) {
   out.clampX = fetch.clamp_x;
   out.clampY = fetch.clamp_y;
   out.clampZ = fetch.clamp_z;
+  out.anisoFilter = fetch.aniso_filter;
   out.magFilter = fetch.mag_filter;
   out.minFilter = fetch.min_filter;
   out.mipFilter = fetch.mip_filter;
