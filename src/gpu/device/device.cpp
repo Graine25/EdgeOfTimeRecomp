@@ -1811,7 +1811,7 @@ void Video::SeedFullscreenChain(RecordingList &rec) {
   if (rt == s.busiest_rt)
     return;
 
-  const bool first_this_frame = s.chain_seed_serial != s.frame_serial;
+  const bool first_this_frame = rt->drawnSerial != s.frame_serial;
   if (rt != s.prev_front_src)
     return;
   GuestTexture *head = s.busiest_rt;
