@@ -52,7 +52,7 @@ REXCVAR_DEFINE_BOOL(eot_preserve_aspect, true, kCvarGroup, "Letterbox instead of
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup, "Sync frames to display");
 
-REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, true, kCvarGroup, "Rebuild the 2D layer tile");
+REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, false, kCvarGroup, "Rebuild the 2D layer tile");
 
 namespace eot::gpu {
 
