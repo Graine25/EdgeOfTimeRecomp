@@ -26,7 +26,8 @@ struct SharedConstants {
   u32 swappedBlendWeights{}; // c23.w, byte 380
   u32 swappedPositions{};   // c24.x,  byte 384
   u32 sintTexcoords{};      // c24.y,  byte 388
-  u32 _pad_c24_zw[2]{};     // c24.zw, bytes 392..399
+  u32 _pad_c24_z{};         // c24.z,  byte 392
+  u32 packedDec3{};         // c24.w,  byte 396
 
   u32 loopConstants[32][4]{}; // c25..c56, bytes 400..911
 };
