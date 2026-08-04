@@ -54,7 +54,7 @@ REXCVAR_DEFINE_BOOL(eot_preserve_aspect, true, kCvarGroup,
 REXCVAR_DEFINE_BOOL(eot_vsync, true, kCvarGroup,
                     "Synchronise Present with the display's refresh.");
 
-REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, true, kCvarGroup,
+REXCVAR_DEFINE_BOOL(eot_seed_fullscreen_chain, false, kCvarGroup,
                     "Reconstruct the EDRAM tile the guest's 2D layer inherits, "
                     "and present the composite it resolves. Off: the scene "
                     "surface is presented instead, untonemapped and without "
