@@ -215,6 +215,9 @@ bool BuildInputLayoutFromMicrocode(const GuestShader &shader,
     e.stream = 0;
     e.offset = decoded[i].offset;
     e.format = format;
+    if (e.usage == VertexUsage::kColor &&
+        format == plume::RenderFormat::R8G8B8A8_UNORM)
+      e.format = plume::RenderFormat::B8G8R8A8_UNORM;
     if (format == plume::RenderFormat::R32_UINT &&
         (e.usage == VertexUsage::kNormal || e.usage == VertexUsage::kTangent ||
          e.usage == VertexUsage::kBinormal))
