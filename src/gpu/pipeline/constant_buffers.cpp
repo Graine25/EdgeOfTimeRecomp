@@ -143,6 +143,15 @@ bool Is16BitComponentFormat(plume::RenderFormat format) {
 void ApplySwapMasks(const InputLayout &layout, SharedConstants &shared) {
   for (u32 i = 0; i < layout.count; ++i) {
     const InputElement &e = layout.elements[i];
+
+    if (e.format == plume::RenderFormat::R32_UINT) {
+      const u32 slot = e.usageIndex & 7u;
+      if (e.usage == VertexUsage::kTangent)
+        shared.packedDec3 |= 1u << (8u + slot);
+      else if (e.usage == VertexUsage::kBinormal)
+        shared.packedDec3 |= 1u << (16u + slot);
+    }
+
     if (!Is16BitComponentFormat(e.format))
       continue;
     const u32 bit = 1u << (e.usageIndex & 31u);
