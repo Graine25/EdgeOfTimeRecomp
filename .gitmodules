@@ -1,7 +1,7 @@
+[submodule "thirdparty/XenosRecomp"]
+	path = thirdparty/XenosRecomp
+	url = https://github.com/goliathret/reeot-XenosRecomp.git
+	branch = reeot
 [submodule "thirdparty/plume"]
 	path = thirdparty/plume
 	url = https://github.com/zolaware/plume.git
-[submodule "thirdparty/reeot-XenosRecomp"]
-	path = thirdparty/reeot-XenosRecomp
-	url = https://github.com/goliathret/reeot-XenosRecomp.git
-	branch = reeot
