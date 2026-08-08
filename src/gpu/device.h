@@ -1,0 +1,213 @@
+#pragma once
+
+#include <atomic>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include <rex/types.h>
+
+#include <plume_render_interface.h>
+
+#include "gpu/resources.h"
+
+namespace rex::ui {
+class Window;
+}
+
+namespace eot::gpu {
+
+constexpr u32 kNumFrames = 2;
+
+constexpr u32 kBindlessTextureCount = 32768;
+constexpr u32 kBindlessSamplerCount = 512;
+
+constexpr u32 kSamplerLinearClamp = 0;
+constexpr u32 kSamplerPointClamp = 1;
+constexpr u32 kReservedSamplerCount = 2;
+
+struct CopyPushConstants {
+  u32 resourceDescriptorIndex = 0;
+  u32 resourceDescriptorIndex2 = 0;
+  float param0 = 1.0f;
+  float param1 = 0.0f;
+  float rect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+};
+static_assert(sizeof(CopyPushConstants) == 32);
+
+struct SharedConstants {
+  u32 texture2DIndices[16]{};   // c0..c3
+  u32 texture3DIndices[16]{};   // c4..c7
+  u32 textureCubeIndices[16]{}; // c8..c11
+  u32 texture1DIndices[16]{};   // c12..c15
+  u32 samplerIndices[16]{};     // c16..c19
+  u32 booleans[8]{};            // c20..c21  VS bits 0..127, PS bits 128..255
+  u32 swappedTexcoords{};       // c22.x
+  float halfPixelOffsetX{};     // c22.y
+  float halfPixelOffsetY{};     // c22.z
+  float alphaThreshold{};       // c22.w
+  u32 swappedNormals{};         // c23.x
+  u32 swappedBinormals{};       // c23.y
+  u32 swappedTangents{};        // c23.z
+  u32 swappedBlendWeights{};    // c23.w
+  u32 swappedPositions{};       // c24.x
+  u32 sintTexcoords{};
+  u32 biasedTextures{};
+  u32 packedDec3{};
+  i32 loopConstants[32][4]{};   // c25..c56  int4(count, start, step, 0)
+  float posScale[4]{1.f, 1.f, 1.f, 1.f};  // c57
+  float posOffset[4]{0.f, 0.f, 0.f, 0.f}; // c58
+};
+static_assert(sizeof(SharedConstants) == 59 * 16);
+
+struct VideoState {
+  std::unique_ptr<plume::RenderInterface> render_iface;
+  std::unique_ptr<plume::RenderDevice> device;
+  std::unique_ptr<plume::RenderCommandQueue> queue;
+  std::unique_ptr<plume::RenderCommandList> command_lists[kNumFrames];
+  std::unique_ptr<plume::RenderCommandFence> fences[kNumFrames];
+  std::unique_ptr<plume::RenderCommandSemaphore> acquire_semaphores[kNumFrames];
+  std::vector<std::unique_ptr<plume::RenderCommandSemaphore>> render_semaphores;
+  plume::RenderCommandList *command_list = nullptr;
+  std::atomic<u32> frame{0};
+  u32 next_frame = 1 % kNumFrames;
+  u32 recording_slot() const { return frame.load(std::memory_order_relaxed); }
+
+  std::unique_ptr<plume::RenderSwapChain> swap_chain;
+  std::vector<std::unique_ptr<plume::RenderFramebuffer>> swap_framebuffers;
+
+  std::unique_ptr<plume::RenderPipelineLayout> pipeline_layout;
+  std::unique_ptr<plume::RenderDescriptorSet> texture_descriptor_set;
+  std::vector<bool> descriptor_slot_used;
+  std::unique_ptr<plume::RenderTexture> null_textures[kNullTextureDescriptorCount];
+  std::unique_ptr<plume::RenderTextureView> null_texture_views[kNullTextureDescriptorCount];
+  bool null_texture_barriers_submitted = false;
+  std::unique_ptr<plume::RenderDescriptorSet> sampler_descriptor_set;
+  std::vector<bool> sampler_descriptor_used;
+  std::unique_ptr<plume::RenderSampler> linear_sampler;
+  std::unique_ptr<plume::RenderSampler> point_sampler;
+
+  std::unique_ptr<plume::RenderShader> copy_vs;
+  std::unique_ptr<plume::RenderShader> blit_ps;
+  std::unique_ptr<plume::RenderShader> copy_depth_ps;
+  std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> blit_pipelines;
+  std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> depth_copy_pipelines;
+
+  std::string backend_info;
+
+  std::mutex mutex;
+  bool ready = false;
+  std::atomic<bool> shutting_down{false};
+  std::atomic<bool> resize_requested{false};
+
+  bool command_list_open = false;
+  bool command_list_submitted[kNumFrames] = {};
+
+  u64 presented_frames = 0;
+  u64 guest_frames = 0;
+
+  std::vector<std::unique_ptr<plume::RenderTexture>> texture_graveyard[kNumFrames];
+  std::vector<std::unique_ptr<plume::RenderTextureView>> view_graveyard[kNumFrames];
+  std::vector<std::unique_ptr<plume::RenderFramebuffer>> framebuffer_graveyard[kNumFrames];
+  std::vector<std::unique_ptr<plume::RenderBuffer>> buffer_graveyard[kNumFrames];
+  struct RetiredDescriptorSlot {
+    u32 slot;
+    u32 null_index;
+  };
+  std::vector<RetiredDescriptorSlot> descriptor_graveyard[kNumFrames];
+
+  std::unordered_map<u32, std::unique_ptr<GuestTexture>> textures;
+  std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
+  std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
+
+  std::unordered_map<u64, std::unique_ptr<plume::RenderFramebuffer>> framebuffers;
+  const plume::RenderFramebuffer *bound_framebuffer = nullptr;
+  const plume::RenderPipeline *bound_pipeline = nullptr;
+  SharedConstants last_shared{};
+  bool shared_bound = false;
+
+  enum class GammaMode : u32 { None = 0, Table = 1, Pwl = 2 };
+  GammaMode gamma_mode = GammaMode::None;
+  uint16_t gamma_table[3][256] = {};  // D3DGAMMARAMP: red/green/blue, 16-bit
+  uint16_t gamma_pwl[3][128][2] = {}; // D3DPWLGAMMA: {base, delta} per channel
+  bool gamma_lut_dirty = false;
+  HostTexture gamma_lut;
+  u32 last_front_buffer_va = 0;
+
+  struct PendingUpDraw {
+    bool valid = false;
+    u32 device_va = 0;
+    u32 primitive_type = 0;
+    u32 vertex_count = 0;
+    u32 stride = 0;
+    u32 data_va = 0;
+    bool has_image = false;
+    std::vector<u8> device_image;
+  } pending_up;
+};
+
+VideoState &state();
+
+class Video {
+public:
+  static bool CreateHostDevice(rex::ui::Window *window);
+  static void BeginShutdown();
+  static void Shutdown();
+  static plume::RenderDevice *HostDevice();
+  static u32 OutputWidth();
+  static u32 OutputHeight();
+  static void RequestResize();
+
+  static void Present(u32 front_buffer_texture_va);
+};
+
+std::unique_ptr<plume::RenderBuffer> CreateHostBuffer(plume::RenderDevice *device,
+                                                      const plume::RenderBufferDesc &desc,
+                                                      const char *tag);
+std::unique_ptr<plume::RenderTexture> CreateHostTexture(plume::RenderDevice *device,
+                                                        const plume::RenderTextureDesc &desc,
+                                                        const char *tag);
+std::unique_ptr<plume::RenderPipeline>
+CreateHostGraphicsPipeline(plume::RenderDevice *device,
+                           const plume::RenderGraphicsPipelineDesc &desc, const char *tag);
+
+bool BuildPipelineLayout(VideoState &s);
+bool BuildHelperPipelines(VideoState &s);
+bool BuildSwapFramebuffers(VideoState &s);
+plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format);
+plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format);
+
+void BeginCommandList(VideoState &s);
+void SubmitOpenListLocked(VideoState &s);
+void AdvanceAndWaitReused(VideoState &s);
+void DrainSlot(VideoState &s, u32 slot);
+void ParkTexture(VideoState &s, std::unique_ptr<plume::RenderTexture> t);
+void ParkView(VideoState &s, std::unique_ptr<plume::RenderTextureView> v);
+void ParkFramebuffer(VideoState &s, std::unique_ptr<plume::RenderFramebuffer> f);
+void ParkBuffer(VideoState &s, std::unique_ptr<plume::RenderBuffer> b);
+void ParkHostTexture(VideoState &s, HostTexture &host);
+
+u32 AllocateDescriptorSlot(VideoState &s);
+u32 BindTextureSRVLocked(VideoState &s, HostTexture &host);
+u32 BindTextureSRVSwizzledLocked(VideoState &s, HostTexture &host, u32 swizzle);
+void ReleaseTextureSRVLocked(VideoState &s, HostTexture &host);
+void DrainDescriptorSlotsLocked(VideoState &s, u32 slot);
+
+void TransitionLocked(VideoState &s, HostTexture &host, plume::RenderTextureLayout layout);
+
+plume::RenderColor ArgbToRenderColor(u32 argb);
+
+bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, float scale,
+                           u32 lut_index = kInvalidDescriptorIndex);
+
+void RenderDocInit();
+void RenderDocFrameBoundary(u64 guest_frame_just_presented);
+
+void DrainHostDebugMessages(VideoState &s, const char *phase);
+
+bool DiagShouldLog(u64 site, u32 *n_out);
+
+}
