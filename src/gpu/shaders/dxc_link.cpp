@@ -1,11 +1,11 @@
 #include "gpu/shaders/dxc_link.h"
 
+#include <cstdio>
+#include <string>
+
 #include <unknwn.h>
 
 #include <dxcapi.h>
-
-#include <cstdio>
-#include <cstring>
 
 namespace eot::gpu {
 namespace {
@@ -28,18 +28,6 @@ private:
   T *p_ = nullptr;
 };
 
-void CaptureErrors(IDxcOperationResult *result, std::string *error) {
-  if (!error || !result)
-    return;
-  IDxcBlobEncoding *blob = nullptr;
-  if (FAILED(result->GetErrorBuffer(&blob)) || !blob)
-    return;
-  const auto *text = static_cast<const char *>(blob->GetBufferPointer());
-  if (text && blob->GetBufferSize() > 0)
-    error->assign(text, strnlen(text, blob->GetBufferSize()));
-  blob->Release();
-}
-
 std::vector<uint8_t> ToVector(IDxcBlob *blob) {
   const auto *bytes = static_cast<const uint8_t *>(blob->GetBufferPointer());
   return std::vector<uint8_t>(bytes, bytes + blob->GetBufferSize());
@@ -47,18 +35,14 @@ std::vector<uint8_t> ToVector(IDxcBlob *blob) {
 
 }
 
-std::vector<uint8_t> CompileSpecConstantLib(uint32_t value,
-                                           std::string *error) {
+std::vector<uint8_t> CompileSpecConstantLib(uint32_t value) {
   Com<IDxcCompiler3> compiler;
-  if (FAILED(
-          DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(compiler.put())))) {
+  if (FAILED(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(compiler.put()))))
     return {};
-  }
 
   char hlsl[128];
-  const int len =
-      std::snprintf(hlsl, sizeof(hlsl),
-                    "export uint g_SpecConstants() { return %u; }", value);
+  const int len = std::snprintf(hlsl, sizeof(hlsl),
+                                "export uint g_SpecConstants() { return %u; }", value);
   DxcBuffer buffer{};
   buffer.Ptr = hlsl;
   buffer.Size = static_cast<SIZE_T>(len);
@@ -66,70 +50,72 @@ std::vector<uint8_t> CompileSpecConstantLib(uint32_t value,
 
   const wchar_t *args[] = {L"-T", L"lib_6_3"};
   Com<IDxcResult> result;
-  if (FAILED(compiler->Compile(&buffer, args, 2, nullptr,
-                               IID_PPV_ARGS(result.put()))) ||
-      !result) {
+  if (FAILED(compiler->Compile(&buffer, args, 2, nullptr, IID_PPV_ARGS(result.put()))) ||
+      !result)
     return {};
-  }
-  CaptureErrors(result.get(), error);
 
   Com<IDxcBlob> blob;
-  if (FAILED(result->GetResult(blob.put())) || !blob ||
-      blob->GetBufferSize() == 0) {
+  if (FAILED(result->GetResult(blob.put())) || !blob || blob->GetBufferSize() == 0)
     return {};
-  }
   return ToVector(blob.get());
 }
 
-std::vector<uint8_t> LinkSpecConstantLib(const uint8_t *libraryDxil,
-                                         uint32_t libraryDxilSize,
-                                         const uint8_t *specLib,
-                                         size_t specLibSize,
-                                         const wchar_t *profile,
-                                         const wchar_t *entry,
-                                         std::string *error) {
-  if (!libraryDxil || libraryDxilSize == 0 || !specLib || specLibSize == 0)
+std::vector<uint8_t> LinkSpecConstantLib(const uint8_t *library_dxil, uint32_t library_dxil_size,
+                                         const uint8_t *spec_lib, size_t spec_lib_size,
+                                         const wchar_t *profile, std::string *error_out) {
+  if (error_out)
+    error_out->clear();
+  if (!library_dxil || library_dxil_size == 0 || !spec_lib || spec_lib_size == 0) {
+    if (error_out)
+      *error_out = "empty input blob";
     return {};
+  }
 
   Com<IDxcUtils> utils;
   if (FAILED(DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.put()))))
     return {};
 
-  Com<IDxcBlobEncoding> specBlob;
-  Com<IDxcBlobEncoding> shaderBlob;
-  if (FAILED(utils->CreateBlobFromPinned(specLib,
-                                         static_cast<UINT32>(specLibSize),
-                                         DXC_CP_ACP, specBlob.put())) ||
-      FAILED(utils->CreateBlobFromPinned(libraryDxil, libraryDxilSize,
-                                         DXC_CP_ACP, shaderBlob.put()))) {
+  Com<IDxcBlobEncoding> spec_blob;
+  Com<IDxcBlobEncoding> shader_blob;
+  if (FAILED(utils->CreateBlobFromPinned(spec_lib, static_cast<UINT32>(spec_lib_size),
+                                         DXC_CP_ACP, spec_blob.put())) ||
+      FAILED(utils->CreateBlobFromPinned(library_dxil, library_dxil_size, DXC_CP_ACP,
+                                         shader_blob.put())))
     return {};
-  }
 
   Com<IDxcLinker> linker;
   if (FAILED(DxcCreateInstance(CLSID_DxcLinker, IID_PPV_ARGS(linker.put()))))
     return {};
 
-  linker->RegisterLibrary(L"SpecConstants", specBlob.get());
-  linker->RegisterLibrary(L"Shader", shaderBlob.get());
-  const wchar_t *libNames[] = {L"SpecConstants", L"Shader"};
+  linker->RegisterLibrary(L"SpecConstants", spec_blob.get());
+  linker->RegisterLibrary(L"Shader", shader_blob.get());
+  const wchar_t *lib_names[] = {L"SpecConstants", L"Shader"};
 
   Com<IDxcOperationResult> result;
-  if (FAILED(linker->Link(entry, profile, libNames, 2, nullptr, 0,
-                          result.put())) ||
+  if (FAILED(linker->Link(L"shaderMain", profile, lib_names, 2, nullptr, 0, result.put())) ||
       !result) {
+    if (error_out)
+      *error_out = "IDxcLinker::Link call failed";
     return {};
   }
-  CaptureErrors(result.get(), error);
-
   HRESULT status = E_FAIL;
-  if (FAILED(result->GetStatus(&status)) || FAILED(status))
+  if (FAILED(result->GetStatus(&status)) || FAILED(status)) {
+    if (error_out) {
+      Com<IDxcBlobEncoding> errors;
+      if (SUCCEEDED(result->GetErrorBuffer(errors.put())) && errors &&
+          errors->GetBufferSize() > 0) {
+        error_out->assign(static_cast<const char *>(errors->GetBufferPointer()),
+                          errors->GetBufferSize());
+      } else {
+        *error_out = "link status " + std::to_string(static_cast<long>(status));
+      }
+    }
     return {};
+  }
 
   Com<IDxcBlob> linked;
-  if (FAILED(result->GetResult(linked.put())) || !linked ||
-      linked->GetBufferSize() == 0) {
+  if (FAILED(result->GetResult(linked.put())) || !linked || linked->GetBufferSize() == 0)
     return {};
-  }
   return ToVector(linked.get());
 }
 

@@ -1,270 +1,253 @@
 #include "gpu/shaders/guest_shaders.h"
 
-#include <algorithm>
-#include <atomic>
+#include <cstring>
 #include <memory>
-#include <mutex>
 #include <unordered_map>
 #include <vector>
 
-#include <plume_render_interface.h>
-#include <rex/hash.h>
+#include <xxhash.h>
 #include <zstd.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
-#include "gpu/device/device.h"
-#include "gpu/device/host_resource_heap.h"
-#include "gpu/guest/d3d.h"
+#include "gpu/backend.h"
+#include "gpu/d3d.h"
+#include "gpu/device.h"
+#include "gpu/shaders/dxc_link.h"
 #include "gpu/shaders/shader_cache.h"
-#include "gpu/shaders/shader_linker.h"
 
 namespace eot::gpu {
 
 namespace {
 
-std::mutex g_shader_mutex;
-std::unordered_map<u32, GuestShader *> g_shader_objects;
-
-struct Stats {
-  std::atomic<u32> registered{0};
-  std::atomic<u32> resolved{0};
-  std::atomic<u32> missed{0};
-  std::atomic<u32> bad_container{0};
-  std::atomic<u32> built{0};
-  std::atomic<u32> build_failed{0};
+struct CacheState {
+  std::vector<u8> blob;
+  std::unordered_map<u64, const ShaderCacheEntry *> by_hash;
+  std::unordered_map<u32, std::vector<u8>> spec_libs;
+  bool ready = false;
 };
-Stats g_stats;
 
-u32 Bump(std::atomic<u32> &counter) {
-  return counter.fetch_add(1, std::memory_order_relaxed);
+CacheState &cache() {
+  static CacheState c;
+  return c;
 }
 
-std::once_flag g_dxil_cache_once;
-std::unique_ptr<u8[]> g_dxil_cache;
-
-const u8 *DxilCache() {
-  std::call_once(g_dxil_cache_once, [] {
-    if (g_dxilCacheDecompressedSize == 0) {
-      EOT_ERROR("shader cache is empty - the build produced no recompiled "
-                "shaders (see cmake/shader_cache.cmake)");
-      return;
-    }
-    auto buf = std::make_unique<u8[]>(g_dxilCacheDecompressedSize);
-    const size_t n =
-        ZSTD_decompress(buf.get(), g_dxilCacheDecompressedSize,
-                        g_compressedDxilCache, g_dxilCacheCompressedSize);
-    if (ZSTD_isError(n) || n != g_dxilCacheDecompressedSize) {
-      EOT_ERROR("DXIL shader cache decompression failed ({} of {} bytes)", n,
-                g_dxilCacheDecompressedSize);
-      return;
-    }
-    g_dxil_cache = std::move(buf);
-    EOT_INFO("shader cache: {} entries, DXIL {} -> {} bytes",
-             g_shaderCacheEntryCount, g_dxilCacheCompressedSize,
-             g_dxilCacheDecompressedSize);
-  });
-  return g_dxil_cache.get();
-}
-
-constexpr u32 kGuestPageSize = 0x1000;
-
-bool ReadableSpan(u32 va, u32 size) {
-  if (!va || !size || va + size < va)
-    return false;
-  for (u32 p = va; p < va + size;
-       p = (p & ~(kGuestPageSize - 1)) + kGuestPageSize) {
-    if (!mem::try_translate(p, 1))
-      return false;
+const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size) {
+  auto &c = cache();
+  if (c.blob.empty()) {
+    *size = 0;
+    return nullptr;
   }
+#if defined(EOT_D3D12)
+  *size = e.dxilSize;
+  return c.blob.data() + e.dxilOffset;
+#else
+  *size = e.spirvSize;
+  return c.blob.data() + e.spirvOffset;
+#endif
+}
+
+const std::vector<u8> &SpecLib(u32 value) {
+  auto &c = cache();
+  auto it = c.spec_libs.find(value);
+  if (it != c.spec_libs.end())
+    return it->second;
+  auto lib = CompileSpecConstantLib(value);
+  if (lib.empty()) {
+    EOT_ERROR("[shaders] CompileSpecConstantLib({:#x}) failed: are dxcompiler.dll and "
+              "dxil.dll next to the executable?",
+              value);
+  }
+  return c.spec_libs.emplace(value, std::move(lib)).first->second;
+}
+
+}
+
+bool GuestShadersInit() {
+  auto &c = cache();
+  if (c.ready)
+    return !c.blob.empty();
+  c.ready = true;
+#if defined(EOT_D3D12)
+  const u8 *compressed = g_compressedDxilCache;
+  const size_t compressed_size = g_dxilCacheCompressedSize;
+  const size_t decompressed_size = g_dxilCacheDecompressedSize;
+#else
+  const u8 *compressed = g_compressedSpirvCache;
+  const size_t compressed_size = g_spirvCacheCompressedSize;
+  const size_t decompressed_size = g_spirvCacheDecompressedSize;
+#endif
+  if (g_shaderCacheEntryCount == 0 || decompressed_size == 0) {
+    EOT_ERROR("[shaders] the embedded shader cache is empty: build "
+              "reeot_shader_cache_regen and rebuild; no guest shader will run");
+    return false;
+  }
+  c.blob.resize(decompressed_size);
+  const size_t got =
+      ZSTD_decompress(c.blob.data(), decompressed_size, compressed, compressed_size);
+  if (ZSTD_isError(got) || got != decompressed_size) {
+    EOT_ERROR("[shaders] shader cache decompression failed: {}",
+              ZSTD_isError(got) ? ZSTD_getErrorName(got) : "short read");
+    c.blob.clear();
+    return false;
+  }
+  c.by_hash.reserve(g_shaderCacheEntryCount);
+  for (size_t i = 0; i < g_shaderCacheEntryCount; ++i)
+    c.by_hash.emplace(g_shaderCacheEntries[i].hash, &g_shaderCacheEntries[i]);
+  EOT_INFO("[shaders] cache ready: {} shaders, {} MB decompressed", g_shaderCacheEntryCount,
+           decompressed_size / (1024 * 1024));
   return true;
 }
 
-const ShaderContainer *ContainerAt(u32 container_va) {
-  if (!ReadableSpan(container_va, sizeof(ShaderContainer)))
-    return nullptr;
-  return mem::try_at<const ShaderContainer>(container_va);
+u32 GuestShaderCacheCount() { return static_cast<u32>(g_shaderCacheEntryCount); }
+
+GuestShader *FindGuestShader(VideoState &s, u32 object_va) {
+  auto it = s.shaders.find(object_va);
+  return it == s.shaders.end() ? nullptr : it->second.get();
 }
 
-const char *TypeName(ResourceType type) {
-  return type == ResourceType::PixelShader ? "ps" : "vs";
-}
-
-}
-
-u32 ShaderContainerOffset(ResourceType type) {
-  return type == ResourceType::PixelShader ? kPixelShaderContainerOffset
-                                           : kVertexShaderContainerOffset;
-}
-
-bool IsValidShaderContainer(u32 container_va, ResourceType type) {
-  const ShaderContainer *c = ContainerAt(container_va);
-  if (!c)
-    return false;
-  const u32 flags = c->Flags;
-  if ((flags & kShaderContainerMagicMask) != kShaderContainerMagic)
-    return false;
-  const bool is_vertex = (flags & kShaderContainerVertexBit) != 0;
-  if (is_vertex != (type == ResourceType::VertexShader))
-    return false;
-  return c->Field1C == 0u && c->Field20 == 0u;
-}
-
-u64 HashShaderContainer(u32 container_va, u32 physical_va) {
-  const ShaderContainer *c = ContainerAt(container_va);
-  if (!c)
-    return 0;
-  const u32 virtual_size = c->VirtualSize;
-  const u32 physical_size = c->PhysicalSize;
-
-  if (physical_va == 0 || physical_size == 0) {
-    const u32 total = virtual_size + physical_size;
-    if (!ReadableSpan(container_va, total))
-      return 0;
-    return XXH3_64bits(mem::try_translate(container_va, 1), total);
-  }
-
-  if (!ReadableSpan(container_va, virtual_size) ||
-      !ReadableSpan(physical_va, physical_size))
-    return 0;
-
-  std::vector<u8> joined;
-  joined.reserve(size_t{virtual_size} + physical_size);
-  const auto *bytes =
-      static_cast<const u8 *>(mem::try_translate(container_va, 1));
-  joined.insert(joined.end(), bytes, bytes + virtual_size);
-  bytes = static_cast<const u8 *>(mem::try_translate(physical_va, 1));
-  joined.insert(joined.end(), bytes, bytes + physical_size);
-  return XXH3_64bits(joined.data(), joined.size());
-}
-
-const ShaderCacheEntry *FindShaderCacheEntry(u64 hash) {
-  const ShaderCacheEntry *begin = g_shaderCacheEntries;
-  const ShaderCacheEntry *end = begin + g_shaderCacheEntryCount;
-  const ShaderCacheEntry *it = std::lower_bound(
-      begin, end, hash,
-      [](const ShaderCacheEntry &lhs, u64 rhs) { return lhs.hash < rhs; });
-  return (it != end && it->hash == hash) ? it : nullptr;
-}
-
-GuestShader *ResolveGuestShader(u32 object_va) {
+GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
   if (!object_va)
     return nullptr;
-  std::lock_guard lock(g_shader_mutex);
-  auto it = g_shader_objects.find(object_va);
-  return it != g_shader_objects.end() ? it->second : nullptr;
-}
-
-GuestShader *RegisterShaderObject(u32 object_va, ResourceType type,
-                                  u32 container_va, u32 physical_va) {
-  if (!object_va)
+  const u32 container_va =
+      object_va + (is_pixel ? obj::kPixelShaderContainer : obj::kVertexShaderContainer);
+  const u32 physical_va = mem::load<u32>(
+      object_va + (is_pixel ? obj::kPixelShaderPhysical : obj::kVertexShaderPhysical));
+  auto *header = mem::at<ShaderContainerHeader>(container_va);
+  if (!header) {
+    EOT_WARN("[shaders] register {:#x}: container unreadable", object_va);
     return nullptr;
-  {
-    std::lock_guard lock(g_shader_mutex);
-    auto it = g_shader_objects.find(object_va);
-    if (it != g_shader_objects.end())
-      return it->second;
+  }
+  const u32 flags = header->flags;
+  if ((flags & 0xFFFFFF00u) != 0x102A1100u) {
+    u32 n;
+    if (DiagShouldLog(0x5B00, &n))
+      EOT_WARN("[shaders] register {:#x}: bad container magic {:#x}", object_va, flags);
+    return nullptr;
+  }
+  const u32 virtual_size = header->virtualSize;
+  const u32 physical_size = header->physicalSize;
+  const u8 *virtual_bytes = mem::at<u8>(container_va);
+  const u8 *physical_bytes = physical_va ? mem::at<u8>(physical_va) : nullptr;
+  if (!virtual_bytes || (physical_size && !physical_bytes) ||
+      virtual_size < sizeof(*header)) {
+    EOT_WARN("[shaders] register {:#x}: parts unreadable (virt {} phys {} @ {:#x})",
+             object_va, virtual_size, physical_size, physical_va);
+    return nullptr;
   }
 
-  const ShaderContainer *c = ContainerAt(container_va);
-  u64 hash = 0;
-  if (!IsValidShaderContainer(container_va, type)) {
-    if (Bump(g_stats.bad_container) == 0) {
-      EOT_WARN("[shader] object 0x{:08X} has no valid {} container at 0x{:08X} "
-               "(flags=0x{:08X}) - container offset is wrong",
-               object_va, TypeName(type), container_va, c ? u32(c->Flags) : 0u);
+  XXH3_state_t *xs = XXH3_createState();
+  XXH3_64bits_reset(xs);
+  XXH3_64bits_update(xs, virtual_bytes, virtual_size);
+  if (physical_size)
+    XXH3_64bits_update(xs, physical_bytes, physical_size);
+  const u64 hash = XXH3_64bits_digest(xs);
+  XXH3_freeState(xs);
+
+  auto &slot = s.shaders[object_va];
+  if (slot && slot->hash == hash)
+    return slot.get();
+  auto sh = std::make_unique<GuestShader>();
+  sh->va = object_va;
+  sh->hash = hash;
+  sh->isPixel = is_pixel;
+  auto &c = cache();
+  auto it = c.by_hash.find(hash);
+  sh->entry = it == c.by_hash.end() ? nullptr : it->second;
+  if (sh->entry)
+    sh->usesFloatConstants = sh->entry->usesFloatConstants != 0;
+
+  if (!is_pixel) {
+    const u32 shader_off = header->shaderOffset;
+    auto *rec = mem::at<VertexShaderRecord>(container_va + shader_off);
+    if (rec && shader_off + sizeof(ShaderRecord) < virtual_size) {
+      const u32 first = rec->field18;
+      const u32 count = rec->vertexElementCount;
+      if (count <= 32) {
+        for (u32 i = 0; i < count; ++i) {
+          const u32 v = rec->vertexElementsAndInterpolators[first + i];
+          VertexInput in;
+          in.usage = static_cast<u8>((v >> 12) & 0xF);
+          in.usageIndex = static_cast<u8>((v >> 16) & 0xF);
+          sh->inputs.push_back(in);
+        }
+      }
     }
-  } else {
-    hash = HashShaderContainer(container_va, physical_va);
+    if (sh->inputs.empty() && sh->entry) {
+      for (u32 i = 0; i < sh->entry->vertexLayoutCount; ++i) {
+        const u32 w0 = g_shaderVertexLayouts[sh->entry->vertexLayoutOffset + i * 2];
+        VertexInput in;
+        in.usage = static_cast<u8>(w0 & 0xF);
+        in.usageIndex = static_cast<u8>((w0 >> 4) & 0xF);
+        sh->inputs.push_back(in);
+      }
+    }
   }
 
-  const ShaderCacheEntry *entry = hash ? FindShaderCacheEntry(hash) : nullptr;
-  if (entry) {
-    Bump(g_stats.resolved);
-  } else if (hash && Bump(g_stats.missed) == 0) {
-    EOT_WARN("[shader] cache miss: hash=0x{:016X} {} virtual={} physical={}",
-             hash, TypeName(type), u32(c->VirtualSize), u32(c->PhysicalSize));
-  }
-
-  auto *shader = HostResourceHeap::Alloc<GuestShader>(type);
-  if (!shader)
-    return nullptr;
-  shader->objectVa = object_va;
-  shader->hash = hash;
-  shader->physicalVa = physical_va;
-  shader->shaderCacheEntry = entry;
-
-  std::lock_guard lock(g_shader_mutex);
-  auto [it, inserted] = g_shader_objects.try_emplace(object_va, shader);
-  if (!inserted) {
-    HostResourceHeap::Free(shader);
-    return it->second;
-  }
-
-  const u32 n = Bump(g_stats.registered) + 1;
-  if (n == 1) {
-    EOT_INFO("[shader] first guest shader registered: object=0x{:08X} "
-             "hash=0x{:016X} {}",
-             object_va, hash, entry ? "resolved" : "UNRESOLVED");
-  } else if (n == 100 || n % 1000 == 0) {
-    LogShaderStats();
-  }
-  return shader;
+  EOT_INFO("[shaders] {} {:#x} hash {:016x} {} inputs={} spec={:#x}",
+            is_pixel ? "ps" : "vs", object_va, hash, sh->entry ? "hit" : "MISS",
+            sh->inputs.size(), sh->entry ? sh->entry->specConstantsMask : 0);
+  slot = std::move(sh);
+  return slot.get();
 }
 
-plume::RenderShader *GetOrLinkShader(GuestShader *gs, u32 specConstants) {
-  const ShaderCacheEntry *entry = gs ? gs->shaderCacheEntry : nullptr;
-  auto *device = Video::HostDevice();
-  if (!entry || !device)
-    return nullptr;
-
-  const u32 masked = specConstants & entry->spec_constants_mask;
-  {
-    std::lock_guard lock(g_shader_mutex);
-    auto it = gs->variants.find(masked);
-    if (it != gs->variants.end())
-      return it->second.get();
-  }
-
-  const u8 *cache = DxilCache();
-  if (!cache)
-    return nullptr;
-  const u8 *dxil = cache + entry->dxil_offset;
-
-  std::unique_ptr<plume::RenderShader> built;
-  if (entry->spec_constants_mask == 0) {
-    built = device->createShader(dxil, entry->dxil_size, LinkedEntryPointName(),
-                                 plume::RenderShaderFormat::DXIL);
-  } else {
-    std::vector<u8> linked =
-        LinkSpecConstant(dxil, entry->dxil_size,
-                         gs->type == ResourceType::PixelShader, masked);
-    if (!linked.empty())
-      built = device->createShader(linked.data(), linked.size(),
-                                   LinkedEntryPointName(),
-                                   plume::RenderShaderFormat::DXIL);
-  }
-  if (!built) {
-    Bump(g_stats.build_failed);
+plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask) {
+  if (!shader.entry) {
+    if (!shader.cacheMissLogged) {
+      shader.cacheMissLogged = true;
+      EOT_WARN("[shaders] {} {:#x} hash {:016x} is not in the shader cache",
+               shader.isPixel ? "ps" : "vs", shader.va, shader.hash);
+    }
     return nullptr;
   }
-  if (Bump(g_stats.built) == 0) {
-    EOT_INFO("[shader] first host shader built: hash=0x{:016X} mask=0x{:X} "
-             "value=0x{:X}",
-             entry->hash, entry->spec_constants_mask, masked);
+  if (shader.linkFailed || !s.device)
+    return nullptr;
+  u32 size = 0;
+  const u8 *bytes = EntryBytes(*shader.entry, &size);
+  if (!bytes || !size)
+    return nullptr;
+
+  if (shader.entry->specConstantsMask == 0) {
+    if (!shader.shader) {
+      shader.shader = s.device->createShader(bytes, size, "main", kHostShaderFormat);
+      if (!shader.shader) {
+        shader.linkFailed = true;
+        EOT_ERROR("[shaders] createShader failed for {:016x}", shader.hash);
+      }
+    }
+    return shader.shader.get();
   }
 
-  std::lock_guard lock(g_shader_mutex);
-  auto [it, inserted] = gs->variants.try_emplace(masked, std::move(built));
-  return it->second.get();
-}
-
-void LogShaderStats() {
-  EOT_INFO("[shader] {} registered, {} resolved, {} missed, {} bad; {} built, "
-           "{} failed",
-           g_stats.registered.load(), g_stats.resolved.load(),
-           g_stats.missed.load(), g_stats.bad_container.load(),
-           g_stats.built.load(), g_stats.build_failed.load());
+  const u32 effective = spec_mask & shader.entry->specConstantsMask;
+  auto it = shader.linkedShaders.find(effective);
+  if (it != shader.linkedShaders.end())
+    return it->second.get();
+#if defined(EOT_D3D12)
+  const auto &spec_lib = SpecLib(effective);
+  if (spec_lib.empty()) {
+    shader.linkFailed = true;
+    return nullptr;
+  }
+  std::string error;
+  auto linked = LinkSpecConstantLib(bytes, size, spec_lib.data(), spec_lib.size(),
+                                    shader.isPixel ? L"ps_6_0" : L"vs_6_0", &error);
+  if (linked.empty()) {
+    shader.linkFailed = true;
+    EOT_ERROR("[shaders] DXC link failed for {:016x} mask {:#x} ({} bytes): {}", shader.hash,
+              effective, size, error);
+    return nullptr;
+  }
+  auto host = s.device->createShader(linked.data(), linked.size(), "main", kHostShaderFormat);
+#else
+  auto host = s.device->createShader(bytes, size, "main", kHostShaderFormat);
+#endif
+  if (!host) {
+    shader.linkFailed = true;
+    return nullptr;
+  }
+  auto *raw = host.get();
+  shader.linkedShaders.emplace(effective, std::move(host));
+  return raw;
 }
 
 }

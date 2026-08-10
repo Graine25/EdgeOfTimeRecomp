@@ -4,25 +4,22 @@
 
 #include <plume_render_interface.h>
 
-#include "gpu/guest/resources.h"
+#include "gpu/resources.h"
 
 namespace eot::gpu {
 
-u32 ShaderContainerOffset(ResourceType type);
+struct VideoState;
 
-bool IsValidShaderContainer(u32 container_va, ResourceType type);
+constexpr u32 kSpecR11G11B10Normal = 1u << 0;
+constexpr u32 kSpecAlphaTest = 1u << 1;
+constexpr u32 kSpecSintTexcoord = 1u << 2;
 
-u64 HashShaderContainer(u32 container_va, u32 physical_va = 0);
+bool GuestShadersInit();
+u32 GuestShaderCacheCount();
 
-GuestShader *RegisterShaderObject(u32 object_va, ResourceType type,
-                                  u32 container_va, u32 physical_va);
+GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel);
+GuestShader *FindGuestShader(VideoState &s, u32 object_va);
 
-GuestShader *ResolveGuestShader(u32 object_va);
-
-plume::RenderShader *GetOrLinkShader(GuestShader *gs, u32 specConstants);
-
-const ShaderCacheEntry *FindShaderCacheEntry(u64 hash);
-
-void LogShaderStats();
+plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask);
 
 }
