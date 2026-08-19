@@ -1,169 +1,123 @@
 # reeot - ReXGlue Recompiled Project
 #
 # SDK boilerplate lives in generated/rexglue.cmake.
+#
 
 cmake_minimum_required(VERSION 3.25)
-project(reeot VERSION 0.1.0 LANGUAGES CXX)
+project(reeot VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(REEOT_D3D12 "Build the D3D12 renderer backend (OFF selects Vulkan)" ${WIN32})
 
 set(REEOT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(REEOT_SHADER_COMMON_H
+    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/XenosRecomp/shader_common.h")
+cmake_path(GET REEOT_SHADER_COMMON_H PARENT_PATH REEOT_SHADER_COMMON_DIR)
+set(REEOT_SHADER_CACHE_CPP "${CMAKE_CURRENT_SOURCE_DIR}/generated/shader_cache.cpp")
+set(REEOT_SHADER_INPUT_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/shader_notes/EOT_pak_extracted_shaders/unique")
 
 include(generated/rexglue.cmake)
 include(cmake/build_info.cmake)
-include(cmake/shaders.cmake)
-include(cmake/shader_cache.cmake)
-add_subdirectory(thirdparty)
-
-reeot_host_shader(present_blit_vs vs_6_0)
-reeot_host_shader(present_blit_ps ps_6_0)
-reeot_host_shader(resolve_blit_ps ps_6_0)
-
-#
-set(REEOT_SHADER_PAK_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/shader_notes/EOT_pak"
-    CACHE PATH "Directory of unpacked .pak files the shader cache is built from")
-set(REEOT_SHADER_PKZ_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/assets/Data"
-    CACHE PATH "Directory of .pkz packages to unpack when PAK_DIR is empty")
-set(REEOT_SHADER_XEX "${CMAKE_CURRENT_SOURCE_DIR}/assets/Default.xex"
-    CACHE FILEPATH "Guest executable scanned for XEX-resident shaders")
-
-set(REEOT_SHADER_COMMON_H
-    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/XenosRecomp/shader_common.h")
-cmake_path(GET REEOT_SHADER_COMMON_H PARENT_PATH REEOT_SHADER_COMMON_DIR)
-
-reeot_shader_cache(
-    RECOMP_TARGET XenosRecomp
-    PAK_DIR       "${REEOT_SHADER_PAK_DIR}"
-    PKZ_DIR       "${REEOT_SHADER_PKZ_DIR}"
-    XEX           "${REEOT_SHADER_XEX}"
-    INCLUDE_FILE  "${REEOT_SHADER_COMMON_H}"
-    OUTPUT_CPP    "${REEOT_GEN_DIR}/shader_cache.cpp")
 
 reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
-# Sources
-set(REEOT_SDK_GPU_SOURCES
-    ${REXSDK_DIR}/src/graphics/pipeline/render_target/cache.cpp
-    ${REXSDK_DIR}/src/graphics/flags.cpp
-    ${REXSDK_DIR}/src/graphics/format/ucode.cpp
-    ${REXSDK_DIR}/src/graphics/pipeline/shader/shader.cpp
-    ${REXSDK_DIR}/src/graphics/pipeline/shader/translator.cpp
-    ${REXSDK_DIR}/src/graphics/pipeline/shader/translator_disasm.cpp
-    ${REXSDK_DIR}/src/graphics/pipeline/shader/interpreter.cpp
-    ${REXSDK_DIR}/src/graphics/register_file.cpp
-    ${REXSDK_DIR}/src/graphics/registers.cpp
-    ${REXSDK_DIR}/src/graphics/util/draw_extent_estimator.cpp)
+add_subdirectory(thirdparty)
+include(cmake/host_shaders.cmake)
 
+add_custom_target(reeot_shader_cache_regen
+    COMMAND $<TARGET_FILE:XenosRecomp>
+            "${REEOT_SHADER_INPUT_DIR}" "${REEOT_SHADER_CACHE_CPP}" "${REEOT_SHADER_COMMON_H}"
+    DEPENDS XenosRecomp
+    COMMENT "Recompiling EOT Xenos shaders into ${REEOT_SHADER_CACHE_CPP}"
+    USES_TERMINAL VERBATIM)
+
+if(NOT EXISTS "${REEOT_SHADER_CACHE_CPP}")
+    message(WARNING
+        "${REEOT_SHADER_CACHE_CPP} is missing: build the reeot_shader_cache_regen "
+        "target first (it takes ~10 minutes), then reconfigure.")
+    add_library(reeot_shader_cache OBJECT src/gpu/shaders/shader_cache_empty.cpp)
+else()
+    add_library(reeot_shader_cache OBJECT "${REEOT_SHADER_CACHE_CPP}")
+endif()
+target_include_directories(reeot_shader_cache PRIVATE src/gpu/shaders)
+target_compile_options(reeot_shader_cache PRIVATE -O0 -w)
+
+# Sources
 set(REEOT_SOURCES
     src/main.cpp
-
-    src/core/app_root.cpp
-    src/core/app_root.h
-    src/core/dbg_print.cpp
-    src/core/encoding.cpp
-    src/core/encoding.h
-    src/core/hooks.h
-    src/core/i18n.h
-    src/core/logging.h
-    src/core/memory_helpers.cpp
-    src/core/memory_helpers.h
-    src/core/perf.cpp
-    src/core/perf.h
-    src/core/profiling.h
-    src/core/settings.cpp
-    src/core/settings.h
-    src/core/shutdown.h
-    src/core/threading.cpp
-    src/core/threading.h
-    src/core/time_util.h
-    src/core/windows_lean.h
-
-    src/gpu/device/device.cpp
-    src/gpu/device/edram_cache.cpp
-    src/gpu/device/device.h
-    src/gpu/device/host_heap_arena.cpp
-    src/gpu/device/host_heap_arena.h
-    src/gpu/device/host_resource_heap.cpp
-    src/gpu/device/host_resource_heap.h
-    src/gpu/device/rdc_capture.cpp
-    src/gpu/device/texture_upload.cpp
-    src/gpu/device/texture_upload.h
-    src/gpu/device/native_texture_mirror.cpp
-    src/gpu/device/native_texture_mirror.h
-    src/gpu/gpu.h
-    src/gpu/guest/buffers.cpp
-    src/gpu/guest/buffers.h
-    src/gpu/guest/d3d.h
-    src/gpu/guest/format.cpp
-    src/gpu/guest/format.h
-    src/gpu/guest/resources.cpp
-    src/gpu/guest/resources.h
-    src/gpu/hooks/buffer.cpp
+    src/reeot_app.cpp
+    src/gpu/settings.cpp
+    src/gpu/device.cpp
+    src/gpu/frame_ring.cpp
+    src/gpu/present.cpp
+    src/gpu/bindless.cpp
+    src/gpu/sampler_cache.cpp
+    src/gpu/format.cpp
+    src/gpu/constant_buffers.cpp
+    src/gpu/textures.cpp
+    src/gpu/surfaces.cpp
+    src/gpu/vertex_layout.cpp
+    src/gpu/draw.cpp
+    src/gpu/resolve.cpp
+    src/gpu/trace.cpp
+    src/gpu/pipeline/pipeline_cache.cpp
+    src/gpu/shaders/guest_shaders.cpp
+    src/gpu/shaders/dxc_link.cpp
+    src/gpu/hooks/stubs.cpp
     src/gpu/hooks/device.cpp
+    src/gpu/hooks/state.cpp
     src/gpu/hooks/draw.cpp
     src/gpu/hooks/resource.cpp
-    src/gpu/hooks/shader.cpp
-    src/gpu/hooks/state.cpp
-    src/gpu/hooks/stubs.cpp
-    src/gpu/guest/texture_fetch.cpp
-    src/gpu/guest/vertex_declaration.cpp
-    src/gpu/guest/vfetch_microcode.cpp
-    src/gpu/pipeline/constant_buffers.cpp
-    src/gpu/pipeline/geometry_upload.cpp
-    src/gpu/pipeline/pipeline_cache.cpp
-    src/gpu/pipeline/sampler_cache.cpp
-    src/gpu/pipeline/vertex_layout.cpp
-    src/gpu/pipeline/vertex_layout.h
-    src/gpu/pipeline/pipeline_cache.h
-    src/gpu/shaders/dxc_link.cpp
-    src/gpu/shaders/dxc_link.h
-    src/gpu/shaders/guest_shaders.cpp
-    src/gpu/shaders/guest_shaders.h
-    src/gpu/shaders/shader_cache.h
-    src/gpu/shaders/shader_linker.cpp
-    src/gpu/shaders/shader_linker.h
-    ${REEOT_SHADER_HEADERS}
-
-    "${REEOT_GEN_DIR}/shader_cache.cpp"
-
-    src/platform/native_window.cpp
-    src/platform/native_window.h
 )
 
 if(WIN32)
-    add_executable(reeot WIN32 ${REEOT_SOURCES} ${REEOT_SDK_GPU_SOURCES})
+    add_executable(reeot WIN32 ${REEOT_SOURCES})
 else()
-    add_executable(reeot ${REEOT_SOURCES} ${REEOT_SDK_GPU_SOURCES})
+    add_executable(reeot ${REEOT_SOURCES})
 endif()
 
-target_include_directories(reeot PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/../renderdoc/renderdoc/api/app")
-
-rexglue_setup_target(reeot GPU_PLUGINS xenos)
+rexglue_setup_target(reeot)
 
 target_include_directories(reeot PRIVATE
-    src src/gpu/shaders "${REEOT_GEN_DIR}" "${REEOT_SHADER_COMMON_DIR}")
+    src
+    "${REEOT_GEN_DIR}"
+    "${REEOT_SHADER_COMMON_DIR}"
+    thirdparty/renderdoc
+    "${REXGLUE_ENTRYPOINT_INCLUDE_DIR}")
 
-target_link_libraries(reeot PRIVATE rex::ui o1heap plume)
-if(WIN32)
-    target_link_libraries(reeot PRIVATE d3d12 dxgi)
-endif()
+target_compile_definitions(reeot PRIVATE
+    _ITERATOR_DEBUG_LEVEL=0
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+    $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>)
 
-target_link_libraries(reeot PRIVATE libzstd_static)
-target_include_directories(reeot PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/thirdparty/zstd/lib"
-    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/thirdparty/xxHash")
-if(WIN32)
-    target_link_libraries(reeot PRIVATE Microsoft::DirectXShaderCompiler)
+target_link_libraries(reeot PRIVATE
+    rex::ui
+    plume
+    reeot_shader_cache
+    xxHash::xxhash
+    libzstd_static)
 
-    foreach(dxc_dll dxcompiler dxil)
-        add_custom_command(TARGET reeot POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/reeot-XenosRecomp/thirdparty/dxc-bin/bin/x64/${dxc_dll}.dll"
-                "$<TARGET_FILE_DIR:reeot>"
-            VERBATIM)
-    endforeach()
+foreach(shader IN ITEMS copy_vs)
+    reeot_host_shader(reeot ${shader} vs_6_0)
+endforeach()
+foreach(shader IN ITEMS blit_ps copy_depth_ps)
+    reeot_host_shader(reeot ${shader} ps_6_0)
+endforeach()
+
+if(REEOT_D3D12)
+    target_link_libraries(reeot PRIVATE d3d12 dxgi Microsoft::DirectXShaderCompiler)
+    add_custom_command(TARGET reeot POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxil.dll"
+            "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxcompiler.dll"
+            $<TARGET_FILE_DIR:reeot>
+        VERBATIM)
+else()
+    find_package(Vulkan REQUIRED)
+    target_link_libraries(reeot PRIVATE Vulkan::Vulkan)
 endif()
