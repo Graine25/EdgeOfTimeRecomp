@@ -191,7 +191,7 @@ void RenderDocFrameBoundary(u64 guest_frame_just_presented) {
 }
 
 bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, float scale,
-                           u32 lut_index) {
+                           u32 lut_index, u32 swizzle) {
   if (!s.command_list_open || !host.texture || !path)
     return false;
   auto *cmd = s.command_list;
@@ -231,7 +231,9 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
     return false;
 
   TransitionLocked(s, host, plume::RenderTextureLayout::SHADER_READ);
-  const u32 src_index = BindTextureSRVLocked(s, host);
+  const u32 src_index = swizzle == kIdentityFetchSwizzle
+                            ? BindTextureSRVLocked(s, host)
+                            : BindTextureSRVSwizzledLocked(s, host, swizzle);
   if (src_index == kInvalidDescriptorIndex)
     return false;
   TransitionLocked(s, target, plume::RenderTextureLayout::COLOR_WRITE);
@@ -243,7 +245,7 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
   cmd->setPipeline(GetBlitPipeline(s, plume::RenderFormat::R8G8B8A8_UNORM));
   CopyPushConstants pc;
   pc.resourceDescriptorIndex = src_index;
-  pc.resourceDescriptorIndex2 = lut_index;
+  pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
   pc.param0 = scale;
   pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
   cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,

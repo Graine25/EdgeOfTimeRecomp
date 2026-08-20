@@ -119,7 +119,7 @@ struct VideoState {
   };
   std::vector<RetiredDescriptorSlot> descriptor_graveyard[kNumFrames];
 
-  std::unordered_map<u32, std::unique_ptr<GuestTexture>> textures;
+  std::unordered_map<u32, std::shared_ptr<GuestTexture>> textures;
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
 
@@ -201,7 +201,8 @@ void TransitionLocked(VideoState &s, HostTexture &host, plume::RenderTextureLayo
 plume::RenderColor ArgbToRenderColor(u32 argb);
 
 bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, float scale,
-                           u32 lut_index = kInvalidDescriptorIndex);
+                           u32 lut_index = kInvalidDescriptorIndex,
+                           u32 swizzle = kIdentityFetchSwizzle);
 
 void RenderDocInit();
 void RenderDocFrameBoundary(u64 guest_frame_just_presented);

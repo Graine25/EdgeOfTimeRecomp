@@ -28,6 +28,12 @@ i32 Signed6(u32 v) {
   return v & 0x20 ? static_cast<i32>(v) - 64 : static_cast<i32>(v);
 }
 
+u32 ResolveStoreSwizzle(u32 fetch3) {
+  const u32 sw = (fetch3 >> 1) & 0xFFF;
+  constexpr u32 kSwapRedBlue = 0x60A;
+  return (sw & 7) == 2 ? (0x80000000u | kSwapRedBlue) : 0u;
+}
+
 void ClearSource(VideoState &s, GuestSurface &surf, u32 clear_color_va, float clear_z) {
   HostTexture *colors[4] = {};
   HostTexture *depth = nullptr;
@@ -110,13 +116,18 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     const float scale = 1.0f;
     {
       u32 n;
-      if (DiagShouldLog(0x7100 ^ dest_texture_va ^ (dest_level << 8), &n) && n == 0) {
+      const bool diag_now =
+          Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame());
+      if ((DiagShouldLog(0x7100 ^ dest_texture_va ^ (dest_level << 8), &n) && n == 0) || diag_now) {
         EOT_INFO("[resolve] {} {:#x} -> tex {:#x} mip {} rect {},{}-{},{} at {},{} exp rt{} "
-                  "copy{} tex{} => x{} ({} -> host fmt {}) fetch=[{:08x} {:08x} {:08x} {:08x}]",
+                  "copy{} tex{} => x{} ({} -> host fmt {}) fetch=[{:08x} {:08x} {:08x} {:08x}] "
+                  "base {:#x} pitch {} {}x{} {}",
                   depth_source ? "depth" : "color", src_va, dest_texture_va, dest_level, x0, y0,
                   x1, y1, dx, dy, rt_exp, copy_exp, tex_exp, std::ldexp(1.0f, net_exp),
                   static_cast<u32>(dest->format), static_cast<u32>(dest->host.format),
-                  dest->fetch[0], dest->fetch[1], dest->fetch[2], dest->fetch[3]);
+                  dest->fetch[0], dest->fetch[1], dest->fetch[2], dest->fetch[3],
+                  dest->baseAddress, ((dest->fetch[0] >> 22) & 0x1FF) * 32, dest->width,
+                  dest->height, dest->tiled ? "tiled" : "linear");
       }
     }
     const u32 mip_w = std::max(1u, dest->host.width >> dest_level);
@@ -149,6 +160,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         cmd->setScissors(&sc, 1);
         CopyPushConstants pc;
         pc.resourceDescriptorIndex = BindTextureSRVLocked(s, surf->host);
+        pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(dest->fetch[3]);
         pc.param0 = scale;
         pc.param1 = 0.0f;
         pc.rect[0] = static_cast<float>(x0) / surf->width;
