@@ -685,12 +685,23 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
     if ((fc[0] & 3) != 2)
       continue;
     GuestTexture *gt = GetGuestTexture(s, tex_va);
-    if (!gt)
+    if (!gt) {
+      u32 n;
+      if (DiagShouldLog(0x6300 ^ tex_va, &n))
+        EOT_WARN("[draw] slot {} texture {:#x} has no host mirror (fetch fmt {}); sampling null",
+                 slot, tex_va, (fc[1] >> 0) & 0x3F);
       continue;
+    }
     const u32 swizzle = (fc[3] >> 1) & 0xFFF;
     const u32 index = PrepareTextureForSampling(s, *gt, swizzle);
-    if (index == kInvalidDescriptorIndex)
+    if (index == kInvalidDescriptorIndex) {
+      u32 n;
+      if (DiagShouldLog(0x6380 ^ tex_va, &n))
+        EOT_WARN("[draw] slot {} texture {:#x} (fmt {} {}x{} {}) could not be bound; sampling null",
+                 slot, tex_va, static_cast<u32>(gt->format), gt->width, gt->height,
+                 gt->host.isDepth ? "depth" : "colour");
       continue;
+    }
     switch (gt->dimension) {
     case xe::DataDimension::k3D:
       sc.texture3DIndices[slot] = index;
@@ -1012,13 +1023,14 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
         fc[d] = dev.U32(dev::kFetchConstants + 24 * slot + 4 * d);
       GuestTexture *gt = GetGuestTexture(s, tex_va);
       EOT_INFO("[diag]   tex{} va={:#x} fc=[{:08x} {:08x} {:08x} {:08x} {:08x} {:08x}] fmt={} "
-               "dim={} {}x{}x{} {} {} {} biased={:#x}",
+               "dim={} {}x{}x{} {} {} {} biased={:#x} base={:#x} pitch={}",
                slot, tex_va, fc[0], fc[1], fc[2], fc[3], fc[4], fc[5],
                gt ? static_cast<u32>(gt->format) : 0xFFFFu,
                gt ? static_cast<u32>(gt->dimension) : 9u, gt ? gt->width : 0u,
                gt ? gt->height : 0u, gt ? gt->depth : 0u, gt && gt->tiled ? "tiled" : "linear",
                gt && gt->gammaSigned ? "gamma" : "lin",
-               gt && gt->resolveOwned ? "resolve" : "upload", sc.biasedTextures);
+               gt && gt->resolveOwned ? "resolve" : "upload", sc.biasedTextures,
+               gt ? gt->baseAddress : 0u, ((fc[0] >> 22) & 0x1FF) * 32);
     }
   }
 
