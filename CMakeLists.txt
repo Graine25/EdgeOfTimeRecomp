@@ -68,9 +68,7 @@ set(REEOT_SOURCES
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
-    src/gpu/hooks/device.cpp
     src/gpu/hooks/state.cpp
-    src/gpu/hooks/draw.cpp
     src/gpu/hooks/resource.cpp
 )
 
