@@ -1,8 +1,11 @@
+#include <algorithm>
 #include <cmath>
 #include <format>
 #include <mutex>
 #include <string>
+#include <vector>
 
+#include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
 
 #include "core/logging.h"
@@ -20,8 +23,48 @@
 namespace eot::gpu {
 
 namespace xe = rex::graphics::xenos;
+namespace tu = rex::graphics::texture_util;
 
 namespace {
+
+bool LocateAlias(const GuestTexture &d, const GuestTexture &t, i32 &tx, i32 &ty) {
+  if (t.format != d.format || t.tiled != d.tiled)
+    return false;
+  const u32 pitch = ((d.fetch[0] >> 22) & 0x1FF) * 32;
+  if (!pitch || pitch != ((t.fetch[0] >> 22) & 0x1FF) * 32)
+    return false;
+  const rex::graphics::FormatInfo *fi =
+      rex::graphics::FormatInfo::Get(static_cast<u32>(d.format));
+  if (!fi || fi->block_width != 1 || fi->block_height != 1)
+    return false;
+  const u32 bpb = fi->bytes_per_block();
+  if (bpb < 4)
+    return false;
+  u32 bpb_log2 = 0;
+  while ((1u << bpb_log2) < bpb)
+    ++bpb_log2;
+  const bool t_after = t.baseAddress >= d.baseAddress;
+  const u32 delta = t_after ? t.baseAddress - d.baseAddress : d.baseAddress - t.baseAddress;
+  i32 ox = 0, oy = 0;
+  if (d.tiled) {
+    const u32 tile_bytes = 32 * 32 * bpb;
+    const u32 tiles_per_row = pitch / 32;
+    if (!tiles_per_row || delta % tile_bytes)
+      return false;
+    const u32 tile = delta / tile_bytes;
+    ox = static_cast<i32>((tile % tiles_per_row) * 32);
+    oy = static_cast<i32>((tile / tiles_per_row) * 32);
+    if (tu::GetTiledOffset2D(ox, oy, pitch, bpb_log2) != static_cast<i32>(delta))
+      return false;
+  } else {
+    const u32 row_bytes = pitch * bpb;
+    oy = static_cast<i32>(delta / row_bytes);
+    ox = static_cast<i32>((delta % row_bytes) / bpb);
+  }
+  tx = t_after ? ox : -ox;
+  ty = t_after ? oy : -oy;
+  return true;
+}
 
 i32 Signed6(u32 v) {
   v &= 0x3F;
@@ -130,55 +173,94 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                   dest->height, dest->tiled ? "tiled" : "linear");
       }
     }
-    const u32 mip_w = std::max(1u, dest->host.width >> dest_level);
-    const u32 mip_h = std::max(1u, dest->host.height >> dest_level);
-    plume::RenderFramebuffer *fb = GetMipFramebuffer(s, *dest, dest_level);
-    if (fb) {
+    auto blit = [&](GuestTexture &target, u32 level, i32 vx, i32 vy, i32 vw, i32 vh, i32 sx0,
+                    i32 sy0) -> bool {
+      plume::RenderFramebuffer *fb = GetMipFramebuffer(s, target, level);
+      if (!fb)
+        return false;
       auto *cmd = s.command_list;
       TransitionLocked(s, surf->host, plume::RenderTextureLayout::SHADER_READ);
-      TransitionLocked(s, dest->host,
+      TransitionLocked(s, target.host,
                        depth_source ? plume::RenderTextureLayout::DEPTH_WRITE
                                     : plume::RenderTextureLayout::COLOR_WRITE);
       cmd->setFramebuffer(fb);
       s.bound_framebuffer = fb;
       plume::RenderPipeline *pso =
-          depth_source ? GetDepthCopyPipeline(s, dest->host.format)
-                       : GetBlitPipeline(s, dest->host.viewFormat != plume::RenderFormat::UNKNOWN
-                                                ? dest->host.viewFormat
-                                                : dest->host.format);
-      if (pso) {
-        cmd->setPipeline(pso);
-        s.bound_pipeline = pso;
-        const i32 vx = std::clamp(dx, 0, static_cast<i32>(mip_w));
-        const i32 vy = std::clamp(dy, 0, static_cast<i32>(mip_h));
-        const i32 vw = std::min(rw, static_cast<i32>(mip_w) - vx);
-        const i32 vh = std::min(rh, static_cast<i32>(mip_h) - vy);
-        plume::RenderViewport vp(static_cast<float>(vx), static_cast<float>(vy),
-                                 static_cast<float>(vw), static_cast<float>(vh), 0.0f, 1.0f);
-        plume::RenderRect sc(vx, vy, vx + vw, vy + vh);
-        cmd->setViewports(&vp, 1);
-        cmd->setScissors(&sc, 1);
-        CopyPushConstants pc;
-        pc.resourceDescriptorIndex = BindTextureSRVLocked(s, surf->host);
-        pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(dest->fetch[3]);
-        pc.param0 = scale;
-        pc.param1 = 0.0f;
-        pc.rect[0] = static_cast<float>(x0) / surf->width;
-        pc.rect[1] = static_cast<float>(y0) / surf->height;
-        pc.rect[2] = static_cast<float>(x1) / surf->width;
-        pc.rect[3] = static_cast<float>(y1) / surf->height;
-        cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
-                                      kCopyPushConstantByteOffset, sizeof(pc));
-        cmd->drawInstanced(3, 1, 0, 0);
-        dest->resolveOwned = true;
-        dest->uploaded = true;
-        dest->uploadedUnlockSeq = ResourceUnlockSeq(dest->va);
-        dest->resolvedMipMask |= 1u << dest_level;
-        dest->lastUseFrame = s.guest_frames;
+          depth_source ? GetDepthCopyPipeline(s, target.host.format)
+                       : GetBlitPipeline(s, target.host.viewFormat != plume::RenderFormat::UNKNOWN
+                                                ? target.host.viewFormat
+                                                : target.host.format);
+      if (!pso)
+        return false;
+      cmd->setPipeline(pso);
+      s.bound_pipeline = pso;
+      plume::RenderViewport vp(static_cast<float>(vx), static_cast<float>(vy),
+                               static_cast<float>(vw), static_cast<float>(vh), 0.0f, 1.0f);
+      plume::RenderRect sc(vx, vy, vx + vw, vy + vh);
+      cmd->setViewports(&vp, 1);
+      cmd->setScissors(&sc, 1);
+      CopyPushConstants pc;
+      pc.resourceDescriptorIndex = BindTextureSRVLocked(s, surf->host);
+      pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(target.fetch[3]);
+      pc.param0 = scale;
+      pc.param1 = 0.0f;
+      pc.rect[0] = static_cast<float>(sx0) / surf->width;
+      pc.rect[1] = static_cast<float>(sy0) / surf->height;
+      pc.rect[2] = static_cast<float>(sx0 + vw) / surf->width;
+      pc.rect[3] = static_cast<float>(sy0 + vh) / surf->height;
+      cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
+                                    kCopyPushConstantByteOffset, sizeof(pc));
+      cmd->drawInstanced(3, 1, 0, 0);
+      target.resolveOwned = true;
+      target.uploaded = true;
+      target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
+      target.resolvedMipMask |= 1u << level;
+      target.lastUseFrame = s.guest_frames;
+      return true;
+    };
+
+    const u32 mip_w = std::max(1u, dest->host.width >> dest_level);
+    const u32 mip_h = std::max(1u, dest->host.height >> dest_level);
+    const i32 vx = std::clamp(dx, 0, static_cast<i32>(mip_w));
+    const i32 vy = std::clamp(dy, 0, static_cast<i32>(mip_h));
+    const i32 vw = std::min(rw, static_cast<i32>(mip_w) - vx);
+    const i32 vh = std::min(rh, static_cast<i32>(mip_h) - vy);
+    if (vw > 0 && vh > 0)
+      blit(*dest, dest_level, vx, vy, vw, vh, x0, y0);
+
+    if (dest_level == 0 && vw > 0 && vh > 0) {
+      std::vector<const GuestTexture *> visited;
+      for (auto &[alias_va, alias] : s.textures) {
+        GuestTexture *t = alias.get();
+        if (!t || t == dest || !t->host.texture || !t->host.renderable ||
+            t->host.isDepth != depth_source)
+          continue;
+        if (t->uploaded && !t->resolveOwned)
+          continue;
+        if (std::find(visited.begin(), visited.end(), t) != visited.end())
+          continue;
+        visited.push_back(t);
+        i32 tx, ty;
+        if (!LocateAlias(*dest, *t, tx, ty))
+          continue;
+        const i32 ax0 = vx - tx, ay0 = vy - ty;
+        const i32 cx0 = std::max(ax0, 0), cy0 = std::max(ay0, 0);
+        const i32 cx1 = std::min(ax0 + vw, static_cast<i32>(t->width));
+        const i32 cy1 = std::min(ay0 + vh, static_cast<i32>(t->height));
+        if (cx1 <= cx0 || cy1 <= cy0)
+          continue;
+        {
+          u32 n;
+          if (DiagShouldLog(0x7300 ^ alias_va ^ dest_texture_va, &n) && n == 0)
+            EOT_INFO("[resolve] {:#x} also lands in {:#x} ({}x{} base {:#x}) at {},{} ({}x{})",
+                     dest_texture_va, alias_va, t->width, t->height, t->baseAddress, cx0, cy0,
+                     cx1 - cx0, cy1 - cy0);
+        }
+        blit(*t, 0, cx0, cy0, cx1 - cx0, cy1 - cy0, x0 + (cx0 - ax0), y0 + (cy0 - ay0));
       }
-      s.bound_pipeline = nullptr;
-      s.bound_framebuffer = nullptr;
     }
+    s.bound_pipeline = nullptr;
+    s.bound_framebuffer = nullptr;
   } else if (!dest) {
     u32 n;
     if (DiagShouldLog(0x7002 ^ dest_texture_va, &n))

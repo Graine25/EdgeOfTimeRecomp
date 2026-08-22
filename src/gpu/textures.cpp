@@ -347,7 +347,8 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va) {
     slot.reset();
   }
   for (auto &[other_va, other] : s.textures) {
-    if (!other || other_va == header_va || !same_storage(other->fetch, fetch))
+    if (!other || other_va == header_va || !(other->resolveOwned || other->host.isDepth) ||
+        !same_storage(other->fetch, fetch))
       continue;
     u32 n;
     if (DiagShouldLog(0x5EB0 ^ header_va, &n))
