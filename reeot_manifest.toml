@@ -8,10 +8,10 @@ game_root = "assets"
 [entrypoint]
 file_path = "assets/Default.xex"
 out_directory_path = "generated/default"
-includes = ["reeot_default_xex.toml"]
+includes = ["config/reeot_default_xex_codegen.toml", "config/reeot_default_xex.toml"]
 
 [[modules]]
 guest_path = "data/gamelogic.dll"
 file_path = "assets/Data/GameLogic.dll"
 out_directory_path = "generated/gamelogic"
-includes = ["reeot_gamelogic.toml"]
+includes = ["config/reeot_gamelogic_codegen.toml", "config/reeot_gamelogic.toml"]
