@@ -116,6 +116,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   BeginCommandList(s);
   if (!s.command_list_open)
     return;
+  PerfScope perf_scope(s.perf.resolve_ms);
+  s.perf.resolves++;
 
   const u32 source = flags & 7;
   const bool depth_source = source == 4;

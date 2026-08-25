@@ -107,6 +107,30 @@ u32 EnsureGammaLutLocked(VideoState &s) {
   return BindTextureSRVLocked(s, lut);
 }
 
+void LogPerfLocked(VideoState &s) {
+  const i32 every = Settings::PerfFrames();
+  PerfCounters &p = s.perf;
+  const auto now = std::chrono::steady_clock::now();
+  if (p.last_present.time_since_epoch().count() != 0)
+    p.frame_ms += std::chrono::duration<f64, std::milli>(now - p.last_present).count();
+  p.last_present = now;
+  p.frames++;
+  if (every <= 0 || static_cast<i32>(p.frames) < every)
+    return;
+  const f64 n = static_cast<f64>(p.frames);
+  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws; "
+           "vtxcopy {:.2f} idx {:.2f} bind {:.2f}) resolve {:.2f} ({}) upload {:.2f} ({}) link "
+           "{:.2f} ({}) pso {:.2f} ({}) | present acquire {:.2f} submit {:.2f} fence {:.2f} | "
+           "KB/frame vtx {} idx {} const {}",
+           p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.vertex_copy_ms / n,
+           p.index_ms / n, p.bind_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.upload_ms / n,
+           p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.acquire_ms / n,
+           p.submit_ms / n, p.fence_ms / n, p.vertex_bytes / p.frames / 1024,
+           p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024);
+  p = PerfCounters{};
+  p.last_present = now;
+}
+
 }
 
 void Video::Present(u32 front_buffer_texture_va) {
@@ -137,8 +161,13 @@ void Video::Present(u32 front_buffer_texture_va) {
 
     const u32 cur = s.recording_slot();
     u32 image = 0;
-    if (!s.swap_chain->acquireTexture(s.acquire_semaphores[cur].get(), &image) ||
-        image >= s.swap_framebuffers.size()) {
+    bool acquired = false;
+    {
+      PerfScope perf_scope(s.perf.acquire_ms);
+      acquired = s.swap_chain->acquireTexture(s.acquire_semaphores[cur].get(), &image) &&
+                 image < s.swap_framebuffers.size();
+    }
+    if (!acquired) {
       u32 n;
       if (DiagShouldLog(0x8001, &n))
         EOT_WARN("[present] acquireTexture failed (minimised?)");
@@ -212,13 +241,20 @@ void Video::Present(u32 front_buffer_texture_va) {
     const plume::RenderCommandList *lists[] = {s.command_lists[cur].get()};
     plume::RenderCommandSemaphore *wait[] = {s.acquire_semaphores[cur].get()};
     plume::RenderCommandSemaphore *signal[] = {s.render_semaphores[image].get()};
-    s.queue->executeCommandLists(lists, 1, wait, 1, signal, 1, s.fences[cur].get());
-    s.command_list_submitted[cur] = true;
-    s.swap_chain->present(image, signal, 1);
+    {
+      PerfScope perf_scope(s.perf.submit_ms);
+      s.queue->executeCommandLists(lists, 1, wait, 1, signal, 1, s.fences[cur].get());
+      s.command_list_submitted[cur] = true;
+      s.swap_chain->present(image, signal, 1);
+    }
     s.presented_frames++;
     trace::PresentMarker(s.presented_frames);
 
-    AdvanceAndWaitReused(s);
+    {
+      PerfScope perf_scope(s.perf.fence_ms);
+      AdvanceAndWaitReused(s);
+    }
+    LogPerfLocked(s);
     drained_slot = s.recording_slot();
     DrainHostDebugMessages(s, "present");
     RenderDocFrameBoundary(s.guest_frames);

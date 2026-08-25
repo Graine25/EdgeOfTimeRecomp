@@ -39,6 +39,8 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
   auto it = c.map.find(key);
   if (it != c.map.end())
     return it->second.get();
+  PerfScope perf_scope(s.perf.pso_ms);
+  s.perf.psos++;
 
   plume::RenderGraphicsPipelineDesc desc;
   desc.pipelineLayout = s.pipeline_layout.get();

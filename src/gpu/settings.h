@@ -12,6 +12,7 @@ struct Settings {
   static i32 SummaryFrames();
   static i32 DiagVerbosity();
   static bool Vsync();
+  static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();
   static i32 RenderDocFrame();
