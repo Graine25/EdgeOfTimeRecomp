@@ -54,10 +54,8 @@ set(REEOT_SOURCES
     src/gpu/device.cpp
     src/gpu/frame_ring.cpp
     src/gpu/present.cpp
-    src/gpu/bindless.cpp
     src/gpu/sampler_cache.cpp
     src/gpu/format.cpp
-    src/gpu/constant_buffers.cpp
     src/gpu/textures.cpp
     src/gpu/surfaces.cpp
     src/gpu/vertex_layout.cpp

@@ -1,10 +1,14 @@
 #include <mutex>
 
 #include <plume_render_interface.h>
+#include <cstring>
+#include <memory>
+#include <vector>
 
 #include "core/logging.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
+#include "gpu/format.h"
 
 namespace eot::gpu {
 
@@ -125,6 +129,244 @@ void TransitionLocked(VideoState &s, HostTexture &host, plume::RenderTextureLayo
     stages = plume::RenderBarrierStage::COPY;
   s.command_list->barriers(stages, &b, 1);
   host.layout = layout;
+}
+
+}
+
+namespace eot::gpu {
+
+namespace {
+
+constexpr u64 kChunkSize = 32ull * 1024 * 1024;
+
+struct Chunk {
+  std::unique_ptr<plume::RenderBuffer> buffer;
+  u8 *cpu = nullptr;
+  u64 capacity = 0;
+  u64 used = 0;
+};
+
+struct Ring {
+  std::vector<Chunk> chunks[kNumFrames];
+  u64 frame_bytes[kNumFrames] = {};
+};
+
+Ring &ring() {
+  static Ring r;
+  return r;
+}
+
+bool MakeChunk(Chunk &chunk, u64 size) {
+  auto &s = state();
+  plume::RenderBufferDesc desc = plume::RenderBufferDesc::UploadBuffer(size);
+  desc.flags = plume::RenderBufferFlag::VERTEX | plume::RenderBufferFlag::INDEX |
+               plume::RenderBufferFlag::CONSTANT;
+  chunk.buffer = CreateHostBuffer(s.device.get(), desc, "upload-ring");
+  if (!chunk.buffer)
+    return false;
+  chunk.cpu = static_cast<u8 *>(chunk.buffer->map());
+  if (!chunk.cpu) {
+    EOT_ERROR("upload ring: map() failed for a {} byte chunk", size);
+    chunk.buffer.reset();
+    return false;
+  }
+  chunk.capacity = size;
+  chunk.used = 0;
+  return true;
+}
+
+}
+
+bool UploadRingInit() {
+  auto &r = ring();
+  for (u32 i = 0; i < kNumFrames; ++i) {
+    r.chunks[i].clear();
+    Chunk c;
+    if (!MakeChunk(c, kChunkSize))
+      return false;
+    r.chunks[i].push_back(std::move(c));
+  }
+  return true;
+}
+
+void UploadRingResetFrame(u32 slot) {
+  auto &r = ring();
+  auto &chunks = r.chunks[slot];
+  for (size_t i = 0; i < chunks.size(); ++i)
+    chunks[i].used = 0;
+  while (chunks.size() > 4) {
+    chunks.back().buffer->unmap();
+    chunks.pop_back();
+  }
+  r.frame_bytes[slot] = 0;
+}
+
+bool UploadAllocate(u64 size, u64 alignment, UploadAlloc *out) {
+  *out = UploadAlloc{};
+  if (size == 0)
+    return false;
+  auto &s = state();
+  auto &r = ring();
+  auto &chunks = r.chunks[s.recording_slot()];
+  if (alignment == 0)
+    alignment = 1;
+  for (auto &c : chunks) {
+    const u64 start = (c.used + alignment - 1) / alignment * alignment;
+    if (start + size <= c.capacity) {
+      out->buffer = c.buffer.get();
+      out->offset = start;
+      out->cpu = c.cpu + start;
+      out->size = size;
+      c.used = start + size;
+      r.frame_bytes[s.recording_slot()] += size;
+      return true;
+    }
+  }
+  Chunk c;
+  const u64 want = size + alignment > kChunkSize ? size + alignment : kChunkSize;
+  if (!MakeChunk(c, want))
+    return false;
+  chunks.push_back(std::move(c));
+  return UploadAllocate(size, alignment, out);
+}
+
+bool UploadBytes(const void *src, u64 size, u64 alignment, UploadAlloc *out) {
+  if (!UploadAllocate(size, alignment, out))
+    return false;
+  std::memcpy(out->cpu, src, size);
+  return true;
+}
+
+u64 UploadRingBytesThisFrame() {
+  auto &s = state();
+  return ring().frame_bytes[s.recording_slot()];
+}
+
+}
+
+namespace eot::gpu {
+
+u32 AllocateDescriptorSlot(VideoState &s) {
+  for (size_t i = kNullTextureDescriptorCount; i < s.descriptor_slot_used.size(); ++i) {
+    if (!s.descriptor_slot_used[i]) {
+      s.descriptor_slot_used[i] = true;
+      return static_cast<u32>(i);
+    }
+  }
+  return kInvalidDescriptorIndex;
+}
+
+void DrainDescriptorSlotsLocked(VideoState &s, u32 slot) {
+  for (const auto &d : s.descriptor_graveyard[slot]) {
+    if (s.texture_descriptor_set) {
+      s.texture_descriptor_set->setTexture(d.slot, s.null_textures[d.null_index].get(),
+                                           plume::RenderTextureLayout::SHADER_READ,
+                                           s.null_texture_views[d.null_index].get());
+    }
+    if (d.slot >= kNullTextureDescriptorCount && d.slot < s.descriptor_slot_used.size())
+      s.descriptor_slot_used[d.slot] = false;
+  }
+  s.descriptor_graveyard[slot].clear();
+}
+
+namespace {
+
+u32 NullIndexFor(const HostTexture &host) {
+  if (host.viewDimension == plume::RenderTextureViewDimension::TEXTURE_3D)
+    return kNullTexture3DDescriptorIndex;
+  if (host.viewDimension == plume::RenderTextureViewDimension::TEXTURE_CUBE)
+    return kNullTextureCubeDescriptorIndex;
+  return kNullTexture2DDescriptorIndex;
+}
+
+plume::RenderTextureViewDesc SamplingViewDesc(const HostTexture &host) {
+  plume::RenderTextureViewDesc view_desc;
+  view_desc.format = host.viewFormat != plume::RenderFormat::UNKNOWN
+                         ? host.viewFormat
+                         : SampledViewFormat(host.format);
+  view_desc.dimension = host.viewDimension;
+  view_desc.mipLevels = host.mipLevels ? host.mipLevels : 1;
+  return view_desc;
+}
+
+plume::RenderSwizzle ToHostSwizzle(u32 source) {
+  switch (source & 7) {
+  case 0:
+    return plume::RenderSwizzle::R;
+  case 1:
+    return plume::RenderSwizzle::G;
+  case 2:
+    return plume::RenderSwizzle::B;
+  case 3:
+    return plume::RenderSwizzle::A;
+  case 5:
+    return plume::RenderSwizzle::ONE;
+  default:
+    return plume::RenderSwizzle::ZERO;
+  }
+}
+
+u32 PublishView(VideoState &s, HostTexture &host, plume::RenderTextureView *view) {
+  const u32 slot = AllocateDescriptorSlot(s);
+  if (slot == kInvalidDescriptorIndex) {
+    EOT_ERROR("bindless texture heap full at {} slots", kBindlessTextureCount);
+    return kInvalidDescriptorIndex;
+  }
+  s.texture_descriptor_set->setTexture(slot, host.texture.get(),
+                                       plume::RenderTextureLayout::SHADER_READ, view);
+  return slot;
+}
+
+}
+
+void ReleaseTextureSRVLocked(VideoState &s, HostTexture &host) {
+  const u32 null_index = NullIndexFor(host);
+  if (host.descriptorIndex != kInvalidDescriptorIndex) {
+    s.descriptor_graveyard[s.recording_slot()].push_back({host.descriptorIndex, null_index});
+    host.descriptorIndex = kInvalidDescriptorIndex;
+  }
+  for (auto &[swizzle, srv] : host.swizzledSrvs) {
+    if (srv.descriptorIndex != kInvalidDescriptorIndex)
+      s.descriptor_graveyard[s.recording_slot()].push_back({srv.descriptorIndex, null_index});
+    if (srv.view)
+      ParkView(s, std::move(srv.view));
+  }
+  host.swizzledSrvs.clear();
+}
+
+u32 BindTextureSRVLocked(VideoState &s, HostTexture &host) {
+  if (!host.texture || !s.texture_descriptor_set)
+    return kInvalidDescriptorIndex;
+  if (host.descriptorIndex != kInvalidDescriptorIndex)
+    return host.descriptorIndex;
+  if (!host.srv)
+    host.srv = host.texture->createTextureView(SamplingViewDesc(host));
+  if (!host.srv)
+    return kInvalidDescriptorIndex;
+  host.descriptorIndex = PublishView(s, host, host.srv.get());
+  return host.descriptorIndex;
+}
+
+u32 BindTextureSRVSwizzledLocked(VideoState &s, HostTexture &host, u32 swizzle) {
+  swizzle &= 0xFFF;
+  if (swizzle == kIdentityFetchSwizzle)
+    return BindTextureSRVLocked(s, host);
+  if (!host.texture || !s.texture_descriptor_set)
+    return kInvalidDescriptorIndex;
+  auto &entry = host.swizzledSrvs[swizzle];
+  if (entry.descriptorIndex != kInvalidDescriptorIndex)
+    return entry.descriptorIndex;
+  if (!entry.view) {
+    plume::RenderTextureViewDesc view_desc = SamplingViewDesc(host);
+    view_desc.componentMapping = plume::RenderComponentMapping(
+        ToHostSwizzle(swizzle), ToHostSwizzle(swizzle >> 3), ToHostSwizzle(swizzle >> 6),
+        ToHostSwizzle(swizzle >> 9));
+    entry.view = host.texture->createTextureView(view_desc);
+  }
+  if (!entry.view)
+    return kInvalidDescriptorIndex;
+  entry.descriptorIndex = PublishView(s, host, entry.view.get());
+  return entry.descriptorIndex;
 }
 
 }
