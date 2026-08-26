@@ -217,7 +217,18 @@ void FillLoopConstants(DeviceView dev, u32 offset, i32 (*dst)[4]) {
   }
 }
 
+struct CachedIndexRange {
+  plume::RenderBuffer *buffer = nullptr;
+  u64 offset = 0;
+  u32 count = 0;
+  u32 lo = 0, hi = 0;
+  bool is32 = false;
+  plume::RenderPrimitiveTopology topology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  u64 lastUseFrame = 0;
+};
+
 struct GeometryPlan {
+  const CachedIndexRange *cached = nullptr;
   plume::RenderPrimitiveTopology topology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
   bool indexed = false;
   std::vector<u32> indices;
@@ -356,6 +367,187 @@ void CopyVertexBytes(u8 *dst, const u8 *src, u32 bytes) {
   rex::memory::copy_and_swap_32_unaligned(dst, src, dwords);
   if (bytes & 3)
     std::memcpy(dst + dwords * 4, src + dwords * 4, bytes & 3);
+}
+
+struct IndexCacheKey {
+  u32 ib_va = 0, data_va = 0, start = 0, count = 0, prim = 0;
+  u64 seq = 0, sample = 0;
+  bool operator==(const IndexCacheKey &o) const {
+    return ib_va == o.ib_va && data_va == o.data_va && start == o.start && count == o.count &&
+           prim == o.prim && seq == o.seq && sample == o.sample;
+  }
+};
+struct IndexCacheKeyHash {
+  size_t operator()(const IndexCacheKey &k) const {
+    u64 h = 0x9E3779B97F4A7C15ull;
+    auto mix = [&](u64 v) {
+      h ^= v + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2);
+      h *= 0xFF51AFD7ED558CCDull;
+    };
+    mix(k.ib_va);
+    mix(k.data_va);
+    mix((u64(k.start) << 32) | k.count);
+    mix(k.prim);
+    mix(k.seq);
+    mix(k.sample);
+    return static_cast<size_t>(h);
+  }
+};
+struct IndexCacheChunk {
+  std::unique_ptr<plume::RenderBuffer> buffer;
+  u8 *cpu = nullptr;
+  u64 capacity = 0, used = 0;
+};
+struct IndexCache {
+  std::unordered_map<IndexCacheKey, CachedIndexRange, IndexCacheKeyHash> map;
+  std::vector<IndexCacheChunk> chunks;
+  u64 totalBytes = 0;
+};
+IndexCache &index_cache() {
+  static IndexCache c;
+  return c;
+}
+constexpr u64 kIndexCacheChunkBytes = 8ull << 20;
+constexpr u64 kIndexCacheBudgetBytes = 96ull << 20;
+
+u64 SampleGuestBytes(u32 va, u32 bytes) {
+  const u8 *p = mem::at<u8>(va);
+  if (!p || bytes < 4)
+    return 0;
+  u64 h = 1469598103934665603ull;
+  auto mix = [&](u32 off) {
+    u32 v;
+    std::memcpy(&v, p + off, 4);
+    h ^= v;
+    h *= 1099511628211ull;
+  };
+  const u32 mid = (bytes / 2) & ~3u;
+  const u32 last = bytes >= 32 ? bytes - 32 : 0;
+  for (u32 i = 0; i < 32 && i + 4 <= bytes; i += 4)
+    mix(i);
+  for (u32 i = 0; i < 32 && mid + i + 4 <= bytes; i += 4)
+    mix(mid + i);
+  for (u32 i = 0; i < 32 && last + i + 4 <= bytes; i += 4)
+    mix(last + i);
+  return h;
+}
+
+bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, u64 *offset,
+                        u8 **cpu) {
+  auto &c = index_cache();
+  if (c.totalBytes + bytes > kIndexCacheBudgetBytes) {
+    for (auto &ch : c.chunks)
+      ParkBuffer(s, std::move(ch.buffer));
+    c.chunks.clear();
+    c.map.clear();
+    c.totalBytes = 0;
+    EOT_INFO("[draw] index cache over budget ({} MB); rebuilt", kIndexCacheBudgetBytes >> 20);
+  }
+  if (c.chunks.empty() || c.chunks.back().used + bytes + 4 > c.chunks.back().capacity) {
+    IndexCacheChunk ch;
+    const u64 size = std::max(kIndexCacheChunkBytes, bytes + 4);
+    plume::RenderBufferDesc desc = plume::RenderBufferDesc::UploadBuffer(size);
+    desc.flags = plume::RenderBufferFlag::INDEX;
+    ch.buffer = CreateHostBuffer(s.device.get(), desc, "index-cache");
+    if (!ch.buffer)
+      return false;
+    ch.cpu = static_cast<u8 *>(ch.buffer->map());
+    if (!ch.cpu) {
+      ch.buffer.reset();
+      return false;
+    }
+    ch.capacity = size;
+    c.chunks.push_back(std::move(ch));
+  }
+  auto &ch = c.chunks.back();
+  const u64 off = (ch.used + 3) & ~3ull;
+  *buffer = ch.buffer.get();
+  *offset = off;
+  *cpu = ch.cpu + off;
+  ch.used = off + bytes;
+  c.totalBytes += bytes;
+  return true;
+}
+
+const CachedIndexRange *GetCachedIndexRange(VideoState &s, u32 ib_va, u32 prim, u32 start_index,
+                                            u32 count) {
+  if (!ib_va || !count || prim == kPrimRectList)
+    return nullptr;
+  const u32 common = mem::load<u32>(ib_va + obj::kCommon);
+  const u32 data_va = mem::load<u32>(ib_va + obj::kBufferFetch0);
+  const u32 size = mem::load<u32>(ib_va + obj::kBufferFetch1);
+  if (!data_va)
+    return nullptr;
+  const bool is32 = (common & obj::kIndexBuffer32BitBit) != 0;
+  const u32 elem = is32 ? 4 : 2;
+  const u64 range_start = u64(start_index) * elem;
+  u64 range_bytes = u64(count) * elem;
+  if (size && range_start + range_bytes > size)
+    range_bytes = range_start < size ? size - range_start : 0;
+  if (!range_bytes)
+    return nullptr;
+  IndexCacheKey key;
+  key.ib_va = ib_va;
+  key.data_va = data_va;
+  key.start = start_index;
+  key.count = count;
+  key.prim = prim;
+  key.seq = ResourceUnlockSeq(ib_va);
+  key.sample = SampleGuestBytes(data_va + static_cast<u32>(range_start), static_cast<u32>(range_bytes));
+
+  auto &c = index_cache();
+  auto it = c.map.find(key);
+  if (it != c.map.end()) {
+    it->second.lastUseFrame = s.guest_frames;
+    s.perf.index_cache_hits++;
+    return &it->second;
+  }
+  s.perf.index_cache_misses++;
+
+  std::vector<u32> idx;
+  if (!ReadGuestIndices(ib_va, start_index, count, idx))
+    return nullptr;
+  bool expand = false;
+  plume::RenderPrimitiveTopology topology = ConvertPrimitiveType(prim, &expand);
+  if (expand || prim == kPrimTriangleStrip || prim == kPrimLineStrip) {
+    ExpandIndices(prim, idx, true);
+    topology = prim == kPrimLineStrip ? plume::RenderPrimitiveTopology::LINE_LIST
+                                      : plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  }
+  if (idx.empty())
+    return nullptr;
+  u32 lo = 0xFFFFFFFFu, hi = 0;
+  for (u32 v : idx) {
+    lo = std::min(lo, v);
+    hi = std::max(hi, v);
+  }
+  const bool host32 = hi > 0xFFFEu;
+  const u64 bytes = idx.size() * (host32 ? 4 : 2);
+  plume::RenderBuffer *buffer = nullptr;
+  u64 offset = 0;
+  u8 *cpu = nullptr;
+  {
+    std::lock_guard lock(s.mutex);
+    if (!s.ready || !IndexCacheAllocate(s, bytes, &buffer, &offset, &cpu))
+      return nullptr;
+  }
+  if (host32) {
+    std::memcpy(cpu, idx.data(), bytes);
+  } else {
+    auto *dst = reinterpret_cast<u16 *>(cpu);
+    for (size_t i = 0; i < idx.size(); ++i)
+      dst[i] = static_cast<u16>(idx[i]);
+  }
+  CachedIndexRange r;
+  r.buffer = buffer;
+  r.offset = offset;
+  r.count = static_cast<u32>(idx.size());
+  r.lo = lo;
+  r.hi = hi;
+  r.is32 = host32;
+  r.topology = topology;
+  r.lastUseFrame = s.guest_frames;
+  return &(c.map[key] = r);
 }
 
 struct RectExpansion {
@@ -879,6 +1071,11 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
       return;
     }
     index_count = static_cast<u32>(rect.indices.size());
+  } else if (geom.cached) {
+    lo = static_cast<u32>(static_cast<i32>(geom.cached->lo) + geom.baseVertex);
+    hi = static_cast<u32>(static_cast<i32>(geom.cached->hi) + geom.baseVertex);
+    index_count = geom.cached->count;
+    host_base_vertex = geom.baseVertex - static_cast<i32>(lo);
   } else if (geom.indexed) {
     if (geom.indices.empty()) {
       Dropped("empty index list", 0x600B);
@@ -1098,6 +1295,13 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
                                     index_count * 4, plume::RenderFormat::R32_UINT);
     cmd->setIndexBuffer(&ib);
     cmd->drawIndexedInstanced(index_count, 1, 0, 0, 0);
+  } else if (geom.cached) {
+    const u32 elem = geom.cached->is32 ? 4 : 2;
+    plume::RenderIndexBufferView ib(
+        plume::RenderBufferReference(geom.cached->buffer, geom.cached->offset), index_count * elem,
+        geom.cached->is32 ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
+    cmd->setIndexBuffer(&ib);
+    cmd->drawIndexedInstanced(index_count, 1, 0, host_base_vertex, 0);
   } else if (geom.indexed) {
     plume::RenderIndexBufferView ib(plume::RenderBufferReference(index_alloc.buffer, index_alloc.offset),
                                     index_count * 4, plume::RenderFormat::R32_UINT);
@@ -1193,6 +1397,18 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 st
   g.topology = ConvertPrimitiveType(prim, &expand);
   g.indexed = true;
   g.baseVertex = base_vertex;
+  {
+    PerfScope index_scope(state().perf.index_ms);
+    if (const CachedIndexRange *cached =
+            GetCachedIndexRange(state(), dev.U32(dev::kIndexBuffer), prim, start_index, index_count)) {
+      g.cached = cached;
+      g.topology = cached->topology;
+    }
+  }
+  if (g.cached) {
+    ExecuteDraw(device_va, prim, g);
+    return;
+  }
   {
     PerfScope index_scope(state().perf.index_ms);
     if (!ReadGuestIndices(dev.U32(dev::kIndexBuffer), start_index, index_count, g.indices)) {
