@@ -25,11 +25,10 @@
 #include "gpu/device.h"
 #include "gpu/format.h"
 #include "gpu/pipeline/pipeline_cache.h"
-#include "gpu/sampler_cache.h"
+#include "gpu/textures.h"
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
-#include "gpu/textures.h"
 #include "gpu/trace.h"
 #include "gpu/vertex_layout.h"
 

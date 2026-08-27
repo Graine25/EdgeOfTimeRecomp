@@ -23,3 +23,11 @@ void NotifyResourceUnlocked(u32 resource_va);
 u64 ResourceUnlockSeq(u32 resource_va);
 
 }
+
+namespace eot::gpu {
+
+plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6]);
+
+u32 ResolveSamplerSlotLocked(const plume::RenderSamplerDesc &desc);
+
+}
