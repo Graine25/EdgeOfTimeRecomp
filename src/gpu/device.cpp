@@ -316,8 +316,14 @@ void DrainHostDebugMessages(VideoState &s, const char *phase) {
   auto *dev = static_cast<plume::D3D12Device *>(s.device.get());
   if (!dev || !dev->d3d)
     return;
-  ID3D12InfoQueue *queue = nullptr;
-  if (FAILED(dev->d3d->QueryInterface(IID_PPV_ARGS(&queue))) || !queue)
+  static ID3D12InfoQueue *queue = nullptr;
+  static bool probed = false;
+  if (!probed) {
+    probed = true;
+    if (FAILED(dev->d3d->QueryInterface(IID_PPV_ARGS(&queue))))
+      queue = nullptr;
+  }
+  if (!queue)
     return;
   const UINT64 count = queue->GetNumStoredMessages();
   static std::unordered_map<int, u32> per_id;
@@ -340,7 +346,6 @@ void DrainHostDebugMessages(VideoState &s, const char *phase) {
     }
   }
   queue->ClearStoredMessages();
-  queue->Release();
   const HRESULT removed = dev->d3d->GetDeviceRemovedReason();
   static bool removed_logged = false;
   if (FAILED(removed) && !removed_logged) {

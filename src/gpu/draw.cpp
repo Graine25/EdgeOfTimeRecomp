@@ -879,23 +879,44 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
       fc[d] = dev.U32(dev::kFetchConstants + 24 * slot + 4 * d);
     if ((fc[0] & 3) != 2)
       continue;
-    GuestTexture *gt = GetGuestTexture(s, tex_va);
-    if (!gt) {
-      u32 n;
-      if (DiagShouldLog(0x6300 ^ tex_va, &n))
-        EOT_WARN("[draw] slot {} texture {:#x} has no host mirror (fetch fmt {}); sampling null",
-                 slot, tex_va, (fc[1] >> 0) & 0x3F);
-      continue;
-    }
-    const u32 swizzle = (fc[3] >> 1) & 0xFFF;
-    const u32 index = PrepareTextureForSampling(s, *gt, swizzle);
-    if (index == kInvalidDescriptorIndex) {
-      u32 n;
-      if (DiagShouldLog(0x6380 ^ tex_va, &n))
-        EOT_WARN("[draw] slot {} texture {:#x} (fmt {} {}x{} {}) could not be bound; sampling null",
-                 slot, tex_va, static_cast<u32>(gt->format), gt->width, gt->height,
-                 gt->host.isDepth ? "depth" : "colour");
-      continue;
+    GuestTexture *gt = nullptr;
+    u32 index = kInvalidDescriptorIndex;
+    u32 sampler = 0;
+    VideoState::TextureSlotCache &cs = s.slot_cache[slot];
+    const u64 generation = s.texture_generation.load(std::memory_order_relaxed);
+    if (cs.generation == generation && cs.texVa == tex_va && cs.texture &&
+        std::memcmp(cs.fc, fc, sizeof(fc)) == 0) {
+      gt = cs.texture;
+      gt->lastUseFrame = s.guest_frames;
+      TransitionLocked(s, gt->host, plume::RenderTextureLayout::SHADER_READ);
+      index = cs.index;
+      sampler = cs.sampler;
+    } else {
+      gt = GetGuestTexture(s, tex_va);
+      if (!gt) {
+        u32 n;
+        if (DiagShouldLog(0x6300 ^ tex_va, &n))
+          EOT_WARN("[draw] slot {} texture {:#x} has no host mirror (fetch fmt {}); sampling null",
+                   slot, tex_va, (fc[1] >> 0) & 0x3F);
+        continue;
+      }
+      const u32 swizzle = (fc[3] >> 1) & 0xFFF;
+      index = PrepareTextureForSampling(s, *gt, swizzle);
+      if (index == kInvalidDescriptorIndex) {
+        u32 n;
+        if (DiagShouldLog(0x6380 ^ tex_va, &n))
+          EOT_WARN("[draw] slot {} texture {:#x} (fmt {} {}x{} {}) could not be bound; sampling null",
+                   slot, tex_va, static_cast<u32>(gt->format), gt->width, gt->height,
+                   gt->host.isDepth ? "depth" : "colour");
+        continue;
+      }
+      sampler = ResolveSamplerSlotLocked(DecodeSamplerFromFetch(fc));
+      cs.texVa = tex_va;
+      std::memcpy(cs.fc, fc, sizeof(fc));
+      cs.generation = s.texture_generation.load(std::memory_order_relaxed);
+      cs.texture = gt;
+      cs.index = index;
+      cs.sampler = sampler;
     }
     switch (gt->dimension) {
     case xe::DataDimension::k3D:
@@ -909,7 +930,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
       sc.texture1DIndices[slot] = index;
       break;
     }
-    sc.samplerIndices[slot] = ResolveSamplerSlotLocked(DecodeSamplerFromFetch(fc));
+    sc.samplerIndices[slot] = sampler;
     const u32 sign_x = (fc[0] >> 2) & 3;
     const u32 sign_w = (fc[0] >> 8) & 3;
     if (sign_x == 2)
@@ -926,10 +947,21 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
   }
 }
 
-bool UploadZeroBuffer(UploadAlloc *out) {
+bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {
+  static UploadAlloc cached[kNumFrames];
+  static u64 cached_frame[kNumFrames] = {};
+  static bool cached_valid[kNumFrames] = {};
+  const u32 slot = s.recording_slot();
+  if (cached_valid[slot] && cached_frame[slot] == s.guest_frames) {
+    *out = cached[slot];
+    return true;
+  }
   if (!UploadAllocate(4096, 16, out))
     return false;
   std::memset(out->cpu, 0, 4096);
+  cached[slot] = *out;
+  cached_frame[slot] = s.guest_frames;
+  cached_valid[slot] = true;
   return true;
 }
 
@@ -1106,7 +1138,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     if (layout->streamMask & (1u << S))
       max_slot = S;
   UploadAlloc zero;
-  if (!UploadZeroBuffer(&zero)) {
+  if (!UploadZeroBuffer(s, &zero)) {
     Dropped("upload ring exhausted (zero buffer)", 0x600C);
     return;
   }

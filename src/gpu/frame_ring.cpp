@@ -321,6 +321,7 @@ u32 PublishView(VideoState &s, HostTexture &host, plume::RenderTextureView *view
 
 void ReleaseTextureSRVLocked(VideoState &s, HostTexture &host) {
   const u32 null_index = NullIndexFor(host);
+  s.texture_generation.fetch_add(1, std::memory_order_relaxed);
   if (host.descriptorIndex != kInvalidDescriptorIndex) {
     s.descriptor_graveyard[s.recording_slot()].push_back({host.descriptorIndex, null_index});
     host.descriptorIndex = kInvalidDescriptorIndex;
