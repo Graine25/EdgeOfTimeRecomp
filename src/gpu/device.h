@@ -45,6 +45,7 @@ struct PerfCounters {
   f64 guest_d3d_ms = 0;
   u32 guest_d3d_calls = 0;
   u32 index_cache_hits = 0, index_cache_misses = 0;
+  u32 vertex_cache_hits = 0, vertex_cache_misses = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
   u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;

@@ -1,4 +1,5 @@
 #include "gpu/draw.h"
+#include "gpu/settings.h"
 
 #include <algorithm>
 #include <cmath>
@@ -26,7 +27,6 @@
 #include "gpu/format.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/textures.h"
-#include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
 #include "gpu/trace.h"
@@ -346,6 +346,8 @@ struct StreamInfo {
   u32 stride = 0;
   const u8 *data = nullptr;
   u32 sizeBytes = 0;
+  u32 dataVa = 0;
+  u32 objectVa = 0;
 };
 
 bool ReadStream(DeviceView dev, u32 stream, StreamInfo &out) {
@@ -358,6 +360,8 @@ bool ReadStream(DeviceView dev, u32 stream, StreamInfo &out) {
     return false;
   out.data = mem::phys<u8>(d0 & ~3u);
   out.sizeBytes = ((d1 >> 2) & 0xFFFFFF) * 4u;
+  out.dataVa = d0 & ~3u;
+  out.objectVa = dev.U32(dev::kStreamObject0 + 4 * stream);
   return out.data != nullptr;
 }
 
@@ -409,8 +413,7 @@ IndexCache &index_cache() {
 constexpr u64 kIndexCacheChunkBytes = 8ull << 20;
 constexpr u64 kIndexCacheBudgetBytes = 96ull << 20;
 
-u64 SampleGuestBytes(u32 va, u32 bytes) {
-  const u8 *p = mem::at<u8>(va);
+u64 SampleHostBytes(const u8 *p, u32 bytes) {
   if (!p || bytes < 4)
     return 0;
   u64 h = 1469598103934665603ull;
@@ -420,34 +423,39 @@ u64 SampleGuestBytes(u32 va, u32 bytes) {
     h ^= v;
     h *= 1099511628211ull;
   };
-  const u32 mid = (bytes / 2) & ~3u;
-  const u32 last = bytes >= 32 ? bytes - 32 : 0;
-  for (u32 i = 0; i < 32 && i + 4 <= bytes; i += 4)
-    mix(i);
-  for (u32 i = 0; i < 32 && mid + i + 4 <= bytes; i += 4)
-    mix(mid + i);
-  for (u32 i = 0; i < 32 && last + i + 4 <= bytes; i += 4)
-    mix(last + i);
+  const u32 span = bytes >= 16 ? bytes - 16 : 0;
+  for (u32 k = 0; k < 8; ++k) {
+    const u32 base = static_cast<u32>((u64(span) * k / 7) & ~3ull);
+    for (u32 i = 0; i < 16 && base + i + 4 <= bytes; i += 4)
+      mix(base + i);
+  }
   return h;
 }
+u64 SampleGuestBytes(u32 va, u32 bytes) { return SampleHostBytes(mem::at<u8>(va), bytes); }
 
-bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, u64 *offset,
-                        u8 **cpu) {
-  auto &c = index_cache();
-  if (c.totalBytes + bytes > kIndexCacheBudgetBytes) {
-    for (auto &ch : c.chunks)
+struct BufferPool {
+  std::vector<IndexCacheChunk> chunks;
+  u64 totalBytes = 0;
+};
+bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
+                  plume::RenderBufferFlags flags, const char *name, u64 bytes, u64 align,
+                  plume::RenderBuffer **buffer, u64 *offset, u8 **cpu, bool *reset) {
+  *reset = false;
+  if (pool.totalBytes + bytes > budget) {
+    for (auto &ch : pool.chunks)
       ParkBuffer(s, std::move(ch.buffer));
-    c.chunks.clear();
-    c.map.clear();
-    c.totalBytes = 0;
-    EOT_INFO("[draw] index cache over budget ({} MB); rebuilt", kIndexCacheBudgetBytes >> 20);
+    pool.chunks.clear();
+    pool.totalBytes = 0;
+    *reset = true;
+    EOT_INFO("[draw] {} pool over budget ({} MB); rebuilt", name, budget >> 20);
   }
-  if (c.chunks.empty() || c.chunks.back().used + bytes + 4 > c.chunks.back().capacity) {
+  if (pool.chunks.empty() ||
+      ((pool.chunks.back().used + align - 1) & ~(align - 1)) + bytes > pool.chunks.back().capacity) {
     IndexCacheChunk ch;
-    const u64 size = std::max(kIndexCacheChunkBytes, bytes + 4);
+    const u64 size = std::max(chunk_bytes, bytes + align);
     plume::RenderBufferDesc desc = plume::RenderBufferDesc::UploadBuffer(size);
-    desc.flags = plume::RenderBufferFlag::INDEX;
-    ch.buffer = CreateHostBuffer(s.device.get(), desc, "index-cache");
+    desc.flags = flags;
+    ch.buffer = CreateHostBuffer(s.device.get(), desc, name);
     if (!ch.buffer)
       return false;
     ch.cpu = static_cast<u8 *>(ch.buffer->map());
@@ -456,16 +464,122 @@ bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, 
       return false;
     }
     ch.capacity = size;
-    c.chunks.push_back(std::move(ch));
+    pool.chunks.push_back(std::move(ch));
   }
-  auto &ch = c.chunks.back();
-  const u64 off = (ch.used + 3) & ~3ull;
+  auto &ch = pool.chunks.back();
+  const u64 off = (ch.used + align - 1) & ~(align - 1);
   *buffer = ch.buffer.get();
   *offset = off;
   *cpu = ch.cpu + off;
   ch.used = off + bytes;
-  c.totalBytes += bytes;
+  pool.totalBytes += bytes;
   return true;
+}
+
+BufferPool &index_pool() {
+  static BufferPool p;
+  return p;
+}
+bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, u64 *offset,
+                        u8 **cpu) {
+  bool reset = false;
+  const bool ok = PoolAllocate(s, index_pool(), kIndexCacheBudgetBytes, kIndexCacheChunkBytes,
+                               plume::RenderBufferFlag::INDEX, "index-cache", bytes, 4, buffer,
+                               offset, cpu, &reset);
+  if (reset)
+    index_cache().map.clear();
+  return ok;
+}
+
+struct VertexMirrorKey {
+  u32 data_va = 0, size = 0;
+  u64 seq = 0, sample = 0;
+  bool operator==(const VertexMirrorKey &o) const {
+    return data_va == o.data_va && size == o.size && seq == o.seq && sample == o.sample;
+  }
+};
+struct VertexMirrorKeyHash {
+  size_t operator()(const VertexMirrorKey &k) const {
+    u64 h = 0x9E3779B97F4A7C15ull;
+    auto mix = [&](u64 v) {
+      h ^= v + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2);
+      h *= 0xFF51AFD7ED558CCDull;
+    };
+    mix((u64(k.data_va) << 32) | k.size);
+    mix(k.seq);
+    mix(k.sample);
+    return static_cast<size_t>(h);
+  }
+};
+struct VertexMirror {
+  plume::RenderBuffer *buffer = nullptr;
+  u64 offset = 0;
+  u32 size = 0;
+  u64 lastUseFrame = 0;
+};
+struct VertexMirrorCache {
+  std::unordered_map<VertexMirrorKey, VertexMirror, VertexMirrorKeyHash> map;
+  std::unordered_map<VertexMirrorKey, u64, VertexMirrorKeyHash> seen;
+  BufferPool pool;
+};
+VertexMirrorCache &vertex_mirrors() {
+  static VertexMirrorCache c;
+  return c;
+}
+constexpr u64 kVertexMirrorChunkBytes = 16ull << 20;
+constexpr u64 kVertexMirrorBudgetBytes = 256ull << 20;
+constexpr u32 kVertexMirrorMaxBytes = 32u << 20;
+constexpr size_t kVertexMirrorSeenCap = 4096;
+
+const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st) {
+  static const bool enabled = Settings::VertexMirrors();
+  if (!enabled || !st.dataVa || !st.sizeBytes || st.sizeBytes > kVertexMirrorMaxBytes || !st.data)
+    return nullptr;
+  auto &c = vertex_mirrors();
+  VertexMirrorKey key;
+  key.data_va = st.dataVa;
+  key.size = st.sizeBytes;
+  key.seq = st.objectVa ? ResourceUnlockSeq(st.objectVa) : 0;
+  key.sample = SampleHostBytes(st.data, st.sizeBytes);
+  auto it = c.map.find(key);
+  if (it != c.map.end()) {
+    it->second.lastUseFrame = s.guest_frames;
+    s.perf.vertex_cache_hits++;
+    return &it->second;
+  }
+  auto seen = c.seen.find(key);
+  if (seen == c.seen.end()) {
+    if (c.seen.size() >= kVertexMirrorSeenCap)
+      c.seen.clear();
+    c.seen.emplace(key, s.guest_frames);
+    return nullptr;
+  }
+  if (seen->second >= s.guest_frames)
+    return nullptr;
+  c.seen.erase(seen);
+  s.perf.vertex_cache_misses++;
+  plume::RenderBuffer *buffer = nullptr;
+  u64 offset = 0;
+  u8 *cpu = nullptr;
+  bool reset = false;
+  const bool ok = PoolAllocate(s, c.pool, kVertexMirrorBudgetBytes, kVertexMirrorChunkBytes,
+                               plume::RenderBufferFlag::VERTEX, "vertex-mirror", st.sizeBytes, 16,
+                               &buffer, &offset, &cpu, &reset);
+  if (reset)
+    c.map.clear();
+  if (!ok)
+    return nullptr;
+  {
+    PerfScope copy_scope(s.perf.vertex_copy_ms);
+    CopyVertexBytes(cpu, st.data, st.sizeBytes);
+  }
+  s.perf.vertex_bytes += st.sizeBytes;
+  VertexMirror m;
+  m.buffer = buffer;
+  m.offset = offset;
+  m.size = st.sizeBytes;
+  m.lastUseFrame = s.guest_frames;
+  return &c.map.emplace(key, m).first->second;
 }
 
 const CachedIndexRange *GetCachedIndexRange(VideoState &s, u32 ib_va, u32 prim, u32 start_index,
@@ -1173,6 +1287,12 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     if (bytes > 64ull * 1024 * 1024) {
       Dropped("vertex range implausibly large", 0x600F);
       return;
+    }
+    if (const VertexMirror *mirror = GetVertexMirror(s, st_info)) {
+      views[S] = plume::RenderVertexBufferView(
+          plume::RenderBufferReference(mirror->buffer, mirror->offset + first),
+          static_cast<u32>(bytes));
+      continue;
     }
     if (!UploadAllocate(bytes, 16, &va)) {
       Dropped("upload ring exhausted (vertices)", 0x600D);
