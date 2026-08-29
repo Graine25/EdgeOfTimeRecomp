@@ -14,6 +14,8 @@
 
 namespace eot::gpu {
 
+#include <cstring>
+
 namespace {
 
 struct LayoutCache {
@@ -22,6 +24,16 @@ struct LayoutCache {
 
 LayoutCache &cache() {
   static LayoutCache c;
+  return c;
+}
+
+struct DeclCacheEntry {
+  u32 count = 0;
+  u64 hash = 0;
+  u8 raw[32 * sizeof(DeclElement)] = {};
+};
+std::unordered_map<u32, DeclCacheEntry> &decl_cache() {
+  static std::unordered_map<u32, DeclCacheEntry> c;
   return c;
 }
 
@@ -90,6 +102,18 @@ const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaratio
   (void)s;
   if (!declaration_va || vs.isPixel)
     return nullptr;
+  const u32 raw_count = mem::load<u32>(declaration_va + obj::kDeclElementCount);
+  const auto *raw_elements = mem::at<DeclElement>(declaration_va + obj::kDeclElements);
+  const bool raw_ok = raw_count != 0 && raw_count <= 32 && raw_elements != nullptr;
+  if (raw_ok) {
+    auto dit = decl_cache().find(declaration_va);
+    if (dit != decl_cache().end() && dit->second.count == raw_count &&
+        std::memcmp(dit->second.raw, raw_elements, raw_count * sizeof(DeclElement)) == 0) {
+      auto it = cache().map.find(dit->second.hash ^ (vs.hash * 0x9E3779B97F4A7C15ull));
+      if (it != cache().map.end())
+        return it->second.get();
+    }
+  }
   std::vector<DecodedElement> decl;
   u64 decl_hash = 0;
   if (!ReadDeclaration(declaration_va, decl, &decl_hash)) {
@@ -97,6 +121,12 @@ const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaratio
     if (DiagShouldLog(0x5D00 ^ declaration_va, &n))
       EOT_WARN("[layout] declaration {:#x} unreadable", declaration_va);
     return nullptr;
+  }
+  if (raw_ok) {
+    DeclCacheEntry &e = decl_cache()[declaration_va];
+    e.count = raw_count;
+    e.hash = decl_hash;
+    std::memcpy(e.raw, raw_elements, raw_count * sizeof(DeclElement));
   }
   const u64 key = decl_hash ^ (vs.hash * 0x9E3779B97F4A7C15ull);
   auto &c = cache();

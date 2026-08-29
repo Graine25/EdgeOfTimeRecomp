@@ -189,8 +189,12 @@ bool UploadRingInit() {
   return true;
 }
 
+static u64 g_ring_epoch = 0;
+u64 UploadRingEpoch() { return g_ring_epoch; }
+
 void UploadRingResetFrame(u32 slot) {
   auto &r = ring();
+  ++g_ring_epoch;
   auto &chunks = r.chunks[slot];
   for (size_t i = 0; i < chunks.size(); ++i)
     chunks[i].used = 0;

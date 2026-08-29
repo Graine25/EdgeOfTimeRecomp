@@ -20,6 +20,7 @@ struct UploadAlloc {
 
 bool UploadRingInit();
 void UploadRingResetFrame(u32 slot);
+u64 UploadRingEpoch();
 
 bool UploadAllocate(u64 size, u64 alignment, UploadAlloc *out);
 bool UploadBytes(const void *src, u64 size, u64 alignment, UploadAlloc *out);
