@@ -14,6 +14,7 @@ struct Settings {
   static bool Vsync();
   static bool VertexMirrors();
   static bool ConstRange();
+  static bool ResolveCopy();
   static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();
