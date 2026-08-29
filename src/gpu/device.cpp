@@ -1,0 +1,731 @@
+#include "gpu/device.h"
+
+#include <chrono>
+#include <cstdio>
+#include <cstring>
+#include <vector>
+#include <format>
+#include <mutex>
+#include <unordered_map>
+
+#include <plume_render_interface.h>
+#include <plume_render_interface_builders.h>
+#if defined(EOT_D3D12)
+#include <plume_d3d12.h>
+#else
+#include <plume_vulkan.h>
+#endif
+#include <rex/ui/window.h>
+
+#include <renderdoc_app.h>
+
+#include "core/logging.h"
+#include "gpu/backend.h"
+#include "gpu/constant_buffers.h"
+#include "gpu/settings.h"
+
+#if defined(EOT_D3D12)
+#include "shaders/blit_ps.hlsl.dxil.h"
+#include "shaders/copy_depth_ps.hlsl.dxil.h"
+#include "shaders/copy_vs.hlsl.dxil.h"
+#else
+#include "shaders/blit_ps.hlsl.spirv.h"
+#include "shaders/copy_depth_ps.hlsl.spirv.h"
+#include "shaders/copy_vs.hlsl.spirv.h"
+#endif
+
+namespace plume {
+#if defined(EOT_D3D12)
+extern std::unique_ptr<RenderInterface> CreateD3D12Interface();
+#else
+extern std::unique_ptr<RenderInterface> CreateVulkanInterface();
+#endif
+}
+
+namespace eot::gpu {
+
+VideoState &state() {
+  static VideoState s;
+  return s;
+}
+
+namespace {
+
+float ChannelFromArgb(u32 argb, int shift) {
+  return static_cast<float>((argb >> shift) & 0xFF) / 255.0f;
+}
+
+bool BuildNullTextureDescriptors(VideoState &s) {
+  for (u32 i = 0; i < kNullTextureDescriptorCount; ++i) {
+    plume::RenderTextureDesc desc;
+    desc.width = 1;
+    desc.height = 1;
+    desc.depth = 1;
+    desc.mipLevels = 1;
+    desc.arraySize = 1;
+    desc.format = plume::RenderFormat::R8G8B8A8_UNORM;
+    desc.flags = plume::RenderTextureFlag::NONE;
+    desc.committed = true;
+
+    plume::RenderTextureViewDesc view_desc;
+    view_desc.format = desc.format;
+    view_desc.mipLevels = 1;
+    view_desc.componentMapping = plume::RenderComponentMapping(
+        plume::RenderSwizzle::ZERO, plume::RenderSwizzle::ZERO,
+        plume::RenderSwizzle::ZERO, plume::RenderSwizzle::ONE);
+
+    switch (i) {
+    case kNullTexture2DDescriptorIndex:
+      desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
+      view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+      break;
+    case kNullTexture3DDescriptorIndex:
+      desc.dimension = plume::RenderTextureDimension::TEXTURE_3D;
+      view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_3D;
+      break;
+    case kNullTextureCubeDescriptorIndex:
+      desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
+      desc.arraySize = 6;
+      desc.flags = plume::RenderTextureFlag::CUBE;
+      view_desc.dimension = plume::RenderTextureViewDimension::TEXTURE_CUBE;
+      break;
+    default:
+      return false;
+    }
+
+    auto texture = CreateHostTexture(s.device.get(), desc, "null-descriptor");
+    if (!texture) {
+      EOT_ERROR("Create null texture descriptor {} failed", i);
+      return false;
+    }
+    auto view = texture->createTextureView(view_desc);
+    if (!view) {
+      EOT_ERROR("Create null texture view {} failed", i);
+      return false;
+    }
+    s.texture_descriptor_set->setTexture(i, texture.get(),
+                                         plume::RenderTextureLayout::SHADER_READ,
+                                         view.get());
+    s.null_textures[i] = std::move(texture);
+    s.null_texture_views[i] = std::move(view);
+  }
+  return true;
+}
+
+std::string DescribeBackend(plume::RenderDevice *device) {
+#if defined(EOT_D3D12)
+  auto *dev = static_cast<plume::D3D12Device *>(device);
+  static const D3D_FEATURE_LEVEL kLevels[] = {
+      D3D_FEATURE_LEVEL_12_2, D3D_FEATURE_LEVEL_12_1, D3D_FEATURE_LEVEL_12_0,
+      D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0};
+  D3D12_FEATURE_DATA_FEATURE_LEVELS levels = {};
+  levels.NumFeatureLevels = static_cast<u32>(std::size(kLevels));
+  levels.pFeatureLevelsRequested = kLevels;
+  if (dev && dev->d3d &&
+      dev->d3d->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &levels,
+                                    sizeof(levels)) >= 0) {
+    const u32 fl = static_cast<u32>(levels.MaxSupportedFeatureLevel);
+    return std::format("D3D12 {}_{}", (fl >> 12) & 0xF, (fl >> 8) & 0xF);
+  }
+  return "D3D12";
+#else
+  (void)device;
+  return "Vulkan";
+#endif
+}
+
+}
+
+namespace {
+RENDERDOC_API_1_6_0 *g_rdoc = nullptr;
+bool g_rdoc_capturing = false;
+}
+
+void RenderDocInit() {
+#if defined(_WIN32)
+  if (g_rdoc || Settings::RenderDocFrame() <= 0)
+    return;
+  const std::string dll = Settings::RenderDocDll();
+  HMODULE mod = LoadLibraryA(dll.c_str());
+  if (!mod) {
+    EOT_ERROR("[rdc] LoadLibrary({}) failed ({})", dll, GetLastError());
+    return;
+  }
+  auto get_api = reinterpret_cast<pRENDERDOC_GetAPI>(GetProcAddress(mod, "RENDERDOC_GetAPI"));
+  if (!get_api || !get_api(eRENDERDOC_API_Version_1_6_0, reinterpret_cast<void **>(&g_rdoc)) ||
+      !g_rdoc) {
+    EOT_ERROR("[rdc] RENDERDOC_GetAPI failed");
+    g_rdoc = nullptr;
+    return;
+  }
+  const std::string path = Settings::RenderDocPath();
+  g_rdoc->SetCaptureFilePathTemplate(path.c_str());
+  g_rdoc->SetCaptureOptionU32(eRENDERDOC_Option_CaptureCallstacks, 0);
+  g_rdoc->SetCaptureOptionU32(eRENDERDOC_Option_RefAllResources, 1);
+  int major = 0, minor = 0, patch = 0;
+  g_rdoc->GetAPIVersion(&major, &minor, &patch);
+  EOT_INFO("[rdc] RenderDoc {}.{}.{} loaded from {}; capturing guest frame {} to {}", major,
+           minor, patch, dll, Settings::RenderDocFrame(), path);
+#endif
+}
+
+void RenderDocFrameBoundary(u64 guest_frame_just_presented) {
+  if (!g_rdoc)
+    return;
+  const u64 target = static_cast<u64>(Settings::RenderDocFrame());
+  if (!g_rdoc_capturing && guest_frame_just_presented + 1 == target) {
+    g_rdoc->StartFrameCapture(nullptr, nullptr);
+    g_rdoc_capturing = true;
+    EOT_INFO("[rdc] StartFrameCapture before guest frame {}", target);
+  } else if (g_rdoc_capturing && guest_frame_just_presented == target) {
+    const u32 ok = g_rdoc->EndFrameCapture(nullptr, nullptr);
+    g_rdoc_capturing = false;
+    u32 count = g_rdoc->GetNumCaptures();
+    char name[512] = {};
+    u32 len = sizeof(name);
+    if (count)
+      g_rdoc->GetCapture(count - 1, name, &len, nullptr);
+    EOT_INFO("[rdc] EndFrameCapture after guest frame {} -> ok={} captures={} last={}", target,
+             ok, count, name);
+  }
+}
+
+bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, float scale,
+                           u32 lut_index) {
+  if (!s.command_list_open || !host.texture || !path)
+    return false;
+  auto *cmd = s.command_list;
+  const u32 w = host.width, h = host.height;
+  const u32 row = ((w * 4 + 255) / 256) * 256;
+  static HostTexture target;
+  if (!target.texture || target.width != w || target.height != h) {
+    ParkHostTexture(s, target);
+    plume::RenderTextureDesc td;
+    td.dimension = plume::RenderTextureDimension::TEXTURE_2D;
+    td.width = w;
+    td.height = h;
+    td.depth = 1;
+    td.mipLevels = 1;
+    td.arraySize = 1;
+    td.format = plume::RenderFormat::R8G8B8A8_UNORM;
+    td.flags = plume::RenderTextureFlag::RENDER_TARGET;
+    td.committed = true;
+    target.texture = CreateHostTexture(s.device.get(), td, "dump-target");
+    target.format = td.format;
+    target.width = w;
+    target.height = h;
+    target.mipLevels = 1;
+    target.layout = plume::RenderTextureLayout::UNKNOWN;
+    target.renderable = true;
+    if (!target.texture)
+      return false;
+  }
+  auto readback = CreateHostBuffer(
+      s.device.get(), plume::RenderBufferDesc::ReadbackBuffer(u64(row) * h), "dump-readback");
+  if (!readback)
+    return false;
+  const plume::RenderTexture *colors[1] = {target.texture.get()};
+  plume::RenderFramebufferDesc fd(colors, 1);
+  auto fb = s.device->createFramebuffer(fd);
+  if (!fb)
+    return false;
+
+  TransitionLocked(s, host, plume::RenderTextureLayout::SHADER_READ);
+  const u32 src_index = BindTextureSRVLocked(s, host);
+  if (src_index == kInvalidDescriptorIndex)
+    return false;
+  TransitionLocked(s, target, plume::RenderTextureLayout::COLOR_WRITE);
+  cmd->setFramebuffer(fb.get());
+  plume::RenderViewport vp(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h), 0.0f, 1.0f);
+  plume::RenderRect sc(0, 0, static_cast<i32>(w), static_cast<i32>(h));
+  cmd->setViewports(&vp, 1);
+  cmd->setScissors(&sc, 1);
+  cmd->setPipeline(GetBlitPipeline(s, plume::RenderFormat::R8G8B8A8_UNORM));
+  CopyPushConstants pc;
+  pc.resourceDescriptorIndex = src_index;
+  pc.resourceDescriptorIndex2 = lut_index;
+  pc.param0 = scale;
+  pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
+  cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
+                                sizeof(pc));
+  cmd->drawInstanced(3, 1, 0, 0);
+  TransitionLocked(s, target, plume::RenderTextureLayout::COPY_SOURCE);
+#if defined(EOT_D3D12)
+  {
+    D3D12_TEXTURE_COPY_LOCATION dst{};
+    dst.pResource = static_cast<plume::D3D12Buffer *>(readback.get())->d3d;
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint.Offset = 0;
+    dst.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    dst.PlacedFootprint.Footprint.Width = w;
+    dst.PlacedFootprint.Footprint.Height = h;
+    dst.PlacedFootprint.Footprint.Depth = 1;
+    dst.PlacedFootprint.Footprint.RowPitch = row;
+    D3D12_TEXTURE_COPY_LOCATION src{};
+    src.pResource = static_cast<plume::D3D12Texture *>(target.texture.get())->d3d;
+    src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    src.SubresourceIndex = 0;
+    static_cast<plume::D3D12CommandList *>(cmd)->d3d->CopyTextureRegion(&dst, 0, 0, 0, &src,
+                                                                        nullptr);
+  }
+#else
+  cmd->copyTextureRegion(
+      plume::RenderTextureCopyLocation::PlacedFootprint(readback.get(),
+                                                        plume::RenderFormat::R8G8B8A8_UNORM, w, h,
+                                                        1, row / 4, 0),
+      plume::RenderTextureCopyLocation::Subresource(target.texture.get(), 0));
+#endif
+  s.bound_pipeline = nullptr;
+  s.bound_framebuffer = nullptr;
+
+  const u32 cur = s.recording_slot();
+  SubmitOpenListLocked(s);
+  s.queue->waitForCommandFence(s.fences[cur].get());
+  s.command_list_submitted[cur] = false;
+  const auto *src = static_cast<const u8 *>(readback->map());
+  bool ok = false;
+  if (src) {
+    if (FILE *f = std::fopen(path, "wb")) {
+      std::fprintf(f, "P6\n%u %u\n255\n", w, h);
+      std::vector<u8> line(u64(w) * 3);
+      for (u32 y = 0; y < h; ++y) {
+        const u8 *p = src + u64(y) * row;
+        for (u32 x = 0; x < w; ++x) {
+          line[x * 3 + 0] = p[x * 4 + 0];
+          line[x * 3 + 1] = p[x * 4 + 1];
+          line[x * 3 + 2] = p[x * 4 + 2];
+        }
+        std::fwrite(line.data(), 1, line.size(), f);
+      }
+      std::fclose(f);
+      ok = true;
+    }
+    readback->unmap();
+  }
+  ParkFramebuffer(s, std::move(fb));
+  ParkBuffer(s, std::move(readback));
+  BeginCommandList(s);
+  EOT_INFO("[dump] {} {}x{} scale {} -> {}", ok ? "wrote" : "FAILED", w, h, scale, path);
+  return ok;
+}
+
+void DrainHostDebugMessages(VideoState &s, const char *phase) {
+#if defined(EOT_D3D12)
+  auto *dev = static_cast<plume::D3D12Device *>(s.device.get());
+  if (!dev || !dev->d3d)
+    return;
+  ID3D12InfoQueue *queue = nullptr;
+  if (FAILED(dev->d3d->QueryInterface(IID_PPV_ARGS(&queue))) || !queue)
+    return;
+  const UINT64 count = queue->GetNumStoredMessages();
+  static std::unordered_map<int, u32> per_id;
+  for (UINT64 i = 0; i < count; ++i) {
+    SIZE_T len = 0;
+    if (FAILED(queue->GetMessage(i, nullptr, &len)) || len == 0)
+      continue;
+    std::vector<char> buf(len);
+    auto *msg = reinterpret_cast<D3D12_MESSAGE *>(buf.data());
+    if (FAILED(queue->GetMessage(i, msg, &len)))
+      continue;
+    if (msg->Severity == D3D12_MESSAGE_SEVERITY_INFO ||
+        msg->Severity == D3D12_MESSAGE_SEVERITY_MESSAGE)
+      continue;
+    const u32 n = per_id[static_cast<int>(msg->ID)]++;
+    if (n < 4 || (n & (n - 1)) == 0) {
+      EOT_WARN("[d3d12-debug] ({}) sev={} id={} x{}: {}", phase ? phase : "?",
+               static_cast<int>(msg->Severity), static_cast<int>(msg->ID), n + 1,
+               msg->pDescription ? msg->pDescription : "");
+    }
+  }
+  queue->ClearStoredMessages();
+  queue->Release();
+  const HRESULT removed = dev->d3d->GetDeviceRemovedReason();
+  static bool removed_logged = false;
+  if (FAILED(removed) && !removed_logged) {
+    removed_logged = true;
+    EOT_ERROR("[d3d12] DEVICE REMOVED during {}: reason {:#x} (0x887a0006=hung, "
+              "0x887a0005=removed, 0x887a0007=reset, 0x887a0020=internal error, "
+              "0x887a0001=invalid call) at guest frame {}",
+              phase ? phase : "?", static_cast<u32>(removed), s.guest_frames);
+  }
+#else
+  (void)s;
+  (void)phase;
+#endif
+}
+
+plume::RenderColor ArgbToRenderColor(u32 argb) {
+  return plume::RenderColor(ChannelFromArgb(argb, 16), ChannelFromArgb(argb, 8),
+                            ChannelFromArgb(argb, 0), ChannelFromArgb(argb, 24));
+}
+
+bool DiagShouldLog(u64 site, u32 *n_out) {
+  *n_out = 0;
+  if (Settings::DiagVerbosity() < 1)
+    return false;
+  using Clock = std::chrono::steady_clock;
+  struct DiagState {
+    u32 count = 0;
+    Clock::time_point last_log{};
+  };
+  static std::mutex m;
+  static std::unordered_map<u64, DiagState> states;
+  std::lock_guard lock(m);
+  DiagState &st = states[site];
+  const u32 n = st.count++;
+  *n_out = n;
+  const auto now = Clock::now();
+  if (n == 0 || now - st.last_log >= std::chrono::seconds(1)) {
+    st.last_log = now;
+    return true;
+  }
+  return false;
+}
+
+std::unique_ptr<plume::RenderBuffer>
+CreateHostBuffer(plume::RenderDevice *device, const plume::RenderBufferDesc &desc,
+                 const char *tag) {
+  if (!device)
+    return nullptr;
+  auto buffer = device->createBuffer(desc);
+  if (!buffer
+#if defined(EOT_D3D12)
+      || static_cast<plume::D3D12Buffer *>(buffer.get())->d3d == nullptr
+#else
+      || static_cast<plume::VulkanBuffer *>(buffer.get())->vk == VK_NULL_HANDLE
+#endif
+  ) {
+    EOT_ERROR("CreateHostBuffer({}) failed: backend resource null (size={} bytes)",
+              tag ? tag : "?", desc.size);
+    return nullptr;
+  }
+  return buffer;
+}
+
+std::unique_ptr<plume::RenderTexture>
+CreateHostTexture(plume::RenderDevice *device, const plume::RenderTextureDesc &desc,
+                  const char *tag) {
+  if (!device)
+    return nullptr;
+  auto texture = device->createTexture(desc);
+  if (!texture
+#if defined(EOT_D3D12)
+      || static_cast<plume::D3D12Texture *>(texture.get())->d3d == nullptr
+#else
+      || static_cast<plume::VulkanTexture *>(texture.get())->vk == VK_NULL_HANDLE
+#endif
+  ) {
+    u32 n;
+    if (DiagShouldLog(0x4000 ^ (u64(desc.width) << 16) ^ desc.height ^ (u64(desc.format) << 40), &n))
+      EOT_ERROR("CreateHostTexture({}) failed: backend resource null ({}x{} fmt={} flags={:#x}) x{}",
+                tag ? tag : "?", desc.width, desc.height, static_cast<u32>(desc.format),
+                static_cast<u32>(desc.flags), n + 1);
+    return nullptr;
+  }
+  return texture;
+}
+
+std::unique_ptr<plume::RenderPipeline>
+CreateHostGraphicsPipeline(plume::RenderDevice *device,
+                           const plume::RenderGraphicsPipelineDesc &desc, const char *tag) {
+  if (!device)
+    return nullptr;
+  auto pipeline = device->createGraphicsPipeline(desc);
+  if (!pipeline
+#if defined(EOT_D3D12)
+      || static_cast<plume::D3D12GraphicsPipeline *>(pipeline.get())->d3d == nullptr
+#else
+      || static_cast<plume::VulkanGraphicsPipeline *>(pipeline.get())->vk == VK_NULL_HANDLE
+#endif
+  ) {
+    EOT_ERROR("CreateHostGraphicsPipeline({}) failed: backend pipeline null",
+              tag ? tag : "?");
+    return nullptr;
+  }
+  return pipeline;
+}
+
+bool BuildSwapFramebuffers(VideoState &s) {
+  s.swap_framebuffers.clear();
+  s.render_semaphores.clear();
+  const u32 count = s.swap_chain->getTextureCount();
+  s.swap_framebuffers.reserve(count);
+  for (u32 i = 0; i < count; ++i) {
+    plume::RenderTexture *tex = s.swap_chain->getTexture(i);
+    const plume::RenderTexture *color_attachments[1] = {tex};
+    plume::RenderFramebufferDesc desc(color_attachments, 1);
+    auto fb = s.device->createFramebuffer(desc);
+    if (!fb) {
+      EOT_ERROR("createFramebuffer failed for back buffer {}", i);
+      s.swap_framebuffers.clear();
+      return false;
+    }
+    s.swap_framebuffers.push_back(std::move(fb));
+    auto sem = s.device->createCommandSemaphore();
+    if (!sem) {
+      EOT_ERROR("createCommandSemaphore failed for present semaphore {}", i);
+      s.swap_framebuffers.clear();
+      return false;
+    }
+    s.render_semaphores.push_back(std::move(sem));
+  }
+  return true;
+}
+
+bool BuildPipelineLayout(VideoState &s) {
+  plume::RenderPipelineLayoutBuilder layout_builder;
+  layout_builder.begin(false, true);
+
+  plume::RenderDescriptorSetBuilder tex_set_builder;
+  tex_set_builder.begin();
+  tex_set_builder.addTexture(0, kBindlessTextureCount);
+  tex_set_builder.end(true, kBindlessTextureCount);
+
+  s.texture_descriptor_set = tex_set_builder.create(s.device.get());
+  if (!s.texture_descriptor_set) {
+    EOT_ERROR("createDescriptorSet for the bindless texture heap failed");
+    return false;
+  }
+  s.descriptor_slot_used.assign(kBindlessTextureCount, false);
+  for (u32 i = 0; i < kNullTextureDescriptorCount; ++i)
+    s.descriptor_slot_used[i] = true;
+  if (!BuildNullTextureDescriptors(s))
+    return false;
+
+  layout_builder.addDescriptorSet(tex_set_builder);
+  layout_builder.addDescriptorSet(tex_set_builder);
+  layout_builder.addDescriptorSet(tex_set_builder);
+
+  plume::RenderDescriptorSetBuilder sampler_set_builder;
+  sampler_set_builder.begin();
+  sampler_set_builder.addSampler(0, kBindlessSamplerCount);
+  sampler_set_builder.end(true, kBindlessSamplerCount);
+  s.sampler_descriptor_set = sampler_set_builder.create(s.device.get());
+  if (!s.sampler_descriptor_set) {
+    EOT_ERROR("createDescriptorSet for the bindless sampler heap failed");
+    return false;
+  }
+  s.sampler_descriptor_used.assign(kBindlessSamplerCount, false);
+
+  plume::RenderSamplerDesc linear;
+  linear.minFilter = plume::RenderFilter::LINEAR;
+  linear.magFilter = plume::RenderFilter::LINEAR;
+  linear.mipmapMode = plume::RenderMipmapMode::LINEAR;
+  linear.addressU = plume::RenderTextureAddressMode::CLAMP;
+  linear.addressV = plume::RenderTextureAddressMode::CLAMP;
+  linear.addressW = plume::RenderTextureAddressMode::CLAMP;
+  s.linear_sampler = s.device->createSampler(linear);
+  plume::RenderSamplerDesc point = linear;
+  point.minFilter = plume::RenderFilter::NEAREST;
+  point.magFilter = plume::RenderFilter::NEAREST;
+  point.mipmapMode = plume::RenderMipmapMode::NEAREST;
+  s.point_sampler = s.device->createSampler(point);
+  if (!s.linear_sampler || !s.point_sampler) {
+    EOT_ERROR("createSampler for the reserved samplers failed");
+    return false;
+  }
+  s.sampler_descriptor_set->setSampler(kSamplerLinearClamp, s.linear_sampler.get());
+  s.sampler_descriptor_set->setSampler(kSamplerPointClamp, s.point_sampler.get());
+  for (u32 i = 0; i < kReservedSamplerCount; ++i)
+    s.sampler_descriptor_used[i] = true;
+
+  layout_builder.addDescriptorSet(sampler_set_builder);
+  layout_builder.addDescriptorSet(tex_set_builder);
+
+#if defined(EOT_D3D12)
+  layout_builder.addRootDescriptor(0, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
+  layout_builder.addRootDescriptor(1, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
+  layout_builder.addRootDescriptor(2, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
+  layout_builder.addPushConstant(3, 4, sizeof(CopyPushConstants),
+                                 plume::RenderShaderStageFlag::PIXEL);
+#else
+  layout_builder.addPushConstant(0, 4, kCopyPushConstantByteOffset + sizeof(CopyPushConstants),
+                                 plume::RenderShaderStageFlag::VERTEX |
+                                     plume::RenderShaderStageFlag::PIXEL);
+#endif
+
+  layout_builder.end();
+  s.pipeline_layout = layout_builder.create(s.device.get());
+  if (!s.pipeline_layout) {
+    EOT_ERROR("createPipelineLayout failed");
+    return false;
+  }
+  return true;
+}
+
+bool BuildHelperPipelines(VideoState &s) {
+  s.copy_vs = s.device->createShader(EOT_SHADER_BLOB(copy_vs), "main", kHostShaderFormat);
+  s.blit_ps = s.device->createShader(EOT_SHADER_BLOB(blit_ps), "main", kHostShaderFormat);
+  s.copy_depth_ps =
+      s.device->createShader(EOT_SHADER_BLOB(copy_depth_ps), "main", kHostShaderFormat);
+  if (!s.copy_vs || !s.blit_ps || !s.copy_depth_ps) {
+    EOT_ERROR("createShader for the host helper passes failed");
+    return false;
+  }
+  return GetBlitPipeline(s, plume::RenderFormat::B8G8R8A8_UNORM) != nullptr;
+}
+
+plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format) {
+  auto it = s.blit_pipelines.find(rt_format);
+  if (it != s.blit_pipelines.end())
+    return it->second.get();
+  plume::RenderGraphicsPipelineDesc desc;
+  desc.pipelineLayout = s.pipeline_layout.get();
+  desc.vertexShader = s.copy_vs.get();
+  desc.pixelShader = s.blit_ps.get();
+  desc.depthFunction = plume::RenderComparisonFunction::ALWAYS;
+  desc.depthEnabled = false;
+  desc.depthWriteEnabled = false;
+  desc.primitiveTopology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  desc.cullMode = plume::RenderCullMode::NONE;
+  desc.renderTargetCount = 1;
+  desc.renderTargetFormat[0] = rt_format;
+  desc.renderTargetBlend[0] = plume::RenderBlendDesc::Copy();
+  desc.depthTargetFormat = plume::RenderFormat::UNKNOWN;
+  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "blit");
+  if (!pso)
+    return nullptr;
+  auto *raw = pso.get();
+  s.blit_pipelines.emplace(rt_format, std::move(pso));
+  return raw;
+}
+
+plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format) {
+  auto it = s.depth_copy_pipelines.find(ds_format);
+  if (it != s.depth_copy_pipelines.end())
+    return it->second.get();
+  plume::RenderGraphicsPipelineDesc desc;
+  desc.pipelineLayout = s.pipeline_layout.get();
+  desc.vertexShader = s.copy_vs.get();
+  desc.pixelShader = s.copy_depth_ps.get();
+  desc.depthFunction = plume::RenderComparisonFunction::ALWAYS;
+  desc.depthEnabled = true;
+  desc.depthWriteEnabled = true;
+  desc.primitiveTopology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  desc.cullMode = plume::RenderCullMode::NONE;
+  desc.renderTargetCount = 0;
+  desc.depthTargetFormat = ds_format;
+  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "copy-depth");
+  if (!pso)
+    return nullptr;
+  auto *raw = pso.get();
+  s.depth_copy_pipelines.emplace(ds_format, std::move(pso));
+  return raw;
+}
+
+bool Video::CreateHostDevice(rex::ui::Window *window) {
+  if (!window) {
+    EOT_ERROR("Video::CreateHostDevice: null window");
+    return false;
+  }
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  if (s.ready)
+    return true;
+  RenderDocInit();
+
+  plume::RenderWindow render_window{};
+#if defined(_WIN32)
+  render_window = static_cast<plume::RenderWindow>(window->GetNativeWindowHandle());
+  if (!render_window) {
+    EOT_ERROR("Window has no native HWND yet");
+    return false;
+  }
+#else
+  EOT_ERROR("Non-Windows native window handles are not wired up yet");
+  return false;
+#endif
+
+#if defined(EOT_D3D12)
+  s.render_iface = plume::CreateD3D12Interface();
+#else
+  s.render_iface = plume::CreateVulkanInterface();
+#endif
+  if (!s.render_iface) {
+    EOT_ERROR("plume CreateInterface failed");
+    return false;
+  }
+  s.device = s.render_iface->createDevice();
+  if (!s.device) {
+    EOT_ERROR("plume createDevice failed");
+    return false;
+  }
+  s.backend_info = DescribeBackend(s.device.get());
+
+  s.queue = s.device->createCommandQueue(plume::RenderCommandListType::DIRECT);
+  for (u32 i = 0; i < kNumFrames; ++i) {
+    s.command_lists[i] = s.queue->createCommandList();
+    s.fences[i] = s.device->createCommandFence();
+    s.acquire_semaphores[i] = s.device->createCommandSemaphore();
+  }
+  s.command_list = s.command_lists[0].get();
+
+  plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM,
+                                  kNumFrames + 1);
+  s.swap_chain = s.queue->createSwapChain(desc);
+#if !defined(EOT_D3D12)
+  if (s.swap_chain)
+    s.swap_chain->resize();
+#endif
+  if (!s.swap_chain || s.swap_chain->isEmpty()) {
+    EOT_ERROR("plume createSwapChain failed");
+    return false;
+  }
+  if (!BuildSwapFramebuffers(s) || !BuildPipelineLayout(s) || !BuildHelperPipelines(s))
+    return false;
+  if (!UploadRingInit()) {
+    EOT_ERROR("upload ring init failed");
+    return false;
+  }
+
+  s.ready = true;
+  EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots", s.backend_info,
+           s.device->getDescription().name, s.swap_chain->getWidth(),
+           s.swap_chain->getHeight(), kBindlessTextureCount);
+  return true;
+}
+
+void Video::BeginShutdown() { state().shutting_down.store(true, std::memory_order_release); }
+
+void Video::Shutdown() {
+  auto &s = state();
+  std::unique_lock lock(s.mutex, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    EOT_WARN("Shutdown: renderer busy, skipping GPU drain");
+    return;
+  }
+  s.ready = false;
+  if (s.command_list_open && s.command_list) {
+    s.command_list->end();
+    s.command_list_open = false;
+  }
+  if (s.queue) {
+    for (u32 i = 0; i < kNumFrames; ++i) {
+      if (s.command_list_submitted[i] && s.fences[i]) {
+        s.queue->waitForCommandFence(s.fences[i].get());
+        s.command_list_submitted[i] = false;
+      }
+    }
+  }
+  s.swap_framebuffers.clear();
+  s.render_semaphores.clear();
+  s.swap_chain.reset();
+}
+
+plume::RenderDevice *Video::HostDevice() { return state().device.get(); }
+
+u32 Video::OutputWidth() {
+  auto &s = state();
+  return s.swap_chain ? s.swap_chain->getWidth() : 0;
+}
+
+u32 Video::OutputHeight() {
+  auto &s = state();
+  return s.swap_chain ? s.swap_chain->getHeight() : 0;
+}
+
+void Video::RequestResize() {
+  state().resize_requested.store(true, std::memory_order_release);
+}
+
+}
