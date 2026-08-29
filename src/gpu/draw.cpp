@@ -1479,9 +1479,14 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     cmd->setScissors(&vp.scissor, 1);
     last_sc = vp.scissor;
   }
-  cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(vs_consts.buffer, vs_consts.offset), 0);
-  cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(ps_consts.buffer, ps_consts.offset), 1);
-  cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(shared_alloc.buffer, shared_alloc.offset), 2);
+  const UploadAlloc *roots[3] = {&vs_consts, &ps_consts, &shared_alloc};
+  for (u32 r = 0; r < 3; ++r) {
+    if (s.bound_root_buffer[r] == roots[r]->buffer && s.bound_root_offset[r] == roots[r]->offset)
+      continue;
+    cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(roots[r]->buffer, roots[r]->offset), r);
+    s.bound_root_buffer[r] = roots[r]->buffer;
+    s.bound_root_offset[r] = roots[r]->offset;
+  }
   cmd->setVertexBuffers(0, views, max_slot + 1, slots);
   if (layout->needsSyntheticSlot) {
     plume::RenderVertexBufferView zv(plume::RenderBufferReference(zero.buffer, zero.offset), 4096);
@@ -1542,6 +1547,7 @@ void QueueGuestUpDraw(u32 device_va, u32 prim, u32 vertex_count, u32 stride, u32
   auto &s = state();
   std::lock_guard lock(s.mutex);
   s.pending_up.valid = data_va != 0 && vertex_count != 0;
+  s.pending_up_armed.store(s.pending_up.valid, std::memory_order_release);
   s.pending_up.device_va = device_va;
   s.pending_up.primitive_type = prim;
   s.pending_up.vertex_count = vertex_count;
@@ -1556,6 +1562,8 @@ void QueueGuestUpDraw(u32 device_va, u32 prim, u32 vertex_count, u32 stride, u32
 
 void FlushPendingUpDraw() {
   auto &s = state();
+  if (!s.pending_up_armed.load(std::memory_order_acquire))
+    return;
   VideoState::PendingUpDraw up;
   {
     std::lock_guard lock(s.mutex);
@@ -1563,6 +1571,7 @@ void FlushPendingUpDraw() {
       return;
     up = s.pending_up;
     s.pending_up.valid = false;
+    s.pending_up_armed.store(false, std::memory_order_relaxed);
   }
   GeometryPlan g;
   bool expand = false;

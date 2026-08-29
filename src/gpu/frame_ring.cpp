@@ -39,6 +39,10 @@ void BeginCommandList(VideoState &s) {
   s.command_list_open = true;
   s.bound_framebuffer = nullptr;
   s.bound_pipeline = nullptr;
+  for (u32 i = 0; i < 3; ++i) {
+    s.bound_root_buffer[i] = nullptr;
+    s.bound_root_offset[i] = 0;
+  }
   s.shared_bound = false;
 }
 
@@ -50,6 +54,10 @@ void SubmitOpenListLocked(VideoState &s) {
   s.command_list_open = false;
   s.bound_framebuffer = nullptr;
   s.bound_pipeline = nullptr;
+  for (u32 i = 0; i < 3; ++i) {
+    s.bound_root_buffer[i] = nullptr;
+    s.bound_root_offset[i] = 0;
+  }
   const plume::RenderCommandList *lists[] = {s.command_lists[cur].get()};
   s.queue->executeCommandLists(lists, 1, nullptr, 0, nullptr, 0, s.fences[cur].get());
   s.command_list_submitted[cur] = true;
