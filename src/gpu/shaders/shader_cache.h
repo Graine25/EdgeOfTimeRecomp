@@ -5,20 +5,20 @@
 
 struct ShaderCacheEntry {
   uint64_t hash;
-  uint32_t dxil_offset;
-  uint32_t dxil_size;
-  uint32_t spirv_offset;
-  uint32_t spirv_size;
-  uint32_t spec_constants_mask;
-  uint32_t vertex_layout_offset;
-  uint32_t vertex_layout_count;
-  uint32_t vfetch_code_offset;
-  uint32_t uses_float_constants;
+  uint32_t dxilOffset;
+  uint32_t dxilSize;
+  uint32_t spirvOffset;
+  uint32_t spirvSize;
+  uint32_t specConstantsMask;
+  uint32_t vertexLayoutOffset;
+  uint32_t vertexLayoutCount;
+  uint32_t vfetchCodeOffset;
+  uint32_t usesFloatConstants;
 };
 
 extern ShaderCacheEntry g_shaderCacheEntries[];
-extern const size_t g_shaderCacheEntryCount;
 extern const uint32_t g_shaderVertexLayouts[];
+extern const size_t g_shaderCacheEntryCount;
 
 extern const uint8_t g_compressedDxilCache[];
 extern const size_t g_dxilCacheCompressedSize;
