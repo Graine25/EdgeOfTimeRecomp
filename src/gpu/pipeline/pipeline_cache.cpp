@@ -1,461 +1,116 @@
 #include "gpu/pipeline/pipeline_cache.h"
 
-#include <atomic>
 #include <cstring>
 #include <memory>
-#include <mutex>
 #include <unordered_map>
+#include <vector>
 
-#include <plume_d3d12.h>
-#include <rex/cvar.h>
-#include <rex/graphics/registers.h>
-#include <rex/graphics/xenos.h>
-#include <rex/hash.h>
+#include <xxhash.h>
 
 #include "core/logging.h"
-#include "core/memory_helpers.h"
-#include "core/settings.h"
-#include "gpu/device/device.h"
-#include "gpu/guest/format.h"
-#include "gpu/guest/resources.h"
-#include "gpu/guest/vfetch_microcode.h"
-#include "gpu/pipeline/vertex_layout.h"
-#include "gpu/shaders/guest_shaders.h"
-#include "gpu/shaders/shader_cache.h"
+#include "gpu/device.h"
+#include "gpu/vertex_layout.h"
 
 namespace eot::gpu {
 
-constexpr u32 kSpecConstantR11G11B10Normal = 1u << 0;
-constexpr u32 kSpecConstantAlphaTest = 1u << 1;
-constexpr u32 kAlphaTestEnableBit = 1u << 3;
-
 namespace {
 
-std::mutex g_pipeline_mutex;
-
-struct Entry {
-  std::unique_ptr<plume::RenderPipeline> pipeline;
-  u32 draws = 0;
+struct Cache {
+  std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> map;
+  u32 failures = 0;
 };
-std::unordered_map<PipelineKey, Entry, PipelineKeyHash> g_pipelines;
 
-std::atomic<u32> g_lookups{0};
-std::atomic<u32> g_undescribable{0};
-std::atomic<u32> g_layout_ok{0};
-std::atomic<u32> g_layout_failed{0};
-std::atomic<u32> g_layout_from_microcode{0};
-std::atomic<u32> g_layout_join_recovered{0};
-std::atomic<u32> g_layout_reported{0};
-std::atomic<u32> g_layout_no_fetches{0};
-std::atomic<u32> g_layout_no_decl{0};
-std::atomic<u32> g_layout_join_failed{0};
-std::atomic<u32> g_built{0};
-std::atomic<u32> g_build_failed{0};
-
-void LogPipelineStatsLocked();
-
-void Mix(u64 &h, u64 value) {
-  h ^= value + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2);
+Cache &cache() {
+  static Cache c;
+  return c;
 }
 
 }
 
-void NoteInputLayout(const InputLayout &layout, bool ok) {
-  if (ok) {
-    if (g_layout_ok.fetch_add(1, std::memory_order_relaxed) == 0) {
-      char buf[320];
-      int len = 0;
-      for (u32 i = 0; i < layout.count && len < int(sizeof(buf)) - 40; ++i) {
-        const auto &e = layout.elements[i];
-        len += snprintf(buf + len, sizeof(buf) - len, "%s%s%u@s%u+%u:f%u",
-                        i ? " " : "", VertexUsageName(e.usage), e.usageIndex,
-                        e.stream, e.offset, static_cast<u32>(e.format));
-      }
-      EOT_INFO("[pso] first input layout: {} elements - {}", layout.count, buf);
-    }
-  } else {
-    g_layout_failed.fetch_add(1, std::memory_order_relaxed);
-  }
+void ZeroPipelineState(PipelineState &state) { std::memset(&state, 0, sizeof(state)); }
+
+u64 HashPipelineState(const PipelineState &state) {
+  return XXH3_64bits(&state, sizeof(state));
 }
 
-size_t PipelineKeyHash::operator()(const PipelineKey &k) const {
-  u64 h = 0;
-  Mix(h, k.vertexShaderHash);
-  Mix(h, k.pixelShaderHash);
-  Mix(h, (u64(k.vertexSpecConstants) << 32) | k.pixelSpecConstants);
-  Mix(h, (u64(static_cast<u32>(k.renderTargetFormat)) << 32) |
-             static_cast<u32>(k.depthFormat));
-  Mix(h, (u64(static_cast<u32>(k.topology)) << 32) | k.sampleCount);
-  Mix(h, k.inputLayoutHash);
-  Mix(h, k.stateHash);
-  return static_cast<size_t>(h);
-}
-
-u64 HashInputLayout(const InputLayout &layout) {
-  u64 h = 0;
-  for (u32 i = 0; i < layout.count; ++i) {
-    const auto &e = layout.elements[i];
-    Mix(h, (u64(static_cast<u32>(e.usage)) << 40) | (u64(e.usageIndex) << 32) |
-               (u64(e.stream) << 24) | e.offset);
-    Mix(h, static_cast<u32>(e.format));
-  }
-  Mix(h, layout.packedNormal ? 1u : 0u);
-  return h;
-}
-
-bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out) {
-  GuestShader *vs = Video::BoundVertexShader();
-  if (!vs || !vs->shaderCacheEntry)
-    return false;
-
-  out = PipelineKey{};
-  out.vertexShaderHash = vs->hash;
-  if (GuestShader *ps = Video::BoundPixelShader())
-    out.pixelShaderHash = ps->hash;
-
-  VertexLayout fetches;
-  VertexDeclaration decl;
-  InputLayout input;
-  if (!DecodeVertexLayout(vs, fetches)) {
-    g_layout_no_fetches.fetch_add(1, std::memory_order_relaxed);
-    NoteInputLayout(input, false);
-  } else if (!CurrentVertexDeclaration(device_va, decl)) {
-    if (BuildInputLayoutFromMicrocode(*vs, fetches,
-                                      Video::BoundStreamStride(0), input)) {
-      g_layout_from_microcode.fetch_add(1, std::memory_order_relaxed);
-      NoteInputLayout(input, true);
-      out.inputLayoutHash = HashInputLayout(input);
-      out.layout = input;
-    } else {
-      if (g_layout_no_decl.fetch_add(1, std::memory_order_relaxed) < 4) {
-        EOT_WARN("[pso] no declaration and no usable microcode for vs 0x{:08X} "
-                 "({} fetches)",
-                 vs->objectVa, fetches.count);
-      }
-      NoteInputLayout(input, false);
-    }
-  } else if (!BuildInputLayout(fetches, decl, input)) {
-    if (BuildInputLayoutFromMicrocode(*vs, fetches,
-                                      Video::BoundStreamStride(0), input)) {
-      g_layout_join_recovered.fetch_add(1, std::memory_order_relaxed);
-      NoteInputLayout(input, true);
-      out.inputLayoutHash = HashInputLayout(input);
-      out.layout = input;
-    } else {
-      g_layout_join_failed.fetch_add(1, std::memory_order_relaxed);
-      NoteInputLayout(input, false);
-    }
-  } else {
-    NoteInputLayout(input, true);
-    out.inputLayoutHash = HashInputLayout(input);
-    out.layout = input;
-  }
-  const u32 color_control = mem::try_load<u32>(device_va + kColorControlOffset);
-  const u32 depth_control = mem::try_load<u32>(device_va + kDepthControlOffset);
-  const u32 blend_control = mem::try_load<u32>(device_va + kBlendControl0Offset);
-  const bool alpha_test = (color_control & kAlphaTestEnableBit) != 0;
-
-  u32 spec = 0;
-  if (alpha_test)
-    spec |= kSpecConstantAlphaTest;
-  if (out.layout.packedNormal)
-    spec |= kSpecConstantR11G11B10Normal;
-  out.vertexSpecConstants = spec;
-  out.pixelSpecConstants = spec;
-
-  out.stateHash = (u64(depth_control) << 32) ^ blend_control ^
-                  (u64(color_control) << 16) ^
-                  (u64(out.modeControl) << 8) ^ (u64(out.colorMask) << 48) ^
-                  (u64(out.stencilRefMask) << 24) ^
-                  (u64(out.polyOffsetScale) << 4) ^ u64(out.polyOffsetBias);
-  out.blendControl = blend_control;
-  out.colorControl = color_control;
-  out.depthControl = depth_control;
-  out.modeControl = mem::try_load<u32>(device_va + kModeControlOffset);
-  out.colorMask = mem::try_load<u32>(device_va + kColorMaskOffset);
-  out.stencilRefMask = mem::try_load<u32>(device_va + kStencilRefMaskOffset);
-  {
-    const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{out.modeControl};
-    const bool use_back = mode.poly_offset_back_enable && !mode.poly_offset_front_enable;
-    const u32 scale_at = use_back ? kPolyOffsetBackScaleOffset
-                                  : kPolyOffsetFrontScaleOffset;
-    const u32 bias_at = use_back ? kPolyOffsetBackOffset : kPolyOffsetFrontOffset;
-    if (mode.poly_offset_front_enable || mode.poly_offset_back_enable) {
-      out.polyOffsetScale = mem::try_load<u32>(device_va + scale_at);
-      out.polyOffsetBias = mem::try_load<u32>(device_va + bias_at);
-    }
-  }
-  const Video::AttachmentFormats fmts = Video::BoundAttachmentFormats();
-  if (fmts.color == plume::RenderFormat::UNKNOWN &&
-      fmts.depth == plume::RenderFormat::UNKNOWN)
-    return false;
-  out.renderTargetFormat = fmts.color;
-  out.depthFormat = fmts.depth;
-  if (const GuestTexture *ds = Video::BoundDepthTexture()) {
-    constexpr u32 kD3DFMT_D24FS8 = 0x1A220197;
-    out.reverseZ = false;
-    (void)kD3DFMT_D24FS8;
-    (void)ds;
-  }
-  out.sampleCount = fmts.sampleCount;
-  return true;
-}
-
-namespace {
-
-constexpr bool kEnableDepthTest = true;
-
-plume::RenderBlendDesc ConvertBlend(u32 blend_control) {
-  const u32 color_src = (blend_control >> kBlendColorSrcShift) & 0x1F;
-  const u32 color_dst = (blend_control >> kBlendColorDstShift) & 0x1F;
-  const u32 color_comb = (blend_control >> kBlendColorCombShift) & 0x7;
-  const u32 alpha_src = (blend_control >> kBlendAlphaSrcShift) & 0x1F;
-  const u32 alpha_dst = (blend_control >> kBlendAlphaDstShift) & 0x1F;
-  const u32 alpha_comb = (blend_control >> kBlendAlphaCombShift) & 0x7;
-
-  plume::RenderBlendDesc desc = plume::RenderBlendDesc::Copy();
-  const bool opaque =
-      color_src == u32(rex::graphics::xenos::BlendFactor::kOne) &&
-      color_dst == u32(rex::graphics::xenos::BlendFactor::kZero) &&
-      color_comb == 0 &&
-      alpha_src == u32(rex::graphics::xenos::BlendFactor::kOne) &&
-      alpha_dst == u32(rex::graphics::xenos::BlendFactor::kZero) &&
-      alpha_comb == 0;
-  if (opaque)
-    return desc;
-
-  desc.blendEnabled = true;
-  desc.srcBlend = ConvertBlendMode(color_src);
-  desc.dstBlend = ConvertBlendMode(color_dst);
-  desc.blendOp = ConvertBlendOp(color_comb);
-  desc.srcBlendAlpha = ConvertBlendMode(alpha_src);
-  desc.dstBlendAlpha = ConvertBlendMode(alpha_dst);
-  desc.blendOpAlpha = ConvertBlendOp(alpha_comb);
-  return desc;
-}
-
-std::unique_ptr<plume::RenderPipeline>
-BuildPipeline(const PipelineKey &key, const InputLayout &layout) {
-  auto *device = Video::HostDevice();
-  GuestShader *vs = Video::BoundVertexShader();
-  GuestShader *ps = Video::BoundPixelShader();
-  if (!device || !vs)
-    return nullptr;
-
-  plume::RenderShader *host_vs = GetOrLinkShader(vs, key.vertexSpecConstants);
-  if (!host_vs)
-    return nullptr;
-  plume::RenderShader *host_ps =
-      ps ? GetOrLinkShader(ps, key.pixelSpecConstants) : nullptr;
-
-  plume::RenderInputElement elements[kMaxVertexFetches]{};
-  for (u32 i = 0; i < layout.count; ++i) {
-    const auto &e = layout.elements[i];
-    elements[i] = plume::RenderInputElement(VertexUsageSemantic(e.usage),
-                                            e.usageIndex, i,
-                                            e.format, e.stream, e.offset);
-  }
-
-  plume::RenderInputSlot slots[kMaxStreamSources]{};
-  u32 slot_count = 0;
-  for (u32 i = 0; i < layout.count; ++i) {
-    const u32 stream = layout.elements[i].stream;
-    bool seen = false;
-    for (u32 j = 0; j < slot_count; ++j)
-      seen = seen || slots[j].index == stream;
-    if (seen)
-      continue;
-    u32 stride = Video::BoundStreamStride(stream);
-    if (stride == 0 && stream == 0)
-      stride = layout.recoveredStride;
-    if (stride == 0)
-      return nullptr;
-    slots[slot_count++] = plume::RenderInputSlot(
-        stream, stride, plume::RenderInputSlotClassification::PER_VERTEX_DATA);
-  }
-
-  plume::RenderPipelineLayout *layout_obj = Video::GuestPipelineLayout();
-  if (!layout_obj)
-    return nullptr;
+plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &st) {
+  auto &c = cache();
+  const u64 key = HashPipelineState(st);
+  auto it = c.map.find(key);
+  if (it != c.map.end())
+    return it->second.get();
 
   plume::RenderGraphicsPipelineDesc desc;
-  desc.pipelineLayout = layout_obj;
-  desc.vertexShader = host_vs;
-  desc.pixelShader = host_ps;
-  desc.inputElements = elements;
-  desc.inputElementsCount = layout.count;
-  desc.inputSlots = slots;
-  desc.inputSlotsCount = slot_count;
-  desc.primitiveTopology = key.topology;
-  desc.multisampling.sampleCount = key.sampleCount;
-  desc.depthTargetFormat = key.depthFormat;
+  desc.pipelineLayout = s.pipeline_layout.get();
+  desc.vertexShader = st.vs;
+  desc.pixelShader = st.ps;
 
-  if (key.depthFormat != plume::RenderFormat::UNKNOWN && kEnableDepthTest) {
-    const rex::graphics::reg::RB_DEPTHCONTROL dc{key.depthControl};
-    desc.depthEnabled = dc.z_enable != 0;
-    desc.depthWriteEnabled = dc.z_write_enable != 0;
-    desc.depthFunction = ConvertDepthCompareFunc(dc.zfunc, key.reverseZ);
-  }
-  {
-    const rex::graphics::reg::RB_COLORCONTROL cc{key.colorControl};
-    desc.alphaToCoverageEnabled =
-        cc.alpha_to_mask_enable != 0 && key.sampleCount > 1;
-  }
-
-  if (key.renderTargetFormat != plume::RenderFormat::UNKNOWN) {
-    desc.renderTargetFormat[0] = key.renderTargetFormat;
-    desc.renderTargetBlend[0] = ConvertBlend(key.blendControl);
-    desc.renderTargetBlend[0].renderTargetWriteMask =
-        static_cast<u8>(key.colorMask & 0xFu);
-    desc.renderTargetCount = 1;
-  }
-  if (key.depthFormat != plume::RenderFormat::UNKNOWN) {
-    const rex::graphics::reg::RB_DEPTHCONTROL dc{key.depthControl};
-    desc.stencilEnabled = dc.stencil_enable != 0;
-    if (desc.stencilEnabled) {
-      desc.stencilReference = key.stencilRefMask & 0xFFu;
-      desc.stencilReadMask = (key.stencilRefMask >> 8) & 0xFFu;
-      desc.stencilWriteMask = (key.stencilRefMask >> 16) & 0xFFu;
-
-      desc.stencilFrontFace.compareFunction =
-          ConvertCompareFunc(dc.stencilfunc);
-      desc.stencilFrontFace.failOp = ConvertStencilOp(dc.stencilfail);
-      desc.stencilFrontFace.passOp = ConvertStencilOp(dc.stencilzpass);
-      desc.stencilFrontFace.depthFailOp = ConvertStencilOp(dc.stencilzfail);
-
-      const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{key.modeControl};
-      if (dc.backface_enable) {
-        desc.stencilBackFace.compareFunction =
-            ConvertCompareFunc(dc.stencilfunc_bf);
-        desc.stencilBackFace.failOp = ConvertStencilOp(dc.stencilfail_bf);
-        desc.stencilBackFace.passOp = ConvertStencilOp(dc.stencilzpass_bf);
-        desc.stencilBackFace.depthFailOp = ConvertStencilOp(dc.stencilzfail_bf);
-      } else {
-        desc.stencilBackFace = desc.stencilFrontFace;
-      }
-      (void)mode;
+  std::vector<plume::RenderInputSlot> slots;
+  if (st.layout) {
+    for (u32 slot = 0; slot < 16; ++slot) {
+      if (st.layout->streamMask & (1u << slot))
+        slots.emplace_back(slot, st.strides[slot]);
     }
+    if (st.layout->needsSyntheticSlot)
+      slots.emplace_back(kSyntheticVertexSlot, 0u);
+    desc.inputSlots = slots.data();
+    desc.inputSlotsCount = static_cast<u32>(slots.size());
+    desc.inputElements = st.layout->elements.data();
+    desc.inputElementsCount = static_cast<u32>(st.layout->elements.size());
   }
 
-  if (key.polyOffsetScale || key.polyOffsetBias) {
-    float scale = 0.0f;
-    float bias = 0.0f;
-    std::memcpy(&scale, &key.polyOffsetScale, sizeof(scale));
-    std::memcpy(&bias, &key.polyOffsetBias, sizeof(bias));
-    desc.slopeScaledDepthBias = scale;
-    desc.depthBias = static_cast<i32>(bias * 16777216.0f);
+  desc.primitiveTopology = st.topology;
+  desc.cullMode = st.cull;
+  desc.frontFace = st.frontFace;
+  desc.depthClipEnabled = st.depthClip;
+  desc.depthBias = st.depthBias;
+  desc.slopeScaledDepthBias = st.slopeScaledDepthBias;
+  desc.depthBiasClamp = 0.0f;
+  desc.depthEnabled = st.depthEnable;
+  desc.depthWriteEnabled = st.depthWrite;
+  desc.depthFunction = st.depthFunc;
+  desc.stencilEnabled = st.stencilEnable;
+  desc.stencilReadMask = st.stencilReadMask;
+  desc.stencilWriteMask = st.stencilWriteMask;
+  desc.stencilReference = st.stencilRef;
+  desc.stencilFrontFace = st.stencilFront;
+  desc.stencilBackFace = st.stencilBack;
+  desc.multisampling.sampleCount = st.sampleCount > 1 ? st.sampleCount : 1;
+  desc.alphaToCoverageEnabled = st.alphaToCoverage;
+  desc.renderTargetCount = st.rtCount;
+  for (u32 i = 0; i < st.rtCount && i < 4; ++i) {
+    desc.renderTargetFormat[i] = st.rtFormats[i];
+    desc.renderTargetBlend[i] = st.blend[i];
   }
+  desc.depthTargetFormat = st.dsFormat;
 
-  {
-    const rex::graphics::reg::PA_SU_SC_MODE_CNTL mode{key.modeControl};
-    if (mode.cull_front && mode.cull_back) {
-      static std::atomic<u32> both{0};
-      if (both.fetch_add(1, std::memory_order_relaxed) == 0)
-        EOT_WARN("[pipeline] a draw asks to cull both faces; culling back only");
-      desc.cullMode = plume::RenderCullMode::BACK;
-    } else if (mode.cull_front) {
-      desc.cullMode = plume::RenderCullMode::FRONT;
-    } else if (mode.cull_back) {
-      desc.cullMode = plume::RenderCullMode::BACK;
-    } else {
-      desc.cullMode = plume::RenderCullMode::NONE;
+  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "guest-draw");
+  if (!pso) {
+    if (c.failures++ < 32) {
+      EOT_ERROR("[pso] creation failed: vs={} ps={} elements={} rt={} ds={} topo={}",
+                static_cast<const void *>(st.vs), static_cast<const void *>(st.ps),
+                st.layout ? st.layout->elements.size() : 0, st.rtCount,
+                static_cast<u32>(st.dsFormat), static_cast<u32>(st.topology));
     }
-    desc.frontFace = mode.face ? plume::RenderFrontFace::CLOCKWISE
-                               : plume::RenderFrontFace::COUNTER_CLOCKWISE;
+    c.map.emplace(key, nullptr);
+    return nullptr;
   }
-
-  desc.specConstants = nullptr;
-  desc.specConstantsCount = 0;
-
-  auto pipeline = device->createGraphicsPipeline(desc);
-
-  if (pipeline) {
-    auto *d3d12_pipeline =
-        static_cast<plume::D3D12Pipeline *>(pipeline.get());
-    if (d3d12_pipeline->type == plume::D3D12Pipeline::Type::Graphics) {
-      static_cast<plume::D3D12GraphicsPipeline *>(d3d12_pipeline)->stencilRef =
-          desc.stencilEnabled ? desc.stencilReference : 0;
-    }
+  auto *raw = pso.get();
+  static u32 created = 0;
+  if (created++ < 400) {
+    EOT_INFO("[pso] #{} key={:016x} pso={} vs={} ps={} depth={}{} func{} stencil={} sfunc{} "
+             "ops{}/{}/{} cull={} front={} rt0fmt={} ds={} topo={}",
+             created, key, static_cast<const void *>(raw), static_cast<const void *>(st.vs),
+             static_cast<const void *>(st.ps), st.depthEnable ? "on" : "off",
+             st.depthWrite ? "w" : "", static_cast<u32>(st.depthFunc), st.stencilEnable,
+             static_cast<u32>(st.stencilFront.compareFunction),
+             static_cast<u32>(st.stencilFront.failOp), static_cast<u32>(st.stencilFront.passOp),
+             static_cast<u32>(st.stencilFront.depthFailOp), static_cast<u32>(st.cull),
+             static_cast<u32>(st.frontFace), static_cast<u32>(st.rtFormats[0]),
+             static_cast<u32>(st.dsFormat), static_cast<u32>(st.topology));
   }
-  return pipeline;
-}
-
-}
-
-plume::RenderPipeline *GetOrCreatePipeline(const PipelineKey &key,
-                                           const InputLayout &layout) {
-  g_lookups.fetch_add(1, std::memory_order_relaxed);
-  {
-    std::lock_guard lock(g_pipeline_mutex);
-    auto it = g_pipelines.find(key);
-    if (it != g_pipelines.end()) {
-      ++it->second.draws;
-      return it->second.pipeline.get();
-    }
-  }
-
-  std::unique_ptr<plume::RenderPipeline> built = BuildPipeline(key, layout);
-  if (!built && g_build_failed.fetch_add(1, std::memory_order_relaxed) < 3) {
-    EOT_WARN("[pso] build failed: vs=0x{:016X} ps=0x{:016X} rt={} ds={} "
-             "{} elements",
-             key.vertexShaderHash, key.pixelShaderHash,
-             static_cast<u32>(key.renderTargetFormat),
-             static_cast<u32>(key.depthFormat), layout.count);
-  }
-
-  std::lock_guard lock(g_pipeline_mutex);
-  auto [it, inserted] = g_pipelines.try_emplace(key);
-  ++it->second.draws;
-  if (inserted) {
-    it->second.pipeline = std::move(built);
-    if (it->second.pipeline)
-      g_built.fetch_add(1, std::memory_order_relaxed);
-  }
-  if (inserted && g_pipelines.size() == 1) {
-    EOT_INFO("[pso] first key: vs=0x{:016X} ps=0x{:016X} rt={} ds={} topo={}",
-             key.vertexShaderHash, key.pixelShaderHash,
-             static_cast<u32>(key.renderTargetFormat),
-             static_cast<u32>(key.depthFormat),
-             static_cast<u32>(key.topology));
-  }
-  if (inserted) {
-    const size_t n = g_pipelines.size();
-    if (n == 1 || n == 10 || n == 50 || n % 100 == 0)
-      LogPipelineStatsLocked();
-  }
-  return it->second.pipeline.get();
-}
-
-namespace {
-
-void LogPipelineStatsLocked() {
-  u32 depth_only = 0;
-  for (const auto &[key, entry] : g_pipelines) {
-    if (key.pixelShaderHash == 0)
-      ++depth_only;
-  }
-  EOT_INFO("[pso] {} distinct keys from {} lookups ({} depth-only); {} "
-           "undescribable; layouts {} ok / {} failed; pipelines {} built, {} failed",
-           g_pipelines.size(), g_lookups.load(), depth_only,
-           g_undescribable.load(), g_layout_ok.load(),
-           g_layout_failed.load(), g_built.load(), g_build_failed.load());
-  EOT_INFO("[pso] layout failures: {} no fetch records, {} no declaration, {} "
-           "join failed; {} recovered from vfetch microcode ({} of them after "
-           "a failed join)",
-           g_layout_no_fetches.load(), g_layout_no_decl.load(),
-           g_layout_join_failed.load(), g_layout_from_microcode.load(),
-           g_layout_join_recovered.load());
-}
-
-}
-
-void LogPipelineStats() {
-  std::lock_guard lock(g_pipeline_mutex);
-  LogPipelineStatsLocked();
-}
-
-void NotePipelineUndescribable() {
-  g_undescribable.fetch_add(1, std::memory_order_relaxed);
+  c.map.emplace(key, std::move(pso));
+  return raw;
 }
 
 }

@@ -4,61 +4,42 @@
 
 #include <plume_render_interface.h>
 
-#include "gpu/pipeline/vertex_layout.h"
-
 namespace eot::gpu {
 
-struct PipelineKey {
-  u64 vertexShaderHash = 0;
-  u64 pixelShaderHash = 0;
-  u32 vertexSpecConstants = 0;
-  u32 pixelSpecConstants = 0;
-  plume::RenderFormat renderTargetFormat = plume::RenderFormat::UNKNOWN;
-  plume::RenderFormat depthFormat = plume::RenderFormat::UNKNOWN;
-  plume::RenderPrimitiveTopology topology =
-      plume::RenderPrimitiveTopology::TRIANGLE_LIST;
-  u32 sampleCount = 1;
+struct VideoState;
+struct InputLayout;
 
-  u64 inputLayoutHash = 0;
-
-  InputLayout layout;
-
-  u32 blendControl = 0;
-
-  u32 colorControl = 0;
-  u32 modeControl = 0;
-  u32 colorMask = 0xFu;
-  u32 stencilRefMask = 0;
-  u32 polyOffsetScale = 0;
-  u32 polyOffsetBias = 0;
-
-  u32 depthControl = 0;
-  bool reverseZ = false;
-
-  u64 stateHash = 0;
-
-  bool operator==(const PipelineKey &o) const {
-    return vertexShaderHash == o.vertexShaderHash &&
-           pixelShaderHash == o.pixelShaderHash &&
-           vertexSpecConstants == o.vertexSpecConstants &&
-           pixelSpecConstants == o.pixelSpecConstants &&
-           renderTargetFormat == o.renderTargetFormat &&
-           depthFormat == o.depthFormat && topology == o.topology &&
-           sampleCount == o.sampleCount &&
-           inputLayoutHash == o.inputLayoutHash && stateHash == o.stateHash;
-  }
+struct PipelineState {
+  const plume::RenderShader *vs;
+  const plume::RenderShader *ps;
+  const InputLayout *layout;
+  u32 strides[16];
+  plume::RenderPrimitiveTopology topology;
+  plume::RenderFormat rtFormats[4];
+  u32 rtCount;
+  plume::RenderFormat dsFormat;
+  u32 sampleCount;
+  plume::RenderCullMode cull;
+  plume::RenderFrontFace frontFace;
+  i32 depthBias;
+  float slopeScaledDepthBias;
+  bool depthClip;
+  bool depthEnable;
+  bool depthWrite;
+  plume::RenderComparisonFunction depthFunc;
+  bool stencilEnable;
+  u8 stencilReadMask;
+  u8 stencilWriteMask;
+  u8 stencilRef;
+  plume::RenderStencilFaceDesc stencilFront;
+  plume::RenderStencilFaceDesc stencilBack;
+  plume::RenderBlendDesc blend[4];
+  bool alphaToCoverage;
 };
 
-struct PipelineKeyHash {
-  size_t operator()(const PipelineKey &k) const;
-};
+void ZeroPipelineState(PipelineState &state);
+u64 HashPipelineState(const PipelineState &state);
 
-plume::RenderPipeline *GetOrCreatePipeline(const PipelineKey &key,
-                                           const InputLayout &layout);
-
-bool BuildPipelineKeyForCurrentState(u32 device_va, PipelineKey &out);
-
-void NotePipelineUndescribable();
-void LogPipelineStats();
+plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &state);
 
 }
