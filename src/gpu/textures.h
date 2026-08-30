@@ -1,0 +1,25 @@
+#pragma once
+
+#include <rex/types.h>
+
+#include <plume_render_interface.h>
+
+#include "gpu/resources.h"
+
+namespace eot::gpu {
+
+struct VideoState;
+
+GuestTexture *GetGuestTexture(VideoState &s, u32 header_va);
+
+u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t,
+                              u32 swizzle = kIdentityFetchSwizzle);
+
+bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source);
+
+plume::RenderFramebuffer *GetMipFramebuffer(VideoState &s, GuestTexture &t, u32 mip);
+
+void NotifyResourceUnlocked(u32 resource_va);
+u64 ResourceUnlockSeq(u32 resource_va);
+
+}
