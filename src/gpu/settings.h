@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
+
 #include <string>
 
 #include <rex/types.h>
@@ -15,6 +18,7 @@ struct Settings {
   static bool VertexMirrors();
   static bool ConstRange();
   static bool ResolveCopy();
+  static f64 RenderScale();
   static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();
@@ -24,5 +28,14 @@ struct Settings {
   static bool PresentGamma();
   static bool PresentFrameLog();
 };
+
+inline f32 RenderScaleFactor() {
+  static const f32 s = static_cast<f32>(std::clamp(Settings::RenderScale(), 0.25, 4.0));
+  return s;
+}
+inline i32 ScalePx(i32 v) { return static_cast<i32>(std::lround(v * RenderScaleFactor())); }
+inline u32 ScaleDim(u32 v) {
+  return std::max(1u, static_cast<u32>(std::lround(v * RenderScaleFactor())));
+}
 
 }

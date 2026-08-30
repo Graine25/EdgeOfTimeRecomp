@@ -175,7 +175,8 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
     v.posOffset[0] += 1.0f / std::max(1.0f, w);
     v.posOffset[1] -= 1.0f / std::max(1.0f, h);
   }
-  v.vp = plume::RenderViewport(x0, y0, w, h, zmin, zmax);
+  const float S = RenderScaleFactor();
+  v.vp = plume::RenderViewport(x0 * S, y0 * S, w * S, h * S, zmin, zmax);
 
   auto scissor_of = [](u32 tl, u32 br) {
     return plume::RenderRect(static_cast<i32>(tl & 0x7FFF), static_cast<i32>((tl >> 16) & 0x7FFF),
@@ -192,6 +193,8 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
   sc.bottom = std::min({static_cast<i32>(t.height), win.bottom, scr.bottom});
   if (sc.right <= sc.left || sc.bottom <= sc.top)
     sc = plume::RenderRect(0, 0, static_cast<i32>(t.width), static_cast<i32>(t.height));
+  sc = plume::RenderRect(ScalePx(sc.left), ScalePx(sc.top), std::max(ScalePx(sc.right), ScalePx(sc.left) + 1),
+                         std::max(ScalePx(sc.bottom), ScalePx(sc.top) + 1));
   v.scissor = sc;
   return v;
 }

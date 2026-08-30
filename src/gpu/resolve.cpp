@@ -195,15 +195,15 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     static const bool copies = Settings::ResolveCopy();
     auto blit = [&](GuestTexture &target, u32 level, i32 vx, i32 vy, i32 vw, i32 vh, i32 sx0,
                     i32 sy0) -> bool {
-      const i32 mip_w = static_cast<i32>(std::max(1u, target.host.width >> level));
-      const i32 mip_h = static_cast<i32>(std::max(1u, target.host.height >> level));
+      const i32 mip_w = static_cast<i32>(std::max(1u, target.width >> level));
+      const i32 mip_h = static_cast<i32>(std::max(1u, target.height >> level));
       const bool whole = sx0 == 0 && sy0 == 0 && vx == 0 && vy == 0 &&
                          vw == static_cast<i32>(surf->width) &&
                          vh == static_cast<i32>(surf->height) && vw == mip_w && vh == mip_h;
       const bool same_format = src_host->format == target.host.format;
       const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
-      if (copies && src_host == &surf->host && same_format && scale == 1.0f && !reorder &&
-          (!depth_source || whole)) {
+      if (copies && RenderScaleFactor() == 1.0f && src_host == &surf->host && same_format &&
+          scale == 1.0f && !reorder && (!depth_source || whole)) {
         auto *cmd = s.command_list;
         TransitionLocked(s, *src_host, plume::RenderTextureLayout::COPY_SOURCE);
         TransitionLocked(s, target.host, plume::RenderTextureLayout::COPY_DEST);
@@ -227,6 +227,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                    src_host != &surf->host ? " msaa-alias" : "",
                    depth_source && !whole ? " depth-subrect" : "");
       }
+      const i32 hx0 = ScalePx(vx), hy0 = ScalePx(vy), hx1 = ScalePx(vx + vw), hy1 = ScalePx(vy + vh);
+      if (hx1 <= hx0 || hy1 <= hy0)
+        return true;
       plume::RenderFramebuffer *fb = GetMipFramebuffer(s, target, level);
       if (!fb)
         return false;
@@ -246,9 +249,10 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         return false;
       cmd->setPipeline(pso);
       s.bound_pipeline = pso;
-      plume::RenderViewport vp(static_cast<float>(vx), static_cast<float>(vy),
-                               static_cast<float>(vw), static_cast<float>(vh), 0.0f, 1.0f);
-      plume::RenderRect sc(vx, vy, vx + vw, vy + vh);
+      plume::RenderViewport vp(static_cast<float>(hx0), static_cast<float>(hy0),
+                               static_cast<float>(hx1 - hx0), static_cast<float>(hy1 - hy0), 0.0f,
+                               1.0f);
+      plume::RenderRect sc(hx0, hy0, hx1, hy1);
       cmd->setViewports(&vp, 1);
       cmd->setScissors(&sc, 1);
       CopyPushConstants pc;
@@ -267,8 +271,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       return true;
     };
 
-    const u32 mip_w = std::max(1u, dest->host.width >> dest_level);
-    const u32 mip_h = std::max(1u, dest->host.height >> dest_level);
+    const u32 mip_w = std::max(1u, dest->width >> dest_level);
+    const u32 mip_h = std::max(1u, dest->height >> dest_level);
     const i32 vx = std::clamp(dx, 0, static_cast<i32>(mip_w));
     const i32 vy = std::clamp(dy, 0, static_cast<i32>(mip_h));
     const i32 vw = std::min(rw, static_cast<i32>(mip_w) - vx);
