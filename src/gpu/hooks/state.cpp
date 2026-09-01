@@ -1,103 +1,100 @@
-#include <atomic>
-
 #include <rex/hook.h>
-#include <rex/types.h>
 
-#include "core/logging.h"
 #include "core/memory_helpers.h"
-#include "gpu/device/device.h"
-#include "gpu/device/host_resource_heap.h"
-#include "gpu/device/native_texture_mirror.h"
-#include "gpu/guest/d3d.h"
-#include "gpu/guest/format.h"
+#include "gpu/draw.h"
+#include "gpu/trace.h"
 
-namespace {
+using namespace eot;
+using namespace eot::gpu;
 
-std::atomic<u32> g_mrt_reported[eot::gpu::kMaxRenderTargets];
-std::atomic<u32> g_unresolved_rt{0};
-std::atomic<u32> g_resolved_rt{0};
-std::atomic<u32> g_unresolved_ds{0};
-std::atomic<u32> g_resolved_ds{0};
-
-void ReportRenderTarget(u32 index, u32 surface_va,
-                        const eot::gpu::GuestTexture *resolved) {
-  if (index > 0 && surface_va &&
-      g_mrt_reported[index].fetch_add(1, std::memory_order_relaxed) == 0) {
-    EOT_INFO("[rt] MRT in use: slot {} bound to non-null surface 0x{:08X} "
-             "(only slot 0 reaches the framebuffer)",
-             index, surface_va);
-  }
-  if (!surface_va)
-    return;
-  if (resolved) {
-    if (g_resolved_rt.fetch_add(1, std::memory_order_relaxed) == 0) {
-      EOT_INFO("[rt] slot {} surface 0x{:08X} resolved: {}x{} fmt={}", index,
-               surface_va, resolved->width, resolved->height,
-               static_cast<u32>(resolved->format));
-    }
-  } else if (g_unresolved_rt.fetch_add(1, std::memory_order_relaxed) == 0) {
-    EOT_INFO("[rt] slot {} surface 0x{:08X} unresolved: neither heap-owned nor a "
-             "registered pool mirror",
-             index, surface_va);
-  }
-}
-
-void ReportDepthStencil(u32 surface_va,
-                        const eot::gpu::GuestTexture *resolved) {
-  if (!surface_va)
-    return;
-  if (resolved) {
-    if (g_resolved_ds.fetch_add(1, std::memory_order_relaxed) == 0) {
-      EOT_INFO("[rt] depth surface 0x{:08X} resolved: {}x{} fmt={}", surface_va,
-               resolved->width, resolved->height,
-               static_cast<u32>(resolved->format));
-    }
-  } else if (g_unresolved_ds.fetch_add(1, std::memory_order_relaxed) == 0) {
-    EOT_INFO("[rt] depth surface 0x{:08X} NOT owned by HostResourceHeap - needs "
-             "pool registration",
-             surface_va);
-  }
-}
-
-}
-
-REX_HOOK_RAW(D3DDevice_SetRenderTarget) {
-  const u32 device_va = ctx.r3.u32;
-  const u32 index = ctx.r4.u32;
-  const u32 surface_va = ctx.r5.u32;
-
-  if (device_va && index < eot::gpu::kMaxRenderTargets) {
-    eot::mem::store<u32>(
-        device_va + eot::gpu::kDeviceRenderTargetShadow + index * 4,
-        surface_va);
-  }
-
-  auto *surface = eot::gpu::ResolveGuestSurface(surface_va);
-  ReportRenderTarget(index, surface_va, surface);
-  eot::gpu::Video::SetRenderTarget(index, surface);
-}
-
+REX_EXTERN(__imp__D3DDevice_SetRenderTarget);
 REX_EXTERN(__imp__D3DDevice_SetDepthStencilSurface);
-REX_HOOK_RAW(D3DDevice_SetDepthStencilSurface) {
-  const u32 device_va = ctx.r3.u32;
-  const u32 surface_va = ctx.r4.u32;
+REX_EXTERN(__imp__D3DDevice_SetViewport);
+REX_EXTERN(__imp__D3DDevice_SetTexture);
+REX_EXTERN(__imp__D3DDevice_SetVertexShader);
+REX_EXTERN(__imp__D3DDevice_SetPixelShader);
+REX_EXTERN(__imp__D3DDevice_SetStreamSource);
+REX_EXTERN(__imp__D3DDevice_SetIndices);
 
-  if (device_va) {
-    eot::mem::store<u32>(device_va + eot::gpu::kDeviceDepthStencilShadow,
-                         surface_va);
+extern "C" REX_FUNC(D3DDevice_SetRenderTarget) {
+  FlushPendingUpDraw();
+  const u32 index = ctx.r4.u32, surface = ctx.r5.u32;
+  __imp__D3DDevice_SetRenderTarget(ctx, base);
+  if (trace::Enabled()) {
+    const u32 info = surface ? mem::load<u32>(surface + 0x1C) : 0;
+    const u32 size = surface ? mem::load<u32>(surface + 0x24) : 0;
+    EOT_TRACE_CALL("SetRenderTarget {} surf={:#x} {}x{} fmt={} tile={}", index, surface,
+                   surface ? (size >> 18) + 1 : 0, surface ? ((size >> 3) & 0x7FFF) + 1 : 0,
+                   (info >> 16) & 0xF, info & 0xFFF);
   }
+  trace::Bump(trace::Counter::SetRenderTarget);
+}
 
+extern "C" REX_FUNC(D3DDevice_SetDepthStencilSurface) {
+  FlushPendingUpDraw();
+  const u32 surface = ctx.r4.u32;
   __imp__D3DDevice_SetDepthStencilSurface(ctx, base);
-
-  auto *surface = eot::gpu::ResolveGuestSurface(surface_va);
-  ReportDepthStencil(surface_va, surface);
-  if (surface) {
-    const bool is_depth =
-        surface->type == eot::gpu::ResourceType::DepthStencil ||
-        (surface->type == eot::gpu::ResourceType::Texture &&
-         eot::gpu::IsDepthFormat(surface->format));
-    if (!is_depth)
-      surface = nullptr;
+  if (trace::Enabled()) {
+    const u32 size = surface ? mem::load<u32>(surface + 0x24) : 0;
+    EOT_TRACE_CALL("SetDepthStencilSurface surf={:#x} {}x{}", surface,
+                   surface ? (size >> 18) + 1 : 0, surface ? ((size >> 3) & 0x7FFF) + 1 : 0);
   }
-  eot::gpu::Video::SetDepthStencil(surface);
+  trace::Bump(trace::Counter::SetDepth);
+}
+
+extern "C" REX_FUNC(D3DDevice_SetViewport) {
+  FlushPendingUpDraw();
+  const u32 vp = ctx.r4.u32;
+  __imp__D3DDevice_SetViewport(ctx, base);
+  if (trace::Enabled() && vp) {
+    EOT_TRACE_CALL("SetViewport x={} y={} w={} h={} minZ={} maxZ={}", mem::u32at(vp),
+                   mem::u32at(vp + 4), mem::u32at(vp + 8), mem::u32at(vp + 12),
+                   mem::f32at(vp + 16), mem::f32at(vp + 20));
+  }
+  trace::Bump(trace::Counter::SetViewport);
+}
+
+extern "C" REX_FUNC(D3DDevice_SetTexture) {
+  FlushPendingUpDraw();
+  const u32 sampler = ctx.r4.u32, texture = ctx.r5.u32;
+  __imp__D3DDevice_SetTexture(ctx, base);
+  if (trace::Enabled()) {
+    const u32 d1 = texture ? mem::load<u32>(texture + 0x1C + 4) : 0;
+    const u32 d2 = texture ? mem::load<u32>(texture + 0x1C + 8) : 0;
+    EOT_TRACE_CALL("SetTexture {} tex={:#x} fmt={} {}x{}", sampler, texture, d1 & 0x3F,
+                   (d2 & 0x1FFF) + 1, ((d2 >> 13) & 0x1FFF) + 1);
+  }
+  trace::Bump(trace::Counter::SetTexture);
+}
+
+extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
+  FlushPendingUpDraw();
+  const u32 shader = ctx.r4.u32;
+  __imp__D3DDevice_SetVertexShader(ctx, base);
+  EOT_TRACE_CALL("SetVertexShader {:#x}", shader);
+  trace::Bump(trace::Counter::SetVertexShader);
+}
+
+extern "C" REX_FUNC(D3DDevice_SetPixelShader) {
+  FlushPendingUpDraw();
+  const u32 shader = ctx.r4.u32;
+  __imp__D3DDevice_SetPixelShader(ctx, base);
+  EOT_TRACE_CALL("SetPixelShader {:#x}", shader);
+  trace::Bump(trace::Counter::SetPixelShader);
+}
+
+extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
+  FlushPendingUpDraw();
+  const u32 stream = ctx.r4.u32, vb = ctx.r5.u32, offset = ctx.r6.u32, stride = ctx.r7.u32;
+  __imp__D3DDevice_SetStreamSource(ctx, base);
+  EOT_TRACE_CALL("SetStreamSource {} vb={:#x} offset={} stride={}", stream, vb, offset, stride);
+  trace::Bump(trace::Counter::SetStreamSource);
+}
+
+extern "C" REX_FUNC(D3DDevice_SetIndices) {
+  FlushPendingUpDraw();
+  const u32 ib = ctx.r4.u32;
+  __imp__D3DDevice_SetIndices(ctx, base);
+  EOT_TRACE_CALL("SetIndices {:#x}", ib);
+  trace::Bump(trace::Counter::SetIndices);
 }
