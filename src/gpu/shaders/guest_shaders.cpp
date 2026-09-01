@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -23,7 +24,10 @@ namespace {
 struct CacheState {
   std::vector<u8> blob;
   std::unordered_map<u64, const ShaderCacheEntry *> by_hash;
+  std::mutex spec_mutex;
   std::unordered_map<u32, std::vector<u8>> spec_libs;
+  std::mutex host_mutex;
+  std::unordered_map<u64, std::unique_ptr<plume::RenderShader>> host;
   bool ready = false;
 };
 
@@ -47,17 +51,21 @@ const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size) {
 #endif
 }
 
-const std::vector<u8> &SpecLib(u32 value) {
+std::vector<u8> SpecLib(u32 value) {
   auto &c = cache();
-  auto it = c.spec_libs.find(value);
-  if (it != c.spec_libs.end())
-    return it->second;
+  {
+    std::lock_guard lock(c.spec_mutex);
+    auto it = c.spec_libs.find(value);
+    if (it != c.spec_libs.end())
+      return it->second;
+  }
   auto lib = CompileSpecConstantLib(value);
   if (lib.empty()) {
     EOT_ERROR("[shaders] CompileSpecConstantLib({:#x}) failed: are dxcompiler.dll and "
               "dxil.dll next to the executable?",
               value);
   }
+  std::lock_guard lock(c.spec_mutex);
   return c.spec_libs.emplace(value, std::move(lib)).first->second;
 }
 
@@ -224,6 +232,74 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
   return slot.get();
 }
 
+const ShaderCacheEntry *FindShaderCacheEntry(u64 hash) {
+  auto &c = cache();
+  auto it = c.by_hash.find(hash);
+  return it == c.by_hash.end() ? nullptr : it->second;
+}
+
+void VertexInputsFromEntry(const ShaderCacheEntry &e, std::vector<VertexInput> &out) {
+  out.clear();
+  for (u32 i = 0; i < e.vertexLayoutCount; ++i) {
+    const u32 w0 = g_shaderVertexLayouts[e.vertexLayoutOffset + i * 2];
+    VertexInput in;
+    in.usage = static_cast<u8>(w0 & 0xF);
+    in.usageIndex = static_cast<u8>((w0 >> 4) & 0xF);
+    out.push_back(in);
+  }
+}
+
+plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask, bool is_pixel,
+                                         bool worker) {
+  auto &c = cache();
+  const ShaderCacheEntry *entry = FindShaderCacheEntry(hash);
+  if (!entry || !s.device)
+    return nullptr;
+  const u32 effective = spec_mask & entry->specConstantsMask;
+  const u64 key = hash ^ ((u64(effective) + 1) * 0x9E3779B97F4A7C15ull) ^ (is_pixel ? 1u : 0u);
+  {
+    std::lock_guard lock(c.host_mutex);
+    auto it = c.host.find(key);
+    if (it != c.host.end())
+      return it->second.get();
+  }
+  u32 size = 0;
+  const u8 *bytes = EntryBytes(*entry, &size);
+  std::unique_ptr<plume::RenderShader> host;
+  if (bytes && size) {
+    if (entry->specConstantsMask == 0) {
+      host = s.device->createShader(bytes, size, "main", kHostShaderFormat);
+      if (!host)
+        EOT_ERROR("[shaders] createShader failed for {:016x}", hash);
+    } else {
+      std::unique_ptr<PerfScope> perf_scope;
+      if (!worker) {
+        perf_scope = std::make_unique<PerfScope>(s.perf.link_ms);
+        s.perf.links++;
+      }
+#if defined(EOT_D3D12)
+      const std::vector<u8> spec_lib = SpecLib(effective);
+      if (!spec_lib.empty()) {
+        std::string error;
+        auto linked = LinkSpecConstantLib(bytes, size, spec_lib.data(), spec_lib.size(),
+                                          is_pixel ? L"ps_6_0" : L"vs_6_0", &error);
+        if (linked.empty()) {
+          EOT_ERROR("[shaders] DXC link failed for {:016x} mask {:#x} ({} bytes): {}", hash,
+                    effective, size, error);
+        } else {
+          host = s.device->createShader(linked.data(), linked.size(), "main", kHostShaderFormat);
+        }
+      }
+#else
+      host = s.device->createShader(bytes, size, "main", kHostShaderFormat);
+#endif
+    }
+  }
+  std::lock_guard lock(c.host_mutex);
+  auto [it, inserted] = c.host.emplace(key, std::move(host));
+  return it->second.get();
+}
+
 plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask) {
   if (!shader.entry) {
     if (!shader.cacheMissLogged) {
@@ -233,56 +309,7 @@ plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 s
     }
     return nullptr;
   }
-  if (shader.linkFailed || !s.device)
-    return nullptr;
-  u32 size = 0;
-  const u8 *bytes = EntryBytes(*shader.entry, &size);
-  if (!bytes || !size)
-    return nullptr;
-
-  if (shader.entry->specConstantsMask == 0) {
-    if (!shader.shader) {
-      shader.shader = s.device->createShader(bytes, size, "main", kHostShaderFormat);
-      if (!shader.shader) {
-        shader.linkFailed = true;
-        EOT_ERROR("[shaders] createShader failed for {:016x}", shader.hash);
-      }
-    }
-    return shader.shader.get();
-  }
-
-  const u32 effective = spec_mask & shader.entry->specConstantsMask;
-  auto it = shader.linkedShaders.find(effective);
-  if (it != shader.linkedShaders.end())
-    return it->second.get();
-  PerfScope perf_scope(s.perf.link_ms);
-  s.perf.links++;
-#if defined(EOT_D3D12)
-  const auto &spec_lib = SpecLib(effective);
-  if (spec_lib.empty()) {
-    shader.linkFailed = true;
-    return nullptr;
-  }
-  std::string error;
-  auto linked = LinkSpecConstantLib(bytes, size, spec_lib.data(), spec_lib.size(),
-                                    shader.isPixel ? L"ps_6_0" : L"vs_6_0", &error);
-  if (linked.empty()) {
-    shader.linkFailed = true;
-    EOT_ERROR("[shaders] DXC link failed for {:016x} mask {:#x} ({} bytes): {}", shader.hash,
-              effective, size, error);
-    return nullptr;
-  }
-  auto host = s.device->createShader(linked.data(), linked.size(), "main", kHostShaderFormat);
-#else
-  auto host = s.device->createShader(bytes, size, "main", kHostShaderFormat);
-#endif
-  if (!host) {
-    shader.linkFailed = true;
-    return nullptr;
-  }
-  auto *raw = host.get();
-  shader.linkedShaders.emplace(effective, std::move(host));
-  return raw;
+  return GetHostShaderByHash(s, shader.hash, spec_mask, shader.isPixel);
 }
 
 }

@@ -13,6 +13,9 @@
 #include "core/logging.h"
 #include "gpu/device.h"
 #include "gpu/shaders/guest_shaders.h"
+#include "gpu/pipeline/pipeline_cache.h"
+
+REXCVAR_DECLARE(bool, mnk_mode);
 
 std::unique_ptr<rex::ui::WindowedApp> ReeotApp::Create(rex::ui::WindowedAppContext &ctx) {
   return std::unique_ptr<ReeotApp>(new ReeotApp(ctx));
@@ -36,6 +39,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults,
 }
 
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
+  REXCVAR_SET(mnk_mode, true);
   config.graphics = nullptr;
 }
 
@@ -47,6 +51,7 @@ void ReeotApp::OnPreLaunchModule() {
     return;
   }
   eot::gpu::GuestShadersInit();
+  eot::gpu::PsoCachePrecache();
 }
 
 void ReeotApp::OnShutdown() {

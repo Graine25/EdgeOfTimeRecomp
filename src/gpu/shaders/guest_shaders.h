@@ -1,10 +1,14 @@
 #pragma once
 
+#include <vector>
+
 #include <rex/types.h>
 
 #include <plume_render_interface.h>
 
 #include "gpu/resources.h"
+
+struct ShaderCacheEntry;
 
 namespace eot::gpu {
 
@@ -19,6 +23,11 @@ u32 GuestShaderCacheCount();
 
 GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel);
 GuestShader *FindGuestShader(VideoState &s, u32 object_va);
+
+const ShaderCacheEntry *FindShaderCacheEntry(u64 hash);
+void VertexInputsFromEntry(const ShaderCacheEntry &e, std::vector<VertexInput> &out);
+plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask, bool is_pixel,
+                                         bool worker = false);
 
 plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask);
 

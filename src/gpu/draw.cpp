@@ -1215,6 +1215,10 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     return;
   }
   st.layout = layout;
+  st.vsHash = vs->hash;
+  st.psHash = ps ? ps->hash : 0;
+  st.layoutKey = layout->key;
+  st.spec = spec;
   for (u32 S = 0; S < 16; ++S)
     st.strides[S] = streams[S].stride;
   st.topology = geom.topology;

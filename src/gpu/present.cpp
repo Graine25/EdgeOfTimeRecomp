@@ -11,6 +11,7 @@
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
+#include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/settings.h"
 #include "gpu/surfaces.h"
 #include "gpu/textures.h"
@@ -258,6 +259,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       AdvanceAndWaitReused(s);
     }
     LogPerfLocked(s);
+    PsoCacheFlushIfDirty(false);
     drained_slot = s.recording_slot();
     DrainHostDebugMessages(s, "present");
     RenderDocFrameBoundary(s.guest_frames);
