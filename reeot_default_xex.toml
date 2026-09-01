@@ -2756,4 +2756,3 @@ strcpy_s           = 0x8233E498
 0x82231448 = { name = "eot_D3D_CDevice_BlockOnFence" }
 0x82230078 = { name = "eot_D3D_CDevice_BlockOnSecondaryPosition" }
 0x822306E0 = { name = "eot_D3D_CDevice_WaitPrimaryRingSpace" }
-0x82236D90 = { name = "eot_D3DTexture_LockRect" }

@@ -1,51 +1,24 @@
 #pragma once
 
+#include <functional>
+#include <memory>
+#include <optional>
+
 #include <rex/rex_app.h>
 
-#include "core/logging.h"
-#include "gpu/device/device.h"
-#include "gpu/pipeline/sampler_cache.h"
-#include "gpu/device/texture_upload.h"
-#include "gpu/guest/buffers.h"
-#include "gpu/guest/immediate.h"
-#include "gpu/pipeline/pipeline_cache.h"
-#include "gpu/pipeline/vertex_layout.h"
-#include "gpu/shaders/guest_shaders.h"
-
 class ReeotApp : public rex::ReXApp {
- public:
-  using rex::ReXApp::ReXApp;
+public:
+  static std::unique_ptr<rex::ui::WindowedApp> Create(rex::ui::WindowedAppContext &ctx);
 
-  static std::unique_ptr<rex::ui::WindowedApp> Create(
-      rex::ui::WindowedAppContext& ctx) {
-    return std::unique_ptr<ReeotApp>(new ReeotApp(ctx, "reeot",
-        PPCImageConfig));
-  }
+  explicit ReeotApp(rex::ui::WindowedAppContext &ctx);
+  ~ReeotApp() override;
 
-  void OnPostSetup() override {
-    if (!eot::gpu::Video::CreateHostDevice()) {
-      EOT_CRITICAL("Video::CreateHostDevice failed; quitting");
-      app_context().QuitFromUIThread();
-      return;
-    }
-    if (!eot::gpu::Video::CreateSwapChain(window())) {
-      EOT_CRITICAL("Video::CreateSwapChain failed; quitting");
-      app_context().QuitFromUIThread();
-    }
-  }
-
-  void OnWindowPixelSizeChanged(uint32_t, uint32_t) override {
-    eot::gpu::Video::RequestResize();
-  }
-  void OnShutdown() override {
-    eot::gpu::LogShaderStats();
-    eot::gpu::LogBufferStats();
-    eot::gpu::LogDrawStats();
-    eot::gpu::LogImmediateStats();
-    eot::gpu::LogCanonicalTextureStats();
-    eot::gpu::LogPipelineStats();
-    eot::gpu::LogVertexLayoutStats();
-    eot::gpu::LogTextureUploadStats();
-    eot::gpu::samplers::LogStats();
-  }
+protected:
+  void OnPreSetup(rex::RuntimeConfig &config) override;
+  std::optional<rex::PathConfig> OnFinalizePaths(const rex::PathConfig &defaults,
+                                                 std::function<void(rex::PathConfig)> resume) override;
+  void OnPreLaunchModule() override;
+  void OnShutdown() override;
+  void OnWindowPixelSizeChanged(uint32_t pixel_width, uint32_t pixel_height) override;
+  bool OnWindowCloseRequested() override;
 };
