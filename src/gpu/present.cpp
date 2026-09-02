@@ -154,7 +154,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     u32 src_index = kInvalidDescriptorIndex;
     if (front) {
       TransitionLocked(s, front->host, plume::RenderTextureLayout::SHADER_READ);
-      src_index = BindTextureSRVLocked(s, front->host);
+      src_index = BindTextureSRVSwizzledLocked(s, front->host, (front->fetch[3] >> 1) & 0xFFF);
       front->lastUseFrame = s.guest_frames;
     }
     const u32 lut_index = front ? EnsureGammaLutLocked(s) : kInvalidDescriptorIndex;
@@ -164,7 +164,8 @@ void Video::Present(u32 front_buffer_texture_va) {
     const i32 dump_every = Settings::DumpEvery();
     if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
       const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
-      DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index);
+      DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index,
+                            (front->fetch[3] >> 1) & 0xFFF);
       cmd->setFramebuffer(s.swap_framebuffers[image].get());
     }
     if (src_index != kInvalidDescriptorIndex) {
@@ -185,7 +186,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       s.bound_pipeline = nullptr;
       CopyPushConstants pc;
       pc.resourceDescriptorIndex = src_index;
-      pc.resourceDescriptorIndex2 = lut_index;
+      pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
       pc.param0 = 1.0f;
       pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
       pc.rect[0] = 0.0f;
