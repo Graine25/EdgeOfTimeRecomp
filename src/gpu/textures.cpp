@@ -342,9 +342,22 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va) {
                header_va, slot->width, slot->height, static_cast<u32>(slot->format),
                slot->baseAddress, InfoWidth(info), InfoHeight(info),
                static_cast<u32>(info.format), info.memory.base_address, n + 1);
-    ParkHostTexture(s, slot->host);
+    if (slot.use_count() == 1)
+      ParkHostTexture(s, slot->host);
+    slot.reset();
   }
-  auto t = std::make_unique<GuestTexture>();
+  for (auto &[other_va, other] : s.textures) {
+    if (!other || other_va == header_va || !same_storage(other->fetch, fetch))
+      continue;
+    u32 n;
+    if (DiagShouldLog(0x5EB0 ^ header_va, &n))
+      EOT_INFO("[textures] {:#x}: aliases {:#x} ({}x{} fmt {} base {:#x})", header_va, other_va,
+               other->width, other->height, static_cast<u32>(other->format), other->baseAddress);
+    infos()[header_va] = info;
+    slot = other;
+    return slot.get();
+  }
+  auto t = std::make_shared<GuestTexture>();
   t->va = header_va;
   std::memcpy(t->fetch, fetch, sizeof(fetch));
   t->format = info.format;
