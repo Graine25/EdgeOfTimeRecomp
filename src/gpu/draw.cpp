@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <format>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #include <rex/graphics/xenos.h>
@@ -592,10 +595,11 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
 
   const u32 dc = dev.U32(dev::kDepthControl);
   const bool has_ds = t.depth != nullptr;
-  st.depthEnable = has_ds && (dc & 2);
+  const bool z_test = has_ds && (dc & 2);
   st.depthWrite = has_ds && (dc & 4);
-  st.depthFunc = st.depthEnable ? ConvertCompareFunc((dc >> 4) & 7)
-                                : plume::RenderComparisonFunction::ALWAYS;
+  st.depthEnable = z_test || st.depthWrite;
+  st.depthFunc = z_test ? ConvertCompareFunc((dc >> 4) & 7)
+                        : plume::RenderComparisonFunction::ALWAYS;
   st.stencilEnable = has_ds && (dc & 1);
   if (st.stencilEnable) {
     const u32 srm = dev.U32(dev::kStencilRefMask);
@@ -1031,6 +1035,22 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
                gt && gt->gammaSigned ? "gamma" : "lin",
                gt && gt->resolveOwned ? "resolve" : "upload", sc.biasedTextures,
                gt ? gt->baseAddress : 0u, ((fc[0] >> 22) & 0x1FF) * 32);
+      static u32 dumped = 0;
+      if (gt && !gt->tiled && gt->format == xe::TextureFormat::k_8 && dumped < 8) {
+        const u32 pitch = ((fc[0] >> 22) & 0x1FF) * 32;
+        const u8 *src = mem::phys<const u8>(gt->baseAddress);
+        if (src && pitch >= gt->width) {
+          const std::string path =
+              std::format("logs/f{}_tex{}_{:x}_{}x{}_p{}.bin", s.guest_frames + 1, slot, tex_va,
+                          gt->width, gt->height, pitch);
+          if (FILE *f = std::fopen(path.c_str(), "wb")) {
+            std::fwrite(src, 1, static_cast<size_t>(pitch) * gt->height, f);
+            std::fclose(f);
+            ++dumped;
+            EOT_INFO("[diag]   -> wrote {}", path);
+          }
+        }
+      }
     }
   }
 
