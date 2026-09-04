@@ -12,6 +12,8 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va);
 
 plume::RenderFormat SurfaceHostFormat(const GuestSurface &surface);
 
+GuestSurface *FindMultisampleAliasSource(VideoState &s, const GuestSurface &alias);
+
 plume::RenderFramebuffer *GetFramebuffer(VideoState &s, HostTexture *const color[4],
                                          u32 color_count, HostTexture *depth);
 

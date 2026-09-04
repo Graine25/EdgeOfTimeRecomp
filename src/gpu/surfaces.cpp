@@ -109,6 +109,30 @@ u64 DescriptorKey(const GuestSurface &d) {
   return k;
 }
 
+static bool HalvesTo(u32 full, u32 half) {
+  return half && (half == full / 2 || half == (full + 1) / 2);
+}
+
+GuestSurface *FindMultisampleAliasSource(VideoState &s, const GuestSurface &alias) {
+  if (alias.msaaSamples < 2 || alias.drawn || !alias.width || !alias.height)
+    return nullptr;
+  GuestSurface *best = nullptr;
+  for (auto &[key, slot] : s.surfaces) {
+    GuestSurface *c = slot.get();
+    if (!c || static_cast<const GuestSurface *>(c) == &alias || !c->drawn || !c->host.valid())
+      continue;
+    if (c->msaaSamples != 1 || c->isDepth != alias.isDepth || c->baseTile != alias.baseTile)
+      continue;
+    if (c->isDepth ? c->depthFormat != alias.depthFormat : c->colorFormat != alias.colorFormat)
+      continue;
+    if (!HalvesTo(c->width, alias.width) || !HalvesTo(c->height, alias.height))
+      continue;
+    if (!best || c->lastUseFrame > best->lastUseFrame)
+      best = c;
+  }
+  return best;
+}
+
 GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
   if (!surface_va)
     return nullptr;

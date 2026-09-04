@@ -129,6 +129,16 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     return;
   }
 
+  HostTexture *src_host = &surf->host;
+  if (GuestSurface *alias_src = FindMultisampleAliasSource(s, *surf)) {
+    src_host = &alias_src->host;
+    u32 n;
+    if (DiagShouldLog(0x7400 ^ src_va, &n) && n == 0)
+      EOT_INFO("[resolve] {:#x}: {}x{} {}x-msaa alias -> sampling {}x{} 1x surface {:#x}", src_va,
+               surf->width, surf->height, surf->msaaSamples, alias_src->width, alias_src->height,
+               alias_src->va);
+  }
+
   GuestTexture *dest = dest_texture_va ? GetGuestTexture(s, dest_texture_va) : nullptr;
   if (dest && !EnsureResolveMirror(s, *dest, depth_source))
     dest = nullptr;
@@ -179,7 +189,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       if (!fb)
         return false;
       auto *cmd = s.command_list;
-      TransitionLocked(s, surf->host, plume::RenderTextureLayout::SHADER_READ);
+      TransitionLocked(s, *src_host, plume::RenderTextureLayout::SHADER_READ);
       TransitionLocked(s, target.host,
                        depth_source ? plume::RenderTextureLayout::DEPTH_WRITE
                                     : plume::RenderTextureLayout::COLOR_WRITE);
@@ -200,7 +210,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       cmd->setViewports(&vp, 1);
       cmd->setScissors(&sc, 1);
       CopyPushConstants pc;
-      pc.resourceDescriptorIndex = BindTextureSRVLocked(s, surf->host);
+      pc.resourceDescriptorIndex = BindTextureSRVLocked(s, *src_host);
       pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(target.fetch[3]);
       pc.param0 = scale;
       pc.param1 = 0.0f;
