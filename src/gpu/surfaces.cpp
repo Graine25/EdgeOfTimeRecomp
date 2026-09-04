@@ -10,6 +10,7 @@
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/format.h"
+#include "gpu/settings.h"
 
 namespace eot::gpu {
 
@@ -64,8 +65,8 @@ bool DecodeHeader(u32 va, GuestSurface &out) {
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   HostTexture &host = surf.host;
   host.format = SurfaceHostFormat(surf);
-  host.width = surf.width;
-  host.height = surf.height;
+  host.width = ScaleDim(surf.width);
+  host.height = ScaleDim(surf.height);
   host.depth = 1;
   host.mipLevels = 1;
   host.arraySize = 1;
@@ -75,8 +76,8 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
 
   plume::RenderTextureDesc desc;
   desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
-  desc.width = surf.width;
-  desc.height = surf.height;
+  desc.width = host.width;
+  desc.height = host.height;
   desc.depth = 1;
   desc.mipLevels = 1;
   desc.arraySize = 1;

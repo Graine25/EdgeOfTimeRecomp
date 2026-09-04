@@ -16,6 +16,7 @@
 #include "gpu/constant_buffers.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/settings.h"
 #include "gpu/format.h"
 
 namespace eot::gpu {
@@ -413,48 +414,54 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
 bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source) {
   if (!t.host.texture)
     return false;
-  const plume::RenderFormat want = ResolveDestinationFormat(t.format, depth_source);
-  if (!t.resolveOwned && !t.host.isDepth && !depth_source && t.host.format != want &&
+  if (!t.resolveOwned && depth_source == t.host.isDepth && t.host.renderable &&
       t.host.viewFormat == plume::RenderFormat::UNKNOWN) {
     auto it = infos().find(t.va);
     if (it != infos().end()) {
-      EOT_DEBUG("[textures] {:#x}: switching mirror to resolve format {} (was {})", t.va,
-                static_cast<u32>(want), static_cast<u32>(t.host.format));
-      ParkHostTexture(s, t.host);
-      t.host = HostTexture{};
       const TextureInfo &info = it->second;
-      const TextureFormatMapping m = MapTextureFormat(info.format);
-      plume::RenderTextureDesc desc;
-      desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
-      desc.width = InfoWidth(info);
-      desc.height = InfoHeight(info);
-      desc.depth = 1;
-      desc.arraySize = 1;
-      u32 max_levels = 1;
-      for (u32 w = desc.width, h = desc.height; (w > 1 || h > 1) && max_levels < 14; ++max_levels) {
-        w = std::max(1u, w >> 1);
-        h = std::max(1u, h >> 1);
+      const plume::RenderFormat want =
+          depth_source ? t.host.format : ResolveDestinationFormat(t.format, depth_source);
+      const u32 want_w = ScaleDim(InfoWidth(info)), want_h = ScaleDim(InfoHeight(info));
+      if (t.host.format != want || t.host.width != want_w || t.host.height != want_h) {
+        EOT_DEBUG("[textures] {:#x}: switching mirror to resolve format {} {}x{} (was {} {}x{})",
+                  t.va, static_cast<u32>(want), want_w, want_h, static_cast<u32>(t.host.format),
+                  t.host.width, t.host.height);
+        ParkHostTexture(s, t.host);
+        const bool is_depth = depth_source;
+        t.host = HostTexture{};
+        plume::RenderTextureDesc desc;
+        desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
+        desc.width = want_w;
+        desc.height = want_h;
+        desc.depth = 1;
+        desc.arraySize = 1;
+        u32 max_levels = 1;
+        for (u32 w = desc.width, h = desc.height; (w > 1 || h > 1) && max_levels < 14;
+             ++max_levels) {
+          w = std::max(1u, w >> 1);
+          h = std::max(1u, h >> 1);
+        }
+        desc.mipLevels = is_depth ? 1u : std::min(info.mip_max_level + 1u, max_levels);
+        desc.format = want;
+        desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
+                              : plume::RenderTextureFlag::RENDER_TARGET;
+        desc.committed = true;
+        t.host.texture = CreateHostTexture(s.device.get(), desc, "resolve-mirror");
+        t.host.format = want;
+        t.host.viewFormat = plume::RenderFormat::UNKNOWN;
+        t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+        t.host.width = desc.width;
+        t.host.height = desc.height;
+        t.host.depth = 1;
+        t.host.mipLevels = desc.mipLevels;
+        t.host.arraySize = 1;
+        t.host.isDepth = is_depth;
+        t.host.renderable = t.host.texture != nullptr;
+        t.host.layout = plume::RenderTextureLayout::UNKNOWN;
+        t.uploaded = false;
+        if (!t.host.texture)
+          return false;
       }
-      desc.mipLevels = std::min(info.mip_max_level + 1u, max_levels);
-      desc.format = want;
-      desc.flags = plume::RenderTextureFlag::RENDER_TARGET;
-      desc.committed = true;
-      (void)m;
-      t.host.texture = CreateHostTexture(s.device.get(), desc, "resolve-mirror");
-      t.host.format = want;
-      t.host.viewFormat = plume::RenderFormat::UNKNOWN;
-      t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
-      t.host.width = desc.width;
-      t.host.height = desc.height;
-      t.host.depth = 1;
-      t.host.mipLevels = desc.mipLevels;
-      t.host.arraySize = 1;
-      t.host.isDepth = false;
-      t.host.renderable = t.host.texture != nullptr;
-      t.host.layout = plume::RenderTextureLayout::UNKNOWN;
-      t.uploaded = false;
-      if (!t.host.texture)
-        return false;
     }
   }
   if (!t.host.renderable) {
