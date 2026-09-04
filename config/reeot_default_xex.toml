@@ -44,16 +44,6 @@ strcpy_s           = 0x8233E498
 # lstrcmpiA        = Not found
 
 [functions]
-# CTR Fixes
-0x822bc0a8 = {}
-0x822b6ea0 = {}
-0x8238a768 = {}
-0x822c20e0 = {}
-0x822b6e78 = {}
-0x8219c030 = {}
-0x822bd490 = {}
-0x822bd460 = {}
-
 # Real Functions Identified
 # -------------------------------------------------
 # GLAPI (1104)

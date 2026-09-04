@@ -19,21 +19,6 @@ out_directory_path = "generated/gamelogic"
 # Branch Fixes
 0x883AF9CC = {}
 
-# CTR Fixes
-0x88248ce8 = {}
-0x8828e268 = {}
-0x88251668 = {}
-0x8821f890 = {}
-0x88189888 = {}
-0x8836e548 = {}
-0x880fc240 = {}
-0x880f7308 = {}
-0x882F3338 = { size = 0x10}
-0x882F3388 = {}
-0x882F33B8 = {}
-0x88260CC8 = {}
-0x88120340 = {}
-
 # IDA Generated
 0x880A0040 = { name = "eot_GameLogic_0001", size = 0x6EF0 }
 0x880A6F30 = { name = "eot_GameLogic_0002", size = 0x474 }
