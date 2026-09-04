@@ -297,6 +297,7 @@ void NotifyResourceUnlocked(u32 resource_va) {
   auto &u = unlocks();
   std::lock_guard lock(u.mutex);
   u.seq[resource_va] = ++u.global;
+  state().texture_generation.fetch_add(1, std::memory_order_relaxed);
 }
 
 u64 ResourceUnlockSeq(u32 resource_va) {
@@ -358,8 +359,10 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va) {
                other->width, other->height, static_cast<u32>(other->format), other->baseAddress);
     infos()[header_va] = info;
     slot = other;
+    s.texture_generation.fetch_add(1, std::memory_order_relaxed);
     return slot.get();
   }
+  s.texture_generation.fetch_add(1, std::memory_order_relaxed);
   auto t = std::make_shared<GuestTexture>();
   t->va = header_va;
   std::memcpy(t->fetch, fetch, sizeof(fetch));

@@ -144,6 +144,17 @@ struct VideoState {
   std::unordered_map<u32, std::shared_ptr<GuestTexture>> textures;
 
   PerfCounters perf;
+
+  struct TextureSlotCache {
+    u32 texVa = 0;
+    u32 fc[6] = {};
+    u64 generation = ~0ull;
+    GuestTexture *texture = nullptr;
+    u32 index = kInvalidDescriptorIndex;
+    u32 sampler = 0;
+  };
+  TextureSlotCache slot_cache[16];
+  std::atomic<u64> texture_generation{1};
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
 
