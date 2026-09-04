@@ -120,14 +120,14 @@ void LogPerfLocked(VideoState &s) {
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws; "
            "vtxcopy {:.2f} idx {:.2f} bind {:.2f}) resolve {:.2f} ({}) upload {:.2f} ({}) link "
-           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | present acquire {:.2f} "
-           "submit {:.2f} fence {:.2f} | KB/frame vtx {} idx {} const {}",
+           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} "
+           "| present acquire {:.2f} submit {:.2f} fence {:.2f} | KB/frame vtx {} idx {} const {}",
            p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.vertex_copy_ms / n,
            p.index_ms / n, p.bind_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
-           p.guest_d3d_calls / p.frames, p.acquire_ms / n, p.submit_ms / n, p.fence_ms / n,
-           p.vertex_bytes / p.frames / 1024, p.index_bytes / p.frames / 1024,
-           p.constant_bytes / p.frames / 1024);
+           p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
+           p.acquire_ms / n, p.submit_ms / n, p.fence_ms / n, p.vertex_bytes / p.frames / 1024,
+           p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024);
   p = PerfCounters{};
   p.last_present = now;
 }
