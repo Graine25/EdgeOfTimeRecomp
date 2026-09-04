@@ -65,6 +65,7 @@ set(REEOT_SOURCES
     src/gpu/resolve.cpp
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp
+    src/gpu/pipeline/pso_records.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
