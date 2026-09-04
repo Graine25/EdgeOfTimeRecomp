@@ -6,11 +6,17 @@
 
 #include <plume_render_interface.h>
 
+#include "gpu/d3d.h"
 #include "gpu/resources.h"
+#include "gpu/shaders/guest_shaders.h"
 
 namespace eot::gpu {
 
 struct VideoState;
+
+constexpr u32 kSpecLayoutBits = kSpecR11G11B10Normal | kSpecSintTexcoord;
+
+void CanonicalizeDeclElements(DeclElement *elements, u32 count);
 
 constexpr u32 kSyntheticVertexSlot = 15;
 

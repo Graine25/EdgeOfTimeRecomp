@@ -43,7 +43,12 @@ extern "C" REX_FUNC(XGRegisterVertexShader) {
   EOT_TRACE_CALL("XGRegisterVertexShader obj={:#x} phys={:#x}", shader, physical);
   auto &s = state();
   std::lock_guard lock(s.mutex);
-  RegisterGuestShader(s, shader, false);
+  if (GuestShader *g = RegisterGuestShader(s, shader, false)) {
+    if (physical >= 0x82000000u && physical < 0x83000000u) {
+      g->createdByGuestCall = true;
+      EOT_DEBUG("[shaders] xex-data shader vs {:#x} hash {:016x} microcode {:#x}", shader, g->hash, physical);
+    }
+  }
 }
 
 extern "C" REX_FUNC(XGRegisterPixelShader) {
@@ -53,7 +58,12 @@ extern "C" REX_FUNC(XGRegisterPixelShader) {
   EOT_TRACE_CALL("XGRegisterPixelShader obj={:#x} phys={:#x}", shader, physical);
   auto &s = state();
   std::lock_guard lock(s.mutex);
-  RegisterGuestShader(s, shader, true);
+  if (GuestShader *g = RegisterGuestShader(s, shader, true)) {
+    if (physical >= 0x82000000u && physical < 0x83000000u) {
+      g->createdByGuestCall = true;
+      EOT_DEBUG("[shaders] xex-data shader ps {:#x} hash {:016x} microcode {:#x}", shader, g->hash, physical);
+    }
+  }
 }
 
 extern "C" REX_FUNC(D3DDevice_CreateVertexShader) {

@@ -25,6 +25,15 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session);
 bool PsoRecordFromCsv(std::string_view line, PsoRecord *out);
 
 const std::vector<PsoRecord> &CompiledInPipelines();
+
+struct PsoTemplate {
+  u8 technique = 0, pass = 0;
+  u32 materialClass = 0;
+  PipelineState state;
+};
+const std::vector<PsoTemplate> &CompiledInTemplates();
+
+std::string PsoSessionStamp();
 size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out);
 
 void PsoCaptureConfigure(const std::string &dir, const std::string &tag);

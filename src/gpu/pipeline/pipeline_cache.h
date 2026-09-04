@@ -44,11 +44,14 @@ struct PipelineState {
 };
 constexpr size_t kPipelineKeyOffset = offsetof(PipelineState, vsHash);
 
+enum class PsoSource : u8 { Draw = 0, CompiledIn = 1, LocalCsv = 2, Predicted = 3 };
+
 void ZeroPipelineState(PipelineState &state);
 u64 HashPipelineState(const PipelineState &state);
 
 plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &state,
-                                           bool worker = false);
+                                           bool worker = false,
+                                           PsoSource source = PsoSource::Draw);
 
 void PsoCachePrecache();
 

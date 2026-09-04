@@ -1224,6 +1224,14 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   st.topology = geom.topology;
   if (geom.rectList)
     st.cull = plume::RenderCullMode::NONE;
+  s.current_vs_va = vs_va;
+  s.current_ps_va = ps_va;
+  {
+    static char origin[32];
+    std::snprintf(origin, sizeof(origin), "%s/%s", vs->createdByGuestCall ? "bundle" : "stream",
+                  ps ? (ps->createdByGuestCall ? "bundle" : "stream") : "none");
+    s.current_origin = origin;
+  }
   plume::RenderPipeline *pipeline = GetOrCreatePipeline(s, st);
   lap(s.perf.pso_lookup_ms);
   if (!pipeline) {

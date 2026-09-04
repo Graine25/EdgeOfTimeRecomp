@@ -122,6 +122,9 @@ int HexVal(char c) {
 const char *const kCompiledInRows[] = {
 #include "gpu/pipeline/cache/eot_pipelines.inc"
     nullptr};
+const char *const kCompiledInTemplateRows[] = {
+#include "gpu/pipeline/cache/eot_pso_templates.inc"
+    nullptr};
 
 struct Capture {
   std::mutex mutex;
@@ -138,6 +141,10 @@ Capture &capture() {
 }
 
 std::string SessionId(const std::string &tag) {
+  return tag.empty() ? PsoSessionStamp() : tag + "_" + PsoSessionStamp();
+}
+
+std::string SessionStampImpl() {
   const std::time_t now = std::time(nullptr);
   std::tm tm{};
 #if defined(_WIN32)
@@ -147,7 +154,7 @@ std::string SessionId(const std::string &tag) {
 #endif
   char buf[32];
   std::strftime(buf, sizeof(buf), "%Y%m%d-%H%M%S", &tm);
-  return tag.empty() ? std::string(buf) : tag + "_" + buf;
+  return buf;
 }
 
 }
@@ -276,6 +283,41 @@ const std::vector<PsoRecord> &CompiledInPipelines() {
   return rows;
 }
 
+std::string PsoSessionStamp() {
+  static const std::string stamp = SessionStampImpl();
+  return stamp;
+}
+
+const std::vector<PsoTemplate> &CompiledInTemplates() {
+  static const std::vector<PsoTemplate> rows = [] {
+    std::vector<PsoTemplate> v;
+    u32 bad = 0;
+    for (const char *const *p = kCompiledInTemplateRows; *p; ++p) {
+      std::string_view line(*p);
+      if (line.empty() || line[0] == '#' || line.starts_with("technique"))
+        continue;
+      const size_t c1 = line.find(',');
+      const size_t c2 = c1 == std::string_view::npos ? c1 : line.find(',', c1 + 1);
+      const size_t c3 = c2 == std::string_view::npos ? c2 : line.find(',', c2 + 1);
+      u64 tech = 0, pass = 0, cls = 0;
+      PsoRecord r;
+      if (c3 == std::string_view::npos || !ParseU64(line.substr(0, c1), &tech) ||
+          !ParseU64(line.substr(c1 + 1, c2 - c1 - 1), &pass) ||
+          !ParseU64(line.substr(c2 + 1, c3 - c2 - 1), &cls, 16) ||
+          !PsoRecordFromCsv(line.substr(c3 + 1), &r) || tech > 255 || pass > 255) {
+        ++bad;
+        continue;
+      }
+      v.push_back(PsoTemplate{static_cast<u8>(tech), static_cast<u8>(pass), static_cast<u32>(cls), r.state});
+    }
+    if (bad)
+      EOT_WARN("[pso] {} compiled-in template rows did not parse; regenerate "
+               "cache/eot_pso_templates.inc with tools/pso/pso_gen_templates.py", bad);
+    return v;
+  }();
+  return rows;
+}
+
 size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
   std::error_code ec;
   if (dir.empty() || !std::filesystem::is_directory(dir, ec))
@@ -283,6 +325,9 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
   size_t n = 0;
   for (const auto &entry : std::filesystem::directory_iterator(dir, ec)) {
     if (!entry.is_regular_file() || entry.path().extension() != ".csv")
+      continue;
+    const std::string name = entry.path().filename().string();
+    if (name.starts_with("pso_pairs_") || name.starts_with("pso_predicted_"))
       continue;
     FILE *f = std::fopen(entry.path().string().c_str(), "rb");
     if (!f)

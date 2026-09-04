@@ -179,6 +179,8 @@ struct VideoState {
   u32 last_front_buffer_va = 0;
 
   std::atomic<bool> pending_up_armed{false};
+  u32 current_vs_va = 0, current_ps_va = 0;
+  const char *current_origin = "";
   struct PendingUpDraw {
     bool valid = false;
     u32 device_va = 0;
