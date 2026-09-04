@@ -164,6 +164,8 @@ struct VideoState {
   std::unordered_map<u64, std::unique_ptr<plume::RenderFramebuffer>> framebuffers;
   const plume::RenderFramebuffer *bound_framebuffer = nullptr;
   const plume::RenderPipeline *bound_pipeline = nullptr;
+  plume::RenderBuffer *bound_root_buffer[3] = {};
+  u64 bound_root_offset[3] = {};
   SharedConstants last_shared{};
   bool shared_bound = false;
 
@@ -175,6 +177,7 @@ struct VideoState {
   HostTexture gamma_lut;
   u32 last_front_buffer_va = 0;
 
+  std::atomic<bool> pending_up_armed{false};
   struct PendingUpDraw {
     bool valid = false;
     u32 device_va = 0;

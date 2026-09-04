@@ -3,6 +3,7 @@
 #include <memory>
 
 #include <rex/graphics/xenos.h>
+#include <rex/memory/utils.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
@@ -23,11 +24,14 @@ bool IsDepthFormatWord(u32 format_word) {
 }
 
 bool DecodeHeader(u32 va, GuestSurface &out) {
-  const u32 surface_info = mem::load<u32>(va + obj::kSurfaceInfo);
-  const u32 info = mem::load<u32>(va + obj::kSurfaceColorInfo);
-  const u32 hi = mem::load<u32>(va + obj::kSurfaceHiControl);
-  const u32 size_bits = mem::load<u32>(va + obj::kSurfaceSize);
-  const u32 format_word = mem::load<u32>(va + obj::kSurfaceFormat);
+  const u8 *h = mem::at<u8>(va);
+  if (!h)
+    return false;
+  const u32 surface_info = rex::memory::load_and_swap<u32>(h + obj::kSurfaceInfo);
+  const u32 info = rex::memory::load_and_swap<u32>(h + obj::kSurfaceColorInfo);
+  const u32 hi = rex::memory::load_and_swap<u32>(h + obj::kSurfaceHiControl);
+  const u32 size_bits = rex::memory::load_and_swap<u32>(h + obj::kSurfaceSize);
+  const u32 format_word = rex::memory::load_and_swap<u32>(h + obj::kSurfaceFormat);
   const u32 width = (size_bits >> 18) + 1;
   const u32 height = ((size_bits >> 3) & 0x7FFF) + 1;
   if (width == 0 || height == 0 || width > 8192 || height > 8192)
