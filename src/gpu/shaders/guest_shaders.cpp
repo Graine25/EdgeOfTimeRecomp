@@ -24,6 +24,7 @@ namespace {
 struct CacheState {
   std::vector<u8> blob;
   std::unordered_map<u64, const ShaderCacheEntry *> by_hash;
+  std::unordered_map<u64, u64> canonical;
   std::mutex spec_mutex;
   std::unordered_map<u32, std::vector<u8>> spec_libs;
   std::mutex host_mutex;
@@ -100,8 +101,25 @@ bool GuestShadersInit() {
     return false;
   }
   c.by_hash.reserve(g_shaderCacheEntryCount);
-  for (size_t i = 0; i < g_shaderCacheEntryCount; ++i)
-    c.by_hash.emplace(g_shaderCacheEntries[i].hash, &g_shaderCacheEntries[i]);
+  std::unordered_map<u64, u64> by_bytes;
+  std::string canon_rows;
+  for (size_t i = 0; i < g_shaderCacheEntryCount; ++i) {
+    const ShaderCacheEntry &e = g_shaderCacheEntries[i];
+    c.by_hash.emplace(e.hash, &e);
+    u32 size = 0;
+    const u8 *bytes = EntryBytes(e, &size);
+    const u64 bh = bytes && size ? XXH3_64bits(bytes, size) : e.hash;
+    const u64 canon = by_bytes.emplace(bh, e.hash).first->second;
+    c.canonical.emplace(e.hash, canon);
+    canon_rows += std::format("{:016x},{:016x}\n", e.hash, canon);
+  }
+  EOT_INFO("[shaders] {} entries, {} unique DXIL: {} streamed duplicates share a host shader",
+           g_shaderCacheEntryCount, by_bytes.size(), g_shaderCacheEntryCount - by_bytes.size());
+  if (FILE *f = std::fopen("pso/shader_canon.csv", "wb")) {
+    std::fputs("hash,canonical\n", f);
+    std::fwrite(canon_rows.data(), 1, canon_rows.size(), f);
+    std::fclose(f);
+  }
   EOT_INFO("[shaders] cache ready: {} shaders, {} MB decompressed", g_shaderCacheEntryCount,
            decompressed_size / (1024 * 1024));
   return true;
@@ -230,6 +248,12 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
             sh->floatConstantRegs);
   slot = std::move(sh);
   return slot.get();
+}
+
+u64 CanonicalShaderHash(u64 hash) {
+  auto &c = cache();
+  auto it = c.canonical.find(hash);
+  return it == c.canonical.end() ? hash : it->second;
 }
 
 const ShaderCacheEntry *FindShaderCacheEntry(u64 hash) {

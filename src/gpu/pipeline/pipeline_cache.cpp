@@ -1,15 +1,11 @@
 #include "gpu/pipeline/pipeline_cache.h"
 
 #include <algorithm>
-#include <atomic>
-#include <chrono>
 #include <cstring>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <xxhash.h>
@@ -17,6 +13,8 @@
 #include "core/logging.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/pipeline/pso_precache.h"
+#include "gpu/pipeline/pso_predictor.h"
 #include "gpu/pipeline/pso_records.h"
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
@@ -26,13 +24,19 @@ namespace eot::gpu {
 
 namespace {
 
+struct Entry {
+  std::unique_ptr<plume::RenderPipeline> pipeline;
+  PsoSource source = PsoSource::Draw;
+  bool used = false;
+};
+
 struct Cache {
   std::mutex mutex;
-  std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> map;
+  std::unordered_map<u64, Entry> map;
   u32 failures = 0;
-  std::unordered_set<u64> known;
   bool capture = false;
-  u32 precached = 0;
+  u32 gapBuilds = 0, raceBuilds = 0;
+  u64 lastSummaryFrame = 0;
 };
 
 Cache &cache() {
@@ -40,8 +44,21 @@ Cache &cache() {
   return c;
 }
 
-void CaptureLocked(Cache &c, VideoState &s, u64 key, const PipelineState &st) {
-  if (!c.capture || !st.layout || c.known.count(key))
+const char *SourceName(PsoSource s) {
+  switch (s) {
+  case PsoSource::CompiledIn:
+    return "compiled-in";
+  case PsoSource::LocalCsv:
+    return "local csv";
+  case PsoSource::Predicted:
+    return "predicted";
+  default:
+    return "draw";
+  }
+}
+
+void CaptureLocked(VideoState &s, const PipelineState &st) {
+  if (!st.layout)
     return;
   const InputLayout &l = *st.layout;
   if (l.declRaw.empty() || l.declRaw.size() > sizeof(PsoRecord::declRaw))
@@ -54,7 +71,6 @@ void CaptureLocked(Cache &c, VideoState &s, u64 key, const PipelineState &st) {
   r.declCount = static_cast<u32>(l.declRaw.size() / sizeof(DeclElement));
   std::memcpy(r.declRaw, l.declRaw.data(), l.declRaw.size());
   r.frame = s.guest_frames;
-  c.known.insert(key);
   PsoCaptureAdd(r);
 }
 
@@ -67,14 +83,18 @@ u64 HashPipelineState(const PipelineState &state) {
                      sizeof(state) - kPipelineKeyOffset);
 }
 
-plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &st, bool worker) {
+plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &st, bool worker,
+                                           PsoSource source) {
   auto &c = cache();
   const u64 key = HashPipelineState(st);
   {
     std::lock_guard lock(c.mutex);
     auto it = c.map.find(key);
-    if (it != c.map.end())
-      return it->second.get();
+    if (it != c.map.end()) {
+      if (!worker)
+        it->second.used = true;
+      return it->second.pipeline.get();
+    }
   }
   std::unique_ptr<PerfScope> perf_scope;
   if (!worker) {
@@ -130,35 +150,69 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
   std::lock_guard lock(c.mutex);
   if (!pso) {
     if (c.failures++ < 32) {
-      EOT_ERROR("[pso] creation failed: vs={:016x} ps={:016x} elements={} rt={} ds={} topo={}",
-                st.vsHash, st.psHash, st.layout ? st.layout->elements.size() : 0, st.rtCount,
+      EOT_ERROR("[pso] creation failed ({}): vs={:016x} ps={:016x} elements={} rt={} ds={} topo={}",
+                SourceName(source), st.vsHash, st.psHash,
+                st.layout ? st.layout->elements.size() : 0, st.rtCount,
                 static_cast<u32>(st.dsFormat), static_cast<u32>(st.topology));
     }
-    c.map.emplace(key, nullptr);
+    c.map.emplace(key, Entry{nullptr, source, false});
     return nullptr;
   }
   auto it = c.map.find(key);
   if (it != c.map.end())
-    return it->second.get();
+    return it->second.pipeline.get();
   auto *raw = pso.get();
-  if (worker) {
-    c.precached++;
-  } else {
-    const bool gap = !c.known.count(key);
+  if (!worker) {
+    PsoSource known;
+    const bool race = PsoPrecacheKnown(key, &known);
+    (race ? c.raceBuilds : c.gapBuilds)++;
     static u32 created = 0;
-    if (created++ < 400 || gap) {
+    if (created++ < 400 || !race) {
+      const u32 vs_va = s.current_vs_va;
       EOT_INFO("[pso] #{} render-thread build ({}) key={:016x} vs={:016x} ps={:016x} spec={:#x} "
-               "depth={}{} func{} stencil={} cull={} rt0fmt={} ds={} topo={}",
-               created, gap ? "gap, captured" : "known, precache race", key, st.vsHash,
-               st.psHash, st.spec, st.depthEnable ? "on" : "off", st.depthWrite ? "w" : "",
-               static_cast<u32>(st.depthFunc), st.stencilEnable, static_cast<u32>(st.cull),
-               static_cast<u32>(st.rtFormats[0]), static_cast<u32>(st.dsFormat),
-               static_cast<u32>(st.topology));
+               "depth={}{} func{} stencil={} cull={} rt0fmt={} ds={} topo={} vsVa={:#x} psVa={:#x} nodes={}/{} origin={} vsCanon={:016x} psCanon={:016x}",
+               created, race ? std::string("race with ") + SourceName(known) : "GAP, captured",
+               key, st.vsHash, st.psHash, st.spec, st.depthEnable ? "on" : "off",
+               st.depthWrite ? "w" : "", static_cast<u32>(st.depthFunc), st.stencilEnable,
+               static_cast<u32>(st.cull), static_cast<u32>(st.rtFormats[0]),
+               static_cast<u32>(st.dsFormat), static_cast<u32>(st.topology), vs_va, s.current_ps_va, PsoPredictorDescribeObject(vs_va),
+               s.current_ps_va ? PsoPredictorDescribeObject(s.current_ps_va) : std::string("-"),
+               s.current_origin, CanonicalShaderHash(st.vsHash), CanonicalShaderHash(st.psHash));
     }
-    CaptureLocked(c, s, key, st);
+    if (!race && c.capture)
+      CaptureLocked(s, st);
   }
-  c.map.emplace(key, std::move(pso));
+  c.map.emplace(key, Entry{std::move(pso), source, !worker});
   return raw;
+}
+
+PsoBuildResult BuildPipelineFromRecord(VideoState &s, const PsoRecord &r, PsoSource source) {
+  if (!s.ready || !s.device)
+    return PsoBuildResult::Skipped;
+  {
+    auto &c = cache();
+    std::lock_guard lock(c.mutex);
+    if (c.map.count(HashPipelineState(r.state)))
+      return PsoBuildResult::Existing;
+  }
+  const ShaderCacheEntry *vs_entry = FindShaderCacheEntry(r.state.vsHash);
+  if (!vs_entry || r.declCount == 0 || r.declCount > 32)
+    return PsoBuildResult::Skipped;
+  PipelineState st = r.state;
+  st.vs = GetHostShaderByHash(s, r.state.vsHash, r.state.spec, false, true);
+  st.ps = r.state.psHash
+              ? GetHostShaderByHash(s, r.state.psHash, r.state.spec, true, true)
+              : nullptr;
+  if (!st.vs || (r.state.psHash && !st.ps))
+    return PsoBuildResult::Skipped;
+  std::vector<VertexInput> inputs;
+  VertexInputsFromEntry(*vs_entry, inputs);
+  st.layout = GetInputLayoutFromRaw(r.state.vsHash, inputs, r.declRaw, r.declCount);
+  if (!st.layout)
+    return PsoBuildResult::Skipped;
+  st.layoutKey = st.layout->key;
+  return GetOrCreatePipeline(s, st, true, source) ? PsoBuildResult::Built
+                                                            : PsoBuildResult::Failed;
 }
 
 void PsoCachePrecache() {
@@ -170,77 +224,61 @@ void PsoCachePrecache() {
   c.capture = Settings::PsoCapture() && !dir.empty();
   if (c.capture)
     PsoCaptureConfigure(dir, Settings::PsoTag());
+  PsoPrecacheStart();
 
-  std::vector<PsoRecord> records = CompiledInPipelines();
-  const size_t compiled_in = records.size();
-  const size_t local = LoadPsoCsvDir(dir, records);
-  {
-    std::lock_guard lock(c.mutex);
-    for (const PsoRecord &r : records)
-      c.known.insert(HashPipelineState(r.state));
-  }
-  if (records.empty()) {
-    EOT_INFO("[pso] nothing to precache (no compiled-in rows, no *.csv in {}); {}", dir,
-             c.capture ? "capturing this session" : "capture off");
-    return;
-  }
-  const auto t0 = std::chrono::steady_clock::now();
-  std::atomic<size_t> next{0};
-  std::atomic<u32> skipped{0}, dupes{0};
-  std::mutex seen_mutex;
-  std::unordered_set<u64> seen;
-  auto work = [&]() {
-    for (;;) {
-      const size_t i = next.fetch_add(1, std::memory_order_relaxed);
-      if (i >= records.size())
-        return;
-      const PsoRecord &r = records[i];
-      {
-        std::lock_guard lock(seen_mutex);
-        if (!seen.insert(HashPipelineState(r.state)).second) {
-          dupes++;
-          continue;
-        }
-      }
-      const ShaderCacheEntry *vs_entry = FindShaderCacheEntry(r.state.vsHash);
-      if (!vs_entry || r.declCount == 0 || r.declCount > 32) {
-        skipped++;
-        continue;
-      }
-      PipelineState st = r.state;
-      st.vs = GetHostShaderByHash(s, r.state.vsHash, r.state.spec, false, true);
-      st.ps = r.state.psHash
-                  ? GetHostShaderByHash(s, r.state.psHash, r.state.spec, true, true)
-                  : nullptr;
-      if (!st.vs || (r.state.psHash && !st.ps)) {
-        skipped++;
-        continue;
-      }
-      std::vector<VertexInput> inputs;
-      VertexInputsFromEntry(*vs_entry, inputs);
-      st.layout = GetInputLayoutFromRaw(r.state.vsHash, inputs, r.declRaw, r.declCount);
-      if (!st.layout || st.layout->key != r.state.layoutKey) {
-        skipped++;
-        continue;
-      }
-      GetOrCreatePipeline(s, st, true);
+  size_t compiled_in = 0, local = 0, queued = 0;
+  if (Settings::PsoCompiledIn()) {
+    for (const PsoRecord &r : CompiledInPipelines()) {
+      ++compiled_in;
+      queued += PsoPrecacheEnqueue(r, PsoSource::CompiledIn, false) ? 1 : 0;
     }
-  };
-  const u32 hw = std::max(1u, std::thread::hardware_concurrency());
-  const u32 threads = std::clamp(hw > 2 ? hw - 2 : 1u, 1u, 8u);
-  std::vector<std::thread> pool;
-  for (u32 i = 0; i < threads; ++i)
-    pool.emplace_back(work);
-  for (auto &t : pool)
-    t.join();
-  const f64 ms =
-      std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
-  EOT_INFO("[pso] precached {} pipelines in {:.0f} ms on {} threads: {} compiled-in + {} local "
-           "rows, {} duplicate, {} skipped (shader not in cache or layout mismatch); {}",
-           c.precached, ms, threads, compiled_in, local, dupes.load(), skipped.load(),
+  }
+  std::vector<PsoRecord> rows;
+  local = LoadPsoCsvDir(dir, rows);
+  for (const PsoRecord &r : rows)
+    queued += PsoPrecacheEnqueue(r, PsoSource::LocalCsv, false) ? 1 : 0;
+  EOT_INFO("[pso] boot: {} compiled-in{} + {} local rows -> {} queued on the background lane "
+           "({} duplicate); templates: {}; {}",
+           compiled_in, Settings::PsoCompiledIn() ? "" : " (disabled)", local, queued,
+           compiled_in + local - queued, CompiledInTemplates().size(),
            c.capture ? "capturing gaps to " + dir : "capture off");
 }
 
-void PsoCacheFlushIfDirty(bool force) { PsoCaptureFlush(force, state().guest_frames); }
+void PsoCacheFlushIfDirty(bool force) {
+  auto &s = state();
+  PsoCaptureFlush(force, s.guest_frames);
+  auto &c = cache();
+  if (!force && s.guest_frames < c.lastSummaryFrame + 600)
+    return;
+  u32 by_source[4] = {}, used_by_source[4] = {}, total = 0;
+  u32 gaps, races;
+  {
+    std::lock_guard lock(c.mutex);
+    c.lastSummaryFrame = s.guest_frames;
+    for (const auto &[key, e] : c.map) {
+      if (!e.pipeline)
+        continue;
+      const u32 i = static_cast<u32>(e.source) & 3;
+      by_source[i]++;
+      used_by_source[i] += e.used ? 1 : 0;
+      total++;
+    }
+    gaps = c.gapBuilds;
+    races = c.raceBuilds;
+    c.gapBuilds = c.raceBuilds = 0;
+  }
+  const PsoPrecacheStats ps = PsoPrecacheGetStats();
+  const PsoPredictorStats pr = PsoPredictorGetStats();
+  if (total == 0 && ps.queued == 0)
+    return;
+  EOT_INFO("[pso] {} pipelines: draw {} | compiled-in {} ({} used) | local {} ({} used) | "
+           "predicted {} ({} used) | render-thread builds since last: {} gaps, {} races | pool: "
+           "{} queued, {} built, {} existing, {} skipped, {} failed, pending prio {} bg {} | predictor: "
+           "{} models, {} materials, {} slots, {} queued, {} without template",
+           total, by_source[0], by_source[1], used_by_source[1], by_source[2],
+           used_by_source[2], by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built,
+           ps.existing, ps.skipped, ps.failed, ps.priorityPending, ps.backgroundPending, pr.models,
+           pr.materials, pr.slots, pr.queued, pr.noTemplate);
+}
 
 }

@@ -51,6 +51,10 @@ bool DecodeElements(const DeclElement *elements, u32 count, std::vector<DecodedE
                     u64 *hash) {
   if (!elements || count == 0 || count > 32)
     return false;
+  DeclElement canon[32];
+  std::memcpy(canon, elements, count * sizeof(DeclElement));
+  CanonicalizeDeclElements(canon, count);
+  elements = canon;
   out.clear();
   out.reserve(count);
   for (u32 i = 0; i < count; ++i) {
@@ -243,9 +247,11 @@ const InputLayout *BuildInputLayout(u64 vs_hash, const std::vector<VertexInput> 
     layout->spec |= kSpecR11G11B10Normal;
   if (layout->sintTexcoords)
     layout->spec |= kSpecSintTexcoord;
-  if (raw && count)
+  if (raw && count) {
     layout->declRaw.assign(reinterpret_cast<const u8 *>(raw),
                            reinterpret_cast<const u8 *>(raw) + count * sizeof(DeclElement));
+    CanonicalizeDeclElements(reinterpret_cast<DeclElement *>(layout->declRaw.data()), count);
+  }
   auto &c = cache();
   std::lock_guard lock(c.mutex);
   auto it = c.map.find(key);
@@ -256,6 +262,11 @@ const InputLayout *BuildInputLayout(u64 vs_hash, const std::vector<VertexInput> 
   return result;
 }
 
+}
+
+void CanonicalizeDeclElements(DeclElement *elements, u32 count) {
+  for (u32 i = 0; i < count; ++i)
+    elements[i].pad = 0;
 }
 
 }

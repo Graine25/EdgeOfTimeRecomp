@@ -1,5 +1,6 @@
 #include "gpu/device.h"
 #include "gpu/pipeline/pipeline_cache.h"
+#include "gpu/pipeline/pso_precache.h"
 
 #include <chrono>
 #include <cstdio>
@@ -695,6 +696,7 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
 
 void Video::BeginShutdown() {
   state().shutting_down.store(true, std::memory_order_release);
+  PsoPrecacheStop();
   PsoCacheFlushIfDirty(true);
 }
 

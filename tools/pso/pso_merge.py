@@ -38,6 +38,14 @@ def read_rows(path):
     return reader.fieldnames, rows
 
 
+def canon_decl(hexstr):
+    out = []
+    for i in range(0, len(hexstr), 24):
+        e = hexstr[i:i + 24]
+        out.append(e[:22] + "00" if len(e) == 24 else e)
+    return "".join(out)
+
+
 def identity(row, columns):
     return tuple(row.get(c, "") for c in columns if c not in DIAGNOSTIC_COLUMNS)
 
@@ -127,6 +135,8 @@ def main():
     per_file = []
     dropped_shader = 0
     for f in files:
+        if f.name.startswith(("pso_pairs_", "pso_predicted_")):
+            continue
         cols, rows = read_rows(f)
         if not rows:
             per_file.append((f, 0, 0))
@@ -139,6 +149,7 @@ def main():
             continue
         new = 0
         for r in rows:
+            r["declRaw"] = canon_decl(r.get("declRaw", ""))
             if hashes is not None:
                 vs, ps = int(r["vsHash"], 16), int(r["psHash"], 16)
                 if vs not in hashes or (ps and ps not in hashes):

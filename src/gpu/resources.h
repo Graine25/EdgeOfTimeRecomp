@@ -110,6 +110,7 @@ struct GuestShader {
   bool isPixel = false;
   const ShaderCacheEntry *entry = nullptr;
   bool cacheMissLogged = false;
+  bool createdByGuestCall = false;
   std::vector<VertexInput> inputs;
   bool usesFloatConstants = true;
   u32 floatConstantRegs = 256;

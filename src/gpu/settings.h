@@ -22,6 +22,12 @@ struct Settings {
   static std::string PsoDir();
   static std::string PsoTag();
   static bool PsoCapture();
+  static bool PsoCompiledIn();
+  static bool PsoPredict();
+  static bool PsoPredictAll();
+  static i32 PsoPredictFallback();
+  static i32 PsoGateMs();
+  static i32 PsoThreads();
   static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();
