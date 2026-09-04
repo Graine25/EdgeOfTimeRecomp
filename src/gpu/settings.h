@@ -13,6 +13,7 @@ struct Settings {
   static i32 DiagVerbosity();
   static bool Vsync();
   static bool VertexMirrors();
+  static bool ConstRange();
   static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();

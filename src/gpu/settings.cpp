@@ -22,6 +22,9 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
     .range(0, 2);
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "eot", "Present with vsync.");
+REXCVAR_DEFINE_BOOL(eot_const_range, true, "eot",
+                    "Upload only the prefix of each 4 KB float constant file the bound shader "
+                    "can address (from its constant table) instead of the whole file.");
 REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "eot",
                     "Mirror static guest vertex buffers into persistent host buffers on their "
                     "second sighting instead of byte-swapping the drawn range per draw.");
@@ -68,6 +71,7 @@ i32 Settings::TraceStartFrame() { return REXCVAR_GET(eot_trace_start_frame); }
 i32 Settings::DiagVerbosity() { return REXCVAR_GET(eot_diag); }
 bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
 bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
+bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }

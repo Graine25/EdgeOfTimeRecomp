@@ -198,13 +198,36 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
   return v;
 }
 
-bool UploadFloatFile(DeviceView dev, u32 offset, UploadAlloc *out) {
-  const auto *src = reinterpret_cast<const u32 *>(dev.Bytes(offset, 256 * 16));
+struct ConstFileCache {
+  alignas(16) u8 bytes[256 * 16] = {};
+  UploadAlloc alloc;
+  u64 epoch = ~0ull;
+  u32 regs = 0;
+};
+
+bool UploadFloatFile(VideoState &s, DeviceView dev, u32 offset, u32 stage, u32 regs,
+                     UploadAlloc *out) {
+  static ConstFileCache caches[2];
+  static const bool ranged = Settings::ConstRange();
+  regs = ranged ? std::clamp(regs, 16u, 256u) : 256u;
+  const u32 bytes = regs * 16;
+  const u8 *src = dev.Bytes(offset, bytes);
   if (!src)
     return false;
-  if (!UploadAllocate(256 * 16, kConstantBufferAlignment, out))
+  ConstFileCache &c = caches[stage & 1];
+  if (c.epoch == UploadRingEpoch() && c.regs >= regs && std::memcmp(c.bytes, src, bytes) == 0) {
+    *out = c.alloc;
+    s.perf.const_file_hits++;
+    return true;
+  }
+  if (!UploadAllocate(bytes, kConstantBufferAlignment, out))
     return false;
-  rex::memory::copy_and_swap_32_unaligned(out->cpu, src, 256 * 4);
+  rex::memory::copy_and_swap_32_unaligned(out->cpu, reinterpret_cast<const u32 *>(src), regs * 4);
+  std::memcpy(c.bytes, src, bytes);
+  c.alloc = *out;
+  c.epoch = UploadRingEpoch();
+  c.regs = regs;
+  s.perf.constant_bytes += bytes;
   return true;
 }
 
@@ -1068,7 +1091,7 @@ bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {
   static u64 cached_frame[kNumFrames] = {};
   static bool cached_valid[kNumFrames] = {};
   const u32 slot = s.recording_slot();
-  if (cached_valid[slot] && cached_frame[slot] == s.guest_frames) {
+  if (cached_valid[slot] && cached_frame[slot] == UploadRingEpoch()) {
     *out = cached[slot];
     return true;
   }
@@ -1076,7 +1099,7 @@ bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {
     return false;
   std::memset(out->cpu, 0, 4096);
   cached[slot] = *out;
-  cached_frame[slot] = s.guest_frames;
+  cached_frame[slot] = UploadRingEpoch();
   cached_valid[slot] = true;
   return true;
 }
@@ -1089,10 +1112,19 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     return;
   PerfScope perf_scope(s.perf.draw_ms);
   s.perf.draws++;
+  auto lap_t0 = std::chrono::steady_clock::now();
+  auto lap = [&](f64 &acc) {
+    const auto t1 = std::chrono::steady_clock::now();
+    acc += std::chrono::duration<f64, std::milli>(t1 - lap_t0).count();
+    lap_t0 = t1;
+  };
   DeviceView dev = Device(device_va);
   if (device_image) {
     dev.snapshot = device_image;
     dev.snapshotSize = kDeviceSnapshotBytes;
+  } else if (const u8 *live = mem::at<u8>(device_va)) {
+    dev.snapshot = live;
+    dev.snapshotSize = dev::kDeviceSize;
   }
   BeginCommandList(s);
   if (!s.command_list_open)
@@ -1141,6 +1173,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("no input layout for the bound declaration", 0x6004);
     return;
   }
+  lap(s.perf.setup_ms);
   StreamInfo streams[16];
   for (u32 S = 0; S < 16; ++S) {
     if (!(layout->streamMask & (1u << S)))
@@ -1187,6 +1220,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   if (geom.rectList)
     st.cull = plume::RenderCullMode::NONE;
   plume::RenderPipeline *pipeline = GetOrCreatePipeline(s, st);
+  lap(s.perf.pso_lookup_ms);
   if (!pipeline) {
     Dropped("pipeline creation failed", 0x6008);
     return;
@@ -1309,13 +1343,16 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
                                              static_cast<u32>(bytes));
   }
 
+  lap(s.perf.stream_ms);
+
   UploadAlloc vs_consts, ps_consts, shared_alloc;
-  if (!UploadFloatFile(dev, dev::kVsFloatConstants, &vs_consts) ||
-      !UploadFloatFile(dev, dev::kPsFloatConstants, &ps_consts)) {
+  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs, &vs_consts) ||
+      !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
+                       &ps_consts)) {
     Dropped("constant upload failed", 0x6010);
     return;
   }
-  s.perf.constant_bytes += 2 * 256 * 16 + sizeof(SharedConstants);
+  s.perf.constant_bytes += sizeof(SharedConstants);
   const ViewportInfo vp = ComputeViewport(dev, targets);
   SharedConstants sc;
   {
@@ -1353,6 +1390,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("shared constant upload failed", 0x6011);
     return;
   }
+  lap(s.perf.const_ms);
 
   if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
     static u32 k = 0;
@@ -1420,7 +1458,8 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     return;
   }
   auto *cmd = s.command_list;
-  if (s.bound_pipeline != pipeline) {
+  const bool pipeline_changed = s.bound_pipeline != pipeline;
+  if (pipeline_changed) {
     cmd->setPipeline(pipeline);
     s.bound_pipeline = pipeline;
     if (st.stencilEnable) {
@@ -1432,8 +1471,16 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
 #endif
     }
   }
-  cmd->setViewports(&vp.vp, 1);
-  cmd->setScissors(&vp.scissor, 1);
+  static plume::RenderViewport last_vp;
+  static plume::RenderRect last_sc;
+  if (pipeline_changed || std::memcmp(&last_vp, &vp.vp, sizeof(last_vp)) != 0) {
+    cmd->setViewports(&vp.vp, 1);
+    last_vp = vp.vp;
+  }
+  if (pipeline_changed || std::memcmp(&last_sc, &vp.scissor, sizeof(last_sc)) != 0) {
+    cmd->setScissors(&vp.scissor, 1);
+    last_sc = vp.scissor;
+  }
   cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(vs_consts.buffer, vs_consts.offset), 0);
   cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(ps_consts.buffer, ps_consts.offset), 1);
   cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(shared_alloc.buffer, shared_alloc.offset), 2);
@@ -1463,6 +1510,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   } else {
     cmd->drawInstanced(geom.vertexCount, 1, 0, 0);
   }
+  lap(s.perf.record_ms);
   (void)prim;
   DrainHostDebugMessages(s, "draw");
 }

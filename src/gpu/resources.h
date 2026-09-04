@@ -112,6 +112,7 @@ struct GuestShader {
   bool cacheMissLogged = false;
   std::vector<VertexInput> inputs;
   bool usesFloatConstants = true;
+  u32 floatConstantRegs = 256;
   std::unique_ptr<plume::RenderShader> shader;
   std::unordered_map<u32, std::unique_ptr<plume::RenderShader>> linkedShaders;
   bool linkFailed = false;

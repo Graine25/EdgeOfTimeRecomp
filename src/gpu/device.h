@@ -42,10 +42,12 @@ static_assert(sizeof(CopyPushConstants) == 32);
 struct PerfCounters {
   f64 draw_ms = 0, resolve_ms = 0, upload_ms = 0, link_ms = 0, pso_ms = 0;
   f64 vertex_copy_ms = 0, index_ms = 0, bind_ms = 0;
+  f64 setup_ms = 0, pso_lookup_ms = 0, stream_ms = 0, const_ms = 0, record_ms = 0;
   f64 guest_d3d_ms = 0;
   u32 guest_d3d_calls = 0;
   u32 index_cache_hits = 0, index_cache_misses = 0;
   u32 vertex_cache_hits = 0, vertex_cache_misses = 0;
+  u32 const_file_hits = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
   u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;

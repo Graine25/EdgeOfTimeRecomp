@@ -106,6 +106,36 @@ GuestShader *FindGuestShader(VideoState &s, u32 object_va) {
   return it == s.shaders.end() ? nullptr : it->second.get();
 }
 
+u32 FloatConstantRegisters(const u8 *bytes, u32 size, u32 table_off, bool is_pixel) {
+  constexpr u32 kFull = 256;
+  constexpr u32 kTableBytes = 4 + 28;
+  constexpr u32 kInfoBytes = 20;      // D3DXSHADER_CONSTANTINFO
+  if (!table_off || table_off + kTableBytes > size)
+    return kFull;
+  const u8 *table = bytes + table_off + 4;
+  const u32 constants = rex::memory::load_and_swap<u32>(table + 12);
+  const u32 info_off = rex::memory::load_and_swap<u32>(table + 16);
+  if (!constants || constants > 1024)
+    return kFull;
+  const u64 info_end = u64(table_off) + 4 + info_off + u64(constants) * kInfoBytes;
+  if (info_end > size)
+    return kFull;
+  u32 end = 0;
+  for (u32 i = 0; i < constants; ++i) {
+    const u8 *ci = table + info_off + i * kInfoBytes;
+    const u32 set = rex::memory::load_and_swap<u16>(ci + 4);
+    const u32 index = rex::memory::load_and_swap<u16>(ci + 6);
+    const u32 count = rex::memory::load_and_swap<u16>(ci + 8);
+    if (set != 2) // D3DXRS_FLOAT4
+      continue;
+    if (count > 1 || index >= kFull)
+      return kFull;
+    end = std::max(end, index + 1);
+  }
+  (void)is_pixel;
+  return std::max(end, 16u);
+}
+
 GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
   if (!object_va)
     return nullptr;
@@ -156,6 +186,8 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
   sh->entry = it == c.by_hash.end() ? nullptr : it->second;
   if (sh->entry)
     sh->usesFloatConstants = sh->entry->usesFloatConstants != 0;
+  sh->floatConstantRegs =
+      FloatConstantRegisters(virtual_bytes, virtual_size, header->constantTableOffset, is_pixel);
 
   if (!is_pixel) {
     const u32 shader_off = header->shaderOffset;
@@ -184,9 +216,10 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
     }
   }
 
-  EOT_INFO("[shaders] {} {:#x} hash {:016x} {} inputs={} spec={:#x}",
+  EOT_INFO("[shaders] {} {:#x} hash {:016x} {} inputs={} spec={:#x} regs={}",
             is_pixel ? "ps" : "vs", object_va, hash, sh->entry ? "hit" : "MISS",
-            sh->inputs.size(), sh->entry ? sh->entry->specConstantsMask : 0);
+            sh->inputs.size(), sh->entry ? sh->entry->specConstantsMask : 0,
+            sh->floatConstantRegs);
   slot = std::move(sh);
   return slot.get();
 }
