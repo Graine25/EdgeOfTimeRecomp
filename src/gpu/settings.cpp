@@ -22,6 +22,9 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
     .range(0, 2);
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "eot", "Present with vsync.");
+REXCVAR_DEFINE_STRING(eot_pso_cache, "pso_cache.bin", "eot",
+                      "Pipeline-state cache file: keys that missed are appended at runtime and "
+                      "rebuilt on worker threads at the next boot (empty = off).");
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "eot",
                       "Internal render scale: EDRAM surfaces and resolve mirrors are allocated at "
                       "guest size x this (0.25..4); the present scales to the window as before.");
@@ -81,6 +84,7 @@ bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
 bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
 bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
+std::string Settings::PsoCachePath() { return std::string(REXCVAR_GET(eot_pso_cache)); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }

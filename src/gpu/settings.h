@@ -19,6 +19,7 @@ struct Settings {
   static bool ConstRange();
   static bool ResolveCopy();
   static f64 RenderScale();
+  static std::string PsoCachePath();
   static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();

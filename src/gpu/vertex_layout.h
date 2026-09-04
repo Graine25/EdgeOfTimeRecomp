@@ -30,8 +30,12 @@ struct InputLayout {
   bool anyPacked111110 = false;
   u32 spec = 0;
   u32 streamExtent[16] = {};
+  std::vector<u8> declRaw;
 };
 
 const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaration_va);
+
+const InputLayout *GetInputLayoutFromRaw(u64 vs_hash, const std::vector<VertexInput> &inputs,
+                                         const u8 *decl_raw, u32 decl_count);
 
 }

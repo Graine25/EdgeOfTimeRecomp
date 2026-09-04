@@ -1,6 +1,7 @@
 #include "gpu/vertex_layout.h"
 
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 #include <xxhash.h>
@@ -19,6 +20,7 @@ namespace eot::gpu {
 namespace {
 
 struct LayoutCache {
+  std::mutex mutex;
   std::unordered_map<u64, std::unique_ptr<InputLayout>> map;
 };
 
@@ -45,12 +47,9 @@ struct DecodedElement {
   u32 usageIndex;
 };
 
-bool ReadDeclaration(u32 decl_va, std::vector<DecodedElement> &out, u64 *hash) {
-  const u32 count = mem::load<u32>(decl_va + obj::kDeclElementCount);
-  if (count == 0 || count > 32)
-    return false;
-  auto *elements = mem::at<DeclElement>(decl_va + obj::kDeclElements);
-  if (!elements)
+bool DecodeElements(const DeclElement *elements, u32 count, std::vector<DecodedElement> &out,
+                    u64 *hash) {
+  if (!elements || count == 0 || count > 32)
     return false;
   out.clear();
   out.reserve(count);
@@ -69,6 +68,24 @@ bool ReadDeclaration(u32 decl_va, std::vector<DecodedElement> &out, u64 *hash) {
   *hash = XXH3_64bits(elements, count * sizeof(DeclElement));
   return !out.empty();
 }
+
+bool ReadDeclaration(u32 decl_va, std::vector<DecodedElement> &out, u64 *hash) {
+  const u32 count = mem::load<u32>(decl_va + obj::kDeclElementCount);
+  if (count == 0 || count > 32)
+    return false;
+  return DecodeElements(mem::at<DeclElement>(decl_va + obj::kDeclElements), count, out, hash);
+}
+
+const InputLayout *FindLayout(u64 key) {
+  auto &c = cache();
+  std::lock_guard lock(c.mutex);
+  auto it = c.map.find(key);
+  return it == c.map.end() ? nullptr : it->second.get();
+}
+
+const InputLayout *BuildInputLayout(u64 vs_hash, const std::vector<VertexInput> &inputs,
+                                    const std::vector<DecodedElement> &decl, u64 key,
+                                    const DeclElement *raw, u32 count);
 
 void SetSwapBit(InputLayout &l, u32 usage, u32 index) {
   const u32 bit = 1u << (index & 31);
@@ -109,9 +126,8 @@ const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaratio
     auto dit = decl_cache().find(declaration_va);
     if (dit != decl_cache().end() && dit->second.count == raw_count &&
         std::memcmp(dit->second.raw, raw_elements, raw_count * sizeof(DeclElement)) == 0) {
-      auto it = cache().map.find(dit->second.hash ^ (vs.hash * 0x9E3779B97F4A7C15ull));
-      if (it != cache().map.end())
-        return it->second.get();
+      if (const InputLayout *hit = FindLayout(dit->second.hash ^ (vs.hash * 0x9E3779B97F4A7C15ull)))
+        return hit;
     }
   }
   std::vector<DecodedElement> decl;
@@ -129,16 +145,34 @@ const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaratio
     std::memcpy(e.raw, raw_elements, raw_count * sizeof(DeclElement));
   }
   const u64 key = decl_hash ^ (vs.hash * 0x9E3779B97F4A7C15ull);
-  auto &c = cache();
-  auto it = c.map.find(key);
-  if (it != c.map.end())
-    return it->second.get();
+  if (const InputLayout *hit = FindLayout(key))
+    return hit;
+  return BuildInputLayout(vs.hash, vs.inputs, decl, key, raw_elements, raw_count);
+}
 
+const InputLayout *GetInputLayoutFromRaw(u64 vs_hash, const std::vector<VertexInput> &inputs,
+                                         const u8 *decl_raw, u32 decl_count) {
+  std::vector<DecodedElement> decl;
+  u64 decl_hash = 0;
+  const auto *elements = reinterpret_cast<const DeclElement *>(decl_raw);
+  if (!DecodeElements(elements, decl_count, decl, &decl_hash))
+    return nullptr;
+  const u64 key = decl_hash ^ (vs_hash * 0x9E3779B97F4A7C15ull);
+  if (const InputLayout *hit = FindLayout(key))
+    return hit;
+  return BuildInputLayout(vs_hash, inputs, decl, key, elements, decl_count);
+}
+
+namespace {
+
+const InputLayout *BuildInputLayout(u64 vs_hash, const std::vector<VertexInput> &inputs,
+                                    const std::vector<DecodedElement> &decl, u64 key,
+                                    const DeclElement *raw, u32 count) {
   auto layout = std::make_unique<InputLayout>();
   layout->key = key;
   u32 location = 0;
   bool ok = true;
-  for (const VertexInput &in : vs.inputs) {
+  for (const VertexInput &in : inputs) {
     const DecodedElement *match = nullptr;
     for (const auto &d : decl) {
       if (d.usage == in.usage && d.usageIndex == in.usageIndex) {
@@ -157,7 +191,7 @@ const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaratio
     DeclTypeInfo t = DecodeDeclType(match->type);
     if (t.format == plume::RenderFormat::UNKNOWN) {
       EOT_WARN("[layout] vs {:016x}: {}{} decl type {:#x} (xenos fmt {}) has no host format",
-               vs.hash, semantic, in.usageIndex, match->type, t.xenosFormat);
+               vs_hash, semantic, in.usageIndex, match->type, t.xenosFormat);
       ok = false;
       break;
     }
@@ -192,7 +226,7 @@ const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaratio
     if (t.packed111110)
       layout->anyPacked111110 = true;
     if (match->stream >= 16) {
-      EOT_WARN("[layout] vs {:016x}: stream {} out of range", vs.hash, match->stream);
+      EOT_WARN("[layout] vs {:016x}: stream {} out of range", vs_hash, match->stream);
       ok = false;
       break;
     }
@@ -209,9 +243,19 @@ const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaratio
     layout->spec |= kSpecR11G11B10Normal;
   if (layout->sintTexcoords)
     layout->spec |= kSpecSintTexcoord;
-  auto *raw = layout.get();
+  if (raw && count)
+    layout->declRaw.assign(reinterpret_cast<const u8 *>(raw),
+                           reinterpret_cast<const u8 *>(raw) + count * sizeof(DeclElement));
+  auto &c = cache();
+  std::lock_guard lock(c.mutex);
+  auto it = c.map.find(key);
+  if (it != c.map.end())
+    return it->second.get();
+  auto *result = layout.get();
   c.map.emplace(key, std::move(layout));
-  return raw;
+  return result;
+}
+
 }
 
 }

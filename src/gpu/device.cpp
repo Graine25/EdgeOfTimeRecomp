@@ -1,4 +1,5 @@
 #include "gpu/device.h"
+#include "gpu/pipeline/pipeline_cache.h"
 
 #include <chrono>
 #include <cstdio>
@@ -692,7 +693,10 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   return true;
 }
 
-void Video::BeginShutdown() { state().shutting_down.store(true, std::memory_order_release); }
+void Video::BeginShutdown() {
+  state().shutting_down.store(true, std::memory_order_release);
+  PsoCacheFlushIfDirty(true);
+}
 
 void Video::Shutdown() {
   auto &s = state();
