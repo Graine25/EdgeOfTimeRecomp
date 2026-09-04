@@ -22,6 +22,10 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
     .range(0, 2);
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "eot", "Present with vsync.");
+REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "eot",
+                    "Perform same-format, 1:1, no-reorder resolves as texture copies instead of "
+                    "full-screen sampling draws. Measured neutral on the GPU and slower to record "
+                    "on D3D12/AMD (2026-09-03); off until re-tested on Vulkan.");
 REXCVAR_DEFINE_BOOL(eot_const_range, true, "eot",
                     "Upload only the prefix of each 4 KB float constant file the bound shader "
                     "can address (from its constant table) instead of the whole file.");
@@ -72,6 +76,7 @@ i32 Settings::DiagVerbosity() { return REXCVAR_GET(eot_diag); }
 bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
 bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
 bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
+bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }

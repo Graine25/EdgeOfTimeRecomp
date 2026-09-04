@@ -50,6 +50,7 @@ struct PerfCounters {
   u32 const_file_hits = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
+  u32 resolve_copies = 0;
   u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;
   std::chrono::steady_clock::time_point last_present{};
 };

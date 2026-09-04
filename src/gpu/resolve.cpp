@@ -185,8 +185,48 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                   dest->height, dest->tiled ? "tiled" : "linear");
       }
     }
+    auto mark = [&](GuestTexture &target, u32 level) {
+      target.resolveOwned = true;
+      target.uploaded = true;
+      target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
+      target.resolvedMipMask |= 1u << level;
+      target.lastUseFrame = s.guest_frames;
+    };
+    static const bool copies = Settings::ResolveCopy();
     auto blit = [&](GuestTexture &target, u32 level, i32 vx, i32 vy, i32 vw, i32 vh, i32 sx0,
                     i32 sy0) -> bool {
+      const i32 mip_w = static_cast<i32>(std::max(1u, target.host.width >> level));
+      const i32 mip_h = static_cast<i32>(std::max(1u, target.host.height >> level));
+      const bool whole = sx0 == 0 && sy0 == 0 && vx == 0 && vy == 0 &&
+                         vw == static_cast<i32>(surf->width) &&
+                         vh == static_cast<i32>(surf->height) && vw == mip_w && vh == mip_h;
+      const bool same_format = src_host->format == target.host.format;
+      const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
+      if (copies && src_host == &surf->host && same_format && scale == 1.0f && !reorder &&
+          (!depth_source || whole)) {
+        auto *cmd = s.command_list;
+        TransitionLocked(s, *src_host, plume::RenderTextureLayout::COPY_SOURCE);
+        TransitionLocked(s, target.host, plume::RenderTextureLayout::COPY_DEST);
+        const plume::RenderBox box(sx0, sy0, sx0 + vw, sy0 + vh);
+        cmd->copyTextureRegion(
+            plume::RenderTextureCopyLocation::Subresource(target.host.texture.get(), level, 0),
+            plume::RenderTextureCopyLocation::Subresource(src_host->texture.get(), 0, 0),
+            static_cast<u32>(vx), static_cast<u32>(vy), 0, whole ? nullptr : &box);
+        s.perf.resolve_copies++;
+        mark(target, level);
+        return true;
+      }
+      {
+        u32 n;
+        const u32 key = 0x7500 ^ (static_cast<u32>(src_host->format) << 8) ^
+                        static_cast<u32>(target.host.format) ^ (reorder ? 0x40000 : 0) ^
+                        (src_host != &surf->host ? 0x80000 : 0) ^ (depth_source ? 0x100000 : 0);
+        if (copies && DiagShouldLog(key, &n) && n == 0)
+          EOT_INFO("[resolve] blit kept: host fmt {} -> {}{}{}{}", static_cast<u32>(src_host->format),
+                   static_cast<u32>(target.host.format), reorder ? " reorder" : "",
+                   src_host != &surf->host ? " msaa-alias" : "",
+                   depth_source && !whole ? " depth-subrect" : "");
+      }
       plume::RenderFramebuffer *fb = GetMipFramebuffer(s, target, level);
       if (!fb)
         return false;
@@ -223,11 +263,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
                                     kCopyPushConstantByteOffset, sizeof(pc));
       cmd->drawInstanced(3, 1, 0, 0);
-      target.resolveOwned = true;
-      target.uploaded = true;
-      target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
-      target.resolvedMipMask |= 1u << level;
-      target.lastUseFrame = s.guest_frames;
+      mark(target, level);
       return true;
     };
 
