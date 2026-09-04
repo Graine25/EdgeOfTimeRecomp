@@ -1,5 +1,6 @@
 #include <rex/hook.h>
 
+#include "gpu/device.h"
 #include "gpu/draw.h"
 #include "gpu/trace.h"
 
@@ -15,7 +16,11 @@ REX_EXTERN(__imp__D3DDevice_BeginIndexedVertices);
 extern "C" REX_FUNC(D3DDevice_DrawVertices) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32, start = ctx.r5.u32, count = ctx.r6.u32;
-  __imp__D3DDevice_DrawVertices(ctx, base);
+  {
+    PerfScope guest_scope(state().perf.guest_d3d_ms);
+    state().perf.guest_d3d_calls++;
+    __imp__D3DDevice_DrawVertices(ctx, base);
+  }
   EOT_TRACE_CALL("DrawVertices prim={} start={} count={}", prim, start, count);
   trace::Bump(trace::Counter::DrawVertices);
   DrawGuestPrimitives(device, prim, start, count);
@@ -26,7 +31,11 @@ extern "C" REX_FUNC(D3DDevice_DrawIndexedVertices) {
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32;
   const i32 base_vertex = ctx.r5.s32;
   const u32 start_index = ctx.r6.u32, count = ctx.r7.u32;
-  __imp__D3DDevice_DrawIndexedVertices(ctx, base);
+  {
+    PerfScope guest_scope(state().perf.guest_d3d_ms);
+    state().perf.guest_d3d_calls++;
+    __imp__D3DDevice_DrawIndexedVertices(ctx, base);
+  }
   EOT_TRACE_CALL("DrawIndexedVertices prim={} base={} start={} count={}", prim, base_vertex,
                  start_index, count);
   trace::Bump(trace::Counter::DrawIndexed);
@@ -38,7 +47,11 @@ extern "C" REX_FUNC(D3DDevice_ClearF) {
   const u32 device = ctx.r3.u32, flags = ctx.r4.u32, rect = ctx.r5.u32, color = ctx.r6.u32;
   const float z = static_cast<float>(ctx.f1.f64);
   const u32 stencil = ctx.r7.u32;
-  __imp__D3DDevice_ClearF(ctx, base);
+  {
+    PerfScope guest_scope(state().perf.guest_d3d_ms);
+    state().perf.guest_d3d_calls++;
+    __imp__D3DDevice_ClearF(ctx, base);
+  }
   EOT_TRACE_CALL("ClearF flags={:#x} rect={:#x} color={:#x} z={} stencil={}", flags, rect, color,
                  z, stencil);
   trace::Bump(trace::Counter::Clear);
@@ -51,7 +64,11 @@ extern "C" REX_FUNC(D3DDevice_Resolve) {
   const u32 dest_point = ctx.r7.u32, dest_level = ctx.r8.u32, clear_color = ctx.r9.u32;
   const u32 r10 = ctx.r10.u32;
   const float clear_z = static_cast<float>(ctx.f1.f64);
-  __imp__D3DDevice_Resolve(ctx, base);
+  {
+    PerfScope guest_scope(state().perf.guest_d3d_ms);
+    state().perf.guest_d3d_calls++;
+    __imp__D3DDevice_Resolve(ctx, base);
+  }
   EOT_TRACE_CALL("Resolve flags={:#x} src={} rect={:#x} dest={:#x} point={:#x} level={} "
                  "r9={:#x} r10={:#x} z={}",
                  flags, flags & 7, src_rect, dest, dest_point, dest_level, clear_color, r10,
@@ -63,7 +80,11 @@ extern "C" REX_FUNC(D3DDevice_Resolve) {
 extern "C" REX_FUNC(D3DDevice_BeginVertices) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32, count = ctx.r5.u32, stride = ctx.r6.u32;
-  __imp__D3DDevice_BeginVertices(ctx, base);
+  {
+    PerfScope guest_scope(state().perf.guest_d3d_ms);
+    state().perf.guest_d3d_calls++;
+    __imp__D3DDevice_BeginVertices(ctx, base);
+  }
   const u32 data = ctx.r3.u32;
   EOT_TRACE_CALL("BeginVertices prim={} count={} stride={} data={:#x}", prim, count, stride, data);
   trace::Bump(trace::Counter::BeginVertices);
@@ -73,7 +94,11 @@ extern "C" REX_FUNC(D3DDevice_BeginVertices) {
 extern "C" REX_FUNC(D3DDevice_BeginIndexedVertices) {
   FlushPendingUpDraw();
   const u32 prim = ctx.r4.u32;
-  __imp__D3DDevice_BeginIndexedVertices(ctx, base);
+  {
+    PerfScope guest_scope(state().perf.guest_d3d_ms);
+    state().perf.guest_d3d_calls++;
+    __imp__D3DDevice_BeginIndexedVertices(ctx, base);
+  }
   EOT_TRACE_CALL("BeginIndexedVertices prim={} (unmodelled)", prim);
   trace::Bump(trace::Counter::BeginVertices);
 }
