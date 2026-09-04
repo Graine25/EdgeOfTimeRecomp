@@ -222,6 +222,8 @@ plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 s
   auto it = shader.linkedShaders.find(effective);
   if (it != shader.linkedShaders.end())
     return it->second.get();
+  PerfScope perf_scope(s.perf.link_ms);
+  s.perf.links++;
 #if defined(EOT_D3D12)
   const auto &spec_lib = SpecLib(effective);
   if (spec_lib.empty()) {

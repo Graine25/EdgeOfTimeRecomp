@@ -22,6 +22,10 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
     .range(0, 2);
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "eot", "Present with vsync.");
+REXCVAR_DEFINE_INT32(eot_perf_frames, 0, "eot",
+                     "Log a [perf] line every N presented frames: CPU ms per frame in draws, "
+                     "resolves, texture uploads, shader links, pipeline builds and the present "
+                     "phases, plus upload bytes (0 = off).");
 
 REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "eot",
                      "Guest frame whose draws are logged in detail and whose resolve "
@@ -60,6 +64,7 @@ i32 Settings::SummaryFrames() { return REXCVAR_GET(eot_summary_frames); }
 i32 Settings::TraceStartFrame() { return REXCVAR_GET(eot_trace_start_frame); }
 i32 Settings::DiagVerbosity() { return REXCVAR_GET(eot_diag); }
 bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
+i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }

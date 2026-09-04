@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <functional>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -37,6 +38,24 @@ struct CopyPushConstants {
   float rect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
 };
 static_assert(sizeof(CopyPushConstants) == 32);
+
+struct PerfCounters {
+  f64 draw_ms = 0, resolve_ms = 0, upload_ms = 0, link_ms = 0, pso_ms = 0;
+  f64 vertex_copy_ms = 0, index_ms = 0, bind_ms = 0;
+  f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
+  u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
+  u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;
+  std::chrono::steady_clock::time_point last_present{};
+};
+
+struct PerfScope {
+  f64 &acc;
+  std::chrono::steady_clock::time_point t0;
+  explicit PerfScope(f64 &a) : acc(a), t0(std::chrono::steady_clock::now()) {}
+  ~PerfScope() {
+    acc += std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
+  }
+};
 
 struct SharedConstants {
   u32 texture2DIndices[16]{};   // c0..c3
@@ -120,6 +139,8 @@ struct VideoState {
   std::vector<RetiredDescriptorSlot> descriptor_graveyard[kNumFrames];
 
   std::unordered_map<u32, std::shared_ptr<GuestTexture>> textures;
+
+  PerfCounters perf;
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
 

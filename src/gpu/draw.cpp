@@ -748,6 +748,8 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   std::lock_guard lock(s.mutex);
   if (!s.ready)
     return;
+  PerfScope perf_scope(s.perf.draw_ms);
+  s.perf.draws++;
   DeviceView dev = Device(device_va);
   if (device_image) {
     dev.snapshot = device_image;
@@ -894,6 +896,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
       return;
     }
     index_count = static_cast<u32>(geom.indices.size());
+    s.perf.index_bytes += u64(index_count) * 4;
     host_base_vertex = geom.baseVertex - static_cast<i32>(lo);
   } else {
     lo = geom.startVertex;
@@ -947,7 +950,11 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
       Dropped("upload ring exhausted (vertices)", 0x600D);
       return;
     }
-    CopyVertexBytes(va.cpu, st_info.data + first, static_cast<u32>(bytes));
+    {
+      PerfScope copy_scope(s.perf.vertex_copy_ms);
+      CopyVertexBytes(va.cpu, st_info.data + first, static_cast<u32>(bytes));
+    }
+    s.perf.vertex_bytes += bytes;
     views[S] = plume::RenderVertexBufferView(plume::RenderBufferReference(va.buffer, va.offset),
                                              static_cast<u32>(bytes));
   }
@@ -958,9 +965,13 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("constant upload failed", 0x6010);
     return;
   }
+  s.perf.constant_bytes += 2 * 256 * 16 + sizeof(SharedConstants);
   const ViewportInfo vp = ComputeViewport(dev, targets);
   SharedConstants sc;
-  BindTexturesAndSamplers(s, dev, sc);
+  {
+    PerfScope bind_scope(s.perf.bind_ms);
+    BindTexturesAndSamplers(s, dev, sc);
+  }
   for (u32 i = 0; i < 4; ++i) {
     sc.booleans[i] = dev.U32(dev::kVsBoolConstants + 4 * i);
     sc.booleans[4 + i] = dev.U32(dev::kPsBoolConstants + 4 * i);
@@ -1182,16 +1193,19 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 st
   g.topology = ConvertPrimitiveType(prim, &expand);
   g.indexed = true;
   g.baseVertex = base_vertex;
-  if (!ReadGuestIndices(dev.U32(dev::kIndexBuffer), start_index, index_count, g.indices)) {
-    Dropped("index buffer unreadable", 0x6020);
-    return;
-  }
-  if (prim == kPrimRectList) {
-    g.rectList = true;
-  } else if (expand || prim == kPrimTriangleStrip || prim == kPrimLineStrip) {
-    ExpandIndices(prim, g.indices, true);
-    g.topology = prim == kPrimLineStrip ? plume::RenderPrimitiveTopology::LINE_LIST
-                                        : plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  {
+    PerfScope index_scope(state().perf.index_ms);
+    if (!ReadGuestIndices(dev.U32(dev::kIndexBuffer), start_index, index_count, g.indices)) {
+      Dropped("index buffer unreadable", 0x6020);
+      return;
+    }
+    if (prim == kPrimRectList) {
+      g.rectList = true;
+    } else if (expand || prim == kPrimTriangleStrip || prim == kPrimLineStrip) {
+      ExpandIndices(prim, g.indices, true);
+      g.topology = prim == kPrimLineStrip ? plume::RenderPrimitiveTopology::LINE_LIST
+                                          : plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+    }
   }
   ExecuteDraw(device_va, prim, g);
 }

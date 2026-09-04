@@ -161,6 +161,8 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   HostTexture &host = t.host;
   if (!host.texture || host.isDepth)
     return;
+  PerfScope perf_scope(s.perf.upload_ms);
+  s.perf.uploads++;
   const TextureFormatMapping m = MapTextureFormat(info.format);
   if (m.convert) {
     if (!t.uploadFailed) {
