@@ -1842,7 +1842,7 @@ out_directory_path = "generated/gamelogic"
 0x8834CB90 = { size = 0x108 }
 0x8834CC98 = { size = 0xA0 }
 0x8834E0B8 = { size = 0x20C }
-0x8834E428 = { size = 0x78 }
+0x8834E428 = { name = "eot_GLInstanciateHUDLevelSelect", size = 0x78 }
 0x8834F318 = { size = 0x3B8 }
 0x8834F6D0 = { size = 0xC8 }
 0x8834F798 = { size = 0x60 }
@@ -1870,9 +1870,9 @@ out_directory_path = "generated/gamelogic"
 0x883542E0 = { size = 0x6C }
 0x88354350 = { size = 0xE4 }
 0x883549B0 = { size = 0xC4 }
-0x88354C50 = { size = 0x218 }
+0x88354C50 = { name = "eot_GLInstanciateHUDDebugLevelSelection", size = 0x218 }
 0x88355170 = { size = 0x124 }
-0x88355298 = { size = 0x460 }
+0x88355298 = { name = "eot_HUDDebugLevelSelection_Update", size = 0x460 }
 0x883556F8 = { size = 0x5C }
 0x883562D0 = { size = 0x78 }
 0x88356B50 = { size = 0x188 }
@@ -2228,3 +2228,5 @@ out_directory_path = "generated/gamelogic"
 0x883ADCF8 = { size = 0x8 }
 0x883AF4E8 = { size = 0x8 }
 0x883B7AF0 = { size = 0x10 }
+
+0x881F00F0 = { name = "eot_GameStateManagerSM2011_ReturnToFrontscreen", size = 0x150 }

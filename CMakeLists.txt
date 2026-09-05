@@ -105,6 +105,12 @@ endif()
 
 rexglue_setup_target(reeot)
 
+if(TARGET reeot_GameLogic)
+    target_sources(reeot_GameLogic PRIVATE src/gamelogic/debug/debug_mode.cpp)
+    target_include_directories(reeot_GameLogic PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+endif()
+
 target_include_directories(reeot PRIVATE
     src
     "${REEOT_GEN_DIR}"
