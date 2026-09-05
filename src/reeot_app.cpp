@@ -21,6 +21,7 @@
 #include "gpu/device.h"
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
+#include "goliath/ui/overlays/fps.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 
@@ -63,6 +64,10 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
 
 std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
   return eot::gpu::CreateOverlayDrawer();
+}
+
+void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
+  drawer->AddDialog(new FpsOverlayDialog(drawer));
 }
 
 void ReeotApp::OnPreLaunchModule() {

@@ -77,6 +77,7 @@ set(REEOT_SOURCES
     src/gpu/patches/movie_aspect.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
+    src/goliath/ui/overlays/fps.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
