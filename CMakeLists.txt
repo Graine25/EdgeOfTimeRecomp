@@ -69,6 +69,7 @@ set(REEOT_SOURCES
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/model_load.cpp
+    src/gpu/hooks/frame_time.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
@@ -105,6 +106,10 @@ target_link_libraries(reeot PRIVATE
     reeot_shader_cache
     xxHash::xxhash
     libzstd_static)
+
+if(WIN32)
+    target_link_libraries(reeot PRIVATE winmm)
+endif()
 
 foreach(shader IN ITEMS copy_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)

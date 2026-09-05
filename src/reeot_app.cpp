@@ -7,6 +7,11 @@
 #include <rex/cvar.h>
 #include <rex/runtime.h>
 
+#if defined(_WIN32)
+#include <windows.h>
+#include <timeapi.h>
+#endif
+
 #include "generated/default/reeot_pch.h"
 
 #include "core/build_info.h"
@@ -48,6 +53,9 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
 void ReeotApp::OnPreLaunchModule() {
   EOT_INFO("reeot {} ({}@{}{}) renderer starting", REEOT_VERSION_STRING, REEOT_GIT_BRANCH,
            REEOT_GIT_COMMIT, REEOT_GIT_DIRTY ? "+" : "");
+#if defined(_WIN32)
+  timeBeginPeriod(1);
+#endif
   if (!eot::gpu::Video::CreateHostDevice(window())) {
     EOT_ERROR("Host device creation failed: the guest will run headless");
     return;
@@ -59,6 +67,9 @@ void ReeotApp::OnPreLaunchModule() {
 void ReeotApp::OnShutdown() {
   eot::gpu::Video::BeginShutdown();
   eot::gpu::Video::Shutdown();
+#if defined(_WIN32)
+  timeEndPeriod(1);
+#endif
 }
 
 void ReeotApp::OnWindowPixelSizeChanged(uint32_t pixel_width, uint32_t pixel_height) {

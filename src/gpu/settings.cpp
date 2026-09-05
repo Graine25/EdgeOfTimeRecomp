@@ -54,13 +54,15 @@ REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "eot",
                       "Internal render scale: EDRAM surfaces and resolve mirrors are allocated at "
                       "guest size x this (0.25..4); the present scales to the window as before. "
                       "Used when eot_resolution is native.");
-REXCVAR_DEFINE_STRING(eot_resolution, "native", "eot",
+REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "eot",
                       "Internal render resolution: native (the guest's own 1120x632, scaled by "
                       "eot_render_scale), 720p, 1080p or 1440p. The preset is a target height the "
                       "scale is derived from; the present always fits the result to the window, so "
-                      "a 1440p internal image is blitted up to whatever the display is.")
+                      "a 1440p internal image is blitted up to whatever the display is. Fidelity "
+                      "measurement (tools/score_dense.py) needs native, which is what the guest and "
+                      "the Xenia references render.")
     .allowed({"native", "720p", "1080p", "1440p"});
-REXCVAR_DEFINE_INT32(eot_fps_limit, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "eot",
                      "Ceiling on presented frames per second (0 = unlimited; 30/60/90/120 are the "
                      "menu presets). The guest runs one frame per present, so this paces the whole "
                      "game, not just the display.")
