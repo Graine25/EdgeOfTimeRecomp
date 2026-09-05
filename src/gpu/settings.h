@@ -19,6 +19,9 @@ struct Settings {
   static bool ConstRange();
   static bool ResolveCopy();
   static f64 RenderScale();
+  static std::string Resolution();
+  static i32 FpsLimit();
+  static std::string AspectRatio();
   static std::string PsoDir();
   static std::string PsoTag();
   static bool PsoCapture();
@@ -38,10 +41,12 @@ struct Settings {
   static bool PresentFrameLog();
 };
 
-inline f32 RenderScaleFactor() {
-  static const f32 s = static_cast<f32>(std::clamp(Settings::RenderScale(), 0.25, 4.0));
-  return s;
-}
+constexpr u32 kGuestRenderWidth = 1120;
+constexpr u32 kGuestRenderHeight = 632;
+
+f32 RenderScaleFactor();
+u32 InternalRenderWidth();
+u32 InternalRenderHeight();
 inline i32 ScalePx(i32 v) { return static_cast<i32>(std::lround(v * RenderScaleFactor())); }
 inline u32 ScaleDim(u32 v) {
   return std::max(1u, static_cast<u32>(std::lround(v * RenderScaleFactor())));

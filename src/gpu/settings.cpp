@@ -28,6 +28,12 @@ REXCVAR_DEFINE_INT32(eot_pso_gate_ms, 250, "eot", "Max wait for pipelines")
 REXCVAR_DEFINE_INT32(eot_pso_threads, 0, "eot", "Pipeline worker threads")
     .range(0, 16);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "eot", "Internal render scale");
+REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "eot", "Internal render resolution")
+    .allowed({"native", "720p", "1080p", "1440p"});
+REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "eot", "Fullscreen aspect ratio")
+    .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
+REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "eot", "Frame rate cap")
+    .range(0, 1000);
 REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "eot", "Resolve with texture copies");
 REXCVAR_DEFINE_BOOL(eot_const_range, true, "eot", "Upload only used constants");
 REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "eot", "Mirror static vertex buffers");
@@ -63,6 +69,9 @@ bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
 bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
 bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
+std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
+i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
+std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
 std::string Settings::PsoDir() { return std::string(REXCVAR_GET(eot_pso_dir)); }
 std::string Settings::PsoTag() { return std::string(REXCVAR_GET(eot_pso_tag)); }
 bool Settings::PsoCapture() { return REXCVAR_GET(eot_pso_capture); }
@@ -80,5 +89,32 @@ std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dl
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
 bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
+
+namespace {
+
+f32 ComputeRenderScale() {
+  const std::string preset = Settings::Resolution();
+  u32 target_height = 0;
+  if (preset == "720p")
+    target_height = 720;
+  else if (preset == "1080p")
+    target_height = 1080;
+  else if (preset == "1440p")
+    target_height = 1440;
+  const f64 scale = target_height != 0
+                        ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
+                        : Settings::RenderScale();
+  return static_cast<f32>(std::clamp(scale, 0.25, 4.0));
+}
+
+}
+
+f32 RenderScaleFactor() {
+  static const f32 s = ComputeRenderScale();
+  return s;
+}
+
+u32 InternalRenderWidth() { return ScaleDim(kGuestRenderWidth); }
+u32 InternalRenderHeight() { return ScaleDim(kGuestRenderHeight); }
 
 }

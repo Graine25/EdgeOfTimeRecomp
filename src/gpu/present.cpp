@@ -1,9 +1,15 @@
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <format>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 #include <plume_render_interface.h>
 
@@ -11,6 +17,7 @@
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
+#include "gpu/patches/aspect_ratio.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/settings.h"
 #include "gpu/surfaces.h"
@@ -108,6 +115,8 @@ u32 EnsureGammaLutLocked(VideoState &s) {
   return BindTextureSRVLocked(s, lut);
 }
 
+f64 g_pace_ms = 0.0;
+
 void LogPerfLocked(VideoState &s) {
   const i32 every = Settings::PerfFrames();
   PerfCounters &p = s.perf;
@@ -122,17 +131,67 @@ void LogPerfLocked(VideoState &s) {
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws; "
            "setup {:.2f} psolk {:.2f} streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} vtxcache hit {} miss {} "
-           "| present acquire {:.2f} submit {:.2f} fence {:.2f} | KB/frame vtx {} idx {} const {}",
+           "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
+           "idx {} const {}",
            p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.setup_ms / n,
            p.pso_lookup_ms / n, p.stream_ms / n, p.vertex_copy_ms / n, p.const_ms / n,
            p.bind_ms / n, p.const_file_hits / p.frames, p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
            p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
-           p.acquire_ms / n, p.submit_ms / n, p.fence_ms / n, p.vertex_bytes / p.frames / 1024,
+           p.acquire_ms / n, p.submit_ms / n, p.fence_ms / n, g_pace_ms / n,
+           p.vertex_bytes / p.frames / 1024,
            p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024);
   p = PerfCounters{};
   p.last_present = now;
+  g_pace_ms = 0.0;
+}
+
+void SleepUntil(std::chrono::steady_clock::time_point when) {
+  using clock = std::chrono::steady_clock;
+  constexpr auto kSpinTail = std::chrono::microseconds(400);
+  const auto now = clock::now();
+  if (when <= now)
+    return;
+#if defined(_WIN32)
+  static HANDLE timer = []() -> HANDLE {
+    HANDLE h = CreateWaitableTimerExW(nullptr, nullptr,
+                                      CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    return h ? h : CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+  }();
+  if (timer && when - now > kSpinTail) {
+    LARGE_INTEGER due;
+    due.QuadPart = -(std::chrono::duration_cast<std::chrono::nanoseconds>(when - now - kSpinTail)
+                         .count() /
+                     100);
+    if (SetWaitableTimerEx(timer, &due, 0, nullptr, nullptr, nullptr, 0))
+      WaitForSingleObject(timer, INFINITE);
+  }
+#else
+  if (when - now > kSpinTail)
+    std::this_thread::sleep_until(when - kSpinTail);
+#endif
+  while (clock::now() < when)
+    std::this_thread::yield();
+}
+
+void FrameLimitWait() {
+  using clock = std::chrono::steady_clock;
+  static clock::time_point deadline{};
+  const i32 fps = Settings::FpsLimit();
+  if (fps <= 0) {
+    deadline = clock::time_point{};
+    return;
+  }
+  const auto period =
+      std::chrono::duration_cast<clock::duration>(std::chrono::duration<f64>(1.0 / fps));
+  const auto now = clock::now();
+  if (deadline == clock::time_point{} || now > deadline + period)
+    deadline = now;
+  deadline += period;
+  const auto before = clock::now();
+  SleepUntil(deadline);
+  g_pace_ms += std::chrono::duration<f64, std::milli>(clock::now() - before).count();
 }
 
 }
@@ -157,6 +216,15 @@ void Video::Present(u32 front_buffer_texture_va) {
       if (front && !front->host.valid())
         front = nullptr;
     }
+    const bool want_vsync = Settings::Vsync();
+    const bool vsync_changed = s.swap_chain->isVsyncEnabled() != want_vsync;
+    s.swap_chain->setVsyncEnabled(want_vsync);
+#if !defined(EOT_D3D12)
+    if (vsync_changed)
+      s.resize_requested.store(true, std::memory_order_release);
+#else
+    (void)vsync_changed;
+#endif
     if (!HandleResize(s)) {
       SubmitOpenListLocked(s);
       AdvanceAndWaitReused(s);
@@ -204,10 +272,13 @@ void Video::Present(u32 front_buffer_texture_va) {
     if (src_index != kInvalidDescriptorIndex) {
       const float out_w = static_cast<float>(s.swap_chain->getWidth());
       const float out_h = static_cast<float>(s.swap_chain->getHeight());
-      const float src_w = static_cast<float>(std::max(1u, front->host.width));
-      const float src_h = static_cast<float>(std::max(1u, front->host.height));
-      const float scale = std::min(out_w / src_w, out_h / src_h);
-      const float w = src_w * scale, h = src_h * scale;
+      ApplyAspectRatio();
+      const float aspect = std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
+      float w = out_w, h = out_w / aspect;
+      if (h > out_h) {
+        h = out_h;
+        w = out_h * aspect;
+      }
       const float x = (out_w - w) * 0.5f, y = (out_h - h) * 0.5f;
       plume::RenderViewport vp(x, y, w, h, 0.0f, 1.0f);
       plume::RenderRect sc(static_cast<i32>(x), static_cast<i32>(y), static_cast<i32>(x + w),
@@ -266,6 +337,7 @@ void Video::Present(u32 front_buffer_texture_va) {
   }
   if (drained_slot != ~0u)
     DrainSlot(s, drained_slot);
+  FrameLimitWait();
 }
 
 }

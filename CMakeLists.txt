@@ -2,6 +2,7 @@
 #
 # SDK boilerplate lives in generated/rexglue.cmake.
 #
+#
 
 cmake_minimum_required(VERSION 3.25)
 project(reeot VERSION 0.1.0 LANGUAGES C CXX)
@@ -66,6 +67,8 @@ set(REEOT_SOURCES
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/model_load.cpp
+    src/gpu/patches/frame_time.cpp
+    src/gpu/patches/aspect_ratio.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
@@ -100,6 +103,10 @@ target_link_libraries(reeot PRIVATE
     reeot_shader_cache
     xxHash::xxhash
     libzstd_static)
+
+if(WIN32)
+    target_link_libraries(reeot PRIVATE winmm)
+endif()
 
 foreach(shader IN ITEMS copy_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
