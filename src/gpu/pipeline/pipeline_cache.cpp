@@ -11,6 +11,8 @@
 #include <xxhash.h>
 
 #include "core/logging.h"
+#include "core/profiling.h"
+
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/pipeline/pso_precache.h"
@@ -146,6 +148,7 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
   }
   desc.depthTargetFormat = st.dsFormat;
 
+  EOT_CPU_ZONE("pipeline build");
   auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "guest-draw");
   std::lock_guard lock(c.mutex);
   if (!pso) {

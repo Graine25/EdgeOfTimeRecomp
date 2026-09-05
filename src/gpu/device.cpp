@@ -1,4 +1,5 @@
 #include "gpu/device.h"
+#include "gpu/gpu_profiling.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/pipeline/pso_precache.h"
 
@@ -417,6 +418,16 @@ CreateHostTexture(plume::RenderDevice *device, const plume::RenderTextureDesc &d
                   const char *tag) {
   if (!device)
     return nullptr;
+  EOT_CPU_ZONE_DYN(tag ? tag : "host texture");
+  state().perf.host_textures++;
+  if (tag) {
+    if (tag[0] == 's')
+      state().perf.host_tex_surface++;
+    else if (tag[0] == 'r')
+      state().perf.host_tex_mirror++;
+    else if (tag[0] == 'g')
+      state().perf.host_tex_guest++;
+  }
   auto texture = device->createTexture(desc);
   if (!texture
 #if defined(EOT_D3D12)
@@ -690,6 +701,10 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
     return false;
   }
 
+#if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+  InitGPUProfiler(static_cast<plume::D3D12Device *>(s.device.get())->d3d,
+                  static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
+#endif
   s.ready = true;
   EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots", s.backend_info,
            s.device->getDescription().name, s.swap_chain->getWidth(),

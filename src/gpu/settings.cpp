@@ -14,7 +14,7 @@ REXCVAR_DEFINE_INT32(eot_summary_frames, 600, "eot", "Frames of call summaries")
 REXCVAR_DEFINE_INT32(eot_diag, 1, "eot", "Renderer log verbosity")
     .range(0, 2);
 
-REXCVAR_DEFINE_BOOL(eot_vsync, true, "eot", "Sync frames to display");
+REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Sync frames to display");
 REXCVAR_DEFINE_STRING(eot_pso_dir, "pso", "eot", "Pipeline capture folder");
 REXCVAR_DEFINE_STRING(eot_pso_tag, "", "eot", "Tag for capture files");
 REXCVAR_DEFINE_BOOL(eot_pso_capture, true, "eot", "Capture missed pipelines");
@@ -25,18 +25,37 @@ REXCVAR_DEFINE_INT32(eot_pso_predict_fallback, 0, "eot", "Predictor matching lev
     .range(0, 2);
 REXCVAR_DEFINE_INT32(eot_pso_gate_ms, 250, "eot", "Max wait for pipelines")
     .range(0, 5000);
+REXCVAR_DEFINE_BOOL(eot_profiler, false, "eot", "Start Tracy at boot");
+REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "eot", "Own allocation per surface");
+REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "eot", "Log frames slower than this")
+    .range(0, 1000);
 REXCVAR_DEFINE_INT32(eot_pso_threads, 0, "eot", "Pipeline worker threads")
     .range(0, 16);
-REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "eot", "Internal render scale");
-REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "eot", "Internal render resolution")
+REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale");
+REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video", "Internal render resolution")
     .allowed({"native", "720p", "1080p", "1440p"});
-REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "eot", "Fullscreen aspect ratio")
+REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video", "Fullscreen aspect ratio")
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
-REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "eot", "Frame rate cap")
+REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video", "Frame rate cap")
     .range(0, 1000);
 REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "eot", "Resolve with texture copies");
 REXCVAR_DEFINE_BOOL(eot_const_range, true, "eot", "Upload only used constants");
 REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "eot", "Mirror static vertex buffers");
+REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics", "Glow around bright lights");
+REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics", "Depth of field blur");
+REXCVAR_DEFINE_BOOL(eot_motion_blur, true, "EdgeOfTime/Graphics", "Motion blur on or off");
+REXCVAR_DEFINE_BOOL(eot_radial_blur, true, "EdgeOfTime/Graphics", "Radial blur streaks");
+REXCVAR_DEFINE_BOOL(eot_heat_effects, true, "EdgeOfTime/Graphics", "Heat vision and haze");
+REXCVAR_DEFINE_BOOL(eot_film_grain, true, "EdgeOfTime/Graphics", "Film grain overlay");
+REXCVAR_DEFINE_BOOL(eot_halo, true, "EdgeOfTime/Graphics", "Halo light bleed");
+REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics", "Scene color grading");
+REXCVAR_DEFINE_BOOL(eot_edge_filter, true, "EdgeOfTime/Graphics", "Engine edge filter");
+REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics", "Field of view scale");
+REXCVAR_DEFINE_INT32(eot_anisotropy, 0, "EdgeOfTime/Graphics", "Anisotropic filtering level");
+REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video", "Screen brightness offset");
+REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video", "Screen contrast amount");
+REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video", "Screen color saturation");
+REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video", "Screen gamma curve");
 REXCVAR_DEFINE_INT32(eot_perf_frames, 0, "eot", "Perf log every N frames");
 
 REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "eot", "Frame to log in detail")
@@ -54,7 +73,7 @@ REXCVAR_DEFINE_STRING(eot_rdc_path, "D:/reeot_caps/tmp/reeot", "eot", "RenderDoc
 REXCVAR_DEFINE_INT32(eot_dump_every, 0, "eot", "Save a frame every N")
     .range(0, 1000000);
 
-REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "eot", "Use the console gamma ramp");
+REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "EdgeOfTime/Video", "Use the console gamma ramp");
 
 REXCVAR_DEFINE_BOOL(eot_present_log, false, "eot", "Log each present time");
 
@@ -81,6 +100,9 @@ bool Settings::PsoPredictAll() { return REXCVAR_GET(eot_pso_predict_all); }
 i32 Settings::PsoPredictFallback() { return REXCVAR_GET(eot_pso_predict_fallback); }
 i32 Settings::PsoGateMs() { return REXCVAR_GET(eot_pso_gate_ms); }
 i32 Settings::PsoThreads() { return REXCVAR_GET(eot_pso_threads); }
+i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
+bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures); }
+bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }
@@ -88,6 +110,21 @@ i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
+bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
+bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
+bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }
+bool Settings::RadialBlur() { return REXCVAR_GET(eot_radial_blur); }
+bool Settings::HeatEffects() { return REXCVAR_GET(eot_heat_effects); }
+bool Settings::FilmGrain() { return REXCVAR_GET(eot_film_grain); }
+bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
+bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
+bool Settings::EdgeFilter() { return REXCVAR_GET(eot_edge_filter); }
+double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
+i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
+double Settings::Brightness() { return REXCVAR_GET(eot_brightness); }
+double Settings::Contrast() { return REXCVAR_GET(eot_contrast); }
+double Settings::Saturation() { return REXCVAR_GET(eot_saturation); }
+double Settings::Gamma() { return REXCVAR_GET(eot_gamma); }
 bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
 
 namespace {

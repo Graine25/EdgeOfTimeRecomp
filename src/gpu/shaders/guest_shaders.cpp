@@ -10,6 +10,8 @@
 #include <zstd.h>
 
 #include "core/logging.h"
+#include "core/profiling.h"
+
 #include "core/memory_helpers.h"
 #include "gpu/backend.h"
 #include "gpu/d3d.h"
@@ -296,6 +298,7 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
       if (!host)
         EOT_ERROR("[shaders] createShader failed for {:016x}", hash);
     } else {
+      EOT_CPU_ZONE("shader link");
       std::unique_ptr<PerfScope> perf_scope;
       if (!worker) {
         perf_scope = std::make_unique<PerfScope>(s.perf.link_ms);

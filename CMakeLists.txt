@@ -55,6 +55,7 @@ set(REEOT_SOURCES
     src/gpu/device.cpp
     src/gpu/frame_ring.cpp
     src/gpu/present.cpp
+    src/gpu/imgui_overlay.cpp
     src/gpu/format.cpp
     src/gpu/textures.cpp
     src/gpu/surfaces.cpp
@@ -63,6 +64,7 @@ set(REEOT_SOURCES
     src/gpu/resolve.cpp
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp
+    src/gpu/gpu_profiling.cpp
     src/gpu/pipeline/pso_records.cpp
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
@@ -70,8 +72,10 @@ set(REEOT_SOURCES
     src/gpu/patches/frame_time.cpp
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/movie_aspect.cpp
+    src/gpu/patches/post_effects.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
+    src/goliath/ui/overlays/fps.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
@@ -130,10 +134,10 @@ if(WIN32)
     target_link_libraries(reeot PRIVATE winmm)
 endif()
 
-foreach(shader IN ITEMS copy_vs)
+foreach(shader IN ITEMS copy_vs imgui_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
 endforeach()
-foreach(shader IN ITEMS blit_ps copy_depth_ps)
+foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps)
     reeot_host_shader(reeot ${shader} ps_6_0)
 endforeach()
 

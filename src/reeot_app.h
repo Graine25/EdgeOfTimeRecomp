@@ -17,6 +17,8 @@ protected:
   void OnPreSetup(rex::RuntimeConfig &config) override;
   std::optional<rex::PathConfig> OnFinalizePaths(const rex::PathConfig &defaults,
                                                  std::function<void(rex::PathConfig)> resume) override;
+  std::unique_ptr<rex::ui::ImmediateDrawer> OnCreateImmediateDrawer() override;
+  void OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) override;
   void OnPreLaunchModule() override;
   void OnShutdown() override;
   void OnWindowPixelSizeChanged(uint32_t pixel_width, uint32_t pixel_height) override;

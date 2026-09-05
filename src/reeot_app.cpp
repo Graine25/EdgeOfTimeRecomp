@@ -5,6 +5,8 @@
 #include <string>
 
 #include <rex/cvar.h>
+#include <rex/perf/counter.h>
+
 #include <rex/runtime.h>
 
 #if defined(_WIN32)
@@ -17,6 +19,9 @@
 #include "core/build_info.h"
 #include "core/logging.h"
 #include "gpu/device.h"
+#include "gpu/settings.h"
+#include "gpu/imgui_overlay.h"
+#include "goliath/ui/overlays/fps.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 
@@ -45,7 +50,22 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults,
 
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   REXCVAR_SET(mnk_mode, true);
+  if (eot::gpu::Settings::Profiler()) {
+    rex::perf::Profiler::Startup();
+    if (rex::perf::Profiler::is_enabled())
+      EOT_INFO("Tracy profiler started; connect a viewer to capture.");
+    else
+      EOT_WARN("eot_profiler is set, but this build has no profiler compiled in.");
+  }
   config.graphics = nullptr;
+}
+
+std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
+  return eot::gpu::CreateOverlayDrawer();
+}
+
+void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
+  drawer->AddDialog(new FpsOverlayDialog(drawer));
 }
 
 void ReeotApp::OnPreLaunchModule() {
@@ -58,6 +78,16 @@ void ReeotApp::OnPreLaunchModule() {
     EOT_ERROR("Host device creation failed: the guest will run headless");
     return;
   }
+  eot::gpu::SetOverlayDrawHook([this](plume::RenderCommandList *cmd,
+                                      plume::RenderFramebuffer *framebuffer, uint32_t width,
+                                      uint32_t height) {
+    if (!imgui_drawer() || !imgui_drawer()->HasDialogs())
+      return;
+    app_context().CallInUIThreadSynchronous([&] {
+      eot::gpu::OverlayDrawContext ctx(width, height, cmd, framebuffer);
+      imgui_drawer()->Draw(ctx);
+    });
+  });
   eot::gpu::GuestShadersInit();
   eot::gpu::PsoCachePrecache();
 }

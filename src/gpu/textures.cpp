@@ -16,7 +16,9 @@
 #include "core/memory_helpers.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/d3d.h"
+#include "core/profiling.h"
 #include "gpu/device.h"
+
 #include "gpu/settings.h"
 #include "gpu/format.h"
 
@@ -99,7 +101,7 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   }
   desc.depth = 1;
   desc.arraySize = 1;
-  desc.committed = true;
+  desc.committed = Settings::CommittedTextures();
   switch (info.dimension) {
   case xe::DataDimension::k3D:
     desc.dimension = plume::RenderTextureDimension::TEXTURE_3D;
@@ -150,8 +152,7 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   host.arraySize = desc.arraySize;
   host.renderable = (desc.flags & plume::RenderTextureFlag::RENDER_TARGET) ||
                     (desc.flags & plume::RenderTextureFlag::DEPTH_TARGET);
-  host.texture = CreateHostTexture(s.device.get(), desc, "guest-texture");
-  host.layout = plume::RenderTextureLayout::UNKNOWN;
+  CreateOrRecycleHostTexture(s, host, desc, "guest-texture");
   if (!host.texture) {
     t.uploadFailed = true;
     return false;
@@ -160,6 +161,7 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
 }
 
 void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
+  EOT_CPU_ZONE("texture upload");
   HostTexture &host = t.host;
   if (!host.texture || host.isDepth)
     return;
@@ -293,6 +295,26 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   t.uploaded = true;
 }
 
+}
+
+constexpr u64 kTextureIdleFrames = 120;
+
+void EvictStaleGuestTextures(VideoState &s) {
+  EOT_CPU_ZONE("evict guest textures");
+  for (auto it = s.textures.begin(); it != s.textures.end();) {
+    const std::shared_ptr<GuestTexture> &slot = it->second;
+    if (!slot || slot->lastUseFrame + kTextureIdleFrames >= s.guest_frames) {
+      ++it;
+      continue;
+    }
+    if (slot.use_count() == 1)
+      ParkHostTexture(s, slot->host);
+    infos().erase(it->first);
+    it = s.textures.erase(it);
+    s.perf.textures_evicted++;
+  }
+  if (s.perf.textures_evicted)
+    s.texture_generation.fetch_add(1, std::memory_order_relaxed);
 }
 
 void NotifyResourceUnlocked(u32 resource_va) {
@@ -446,7 +468,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source) {
         desc.format = want;
         desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
                               : plume::RenderTextureFlag::RENDER_TARGET;
-        desc.committed = true;
+        desc.committed = Settings::CommittedTextures();
         t.host.texture = CreateHostTexture(s.device.get(), desc, "resolve-mirror");
         t.host.format = want;
         t.host.viewFormat = plume::RenderFormat::UNKNOWN;
@@ -457,8 +479,8 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source) {
         t.host.mipLevels = desc.mipLevels;
         t.host.arraySize = 1;
         t.host.isDepth = is_depth;
+        CreateOrRecycleHostTexture(s, t.host, desc, "resolve-mirror");
         t.host.renderable = t.host.texture != nullptr;
-        t.host.layout = plume::RenderTextureLayout::UNKNOWN;
         t.uploaded = false;
         if (!t.host.texture)
           return false;
@@ -501,6 +523,7 @@ plume::RenderFramebuffer *GetMipFramebuffer(VideoState &s, GuestTexture &t, u32 
   vd.mipLevels = 1;
   vd.arrayIndex = 0;
   vd.arraySize = 1;
+  s.perf.host_views++;
   host.mipViews[mip] = host.texture->createTextureView(vd);
   if (!host.mipViews[mip])
     return nullptr;
@@ -630,6 +653,11 @@ plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6]) {
   default:
     break;
   }
+  const i32 forced = Settings::Anisotropy();
+  if (forced == 1)
+    aniso = 0;
+  else if (forced > 1 && !mag_point && !min_point)
+    aniso = std::max<u32>(aniso, std::min<u32>(static_cast<u32>(forced), 16u));
   const bool aniso_on = aniso > 1 && !mag_point && !min_point;
   d.anisotropyEnabled = aniso_on;
   d.maxAnisotropy = aniso_on ? aniso : 1u;
