@@ -85,10 +85,17 @@ REX_HOOK_RAW(eot_RenderComposition_ExecuteChain) {
                (flags >> 5) & 1, (flags >> 6) & 1, (flags >> 8) & 1, (flags >> 10) & 1,
                (flags >> 11) & 1, (flags >> 12) & 1, (flags >> 15) & 1);
     const uint32_t mask = DisabledStages();
+    const bool bloom_off = !Settings::Bloom() && bloom;
     if (mask & flags)
       eot::mem::store<uint32_t>(cmd + kCommandFlags, flags & ~mask);
-    if (!Settings::Bloom() && bloom)
+    if (bloom_off)
       eot::mem::store<uint8_t>(cmd + kCommandBloomEnable, 0);
+    const uint32_t applied = (flags & ~mask) | (bloom_off || !bloom ? 0u : 0x80000000u);
+    static std::atomic<uint32_t> last_applied{0xFFFFFFFFu};
+    if (((mask & flags) || bloom_off) && last_applied.exchange(applied) != applied)
+      EOT_INFO("[postfx] applied {:#06x} bloom {} (requested {:#06x} bloom {}; options cleared {:#06x}{})",
+               applied & 0xFFFF, bloom_off ? 0u : bloom, flags & 0xFFFF, bloom, mask & flags,
+               bloom_off ? " + bloom byte" : "");
   }
   __imp__eot_RenderComposition_ExecuteChain(ctx, base);
 }

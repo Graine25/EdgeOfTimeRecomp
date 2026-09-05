@@ -117,10 +117,11 @@ REXCVAR_DEFINE_INT32(eot_shadow_cascades, 0, "EdgeOfTime/Graphics",
 REXCVAR_DEFINE_DOUBLE(eot_shadow_distance_scale, 1.0, "EdgeOfTime/Graphics",
                       "Multiplier on the level's shadow distance (1 = as the level asks; "
                       "2 casts shadows twice as far at the same map resolution).");
-REXCVAR_DEFINE_INT32(eot_quality_level, -1, "EdgeOfTime/Graphics",
-                     "EXPERIMENTAL. The content quality level the pak loader matches against each "
-                     "resource's level list (the console uses 1; the paks carry 1,2,3,4,5,8,9). "
-                     "-1 = the game's own. Takes effect at the next load.");
+REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "eot",
+                     "Reverse-engineering aid: force the content quality level the pak loader "
+                     "matches against each resource's level list (-1 = the game's own, 1 on the "
+                     "console; the paks carry 1,2,3,4,5,8,9). Not a user option until the levels "
+                     "are understood.");
 REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
                      "Shadow map size per cascade in texels: 0 = follow the render resolution "
                      "(the console's 1024 scaled like the frame, 1750 at 1080p), or 1024 / 2048 / "
@@ -215,7 +216,7 @@ bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
-i32 Settings::QualityLevel() { return REXCVAR_GET(eot_quality_level); }
+i32 Settings::QualityLevel() { return REXCVAR_GET(eot_debug_quality_level); }
 i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
 i32 Settings::ShadowMapSize() { return REXCVAR_GET(eot_shadow_map_size); }
 double Settings::ShadowDistanceScale() { return REXCVAR_GET(eot_shadow_distance_scale); }
