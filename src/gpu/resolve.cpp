@@ -154,7 +154,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     EOT_CPU_ZONE("resolve destination mirror");
     PerfScope mirror_scope(s.perf.resolve_mirror_ms);
     dest = dest_texture_va ? GetGuestTexture(s, dest_texture_va) : nullptr;
-    if (dest && !EnsureResolveMirror(s, *dest, depth_source))
+    if (dest && !EnsureResolveMirror(s, *dest, depth_source, surf->scale))
       dest = nullptr;
   }
 
@@ -215,7 +215,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                          vh == static_cast<i32>(surf->height) && vw == mip_w && vh == mip_h;
       const bool same_format = src_host->format == target.host.format;
       const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
-      if (copies && RenderScaleFactor() == 1.0f && src_host == &surf->host && same_format &&
+      if (copies && surf->scale == 1.0f && src_host == &surf->host && same_format &&
           scale == 1.0f && !reorder && (!depth_source || whole)) {
         auto *cmd = s.command_list;
         TransitionLocked(s, *src_host, plume::RenderTextureLayout::COPY_SOURCE);
@@ -240,7 +240,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                    src_host != &surf->host ? " msaa-alias" : "",
                    depth_source && !whole ? " depth-subrect" : "");
       }
-      const i32 hx0 = ScalePx(vx), hy0 = ScalePx(vy), hx1 = ScalePx(vx + vw), hy1 = ScalePx(vy + vh);
+      const float k = surf->scale;
+      const i32 hx0 = ScalePxBy(vx, k), hy0 = ScalePxBy(vy, k), hx1 = ScalePxBy(vx + vw, k),
+                hy1 = ScalePxBy(vy + vh, k);
       if (hx1 <= hx0 || hy1 <= hy0)
         return true;
       plume::RenderFramebuffer *fb = nullptr;

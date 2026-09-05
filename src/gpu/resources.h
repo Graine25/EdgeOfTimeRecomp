@@ -94,6 +94,7 @@ struct GuestSurface {
   u32 depthFormat = 0;
   u32 baseTile = 0;
   i32 colorExpBias = 0;
+  float scale = 1.0f;
 
   HostTexture host;
   bool drawn = false;

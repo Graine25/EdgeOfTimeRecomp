@@ -49,8 +49,11 @@ REXCVAR_DEFINE_BOOL(eot_heat_effects, true, "EdgeOfTime/Graphics", "Heat vision 
 REXCVAR_DEFINE_BOOL(eot_film_grain, true, "EdgeOfTime/Graphics", "Film grain overlay");
 REXCVAR_DEFINE_BOOL(eot_halo, true, "EdgeOfTime/Graphics", "Halo light bleed");
 REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics", "Scene color grading");
-REXCVAR_DEFINE_BOOL(eot_edge_filter, true, "EdgeOfTime/Graphics", "Engine edge filter");
 REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics", "Field of view scale");
+REXCVAR_DEFINE_INT32(eot_shadow_cascades, 0, "EdgeOfTime/Graphics", "Shadow cascades per camera");
+REXCVAR_DEFINE_DOUBLE(eot_shadow_distance_scale, 1.0, "EdgeOfTime/Graphics", "Shadow distance multiplier");
+REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "eot", "Force the pak language id");
+REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics", "Shadow map resolution");
 REXCVAR_DEFINE_INT32(eot_anisotropy, 0, "EdgeOfTime/Graphics", "Anisotropic filtering level");
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video", "Screen brightness offset");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video", "Screen contrast amount");
@@ -118,9 +121,12 @@ bool Settings::HeatEffects() { return REXCVAR_GET(eot_heat_effects); }
 bool Settings::FilmGrain() { return REXCVAR_GET(eot_film_grain); }
 bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
-bool Settings::EdgeFilter() { return REXCVAR_GET(eot_edge_filter); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
+i32 Settings::QualityLevel() { return REXCVAR_GET(eot_debug_quality_level); }
+i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
+i32 Settings::ShadowMapSize() { return REXCVAR_GET(eot_shadow_map_size); }
+double Settings::ShadowDistanceScale() { return REXCVAR_GET(eot_shadow_distance_scale); }
 double Settings::Brightness() { return REXCVAR_GET(eot_brightness); }
 double Settings::Contrast() { return REXCVAR_GET(eot_contrast); }
 double Settings::Saturation() { return REXCVAR_GET(eot_saturation); }

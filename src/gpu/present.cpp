@@ -177,6 +177,27 @@ void LogPerfLocked(VideoState &s) {
   EvictStaleGuestTextures(s);
   EvictHostTexturePool(s);
   p.live_textures = static_cast<u32>(s.textures.size());
+  if (every > 0 && static_cast<i32>(p.frames) >= every) {
+    u32 buckets[6] = {};
+    u64 texels = 0, resolve_owned = 0, uploaded = 0;
+    for (const auto &kv : s.textures) {
+      const GuestTexture &t = *kv.second;
+      if (t.resolveOwned) {
+        resolve_owned++;
+        continue;
+      }
+      if (!t.uploaded)
+        continue;
+      uploaded++;
+      const u32 dim = std::max(t.width, t.height);
+      buckets[dim >= 2048 ? 0 : dim >= 1024 ? 1 : dim >= 512 ? 2 : dim >= 256 ? 3 : dim >= 128 ? 4 : 5]++;
+      texels += u64(t.width) * t.height;
+    }
+    EOT_INFO("[texstats] {} guest textures uploaded ({} resolve-owned): >=2048 {} | 1024 {} | 512 {} | "
+             "256 {} | 128 {} | smaller {} | {:.1f} Mtexels base level",
+             uploaded, resolve_owned, buckets[0], buckets[1], buckets[2], buckets[3], buckets[4],
+             buckets[5], texels / 1e6);
+  }
   p.live_surfaces = static_cast<u32>(s.surfaces.size());
   s.perf_prev_frame = p;
   s.perf_prev_frame.pace_ms = g_pace_ms;
