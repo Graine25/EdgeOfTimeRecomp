@@ -69,12 +69,28 @@ set(REEOT_SOURCES
     src/gpu/hooks/model_load.cpp
     src/gpu/patches/frame_time.cpp
     src/gpu/patches/aspect_ratio.cpp
+    src/gpu/patches/movie_aspect.cpp
+    src/goliath/ui/aspect_policy.cpp
+    src/goliath/ui/text_scale.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
     src/gpu/hooks/state.cpp
     src/gpu/hooks/resource.cpp
 )
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(REEOT_HUD_POLICY_INC "${REEOT_GEN_DIR}/hud_aspect_policy.inc")
+add_custom_command(
+    OUTPUT "${REEOT_HUD_POLICY_INC}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${REEOT_GEN_DIR}"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/hud/gen_hud_policy.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/config/eot_hud_aspect.toml"
+            "${REEOT_HUD_POLICY_INC}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/config/eot_hud_aspect.toml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/hud/gen_hud_policy.py"
+    COMMENT "Compiling the HUD aspect policy"
+    VERBATIM)
+list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
 
 if(WIN32)
     add_executable(reeot WIN32 ${REEOT_SOURCES})
@@ -83,6 +99,12 @@ else()
 endif()
 
 rexglue_setup_target(reeot)
+
+if(TARGET reeot_GameLogic)
+    target_sources(reeot_GameLogic PRIVATE src/gamelogic/debug/debug_mode.cpp)
+    target_include_directories(reeot_GameLogic PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src")
+endif()
 
 target_include_directories(reeot PRIVATE
     src

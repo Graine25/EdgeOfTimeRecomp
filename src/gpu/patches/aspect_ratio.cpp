@@ -13,7 +13,7 @@
 #include "gpu/device.h"
 #include "gpu/settings.h"
 
-REX_EXTERN(__imp__sub_8210BE20);
+REX_EXTERN(__imp__eot_GfxDevice_SetupPresentParams);
 
 namespace {
 
@@ -89,7 +89,7 @@ void ApplyAspectRatio() {
 
 }
 
-REX_HOOK_RAW(sub_8210BE20) {
-  __imp__sub_8210BE20(ctx, base);
+REX_HOOK_RAW(eot_GfxDevice_SetupPresentParams) {
+  __imp__eot_GfxDevice_SetupPresentParams(ctx, base);
   eot::gpu::ApplyAspectRatio();
 }

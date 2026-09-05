@@ -18,6 +18,7 @@
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
 #include "gpu/patches/aspect_ratio.h"
+#include "gpu/patches/movie_aspect.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/settings.h"
 #include "gpu/surfaces.h"
@@ -273,7 +274,9 @@ void Video::Present(u32 front_buffer_texture_va) {
       const float out_w = static_cast<float>(s.swap_chain->getWidth());
       const float out_h = static_cast<float>(s.swap_chain->getHeight());
       ApplyAspectRatio();
-      const float aspect = std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
+      const bool movie = TakeMovieDrawnFlag();
+      const float aspect =
+          movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
       float w = out_w, h = out_w / aspect;
       if (h > out_h) {
         h = out_h;

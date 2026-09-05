@@ -8,7 +8,7 @@
 #include "core/memory_helpers.h"
 #include "gpu/settings.h"
 
-REX_EXTERN(__imp__sub_82224FF8);
+REX_EXTERN(__imp__eot_GEEngineMgrBC_UpdateFrameTime);
 
 namespace {
 
@@ -25,9 +25,9 @@ bool UnlockWanted() {
 
 }
 
-REX_HOOK_RAW(sub_82224FF8) {
+REX_HOOK_RAW(eot_GEEngineMgrBC_UpdateFrameTime) {
   if (!UnlockWanted() || eot::mem::load<uint8_t>(kFixedFrameTimeFlag) != 0) {
-    __imp__sub_82224FF8(ctx, base);
+    __imp__eot_GEEngineMgrBC_UpdateFrameTime(ctx, base);
     return;
   }
 

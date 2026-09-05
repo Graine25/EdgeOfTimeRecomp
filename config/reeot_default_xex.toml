@@ -2746,3 +2746,21 @@ strcpy_s           = 0x8233E498
 0x82231448 = { name = "eot_D3D_CDevice_BlockOnFence" }
 0x82230078 = { name = "eot_D3D_CDevice_BlockOnSecondaryPosition" }
 0x822306E0 = { name = "eot_D3D_CDevice_WaitPrimaryRingSpace" }
+
+# -------------------------------------------------
+# -------------------------------------------------
+
+0x82108330 = { name = "eot_RendererMaterial_Load" }
+0x8216D0C8 = { name = "eot_ModelResource_LoadGeometry" }
+0x8211C5F8 = { name = "eot_BuildShaderBundleWithDecl" }
+
+0x8210BE20 = { name = "eot_GfxDevice_SetupPresentParams" }
+
+0x82224FF8 = { name = "eot_GEEngineMgrBC_UpdateFrameTime" }
+
+0x82120C98 = { name = "eot_RenderCommand_DrawMovie" }
+0x8211DE60 = { name = "eot_Movie_DrawFrame" }
+
+0x82182200 = { name = "eot_HUDWindowBC_ComputePos" }
+0x8217EA38 = { name = "eot_HUDText_BuildLayout" }
+0x82184060 = { name = "eot_HUDText_BuildDrawPacket" }
