@@ -25,6 +25,13 @@ float4 main(in float4 position : SV_Position, in float2 texCoord : TEXCOORD) : S
                    SelectChannel(src, (p >> 6) & 7u), SelectChannel(src, (p >> 9) & 7u));
     }
     float3 rgb = s.rgb * g_PushConstants.Param0;
+    if (g_PushConstants.ColorAdjust.w > 0.0)
+    {
+        float luma = dot(rgb, float3(0.2126, 0.7152, 0.0722));
+        rgb = lerp(float3(luma, luma, luma), rgb, g_PushConstants.ColorAdjust.z);
+        rgb = (rgb - 0.5) * g_PushConstants.ColorAdjust.y + 0.5 + g_PushConstants.ColorAdjust.x;
+        rgb = pow(saturate(rgb), 1.0 / g_PushConstants.ColorAdjust.w);
+    }
     if (g_PushConstants.Param1 > 1.5)
     {
         Texture2D<float4> lut = g_Texture2DDescriptorHeap[g_PushConstants.ResourceDescriptorIndex2];

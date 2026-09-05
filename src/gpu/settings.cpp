@@ -21,7 +21,7 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
                      "and unmapped resources (rate limited), 2 verbose.")
     .range(0, 2);
 
-REXCVAR_DEFINE_BOOL(eot_vsync, true, "eot", "Present with vsync.");
+REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Present with vsync.");
 REXCVAR_DEFINE_STRING(eot_pso_dir, "pso", "eot",
                       "Directory of pipeline capture CSVs: every *.csv in it is precached on "
                       "worker threads at boot, and render-thread misses of this run are appended "
@@ -62,11 +62,11 @@ REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "eot",
 REXCVAR_DEFINE_INT32(eot_pso_threads, 0, "eot",
                      "Pipeline worker threads (0 = hardware threads - 2, clamped to 1..8).")
     .range(0, 16);
-REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "eot",
+REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video",
                       "Internal render scale: EDRAM surfaces and resolve mirrors are allocated at "
                       "guest size x this (0.25..4); the present scales to the window as before. "
                       "Used when eot_resolution is native.");
-REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "eot",
+REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
                       "Internal render resolution: native (the guest's own 1120x632, scaled by "
                       "eot_render_scale), 720p, 1080p or 1440p. The preset is a target height the "
                       "scale is derived from; the present always fits the result to the window, so "
@@ -74,12 +74,12 @@ REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "eot",
                       "measurement (tools/score_dense.py) needs native, which is what the guest and "
                       "the Xenia references render.")
     .allowed({"native", "720p", "1080p", "1440p"});
-REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "eot",
+REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
                       "Aspect ratio the game builds its projection for: auto follows the window, "
                       "the rest force a ratio. Wider than 16:9 shows more to the sides rather than "
                       "stretching; the HUD is authored for 16:9 and is not corrected yet.")
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
-REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "eot",
+REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
                      "Ceiling on presented frames per second (0 = unlimited; 30/60/90/120 are the "
                      "menu presets). The guest runs one frame per present, so this paces the whole "
                      "game, not just the display.")
@@ -94,6 +94,37 @@ REXCVAR_DEFINE_BOOL(eot_const_range, true, "eot",
 REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "eot",
                     "Mirror static guest vertex buffers into persistent host buffers on their "
                     "second sighting instead of byte-swapping the drawn range per draw.");
+REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
+                    "Bloom (the HDR glow around bright light). Off keeps the tone curve.");
+REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics",
+                    "Depth of field, including the bokeh variant cutscenes use.");
+REXCVAR_DEFINE_BOOL(eot_motion_blur, true, "EdgeOfTime/Graphics",
+                    "Motion blur (object and camera).");
+REXCVAR_DEFINE_BOOL(eot_radial_blur, true, "EdgeOfTime/Graphics",
+                    "Radial blur (the speed streaks of free falls and dashes).");
+REXCVAR_DEFINE_BOOL(eot_heat_effects, true, "EdgeOfTime/Graphics",
+                    "Heat vision and heat haze distortion.");
+REXCVAR_DEFINE_BOOL(eot_film_grain, true, "EdgeOfTime/Graphics", "Film grain overlay.");
+REXCVAR_DEFINE_BOOL(eot_halo, true, "EdgeOfTime/Graphics", "Halo (light bleed) effect.");
+REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics",
+                    "The scene colour grade (3D LUT colorization). Off shows the ungraded image.");
+REXCVAR_DEFINE_BOOL(eot_edge_filter, true, "EdgeOfTime/Graphics",
+                    "The engine's edge filter stage, where a scene enables it.");
+REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics",
+                      "Field-of-view multiplier applied to every camera the game sets "
+                      "(1.0 = the game's own; 1.2 shows more to the sides). Culling follows.");
+REXCVAR_DEFINE_INT32(eot_anisotropy, 0, "EdgeOfTime/Graphics",
+                     "Anisotropic filtering: 0 = as the game asks per texture, 1 = off, "
+                     "2/4/8/16 = at least that level on every filtered texture.");
+REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video",
+                      "Display brightness offset applied at present (-0.5 .. 0.5, 0 = off).");
+REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video",
+                      "Display contrast applied at present (0.5 .. 2.0, 1 = off).");
+REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video",
+                      "Display saturation applied at present (0 = greyscale, 1 = off, 2 = vivid).");
+REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video",
+                      "Display gamma applied at present before the console's own ramp "
+                      "(0.5 .. 2.0, 1 = off).");
 REXCVAR_DEFINE_INT32(eot_perf_frames, 0, "eot",
                      "Log a [perf] line every N presented frames: CPU ms per frame in draws, "
                      "resolves, texture uploads, shader links, pipeline builds and the present "
@@ -121,7 +152,7 @@ REXCVAR_DEFINE_INT32(eot_dump_every, 0, "eot",
                      "presented frames (0 = off).")
     .range(0, 1000000);
 
-REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "eot",
+REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "EdgeOfTime/Video",
                     "Map the presented front buffer through the guest's display gamma "
                     "ramp (SetGammaRamp / SetPWLGamma), as the console's scan-out LUT does.");
 
@@ -162,6 +193,21 @@ i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
+bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
+bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
+bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }
+bool Settings::RadialBlur() { return REXCVAR_GET(eot_radial_blur); }
+bool Settings::HeatEffects() { return REXCVAR_GET(eot_heat_effects); }
+bool Settings::FilmGrain() { return REXCVAR_GET(eot_film_grain); }
+bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
+bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
+bool Settings::EdgeFilter() { return REXCVAR_GET(eot_edge_filter); }
+double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
+i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
+double Settings::Brightness() { return REXCVAR_GET(eot_brightness); }
+double Settings::Contrast() { return REXCVAR_GET(eot_contrast); }
+double Settings::Saturation() { return REXCVAR_GET(eot_saturation); }
+double Settings::Gamma() { return REXCVAR_GET(eot_gamma); }
 bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
 
 namespace {

@@ -351,6 +351,10 @@ void Video::Present(u32 front_buffer_texture_va) {
       pc.resourceDescriptorIndex = src_index;
       pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
       pc.param0 = 1.0f;
+      pc.colorAdjust[0] = static_cast<float>(std::clamp(Settings::Brightness(), -0.5, 0.5));
+      pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
+      pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));
+      pc.colorAdjust[3] = static_cast<float>(std::clamp(Settings::Gamma(), 0.4, 2.5));
       pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
       pc.rect[0] = 0.0f;
       pc.rect[1] = 0.0f;

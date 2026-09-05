@@ -75,6 +75,7 @@ set(REEOT_SOURCES
     src/gpu/patches/frame_time.cpp
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/movie_aspect.cpp
+    src/gpu/patches/post_effects.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp

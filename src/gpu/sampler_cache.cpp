@@ -1,5 +1,6 @@
 #include "gpu/sampler_cache.h"
 
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -10,6 +11,7 @@
 
 #include "core/logging.h"
 #include "gpu/device.h"
+#include "gpu/settings.h"
 
 namespace eot::gpu {
 
@@ -122,6 +124,11 @@ plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6]) {
   default:
     break;
   }
+  const i32 forced = Settings::Anisotropy();
+  if (forced == 1)
+    aniso = 0;
+  else if (forced > 1 && !mag_point && !min_point)
+    aniso = std::max<u32>(aniso, std::min<u32>(static_cast<u32>(forced), 16u));
   const bool aniso_on = aniso > 1 && !mag_point && !min_point;
   d.anisotropyEnabled = aniso_on;
   d.maxAnisotropy = aniso_on ? aniso : 1u;

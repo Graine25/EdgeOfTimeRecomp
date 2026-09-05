@@ -36,8 +36,9 @@ struct CopyPushConstants {
   float param0 = 1.0f;
   float param1 = 0.0f;
   float rect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+  float colorAdjust[4] = {0.0f, 1.0f, 1.0f, 0.0f};
 };
-static_assert(sizeof(CopyPushConstants) == 32);
+static_assert(sizeof(CopyPushConstants) == 48);
 
 struct PerfCounters {
   f64 draw_ms = 0, resolve_ms = 0, upload_ms = 0, link_ms = 0, pso_ms = 0;
