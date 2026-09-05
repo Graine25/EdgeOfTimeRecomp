@@ -70,8 +70,8 @@ set(REEOT_SOURCES
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/model_load.cpp
-    src/goliath/frame_time.cpp
-    src/goliath/aspect_ratio.cpp
+    src/gpu/patches/frame_time.cpp
+    src/gpu/patches/aspect_ratio.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp

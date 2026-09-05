@@ -1,6 +1,6 @@
 #pragma once
 
-namespace eot::goliath {
+namespace eot::gpu {
 
 float ConfiguredAspectRatio();
 

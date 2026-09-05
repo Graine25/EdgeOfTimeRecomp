@@ -1,4 +1,4 @@
-#include "goliath/aspect_ratio.h"
+#include "gpu/patches/aspect_ratio.h"
 
 #include <atomic>
 #include <bit>
@@ -59,12 +59,12 @@ std::atomic<float> g_ratio{16.0f / 9.0f};
 
 }
 
-namespace eot::goliath {
+namespace eot::gpu {
 
 float ConfiguredAspectRatio() { return g_ratio.load(std::memory_order_relaxed); }
 
 void ApplyAspectRatio() {
-  const float ratio = PresetRatio(eot::gpu::Settings::AspectRatio());
+  const float ratio = PresetRatio(Settings::AspectRatio());
   if (!Plausible(ratio))
     return;
   g_ratio.store(ratio, std::memory_order_relaxed);
@@ -81,8 +81,8 @@ void ApplyAspectRatio() {
   static int corrections = 0;
   if (corrections < 8) {
     ++corrections;
-    EOT_INFO("[goliath] aspect ratio {} = {:.4f} (class {}); guest held {:.4f}",
-             eot::gpu::Settings::AspectRatio(), ratio, AspectClassOf(ratio),
+    EOT_INFO("[patch] aspect ratio {} = {:.4f} (class {}); guest held {:.4f}",
+             Settings::AspectRatio(), ratio, AspectClassOf(ratio),
              std::bit_cast<float>(live));
   }
 }
@@ -91,5 +91,5 @@ void ApplyAspectRatio() {
 
 REX_HOOK_RAW(sub_8210BE20) {
   __imp__sub_8210BE20(ctx, base);
-  eot::goliath::ApplyAspectRatio();
+  eot::gpu::ApplyAspectRatio();
 }

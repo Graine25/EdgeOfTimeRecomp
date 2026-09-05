@@ -14,10 +14,10 @@
 #include <plume_render_interface.h>
 
 #include "core/logging.h"
-#include "goliath/aspect_ratio.h"
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
+#include "gpu/patches/aspect_ratio.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/settings.h"
 #include "gpu/surfaces.h"
@@ -272,8 +272,8 @@ void Video::Present(u32 front_buffer_texture_va) {
     if (src_index != kInvalidDescriptorIndex) {
       const float out_w = static_cast<float>(s.swap_chain->getWidth());
       const float out_h = static_cast<float>(s.swap_chain->getHeight());
-      eot::goliath::ApplyAspectRatio();
-      const float aspect = std::clamp(eot::goliath::ConfiguredAspectRatio(), 0.5f, 4.5f);
+      ApplyAspectRatio();
+      const float aspect = std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
       float w = out_w, h = out_w / aspect;
       if (h > out_h) {
         h = out_h;
