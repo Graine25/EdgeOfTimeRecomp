@@ -72,6 +72,7 @@ set(REEOT_SOURCES
     src/gpu/hooks/model_load.cpp
     src/gpu/patches/frame_time.cpp
     src/gpu/patches/aspect_ratio.cpp
+    src/gpu/patches/movie_aspect.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/gpu/shaders/guest_shaders.cpp
@@ -82,6 +83,19 @@ set(REEOT_SOURCES
     src/gpu/hooks/draw.cpp
     src/gpu/hooks/resource.cpp
 )
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(REEOT_HUD_POLICY_INC "${REEOT_GEN_DIR}/hud_aspect_policy.inc")
+add_custom_command(
+    OUTPUT "${REEOT_HUD_POLICY_INC}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${REEOT_GEN_DIR}"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/hud/gen_hud_policy.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/config/eot_hud_aspect.toml"
+            "${REEOT_HUD_POLICY_INC}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/config/eot_hud_aspect.toml"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/hud/gen_hud_policy.py"
+    COMMENT "Compiling the HUD aspect policy"
+    VERBATIM)
+list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
 
 if(WIN32)
     add_executable(reeot WIN32 ${REEOT_SOURCES})

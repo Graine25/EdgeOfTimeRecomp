@@ -1,9 +1,12 @@
 #include "goliath/ui/aspect_policy.h"
 
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cstdint>
 #include <string>
+#include <mutex>
+#include <unordered_set>
 #include <unordered_map>
 
 #include <rex/cvar.h>
@@ -20,8 +23,9 @@ REXCVAR_DEFINE_STRING(eot_ui_aspect, "lock", "eot",
     .allowed({"lock", "stretch"});
 
 REXCVAR_DEFINE_BOOL(eot_ui_aspect_log, false, "eot",
-                    "Trace the HUD aspect remap per window: CRC, policy, and the rect before and "
-                    "after (the first 24 remaps).");
+                    "Trace the HUD aspect policy: a census line the first time each window is "
+                    "laid out (CRC, name, rect, policy and its PARENT, whether or not it moves) "
+                    "plus the rect before and after for the first 24 remaps.");
 
 REX_EXTERN(__imp__sub_82182200);
 
@@ -43,29 +47,36 @@ constexpr uint32_t kFlagScreenSpace = 0x2;
 constexpr float kUiAspect = 16.0f / 9.0f;
 constexpr float kAspectEpsilon = 0.01f;
 
-enum class Policy { Lock, Stretch, LockText };
+enum class Policy { Lock, Stretch, LockText, HugLeft, HugRight };
 
-const std::unordered_map<uint32_t, Policy> &PolicyTable() {
-  static const std::unordered_map<uint32_t, Policy> table = {
-      {0x9086C32F, Policy::LockText},
-      {0x2F9BA287, Policy::LockText},
-      {0x3BE27DD9, Policy::Stretch},
-      {0x237EE83C, Policy::Stretch},
-      {0x8B1B2876, Policy::Stretch},
-      {0x103255B9, Policy::Stretch},
-      {0xC07F069D, Policy::Stretch},
-      {0x24299048, Policy::Stretch},
-      {0xA49D61F9, Policy::Stretch},
-      {0x16B95348, Policy::Stretch},
-  };
+struct Entry {
+  uint32_t crc;
+  Policy policy;
+  const char *name;
+};
+
+constexpr Entry kWindows[] = {
+#include "hud_aspect_policy.inc"
+};
+
+const std::unordered_map<uint32_t, const Entry *> &PolicyTable() {
+  static const std::unordered_map<uint32_t, const Entry *> table = [] {
+    std::unordered_map<uint32_t, const Entry *> map;
+    map.reserve(std::size(kWindows));
+    for (const Entry &entry : kWindows)
+      map.emplace(entry.crc, &entry);
+    return map;
+  }();
   return table;
 }
 
-Policy PolicyForCrc(uint32_t crc) {
+const Entry *LookUp(uint32_t crc) {
   const auto &table = PolicyTable();
   const auto it = table.find(crc);
-  return it == table.end() ? Policy::Lock : it->second;
+  return it == table.end() ? nullptr : it->second;
 }
+
+Policy PolicyForCrc(const Entry *entry) { return entry ? entry->policy : Policy::Lock; }
 
 const char *PolicyName(Policy p) {
   switch (p) {
@@ -75,6 +86,10 @@ const char *PolicyName(Policy p) {
     return "stretch";
   case Policy::LockText:
     return "lock_text";
+  case Policy::HugLeft:
+    return "hug_left";
+  case Policy::HugRight:
+    return "hug_right";
   }
   return "?";
 }
@@ -89,6 +104,28 @@ void WriteGuestF32(uint32_t va, float v) {
 std::atomic<uint32_t> g_remapped{0};
 std::atomic<bool> g_canvas_warned{false};
 
+void Census(uint32_t crc, const Entry *entry, uint32_t parent, bool root, float x, float w,
+            float canvas_w, Policy policy) {
+  if (!eot::goliath::UiAspectLogEnabled())
+    return;
+  static std::mutex mutex;
+  static std::unordered_set<uint64_t> seen;
+  const uint64_t key = (uint64_t(crc) << 1) | (root ? 1u : 0u);
+  {
+    std::lock_guard lock(mutex);
+    if (seen.size() >= 512 || !seen.insert(key).second)
+      return;
+  }
+  const uint32_t parent_crc = parent ? eot::mem::load<uint32_t>(parent + kWndCrc) : 0;
+  const Entry *parent_entry = parent_crc ? LookUp(parent_crc) : nullptr;
+  EOT_INFO("[ui] census crc={:#010x} {} x={:.1f} w={:.1f} ({:.0f}%..{:.0f}% of canvas) {} {} "
+           "parent={:#010x} {}",
+           crc, root ? "root " : "child", x, w, 100.0f * x / canvas_w,
+           100.0f * (x + w) / canvas_w, PolicyName(policy),
+           entry && entry->name[0] ? entry->name : "?", parent_crc,
+           parent_entry && parent_entry->name[0] ? parent_entry->name : (parent ? "?" : "-"));
+}
+
 void ApplyAspectPolicy(uint32_t wnd) {
   if (!wnd || !LockRequested())
     return;
@@ -102,10 +139,15 @@ void ApplyAspectPolicy(uint32_t wnd) {
   const bool self_laid_out = parent == 0 || (flags & kFlagScreenSpace) != 0;
 
   const uint32_t crc = eot::mem::load<uint32_t>(wnd + kWndCrc);
-  const Policy policy = PolicyForCrc(crc);
-  if (self_laid_out == (policy == Policy::Stretch))
+  const Entry *entry = LookUp(crc);
+  const Policy policy = PolicyForCrc(entry);
+  const bool hug = policy == Policy::HugLeft || policy == Policy::HugRight;
+  Census(crc, entry, parent, self_laid_out, ReadGuestF32(wnd + kWndComputedX),
+         ReadGuestF32(wnd + kWndComputedW),
+         static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth)), policy);
+  if (!hug && self_laid_out == (policy == Policy::Stretch))
     return;
-  const bool inverse = !self_laid_out;
+  const bool inverse = !self_laid_out && !hug;
 
   const float canvas_w = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth));
   const float canvas_h = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasHeight));
@@ -125,14 +167,26 @@ void ApplyAspectPolicy(uint32_t wnd) {
   const float before_x = ReadGuestF32(wnd + kWndComputedX);
   const float before_w = ReadGuestF32(wnd + kWndComputedW);
 
+  const auto anchored = [&](float x) {
+    const bool inherited = !self_laid_out;
+    switch (policy) {
+    case Policy::HugLeft:
+      return inherited ? x - offset : x * scale;
+    case Policy::HugRight:
+      return inherited ? x + offset : canvas_w - (canvas_w - x) * scale;
+    default:
+      return x * scale + offset;
+    }
+  };
+  const auto anchored_width = [&](float w) { return hug && !self_laid_out ? w : w * scale; };
   const auto remap = [&](uint32_t x_field, uint32_t w_field) {
     const float x = ReadGuestF32(wnd + x_field), w = ReadGuestF32(wnd + w_field);
     if (inverse) {
       WriteGuestF32(wnd + x_field, (x - offset) / scale);
       WriteGuestF32(wnd + w_field, w / scale);
     } else {
-      WriteGuestF32(wnd + x_field, x * scale + offset);
-      WriteGuestF32(wnd + w_field, w * scale);
+      WriteGuestF32(wnd + x_field, anchored(x));
+      WriteGuestF32(wnd + w_field, anchored_width(w));
     }
   };
   remap(kWndComputedX, kWndComputedW);
@@ -140,9 +194,10 @@ void ApplyAspectPolicy(uint32_t wnd) {
   g_remapped.fetch_add(1, std::memory_order_relaxed);
 
   if (trace)
-    EOT_INFO("[ui] window {:#010x} {} {} canvas {}x{} ar {:.4f} scale {:.4f}: x {:.1f}->{:.1f} "
+    EOT_INFO("[ui] window {:#010x} {} {} {} canvas {}x{} ar {:.4f} scale {:.4f}: x {:.1f}->{:.1f} "
              "w {:.1f}->{:.1f}",
-             crc, PolicyName(policy), inverse ? "inverse" : "forward", canvas_w, canvas_h,
+             crc, entry && entry->name[0] ? entry->name : "?", PolicyName(policy),
+             inverse ? "inverse" : "forward", canvas_w, canvas_h,
              display_aspect, scale, before_x, ReadGuestF32(wnd + kWndComputedX), before_w,
              ReadGuestF32(wnd + kWndComputedW));
 }
