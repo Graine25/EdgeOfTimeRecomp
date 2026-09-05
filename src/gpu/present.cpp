@@ -14,6 +14,7 @@
 #include <plume_render_interface.h>
 
 #include "core/logging.h"
+#include "goliath/aspect_ratio.h"
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
@@ -271,10 +272,13 @@ void Video::Present(u32 front_buffer_texture_va) {
     if (src_index != kInvalidDescriptorIndex) {
       const float out_w = static_cast<float>(s.swap_chain->getWidth());
       const float out_h = static_cast<float>(s.swap_chain->getHeight());
-      const float src_w = static_cast<float>(std::max(1u, front->host.width));
-      const float src_h = static_cast<float>(std::max(1u, front->host.height));
-      const float scale = std::min(out_w / src_w, out_h / src_h);
-      const float w = src_w * scale, h = src_h * scale;
+      eot::goliath::ApplyAspectRatio();
+      const float aspect = std::clamp(eot::goliath::ConfiguredAspectRatio(), 0.5f, 4.5f);
+      float w = out_w, h = out_w / aspect;
+      if (h > out_h) {
+        h = out_h;
+        w = out_h * aspect;
+      }
       const float x = (out_w - w) * 0.5f, y = (out_h - h) * 0.5f;
       plume::RenderViewport vp(x, y, w, h, 0.0f, 1.0f);
       plume::RenderRect sc(static_cast<i32>(x), static_cast<i32>(y), static_cast<i32>(x + w),

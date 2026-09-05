@@ -62,6 +62,11 @@ REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "eot",
                       "measurement (tools/score_dense.py) needs native, which is what the guest and "
                       "the Xenia references render.")
     .allowed({"native", "720p", "1080p", "1440p"});
+REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "eot",
+                      "Aspect ratio the game builds its projection for: auto follows the window, "
+                      "the rest force a ratio. Wider than 16:9 shows more to the sides rather than "
+                      "stretching; the HUD is authored for 16:9 and is not corrected yet.")
+    .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "eot",
                      "Ceiling on presented frames per second (0 = unlimited; 30/60/90/120 are the "
                      "menu presets). The guest runs one frame per present, so this paces the whole "
@@ -125,6 +130,7 @@ bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
+std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
 std::string Settings::PsoDir() { return std::string(REXCVAR_GET(eot_pso_dir)); }
 std::string Settings::PsoTag() { return std::string(REXCVAR_GET(eot_pso_tag)); }
 bool Settings::PsoCapture() { return REXCVAR_GET(eot_pso_capture); }

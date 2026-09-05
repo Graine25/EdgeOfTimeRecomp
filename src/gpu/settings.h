@@ -21,6 +21,7 @@ struct Settings {
   static f64 RenderScale();
   static std::string Resolution();
   static i32 FpsLimit();
+  static std::string AspectRatio();
   static std::string PsoDir();
   static std::string PsoTag();
   static bool PsoCapture();

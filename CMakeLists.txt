@@ -2,6 +2,7 @@
 #
 # SDK boilerplate lives in generated/rexglue.cmake.
 #
+#
 
 cmake_minimum_required(VERSION 3.25)
 project(reeot VERSION 0.1.0 LANGUAGES C CXX)
@@ -69,7 +70,8 @@ set(REEOT_SOURCES
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/model_load.cpp
-    src/gpu/hooks/frame_time.cpp
+    src/goliath/frame_time.cpp
+    src/goliath/aspect_ratio.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
