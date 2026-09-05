@@ -27,7 +27,7 @@ REXCVAR_DEFINE_BOOL(eot_ui_aspect_log, false, "eot",
                     "laid out (CRC, name, rect, policy and its PARENT, whether or not it moves) "
                     "plus the rect before and after for the first 24 remaps.");
 
-REX_EXTERN(__imp__sub_82182200);
+REX_EXTERN(__imp__eot_HUDWindowBC_ComputePos);
 
 namespace {
 
@@ -220,8 +220,8 @@ float TextScaleFactor() {
 
 }
 
-REX_HOOK_RAW(sub_82182200) {
+REX_HOOK_RAW(eot_HUDWindowBC_ComputePos) {
   const uint32_t window = ctx.r3.u32;
-  __imp__sub_82182200(ctx, base);
+  __imp__eot_HUDWindowBC_ComputePos(ctx, base);
   ApplyAspectPolicy(window);
 }

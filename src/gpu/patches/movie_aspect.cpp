@@ -4,7 +4,7 @@
 
 #include <rex/hook.h>
 
-REX_EXTERN(__imp__sub_8211DE60);
+REX_EXTERN(__imp__eot_Movie_DrawFrame);
 
 namespace {
 std::atomic<bool> g_movie_drawn{false};
@@ -16,7 +16,7 @@ bool TakeMovieDrawnFlag() { return g_movie_drawn.exchange(false, std::memory_ord
 
 }
 
-REX_HOOK_RAW(sub_8211DE60) {
-  __imp__sub_8211DE60(ctx, base);
+REX_HOOK_RAW(eot_Movie_DrawFrame) {
+  __imp__eot_Movie_DrawFrame(ctx, base);
   g_movie_drawn.store(true, std::memory_order_release);
 }

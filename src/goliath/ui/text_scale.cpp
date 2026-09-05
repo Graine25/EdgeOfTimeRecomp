@@ -8,8 +8,8 @@
 #include "core/memory_helpers.h"
 #include "goliath/ui/aspect_policy.h"
 
-REX_EXTERN(__imp__sub_8217EA38);
-REX_EXTERN(__imp__sub_82184060);
+REX_EXTERN(__imp__eot_HUDText_BuildLayout);
+REX_EXTERN(__imp__eot_HUDText_BuildDrawPacket);
 
 namespace {
 
@@ -66,17 +66,17 @@ void ScalePacket(uint32_t text_attr, uint32_t packet, bool built) {
 
 }
 
-REX_HOOK_RAW(sub_8217EA38) {
+REX_HOOK_RAW(eot_HUDText_BuildLayout) {
   const uint32_t text_attr = ctx.r3.u32;
   const uint32_t layout = ctx.r4.u32;
-  __imp__sub_8217EA38(ctx, base);
+  __imp__eot_HUDText_BuildLayout(ctx, base);
   if (ctx.r3.u32 != 0)
     ScaleLayout(text_attr, layout);
 }
 
-REX_HOOK_RAW(sub_82184060) {
+REX_HOOK_RAW(eot_HUDText_BuildDrawPacket) {
   const uint32_t text_attr = ctx.r3.u32;
   const uint32_t packet = ctx.r5.u32;
-  __imp__sub_82184060(ctx, base);
+  __imp__eot_HUDText_BuildDrawPacket(ctx, base);
   ScalePacket(text_attr, packet, ctx.r3.u32 != 0);
 }
