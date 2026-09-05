@@ -52,7 +52,19 @@ REXCVAR_DEFINE_INT32(eot_pso_threads, 0, "eot",
     .range(0, 16);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "eot",
                       "Internal render scale: EDRAM surfaces and resolve mirrors are allocated at "
-                      "guest size x this (0.25..4); the present scales to the window as before.");
+                      "guest size x this (0.25..4); the present scales to the window as before. "
+                      "Used when eot_resolution is native.");
+REXCVAR_DEFINE_STRING(eot_resolution, "native", "eot",
+                      "Internal render resolution: native (the guest's own 1120x632, scaled by "
+                      "eot_render_scale), 720p, 1080p or 1440p. The preset is a target height the "
+                      "scale is derived from; the present always fits the result to the window, so "
+                      "a 1440p internal image is blitted up to whatever the display is.")
+    .allowed({"native", "720p", "1080p", "1440p"});
+REXCVAR_DEFINE_INT32(eot_fps_limit, 0, "eot",
+                     "Ceiling on presented frames per second (0 = unlimited; 30/60/90/120 are the "
+                     "menu presets). The guest runs one frame per present, so this paces the whole "
+                     "game, not just the display.")
+    .range(0, 1000);
 REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "eot",
                     "Perform same-format, 1:1, no-reorder resolves as texture copies instead of "
                     "full-screen sampling draws. Measured neutral on the GPU and slower to record "
@@ -109,6 +121,8 @@ bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
 bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
 bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
+std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
+i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::PsoDir() { return std::string(REXCVAR_GET(eot_pso_dir)); }
 std::string Settings::PsoTag() { return std::string(REXCVAR_GET(eot_pso_tag)); }
 bool Settings::PsoCapture() { return REXCVAR_GET(eot_pso_capture); }
@@ -126,5 +140,32 @@ std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dl
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
 bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
+
+namespace {
+
+f32 ComputeRenderScale() {
+  const std::string preset = Settings::Resolution();
+  u32 target_height = 0;
+  if (preset == "720p")
+    target_height = 720;
+  else if (preset == "1080p")
+    target_height = 1080;
+  else if (preset == "1440p")
+    target_height = 1440;
+  const f64 scale = target_height != 0
+                        ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
+                        : Settings::RenderScale();
+  return static_cast<f32>(std::clamp(scale, 0.25, 4.0));
+}
+
+}
+
+f32 RenderScaleFactor() {
+  static const f32 s = ComputeRenderScale();
+  return s;
+}
+
+u32 InternalRenderWidth() { return ScaleDim(kGuestRenderWidth); }
+u32 InternalRenderHeight() { return ScaleDim(kGuestRenderHeight); }
 
 }

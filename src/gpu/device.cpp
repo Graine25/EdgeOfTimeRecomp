@@ -8,6 +8,7 @@
 #include <vector>
 #include <format>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 
 #include <plume_render_interface.h>
@@ -672,10 +673,12 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM,
                                   kNumFrames + 1);
   s.swap_chain = s.queue->createSwapChain(desc);
+  if (s.swap_chain) {
+    s.swap_chain->setVsyncEnabled(Settings::Vsync());
 #if !defined(EOT_D3D12)
-  if (s.swap_chain)
     s.swap_chain->resize();
 #endif
+  }
   if (!s.swap_chain || s.swap_chain->isEmpty()) {
     EOT_ERROR("plume createSwapChain failed");
     return false;
@@ -691,6 +694,12 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots", s.backend_info,
            s.device->getDescription().name, s.swap_chain->getWidth(),
            s.swap_chain->getHeight(), kBindlessTextureCount);
+  EOT_INFO("[gpu] internal render {}x{} ({} = {:.3f}x the guest's {}x{}), fitted to the window at "
+           "present; vsync {}, fps cap {}",
+           InternalRenderWidth(), InternalRenderHeight(), Settings::Resolution(),
+           RenderScaleFactor(), kGuestRenderWidth, kGuestRenderHeight,
+           Settings::Vsync() ? "on" : "off",
+           Settings::FpsLimit() > 0 ? std::to_string(Settings::FpsLimit()) : std::string("none"));
   return true;
 }
 
