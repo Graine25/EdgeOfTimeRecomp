@@ -16,6 +16,7 @@
 #include "core/logging.h"
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
+#include "core/profiling.h"
 #include "gpu/device.h"
 #include "gpu/imgui_overlay.h"
 #include "gpu/patches/aspect_ratio.h"
@@ -127,6 +128,59 @@ void LogPerfLocked(VideoState &s) {
     p.frame_ms += std::chrono::duration<f64, std::milli>(now - p.last_present).count();
   p.last_present = now;
   p.frames++;
+
+  const i32 hitch_ms = Settings::HitchMs();
+  if (hitch_ms > 0 && p.last_present.time_since_epoch().count() != 0) {
+    const PerfCounters &q = s.perf_prev_frame;
+    const f64 wall = p.frame_ms - q.frame_ms;
+    if (wall > static_cast<f64>(hitch_ms)) {
+      EOT_WARN("[hitch] frame {} took {:.1f} ms: draw {:.2f} ({} draws) upload {:.2f} ({} tex) "
+               "resolve {:.2f} ({}) link {:.2f} ({}) pso {:.2f} ({}) guest d3d {:.2f} ({} calls) "
+               "| acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | new host objects: "
+               "{} tex ({} surface {} mirror {} guest, {} recycled) {} views {} fb, {} parked | "
+               "vtx {} KB idx {} KB "
+               "const {} KB | live {} tex {} surf, pool {} | resolve: mirror {:.2f} fb {:.2f} bind "
+               "{:.2f} | scans: alias {:.2f} msaa {:.2f} | "
+               "unaccounted {:.2f}",
+               s.guest_frames, wall, p.draw_ms - q.draw_ms, p.draws - q.draws,
+               p.upload_ms - q.upload_ms, p.uploads - q.uploads, p.resolve_ms - q.resolve_ms,
+               p.resolves - q.resolves, p.link_ms - q.link_ms, p.links - q.links,
+               p.pso_ms - q.pso_ms, p.psos - q.psos, p.guest_d3d_ms - q.guest_d3d_ms,
+               p.guest_d3d_calls - q.guest_d3d_calls, p.acquire_ms - q.acquire_ms,
+               p.submit_ms - q.submit_ms, p.fence_ms - q.fence_ms, g_pace_ms - q.pace_ms,
+               p.host_textures - q.host_textures, p.host_tex_surface - q.host_tex_surface,
+               p.host_tex_mirror - q.host_tex_mirror, p.host_tex_guest - q.host_tex_guest,
+               p.host_tex_recycled - q.host_tex_recycled,
+               p.host_views - q.host_views,
+               p.host_framebuffers - q.host_framebuffers, p.host_parked - q.host_parked,
+               (p.vertex_bytes - q.vertex_bytes) / 1024, (p.index_bytes - q.index_bytes) / 1024,
+               (p.constant_bytes - q.constant_bytes) / 1024, p.live_textures,
+               p.live_surfaces, p.pool_size, p.resolve_mirror_ms - q.resolve_mirror_ms,
+               p.resolve_fb_ms - q.resolve_fb_ms, p.resolve_bind_ms - q.resolve_bind_ms,
+               p.alias_scan_ms - q.alias_scan_ms, p.msaa_scan_ms - q.msaa_scan_ms,
+               wall - (p.draw_ms - q.draw_ms) - (p.upload_ms - q.upload_ms) -
+                   (p.resolve_ms - q.resolve_ms) - (p.guest_d3d_ms - q.guest_d3d_ms) -
+                   (p.acquire_ms - q.acquire_ms) - (p.submit_ms - q.submit_ms) -
+                   (p.fence_ms - q.fence_ms) - (g_pace_ms - q.pace_ms));
+    }
+  }
+  {
+    const PerfCounters &prev = s.perf_prev_frame;
+    EOT_PLOT("host textures created", p.host_textures - prev.host_textures);
+    EOT_PLOT("host views created", p.host_views - prev.host_views);
+    EOT_PLOT("host framebuffers created", p.host_framebuffers - prev.host_framebuffers);
+    EOT_PLOT("live guest textures", s.textures.size());
+    EOT_PLOT("live surfaces", s.surfaces.size());
+    EOT_PLOT("draws", p.draws - prev.draws);
+    EOT_PLOT("resolves", p.resolves - prev.resolves);
+  }
+  EvictStaleGuestTextures(s);
+  EvictHostTexturePool(s);
+  p.live_textures = static_cast<u32>(s.textures.size());
+  p.live_surfaces = static_cast<u32>(s.surfaces.size());
+  s.perf_prev_frame = p;
+  s.perf_prev_frame.pace_ms = g_pace_ms;
+
   if (every <= 0 || static_cast<i32>(p.frames) < every)
     return;
   const f64 n = static_cast<f64>(p.frames);
@@ -199,6 +253,7 @@ void FrameLimitWait() {
 }
 
 void Video::Present(u32 front_buffer_texture_va) {
+  EOT_CPU_ZONE("Present");
   auto &s = state();
   u32 drained_slot = ~0u;
   {
@@ -354,6 +409,7 @@ void Video::Present(u32 front_buffer_texture_va) {
   if (drained_slot != ~0u)
     DrainSlot(s, drained_slot);
   FrameLimitWait();
+  EOT_FRAME_MARK();
 }
 
 }

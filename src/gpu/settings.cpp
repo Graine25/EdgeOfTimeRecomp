@@ -47,6 +47,18 @@ REXCVAR_DEFINE_INT32(eot_pso_gate_ms, 250, "eot",
                      "Longest a model load waits for its predicted pipelines before the model "
                      "is published (0 = never wait).")
     .range(0, 5000);
+REXCVAR_DEFINE_BOOL(eot_profiler, false, "eot",
+                    "Start the Tracy profiler at boot so a viewer can attach. Zones are "
+                    "compiled into every non-Release build and cost nothing until then.");
+REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "eot",
+                    "Give every EDRAM surface, resolve mirror and guest texture its own "
+                    "dedicated allocation. The game resizes render targets every frame in "
+                    "some scenes, and a dedicated allocation costs about a millisecond each; "
+                    "suballocating from shared heaps is far cheaper.");
+REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "eot",
+                     "Log a [hitch] line with that frame's own CPU split for any presented "
+                     "frame longer than this many milliseconds (0 = off).")
+    .range(0, 1000);
 REXCVAR_DEFINE_INT32(eot_pso_threads, 0, "eot",
                      "Pipeline worker threads (0 = hardware threads - 2, clamped to 1..8).")
     .range(0, 16);
@@ -140,6 +152,9 @@ bool Settings::PsoPredictAll() { return REXCVAR_GET(eot_pso_predict_all); }
 i32 Settings::PsoPredictFallback() { return REXCVAR_GET(eot_pso_predict_fallback); }
 i32 Settings::PsoGateMs() { return REXCVAR_GET(eot_pso_gate_ms); }
 i32 Settings::PsoThreads() { return REXCVAR_GET(eot_pso_threads); }
+i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
+bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures); }
+bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }

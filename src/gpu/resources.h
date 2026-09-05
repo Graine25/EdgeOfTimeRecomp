@@ -26,6 +26,7 @@ constexpr u32 kIdentityFetchSwizzle = 0x688;
 
 struct HostTexture {
   std::unique_ptr<plume::RenderTexture> texture;
+  plume::RenderTextureDesc desc;
   std::unique_ptr<plume::RenderTextureView> srv;
   u32 descriptorIndex = kInvalidDescriptorIndex;
   struct SwizzledSrv {

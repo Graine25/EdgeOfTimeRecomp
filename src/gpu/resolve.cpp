@@ -13,6 +13,8 @@
 #include "gpu/backend.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/gpu_profiling.h"
+
 #include "gpu/draw.h"
 #include "gpu/format.h"
 #include "gpu/settings.h"
@@ -116,6 +118,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   BeginCommandList(s);
   if (!s.command_list_open)
     return;
+  EOT_CPU_ZONE("ResolveGuest");
   PerfScope perf_scope(s.perf.resolve_ms);
   s.perf.resolves++;
 
@@ -132,7 +135,12 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   }
 
   HostTexture *src_host = &surf->host;
-  if (GuestSurface *alias_src = FindMultisampleAliasSource(s, *surf)) {
+  GuestSurface *alias_src = nullptr;
+  {
+    PerfScope msaa_scope(s.perf.msaa_scan_ms);
+    alias_src = FindMultisampleAliasSource(s, *surf);
+  }
+  if (alias_src) {
     src_host = &alias_src->host;
     u32 n;
     if (DiagShouldLog(0x7400 ^ src_va, &n) && n == 0)
@@ -141,9 +149,14 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                alias_src->va);
   }
 
-  GuestTexture *dest = dest_texture_va ? GetGuestTexture(s, dest_texture_va) : nullptr;
-  if (dest && !EnsureResolveMirror(s, *dest, depth_source))
-    dest = nullptr;
+  GuestTexture *dest = nullptr;
+  {
+    EOT_CPU_ZONE("resolve destination mirror");
+    PerfScope mirror_scope(s.perf.resolve_mirror_ms);
+    dest = dest_texture_va ? GetGuestTexture(s, dest_texture_va) : nullptr;
+    if (dest && !EnsureResolveMirror(s, *dest, depth_source))
+      dest = nullptr;
+  }
 
   i32 x0 = 0, y0 = 0, x1 = static_cast<i32>(surf->width), y1 = static_cast<i32>(surf->height);
   if (src_rect_va) {
@@ -230,10 +243,16 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const i32 hx0 = ScalePx(vx), hy0 = ScalePx(vy), hx1 = ScalePx(vx + vw), hy1 = ScalePx(vy + vh);
       if (hx1 <= hx0 || hy1 <= hy0)
         return true;
-      plume::RenderFramebuffer *fb = GetMipFramebuffer(s, target, level);
+      plume::RenderFramebuffer *fb = nullptr;
+      {
+        EOT_CPU_ZONE("resolve framebuffer");
+        PerfScope fb_scope(s.perf.resolve_fb_ms);
+        fb = GetMipFramebuffer(s, target, level);
+      }
       if (!fb)
         return false;
       auto *cmd = s.command_list;
+      PerfScope bind_scope(s.perf.resolve_bind_ms);
       TransitionLocked(s, *src_host, plume::RenderTextureLayout::SHADER_READ);
       TransitionLocked(s, target.host,
                        depth_source ? plume::RenderTextureLayout::DEPTH_WRITE
@@ -264,9 +283,13 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       pc.rect[1] = static_cast<float>(sy0) / surf->height;
       pc.rect[2] = static_cast<float>(sx0 + vw) / surf->width;
       pc.rect[3] = static_cast<float>(sy0 + vh) / surf->height;
+      bind_scope.stop();
       cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
                                     kCopyPushConstantByteOffset, sizeof(pc));
-      cmd->drawInstanced(3, 1, 0, 0);
+      {
+        EOT_GPU_ZONE("resolve blit");
+        cmd->drawInstanced(3, 1, 0, 0);
+      }
       mark(target, level);
       return true;
     };
@@ -281,6 +304,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       blit(*dest, dest_level, vx, vy, vw, vh, x0, y0);
 
     if (dest_level == 0 && vw > 0 && vh > 0) {
+      s.perf.alias_scanned += static_cast<u32>(s.textures.size());
+      PerfScope alias_scope(s.perf.alias_scan_ms);
       std::vector<const GuestTexture *> visited;
       for (auto &[alias_va, alias] : s.textures) {
         GuestTexture *t = alias.get();

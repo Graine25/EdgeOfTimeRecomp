@@ -16,6 +16,8 @@
 #include <rex/memory/utils.h>
 
 #include "core/logging.h"
+#include "core/profiling.h"
+
 #include "core/memory_helpers.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
@@ -401,6 +403,7 @@ u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template
 }
 
 u32 PredictModelLoad(u32 model_va) {
+  EOT_CPU_ZONE("predict model load");
   auto &s = state();
   if (!Settings::PsoPredict() || !s.ready || !s.device || !model_va)
     return 0;
@@ -431,6 +434,7 @@ u32 PredictModelLoad(u32 model_va) {
 }
 
 u32 PredictMaterialLoad(u32 material_va) {
+  EOT_CPU_ZONE("predict material load");
   auto &s = state();
   if (!Settings::PsoPredict() || !s.ready || !s.device || !material_va)
     return 0;

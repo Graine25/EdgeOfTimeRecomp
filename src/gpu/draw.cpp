@@ -1,4 +1,7 @@
 #include "gpu/draw.h"
+
+#include "core/profiling.h"
+
 #include "gpu/settings.h"
 
 #include <algorithm>
@@ -1113,6 +1116,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   std::lock_guard lock(s.mutex);
   if (!s.ready)
     return;
+  EOT_CPU_ZONE("ExecuteDraw");
   PerfScope perf_scope(s.perf.draw_ms);
   s.perf.draws++;
   auto lap_t0 = std::chrono::steady_clock::now();

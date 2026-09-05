@@ -84,17 +84,14 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   desc.format = host.format;
   desc.flags = surf.isDepth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
-  desc.committed = true;
+  desc.committed = Settings::CommittedTextures();
   plume::RenderClearValue clear;
   if (!surf.isDepth) {
     clear = plume::RenderClearValue::Color(plume::RenderColor(0, 0, 0, 0), host.format);
     desc.optimizedClearValue = &clear;
   }
-  host.texture = CreateHostTexture(s.device.get(), desc, surf.isDepth ? "surface-ds" : "surface-rt");
-  if (!host.texture)
-    return false;
-  host.layout = plume::RenderTextureLayout::UNKNOWN;
-  return true;
+  CreateOrRecycleHostTexture(s, host, desc, surf.isDepth ? "surface-ds" : "surface-rt");
+  return host.texture != nullptr;
 }
 
 }
@@ -192,15 +189,22 @@ plume::RenderFramebuffer *GetFramebuffer(VideoState &s, HostTexture *const color
     return nullptr;
   auto it = s.framebuffers.find(key);
   if (it != s.framebuffers.end())
-    return it->second.get();
+    return it->second.fb.get();
   plume::RenderFramebufferDesc desc(n ? colors : nullptr, n, ds);
+  s.perf.host_framebuffers++;
   auto fb = s.device->createFramebuffer(desc);
   if (!fb) {
     EOT_ERROR("[surfaces] createFramebuffer failed ({} colour, depth={})", n, ds != nullptr);
     return nullptr;
   }
   auto *raw = fb.get();
-  s.framebuffers.emplace(key, std::move(fb));
+  VideoState::CachedFramebuffer entry;
+  entry.fb = std::move(fb);
+  for (u32 i = 0; i < n; ++i)
+    entry.attachments[entry.attachmentCount++] = colors[i];
+  if (ds)
+    entry.attachments[entry.attachmentCount++] = ds;
+  s.framebuffers.emplace(key, std::move(entry));
   return raw;
 }
 

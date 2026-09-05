@@ -100,8 +100,10 @@ u32 BindTextureSRVLocked(VideoState &s, HostTexture &host) {
     return kInvalidDescriptorIndex;
   if (host.descriptorIndex != kInvalidDescriptorIndex)
     return host.descriptorIndex;
-  if (!host.srv)
+  if (!host.srv) {
+    s.perf.host_views++;
     host.srv = host.texture->createTextureView(SamplingViewDesc(host));
+  }
   if (!host.srv)
     return kInvalidDescriptorIndex;
   host.descriptorIndex = PublishView(s, host, host.srv.get());
@@ -122,6 +124,7 @@ u32 BindTextureSRVSwizzledLocked(VideoState &s, HostTexture &host, u32 swizzle) 
     view_desc.componentMapping = plume::RenderComponentMapping(
         ToHostSwizzle(swizzle), ToHostSwizzle(swizzle >> 3), ToHostSwizzle(swizzle >> 6),
         ToHostSwizzle(swizzle >> 9));
+    s.perf.host_views++;
     entry.view = host.texture->createTextureView(view_desc);
   }
   if (!entry.view)

@@ -49,8 +49,16 @@ struct PerfCounters {
   u32 vertex_cache_hits = 0, vertex_cache_misses = 0;
   u32 const_file_hits = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
+  f64 pace_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
   u32 resolve_copies = 0;
+  u32 host_textures = 0, host_views = 0, host_framebuffers = 0, host_parked = 0;
+  u32 host_tex_surface = 0, host_tex_mirror = 0, host_tex_guest = 0;
+  u32 host_tex_recycled = 0;
+  u32 live_textures = 0, live_surfaces = 0, alias_scanned = 0;
+  u32 textures_evicted = 0, pool_size = 0;
+  f64 alias_scan_ms = 0, msaa_scan_ms = 0;
+  f64 resolve_mirror_ms = 0, resolve_fb_ms = 0, resolve_bind_ms = 0;
   u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;
   std::chrono::steady_clock::time_point last_present{};
 };
@@ -58,6 +66,13 @@ struct PerfCounters {
 struct PerfScope {
   f64 &acc;
   std::chrono::steady_clock::time_point t0;
+  bool stopped = false;
+  void stop() {
+    if (stopped)
+      return;
+    acc += std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    stopped = true;
+  }
   explicit PerfScope(f64 &a) : acc(a), t0(std::chrono::steady_clock::now()) {}
   ~PerfScope() {
     acc += std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -148,6 +163,7 @@ struct VideoState {
   std::unordered_map<u32, std::shared_ptr<GuestTexture>> textures;
 
   PerfCounters perf;
+  PerfCounters perf_prev_frame;
 
   struct TextureSlotCache {
     u32 texVa = 0;
@@ -162,7 +178,17 @@ struct VideoState {
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
 
-  std::unordered_map<u64, std::unique_ptr<plume::RenderFramebuffer>> framebuffers;
+  struct CachedFramebuffer {
+    std::unique_ptr<plume::RenderFramebuffer> fb;
+    const plume::RenderTexture *attachments[5] = {};
+    u32 attachmentCount = 0;
+  };
+  std::unordered_map<u64, CachedFramebuffer> framebuffers;
+  struct PooledHostTexture {
+    HostTexture host;
+    u64 freedFrame = 0;
+  };
+  std::vector<PooledHostTexture> host_texture_pool;
   const plume::RenderFramebuffer *bound_framebuffer = nullptr;
   const plume::RenderPipeline *bound_pipeline = nullptr;
   plume::RenderBuffer *bound_root_buffer[3] = {};
@@ -232,6 +258,11 @@ void ParkTexture(VideoState &s, std::unique_ptr<plume::RenderTexture> t);
 void ParkView(VideoState &s, std::unique_ptr<plume::RenderTextureView> v);
 void ParkFramebuffer(VideoState &s, std::unique_ptr<plume::RenderFramebuffer> f);
 void ParkBuffer(VideoState &s, std::unique_ptr<plume::RenderBuffer> b);
+bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
+                                const plume::RenderTextureDesc &desc, const char *tag);
+void EvictHostTexturePool(VideoState &s);
+void EvictStaleGuestTextures(VideoState &s);
+
 void ParkHostTexture(VideoState &s, HostTexture &host);
 
 u32 AllocateDescriptorSlot(VideoState &s);

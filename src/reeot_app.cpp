@@ -5,6 +5,8 @@
 #include <string>
 
 #include <rex/cvar.h>
+#include <rex/perf/counter.h>
+
 #include <rex/runtime.h>
 
 #if defined(_WIN32)
@@ -17,6 +19,7 @@
 #include "core/build_info.h"
 #include "core/logging.h"
 #include "gpu/device.h"
+#include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
@@ -48,6 +51,13 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults,
 
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   REXCVAR_SET(mnk_mode, true);
+  if (eot::gpu::Settings::Profiler()) {
+    rex::perf::Profiler::Startup();
+    if (rex::perf::Profiler::is_enabled())
+      EOT_INFO("Tracy profiler started; connect a viewer to capture.");
+    else
+      EOT_WARN("eot_profiler is set, but this build has no profiler compiled in.");
+  }
   config.graphics = nullptr;
 }
 

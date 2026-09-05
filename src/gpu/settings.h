@@ -31,6 +31,9 @@ struct Settings {
   static i32 PsoPredictFallback();
   static i32 PsoGateMs();
   static i32 PsoThreads();
+  static i32 HitchMs();
+  static bool CommittedTextures();
+  static bool Profiler();
   static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();
