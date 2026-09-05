@@ -72,6 +72,8 @@ set(REEOT_SOURCES
     src/gpu/hooks/model_load.cpp
     src/gpu/patches/frame_time.cpp
     src/gpu/patches/aspect_ratio.cpp
+    src/goliath/ui/aspect_policy.cpp
+    src/goliath/ui/text_scale.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
