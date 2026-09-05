@@ -24,9 +24,11 @@ struct Settings {
   static bool FilmGrain();
   static bool Halo();
   static bool ColorGrading();
-  static bool EdgeFilter();
   static double FovScale();
   static i32 Anisotropy();
+  static i32 QualityLevel();
+  static i32 ShadowCascades();
+  static double ShadowDistanceScale();
   static double Brightness();
   static double Contrast();
   static double Saturation();

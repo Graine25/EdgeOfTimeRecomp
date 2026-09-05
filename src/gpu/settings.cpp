@@ -108,11 +108,19 @@ REXCVAR_DEFINE_BOOL(eot_film_grain, true, "EdgeOfTime/Graphics", "Film grain ove
 REXCVAR_DEFINE_BOOL(eot_halo, true, "EdgeOfTime/Graphics", "Halo (light bleed) effect.");
 REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics",
                     "The scene colour grade (3D LUT colorization). Off shows the ungraded image.");
-REXCVAR_DEFINE_BOOL(eot_edge_filter, true, "EdgeOfTime/Graphics",
-                    "The engine's edge filter stage, where a scene enables it.");
 REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics",
                       "Field-of-view multiplier applied to every camera the game sets "
                       "(1.0 = the game's own; 1.2 shows more to the sides). Culling follows.");
+REXCVAR_DEFINE_INT32(eot_shadow_cascades, 0, "EdgeOfTime/Graphics",
+                     "Shadow map cascades per camera: 0 = as the level asks, 1..4 (the engine's "
+                     "maximum) split the shadow distance into that many maps.");
+REXCVAR_DEFINE_DOUBLE(eot_shadow_distance_scale, 1.0, "EdgeOfTime/Graphics",
+                      "Multiplier on the level's shadow distance (1 = as the level asks; "
+                      "2 casts shadows twice as far at the same map resolution).");
+REXCVAR_DEFINE_INT32(eot_quality_level, -1, "EdgeOfTime/Graphics",
+                     "EXPERIMENTAL. The content quality level the pak loader matches against each "
+                     "resource's level list (the console uses 1; the paks carry 1,2,3,4,5,8,9). "
+                     "-1 = the game's own. Takes effect at the next load.");
 REXCVAR_DEFINE_INT32(eot_anisotropy, 0, "EdgeOfTime/Graphics",
                      "Anisotropic filtering: 0 = as the game asks per texture, 1 = off, "
                      "2/4/8/16 = at least that level on every filtered texture.");
@@ -201,9 +209,11 @@ bool Settings::HeatEffects() { return REXCVAR_GET(eot_heat_effects); }
 bool Settings::FilmGrain() { return REXCVAR_GET(eot_film_grain); }
 bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
-bool Settings::EdgeFilter() { return REXCVAR_GET(eot_edge_filter); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
+i32 Settings::QualityLevel() { return REXCVAR_GET(eot_quality_level); }
+i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
+double Settings::ShadowDistanceScale() { return REXCVAR_GET(eot_shadow_distance_scale); }
 double Settings::Brightness() { return REXCVAR_GET(eot_brightness); }
 double Settings::Contrast() { return REXCVAR_GET(eot_contrast); }
 double Settings::Saturation() { return REXCVAR_GET(eot_saturation); }
