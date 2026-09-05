@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "gpu/surfaces.h"
 
 #include <memory>
@@ -65,8 +66,12 @@ bool DecodeHeader(u32 va, GuestSurface &out) {
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   HostTexture &host = surf.host;
   host.format = SurfaceHostFormat(surf);
-  host.width = ScaleDim(surf.width);
-  host.height = ScaleDim(surf.height);
+  surf.scale = RenderScaleFactor();
+  const i32 shadow_size = Settings::ShadowMapSize();
+  if (surf.isDepth && surf.width == 1024 && surf.height == 1024 && shadow_size > 0)
+    surf.scale = static_cast<float>(std::clamp(shadow_size, 256, 8192)) / 1024.0f;
+  host.width = ScaleDimBy(surf.width, surf.scale);
+  host.height = ScaleDimBy(surf.height, surf.scale);
   host.depth = 1;
   host.mipLevels = 1;
   host.arraySize = 1;
@@ -163,10 +168,11 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     slot.reset();
     return nullptr;
   }
-  EOT_INFO("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {}", surface_va,
+  EOT_INFO("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {} {}x{}", surface_va,
            surf->isDepth ? "depth" : "color", surf->width, surf->height,
            surf->isDepth ? surf->depthFormat : surf->colorFormat, surf->msaaSamples,
-           surf->baseTile, static_cast<u32>(surf->host.format));
+           surf->baseTile, static_cast<u32>(surf->host.format), surf->host.width,
+           surf->host.height);
   slot = std::move(surf);
   return slot.get();
 }

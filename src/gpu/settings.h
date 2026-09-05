@@ -28,6 +28,7 @@ struct Settings {
   static i32 Anisotropy();
   static i32 QualityLevel();
   static i32 ShadowCascades();
+  static i32 ShadowMapSize();
   static double ShadowDistanceScale();
   static double Brightness();
   static double Contrast();
@@ -68,6 +69,10 @@ f32 RenderScaleFactor();
 u32 InternalRenderWidth();
 u32 InternalRenderHeight();
 inline i32 ScalePx(i32 v) { return static_cast<i32>(std::lround(v * RenderScaleFactor())); }
+inline i32 ScalePxBy(i32 v, float s) { return static_cast<i32>(std::lround(v * s)); }
+inline u32 ScaleDimBy(u32 v, float s) {
+  return std::max(1u, static_cast<u32>(std::lround(v * s)));
+}
 inline u32 ScaleDim(u32 v) {
   return std::max(1u, static_cast<u32>(std::lround(v * RenderScaleFactor())));
 }

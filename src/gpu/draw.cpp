@@ -55,6 +55,7 @@ struct Targets {
   GuestSurface *depth = nullptr;
   u32 width = 0;
   u32 height = 0;
+  float scale = 1.0f;
 };
 
 struct ViewportInfo {
@@ -98,6 +99,10 @@ bool ResolveTargets(VideoState &s, DeviceView dev, Targets &t) {
     t.width = t.depth->width;
     t.height = t.depth->height;
   }
+  if (t.colorCount)
+    t.scale = t.color[0]->scale;
+  else if (t.depth)
+    t.scale = t.depth->scale;
   return t.colorCount || t.depth;
 }
 
@@ -180,7 +185,7 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
     v.posOffset[0] += 1.0f / std::max(1.0f, w);
     v.posOffset[1] -= 1.0f / std::max(1.0f, h);
   }
-  const float S = RenderScaleFactor();
+  const float S = t.scale;
   v.vp = plume::RenderViewport(x0 * S, y0 * S, w * S, h * S, zmin, zmax);
 
   auto scissor_of = [](u32 tl, u32 br) {
@@ -198,8 +203,9 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
   sc.bottom = std::min({static_cast<i32>(t.height), win.bottom, scr.bottom});
   if (sc.right <= sc.left || sc.bottom <= sc.top)
     sc = plume::RenderRect(0, 0, static_cast<i32>(t.width), static_cast<i32>(t.height));
-  sc = plume::RenderRect(ScalePx(sc.left), ScalePx(sc.top), std::max(ScalePx(sc.right), ScalePx(sc.left) + 1),
-                         std::max(ScalePx(sc.bottom), ScalePx(sc.top) + 1));
+  sc = plume::RenderRect(ScalePxBy(sc.left, S), ScalePxBy(sc.top, S),
+                         std::max(ScalePxBy(sc.right, S), ScalePxBy(sc.left, S) + 1),
+                         std::max(ScalePxBy(sc.bottom, S), ScalePxBy(sc.top, S) + 1));
   v.scissor = sc;
   return v;
 }

@@ -433,7 +433,8 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
   return BindTextureSRVSwizzledLocked(s, t.host, swizzle);
 }
 
-bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source) {
+bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, float scale) {
+  const float k = scale > 0.0f ? scale : RenderScaleFactor();
   if (!t.host.texture)
     return false;
   if (!t.resolveOwned && depth_source == t.host.isDepth && t.host.renderable &&
@@ -443,7 +444,9 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source) {
       const TextureInfo &info = it->second;
       const plume::RenderFormat want =
           depth_source ? t.host.format : ResolveDestinationFormat(t.format, depth_source);
-      const u32 want_w = ScaleDim(InfoWidth(info)), want_h = ScaleDim(InfoHeight(info));
+      const u32 want_w = ScaleDimBy(InfoWidth(info), k), want_h = ScaleDimBy(InfoHeight(info), k);
+      if (k != RenderScaleFactor() && (t.host.width != want_w || t.host.height != want_h))
+        EOT_INFO("[textures] {:#x}: resolve mirror at x{:.2f}: {}x{}", t.va, k, want_w, want_h);
       if (t.host.format != want || t.host.width != want_w || t.host.height != want_h) {
         EOT_DEBUG("[textures] {:#x}: switching mirror to resolve format {} {}x{} (was {} {}x{})",
                   t.va, static_cast<u32>(want), want_w, want_h, static_cast<u32>(t.host.format),

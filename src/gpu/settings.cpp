@@ -121,6 +121,10 @@ REXCVAR_DEFINE_INT32(eot_quality_level, -1, "EdgeOfTime/Graphics",
                      "EXPERIMENTAL. The content quality level the pak loader matches against each "
                      "resource's level list (the console uses 1; the paks carry 1,2,3,4,5,8,9). "
                      "-1 = the game's own. Takes effect at the next load.");
+REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
+                     "Shadow map size per cascade in texels: 0 = follow the render resolution "
+                     "(the console's 1024 scaled like the frame, 1750 at 1080p), or 1024 / 2048 / "
+                     "4096 fixed. Applies to shadow surfaces created after the change.");
 REXCVAR_DEFINE_INT32(eot_anisotropy, 0, "EdgeOfTime/Graphics",
                      "Anisotropic filtering: 0 = as the game asks per texture, 1 = off, "
                      "2/4/8/16 = at least that level on every filtered texture.");
@@ -213,6 +217,7 @@ double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
 i32 Settings::QualityLevel() { return REXCVAR_GET(eot_quality_level); }
 i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
+i32 Settings::ShadowMapSize() { return REXCVAR_GET(eot_shadow_map_size); }
 double Settings::ShadowDistanceScale() { return REXCVAR_GET(eot_shadow_distance_scale); }
 double Settings::Brightness() { return REXCVAR_GET(eot_brightness); }
 double Settings::Contrast() { return REXCVAR_GET(eot_contrast); }
