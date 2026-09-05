@@ -17,6 +17,7 @@
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
+#include "gpu/imgui_overlay.h"
 #include "gpu/patches/aspect_ratio.h"
 #include "gpu/patches/movie_aspect.h"
 #include "gpu/pipeline/pipeline_cache.h"
@@ -309,6 +310,18 @@ void Video::Present(u32 front_buffer_texture_va) {
         EOT_WARN("[present] no front buffer mirror for {:#x}; presenting black",
                  front_buffer_texture_va);
     }
+    {
+      const u32 out_w = s.swap_chain->getWidth(), out_h = s.swap_chain->getHeight();
+      const plume::RenderViewport full(0.0f, 0.0f, static_cast<float>(out_w),
+                                       static_cast<float>(out_h), 0.0f, 1.0f);
+      const plume::RenderRect full_scissor(0, 0, static_cast<i32>(out_w), static_cast<i32>(out_h));
+      cmd->setViewports(&full, 1);
+      cmd->setScissors(&full_scissor, 1);
+      RunOverlayDrawHook(cmd, s.swap_framebuffers[image].get(), out_w, out_h);
+      s.bound_pipeline = nullptr;
+      s.bound_framebuffer = nullptr;
+    }
+
     plume::RenderTextureBarrier to_present(back, plume::RenderTextureLayout::PRESENT);
     cmd->barriers(plume::RenderBarrierStage::NONE, &to_present, 1);
 

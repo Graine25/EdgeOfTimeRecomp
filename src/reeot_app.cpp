@@ -17,6 +17,7 @@
 #include "core/build_info.h"
 #include "core/logging.h"
 #include "gpu/device.h"
+#include "gpu/imgui_overlay.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 
@@ -50,6 +51,10 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   config.graphics = nullptr;
 }
 
+std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
+  return eot::gpu::CreateOverlayDrawer();
+}
+
 void ReeotApp::OnPreLaunchModule() {
   EOT_INFO("reeot {} ({}@{}{}) renderer starting", REEOT_VERSION_STRING, REEOT_GIT_BRANCH,
            REEOT_GIT_COMMIT, REEOT_GIT_DIRTY ? "+" : "");
@@ -60,6 +65,16 @@ void ReeotApp::OnPreLaunchModule() {
     EOT_ERROR("Host device creation failed: the guest will run headless");
     return;
   }
+  eot::gpu::SetOverlayDrawHook([this](plume::RenderCommandList *cmd,
+                                      plume::RenderFramebuffer *framebuffer, uint32_t width,
+                                      uint32_t height) {
+    if (!imgui_drawer() || !imgui_drawer()->HasDialogs())
+      return;
+    app_context().CallInUIThreadSynchronous([&] {
+      eot::gpu::OverlayDrawContext ctx(width, height, cmd, framebuffer);
+      imgui_drawer()->Draw(ctx);
+    });
+  });
   eot::gpu::GuestShadersInit();
   eot::gpu::PsoCachePrecache();
 }

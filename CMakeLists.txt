@@ -55,6 +55,7 @@ set(REEOT_SOURCES
     src/gpu/device.cpp
     src/gpu/frame_ring.cpp
     src/gpu/present.cpp
+    src/gpu/imgui_overlay.cpp
     src/gpu/bindless.cpp
     src/gpu/sampler_cache.cpp
     src/gpu/format.cpp
@@ -135,10 +136,10 @@ if(WIN32)
     target_link_libraries(reeot PRIVATE winmm)
 endif()
 
-foreach(shader IN ITEMS copy_vs)
+foreach(shader IN ITEMS copy_vs imgui_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
 endforeach()
-foreach(shader IN ITEMS blit_ps copy_depth_ps)
+foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps)
     reeot_host_shader(reeot ${shader} ps_6_0)
 endforeach()
 
