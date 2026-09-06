@@ -556,6 +556,7 @@ struct VertexMirrorCache {
   std::unordered_map<VertexMirrorKey, VertexMirror, VertexMirrorKeyHash> map;
   std::unordered_map<VertexMirrorKey, u64, VertexMirrorKeyHash> seen;
   BufferPool pool;
+  bool admissionClosed = false;
 };
 VertexMirrorCache &vertex_mirrors() {
   static VertexMirrorCache c;
@@ -566,22 +567,25 @@ constexpr u64 kVertexMirrorBudgetBytes = 256ull << 20;
 constexpr u32 kVertexMirrorMaxBytes = 32u << 20;
 constexpr size_t kVertexMirrorSeenCap = 4096;
 
-const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st) {
+const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st, u64 first, u64 bytes) {
   static const bool enabled = Settings::VertexMirrors();
-  if (!enabled || !st.dataVa || !st.sizeBytes || st.sizeBytes > kVertexMirrorMaxBytes || !st.data)
+  if (!enabled || !st.dataVa || !bytes || bytes > kVertexMirrorMaxBytes || !st.data ||
+      first > UINT32_MAX - st.dataVa)
     return nullptr;
   auto &c = vertex_mirrors();
   VertexMirrorKey key;
-  key.data_va = st.dataVa;
-  key.size = st.sizeBytes;
+  key.data_va = st.dataVa + static_cast<u32>(first);
+  key.size = static_cast<u32>(bytes);
   key.seq = st.objectVa ? ResourceUnlockSeq(st.objectVa) : 0;
-  key.sample = SampleHostBytes(st.data, st.sizeBytes);
+  key.sample = SampleHostBytes(st.data + first, key.size);
   auto it = c.map.find(key);
   if (it != c.map.end()) {
     it->second.lastUseFrame = s.guest_frames;
     s.perf.vertex_cache_hits++;
     return &it->second;
   }
+  if (c.admissionClosed)
+    return nullptr;
   auto seen = c.seen.find(key);
   if (seen == c.seen.end()) {
     if (c.seen.size() >= kVertexMirrorSeenCap)
@@ -592,13 +596,21 @@ const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st) {
   if (seen->second >= s.guest_frames)
     return nullptr;
   c.seen.erase(seen);
+  if (c.pool.totalBytes > kVertexMirrorBudgetBytes ||
+      bytes > kVertexMirrorBudgetBytes - c.pool.totalBytes) {
+    c.admissionClosed = true;
+    EOT_INFO("[draw] vertex-mirror cache full ({} MB, {} ranges); keeping residents and "
+             "using frame uploads for new ranges",
+             c.pool.totalBytes >> 20, c.map.size());
+    return nullptr;
+  }
   s.perf.vertex_cache_misses++;
   plume::RenderBuffer *buffer = nullptr;
   u64 offset = 0;
   u8 *cpu = nullptr;
   bool reset = false;
   const bool ok = PoolAllocate(s, c.pool, kVertexMirrorBudgetBytes, kVertexMirrorChunkBytes,
-                               plume::RenderBufferFlag::VERTEX, "vertex-mirror", st.sizeBytes, 16,
+                               plume::RenderBufferFlag::VERTEX, "vertex-mirror", bytes, 16,
                                &buffer, &offset, &cpu, &reset);
   if (reset)
     c.map.clear();
@@ -606,13 +618,13 @@ const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st) {
     return nullptr;
   {
     PerfScope copy_scope(s.perf.vertex_copy_ms);
-    CopyVertexBytes(cpu, st.data, st.sizeBytes);
+    CopyVertexBytes(cpu, st.data + first, static_cast<u32>(bytes));
   }
-  s.perf.vertex_bytes += st.sizeBytes;
+  s.perf.vertex_bytes += bytes;
   VertexMirror m;
   m.buffer = buffer;
   m.offset = offset;
-  m.size = st.sizeBytes;
+  m.size = static_cast<u32>(bytes);
   m.lastUseFrame = s.guest_frames;
   return &c.map.emplace(key, m).first->second;
 }
@@ -1347,9 +1359,9 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
       Dropped("vertex range implausibly large", 0x600F);
       return;
     }
-    if (const VertexMirror *mirror = GetVertexMirror(s, st_info)) {
+    if (const VertexMirror *mirror = GetVertexMirror(s, st_info, first, bytes)) {
       views[S] = plume::RenderVertexBufferView(
-          plume::RenderBufferReference(mirror->buffer, mirror->offset + first),
+          plume::RenderBufferReference(mirror->buffer, mirror->offset),
           static_cast<u32>(bytes));
       continue;
     }

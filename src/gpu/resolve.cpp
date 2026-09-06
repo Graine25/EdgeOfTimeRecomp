@@ -153,7 +153,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   {
     EOT_CPU_ZONE("resolve destination mirror");
     PerfScope mirror_scope(s.perf.resolve_mirror_ms);
-    dest = dest_texture_va ? GetGuestTexture(s, dest_texture_va) : nullptr;
+    dest = dest_texture_va ? GetGuestTexture(s, dest_texture_va, false) : nullptr;
     if (dest && !EnsureResolveMirror(s, *dest, depth_source, surf->scale))
       dest = nullptr;
   }

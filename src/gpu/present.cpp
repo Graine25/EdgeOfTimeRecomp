@@ -164,6 +164,7 @@ void LogPerfLocked(VideoState &s) {
                    (p.fence_ms - q.fence_ms) - (g_pace_ms - q.pace_ms));
     }
   }
+  EvictStaleGuestSurfaces(s);
   {
     const PerfCounters &prev = s.perf_prev_frame;
     EOT_PLOT("host textures created", p.host_textures - prev.host_textures);
@@ -255,17 +256,26 @@ void SleepUntil(std::chrono::steady_clock::time_point when) {
 void FrameLimitWait() {
   using clock = std::chrono::steady_clock;
   static clock::time_point deadline{};
+  static i32 cadence_fps = 0;
   const i32 fps = Settings::FpsLimit();
   if (fps <= 0) {
     deadline = clock::time_point{};
+    cadence_fps = 0;
     return;
   }
   const auto period =
       std::chrono::duration_cast<clock::duration>(std::chrono::duration<f64>(1.0 / fps));
   const auto now = clock::now();
-  if (deadline == clock::time_point{} || now > deadline + period)
-    deadline = now;
-  deadline += period;
+  if (deadline == clock::time_point{} || cadence_fps != fps) {
+    cadence_fps = fps;
+    deadline = now + period;
+  } else {
+    deadline += period;
+    if (now > deadline) {
+      deadline = now;
+      return;
+    }
+  }
   const auto before = clock::now();
   SleepUntil(deadline);
   g_pace_ms += std::chrono::duration<f64, std::milli>(clock::now() - before).count();

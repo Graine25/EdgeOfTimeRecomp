@@ -7,12 +7,13 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/ui/menu_handles.h"
+#include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgr_LoadMainPackage);
-REX_EXTERN(__imp__sub_820820A8);
-REX_EXTERN(__imp__sub_821B0D50);
-REX_EXTERN(__imp__sub_821AEB08); // PKPackage_Mount(package r3)
-REX_EXTERN(__imp__sub_821B7E70);
+REX_EXTERN(__imp__eot_MMMemoryMgr_Alloc);
+REX_EXTERN(__imp__eot_PKPackageMgrBC_Load);
+REX_EXTERN(__imp__eot_PKPackage_Mount); // PKPackage_Mount(package r3)
+REX_EXTERN(__imp__eot_Stream_Open);
 REX_EXTERN(__imp__eot_GLAPIResource_FindResourceFromCRC); // (type r3, nameCRC r4) -> resource or 0
 
 namespace {
@@ -33,7 +34,7 @@ uint32_t GuestAlloc(const PPCContext &ctx, uint8_t *base, uint32_t size) {
   call.r4.u32 = 16;
   call.r5.u32 = 0xFFFFFFFFu;
   call.r6.u32 = 0;
-  __imp__sub_820820A8(call, base);
+  __imp__eot_MMMemoryMgr_Alloc(call, base);
   return call.r3.u32;
 }
 
@@ -69,21 +70,8 @@ uint32_t LoadPackage(const PPCContext &ctx, uint8_t *base, uint32_t id) {
   call.r5.u32 = 0xFFFFFFFFu;
   call.r6.u32 = 0;
   call.r7.u32 = 0;
-  __imp__sub_821B0D50(call, base);
+  __imp__eot_PKPackageMgrBC_Load(call, base);
   return call.r3.u32;
-}
-
-uint32_t NameCrc(const char *name) {
-  uint32_t crc = 0xFFFFFFFFu;
-  for (; *name; ++name) {
-    char c = *name;
-    if (c >= 'a' && c <= 'z')
-      c = static_cast<char>(c - 32);
-    crc ^= static_cast<uint8_t>(c);
-    for (int k = 0; k < 8; ++k)
-      crc = (crc & 1) ? (0xEDB88320u ^ (crc >> 1)) : (crc >> 1);
-  }
-  return ~crc;
 }
 
 constexpr const char *kReeotTextures[] = {"Reeot_PopUpBox", "Reeot_Font_TempusGothic", "Reeot_Font_SansaCon"};
@@ -102,29 +90,35 @@ std::string GuestString(uint32_t addr, uint32_t max = 160) {
 
 }
 
-REX_HOOK_RAW(sub_821AEB08) {
+REX_HOOK_RAW(eot_PKPackage_Mount) {
   const uint32_t package = ctx.r3.u32;
   const uint32_t id = package ? eot::mem::load<uint32_t>(package + 176) : 0;
   const uint32_t record = id < 4096 ? eot::mem::load<uint32_t>(kPackageMgr + kMgrRecords + id * 4) : 0;
-  __imp__sub_821AEB08(ctx, base);
+  __imp__eot_PKPackage_Mount(ctx, base);
   EOT_DEBUG("[pkg] mount id {} '{}' -> flags {:#x} openFlags {:#x}", id, GuestString(record),
            package ? eot::mem::load<uint32_t>(package + 160) : 0u,
            package ? eot::mem::load<uint32_t>(package + 164) : 0u);
   if (id != eot::ui::kReeotPackageId)
     return;
+  if (package) {
+    const uint32_t flags = eot::mem::load<uint32_t>(package + 160);
+    eot::mem::store<uint32_t>(package + 160, flags | 0x8);
+    EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", eot::ui::kReeotPackageName, flags,
+             flags | 0x8);
+  }
   for (const char *name : kReeotTextures) {
     PPCContext call = ctx;
     call.r3.u32 = kResourceTypeTexture;
-    call.r4.u32 = NameCrc(name);
+    call.r4.u32 = eot::ui::NameCrc(name);
     __imp__eot_GLAPIResource_FindResourceFromCRC(call, base);
-    EOT_INFO("[pkg] texture {} (crc {:#010x}) -> resource {:#x}", name, NameCrc(name), call.r3.u32);
+    EOT_DEBUG("[pkg] texture {} (crc {:#010x}) -> resource {:#x}", name, eot::ui::NameCrc(name), call.r3.u32);
   }
 }
 
-REX_HOOK_RAW(sub_821B7E70) {
+REX_HOOK_RAW(eot_Stream_Open) {
   const std::string name = GuestString(ctx.r4.u32);
   const uint32_t mode = ctx.r5.u32;
-  __imp__sub_821B7E70(ctx, base);
+  __imp__eot_Stream_Open(ctx, base);
   EOT_DEBUG("[pkg] open '{}' mode {:#x} -> {:#x}", name, mode, ctx.r3.u32);
 }
 

@@ -301,9 +301,17 @@ constexpr u64 kTextureIdleFrames = 120;
 
 void EvictStaleGuestTextures(VideoState &s) {
   EOT_CPU_ZONE("evict guest textures");
+  bool evicted = false;
   for (auto it = s.textures.begin(); it != s.textures.end();) {
     const std::shared_ptr<GuestTexture> &slot = it->second;
-    if (!slot || slot->lastUseFrame + kTextureIdleFrames >= s.guest_frames) {
+    if (!slot) {
+      infos().erase(it->first);
+      it = s.textures.erase(it);
+      s.perf.textures_evicted++;
+      evicted = true;
+      continue;
+    }
+    if (slot->lastUseFrame + kTextureIdleFrames >= s.guest_frames) {
       ++it;
       continue;
     }
@@ -312,8 +320,9 @@ void EvictStaleGuestTextures(VideoState &s) {
     infos().erase(it->first);
     it = s.textures.erase(it);
     s.perf.textures_evicted++;
+    evicted = true;
   }
-  if (s.perf.textures_evicted)
+  if (evicted)
     s.texture_generation.fetch_add(1, std::memory_order_relaxed);
 }
 
@@ -331,7 +340,7 @@ u64 ResourceUnlockSeq(u32 resource_va) {
   return it == u.seq.end() ? 0 : it->second;
 }
 
-GuestTexture *GetGuestTexture(VideoState &s, u32 header_va) {
+GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_image) {
   if (!header_va)
     return nullptr;
   u32 fetch[6];
@@ -349,6 +358,11 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va) {
   if (slot && same_storage(slot->fetch, fetch)) {
     if (std::memcmp(slot->fetch, fetch, sizeof(fetch)) != 0)
       std::memcpy(slot->fetch, fetch, sizeof(fetch));
+    if (create_host_image && !slot->host.texture) {
+      const auto info = infos().find(header_va);
+      if (info != infos().end() && CreateHostImage(s, *slot, info->second))
+        s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+    }
     return slot.get();
   }
 
@@ -401,7 +415,8 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va) {
   t->mipAddress = info.memory.mip_address;
   t->gammaSigned = f.sign_x == xe::TextureSign::kGamma;
   infos()[header_va] = info;
-  CreateHostImage(s, *t, info);
+  if (create_host_image)
+    CreateHostImage(s, *t, info);
   EOT_DEBUG("[textures] {:#x}: {}x{}x{} mips {}..{} fmt {} {} {} base {:#x} mip {:#x} -> host fmt {}",
             header_va, InfoWidth(info), InfoHeight(info), InfoDepth(info), info.mip_min_level,
             info.mip_max_level, static_cast<u32>(info.format), info.is_tiled ? "tiled" : "linear",
@@ -436,58 +451,74 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
 
 bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, float scale) {
   const float k = scale > 0.0f ? scale : RenderScaleFactor();
-  if (!t.host.texture)
+  const auto info_it = infos().find(t.va);
+  if (info_it == infos().end())
     return false;
-  if (!t.resolveOwned && depth_source == t.host.isDepth && t.host.renderable &&
-      t.host.viewFormat == plume::RenderFormat::UNKNOWN) {
-    auto it = infos().find(t.va);
-    if (it != infos().end()) {
-      const TextureInfo &info = it->second;
-      const plume::RenderFormat want =
-          depth_source ? t.host.format : ResolveDestinationFormat(t.format, depth_source);
-      const u32 want_w = ScaleDimBy(InfoWidth(info), k), want_h = ScaleDimBy(InfoHeight(info), k);
-      if (k != RenderScaleFactor() && (t.host.width != want_w || t.host.height != want_h))
-        EOT_INFO("[textures] {:#x}: resolve mirror at x{:.2f}: {}x{}", t.va, k, want_w, want_h);
-      if (t.host.format != want || t.host.width != want_w || t.host.height != want_h) {
-        EOT_DEBUG("[textures] {:#x}: switching mirror to resolve format {} {}x{} (was {} {}x{})",
-                  t.va, static_cast<u32>(want), want_w, want_h, static_cast<u32>(t.host.format),
-                  t.host.width, t.host.height);
-        ParkHostTexture(s, t.host);
-        const bool is_depth = depth_source;
-        t.host = HostTexture{};
-        plume::RenderTextureDesc desc;
-        desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
-        desc.width = want_w;
-        desc.height = want_h;
-        desc.depth = 1;
-        desc.arraySize = 1;
-        u32 max_levels = 1;
-        for (u32 w = desc.width, h = desc.height; (w > 1 || h > 1) && max_levels < 14;
-             ++max_levels) {
-          w = std::max(1u, w >> 1);
-          h = std::max(1u, h >> 1);
-        }
-        desc.mipLevels = is_depth ? 1u : std::min(info.mip_max_level + 1u, max_levels);
-        desc.format = want;
-        desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
-                              : plume::RenderTextureFlag::RENDER_TARGET;
-        desc.committed = Settings::CommittedTextures();
-        t.host.texture = CreateHostTexture(s.device.get(), desc, "resolve-mirror");
-        t.host.format = want;
-        t.host.viewFormat = plume::RenderFormat::UNKNOWN;
-        t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
-        t.host.width = desc.width;
-        t.host.height = desc.height;
-        t.host.depth = 1;
-        t.host.mipLevels = desc.mipLevels;
-        t.host.arraySize = 1;
-        t.host.isDepth = is_depth;
-        CreateOrRecycleHostTexture(s, t.host, desc, "resolve-mirror");
-        t.host.renderable = t.host.texture != nullptr;
-        t.uploaded = false;
-        if (!t.host.texture)
-          return false;
+  const TextureInfo &info = info_it->second;
+
+  const TextureFormatMapping mapping = MapTextureFormat(t.format);
+  const bool texture_is_depth = t.format == xe::TextureFormat::k_24_8 ||
+                                t.format == xe::TextureFormat::k_24_8_FLOAT;
+  if (!t.host.texture &&
+      (t.dimension != xe::DataDimension::k2DOrStacked ||
+       (info.is_stacked && InfoDepth(info) > 1) || !mapping.supported ||
+       mapping.blockCompressed || depth_source != texture_is_depth)) {
+    if (!CreateHostImage(s, t, info))
+      return false;
+    s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+  }
+  if (!t.resolveOwned &&
+      (!t.host.texture || (depth_source == t.host.isDepth && t.host.renderable &&
+                           t.host.viewFormat == plume::RenderFormat::UNKNOWN))) {
+    const plume::RenderFormat want = ResolveDestinationFormat(t.format, depth_source);
+    if (want == plume::RenderFormat::UNKNOWN)
+      return false;
+    const u32 want_w = ScaleDimBy(InfoWidth(info), k), want_h = ScaleDimBy(InfoHeight(info), k);
+    if (k != RenderScaleFactor() && (t.host.width != want_w || t.host.height != want_h))
+      EOT_INFO("[textures] {:#x}: resolve mirror at x{:.2f}: {}x{}", t.va, k, want_w, want_h);
+    if (!t.host.texture || t.host.format != want || t.host.width != want_w ||
+        t.host.height != want_h) {
+      EOT_DEBUG("[textures] {:#x}: switching mirror to resolve format {} {}x{} (was {} {}x{})",
+                t.va, static_cast<u32>(want), want_w, want_h, static_cast<u32>(t.host.format),
+                t.host.width, t.host.height);
+      const bool replacing_host = t.host.texture != nullptr;
+      ParkHostTexture(s, t.host);
+      s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+      const bool is_depth = depth_source;
+      t.host = HostTexture{};
+      plume::RenderTextureDesc desc;
+      desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
+      desc.width = want_w;
+      desc.height = want_h;
+      desc.depth = 1;
+      desc.arraySize = 1;
+      u32 max_levels = 1;
+      for (u32 w = desc.width, h = desc.height; (w > 1 || h > 1) && max_levels < 14;
+           ++max_levels) {
+        w = std::max(1u, w >> 1);
+        h = std::max(1u, h >> 1);
       }
+      desc.mipLevels = is_depth && replacing_host
+                           ? 1u
+                           : std::min(info.mip_max_level + 1u, max_levels);
+      desc.format = want;
+      desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
+                            : plume::RenderTextureFlag::RENDER_TARGET;
+      desc.committed = Settings::CommittedTextures();
+      t.host.format = want;
+      t.host.viewFormat = plume::RenderFormat::UNKNOWN;
+      t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+      t.host.width = desc.width;
+      t.host.height = desc.height;
+      t.host.depth = 1;
+      t.host.mipLevels = desc.mipLevels;
+      t.host.arraySize = 1;
+      t.host.isDepth = is_depth;
+      CreateOrRecycleHostTexture(s, t.host, desc, "resolve-mirror");
+      t.host.renderable = t.host.texture != nullptr;
+      t.uploaded = false;
+      if (!t.host.texture)
+        return false;
     }
   }
   if (!t.host.renderable) {

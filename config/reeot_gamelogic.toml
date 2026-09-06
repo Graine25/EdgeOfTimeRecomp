@@ -1146,7 +1146,7 @@ out_directory_path = "generated/gamelogic"
 0x8822ED18 = { size = 0xFC }
 0x8822F650 = { size = 0x138 }
 0x8822FCC0 = { size = 0x78 }
-0x882305D8 = { size = 0x244 }
+0x882305D8 = { name = "eot_PauseMenu_EnterOpening", size = 0x244 }
 0x88230820 = { size = 0x44 }
 0x88230868 = { size = 0x120 }
 0x88230D40 = { size = 0x120 }
@@ -1187,7 +1187,7 @@ out_directory_path = "generated/gamelogic"
 0x882395C0 = { size = 0xD0 }
 0x8823A990 = { size = 0xD0 }
 0x8823AAC0 = { size = 0x420 }
-0x8823B130 = { size = 0x160 }
+0x8823B130 = { name = "eot_HUDOptionsScreen_BuildBar", size = 0x160 }
 0x8823B290 = { size = 0x94 }
 0x8823B888 = { size = 0x84 }
 0x8823BD50 = { size = 0xC8 }
@@ -2230,6 +2230,14 @@ out_directory_path = "generated/gamelogic"
 0x883B7AF0 = { size = 0x10 }
 
 0x881F00F0 = { name = "eot_GameStateManagerSM2011_ReturnToFrontscreen", size = 0x150 }
+
+0x8822FC00 = { name = "eot_PauseMenu_InitButtonTextHandles", size = 0xBC }
+0x88232128 = { name = "eot_PauseMenu_HandleMainMenuSelectOption", size = 0x5F0 }
+0x88232718 = { name = "eot_PauseMenu_GetMainMenuBarInfo", size = 0x280 }
+0x88232998 = { name = "eot_PauseMenu_HandleMessage", size = 0xBB8 }
+0x8823B328 = { name = "eot_HUDOptionsScreen_HandleInputEvent", size = 0x3FC }
+0x882825C8 = { name = "eot_YesNoWindow_Open", size = 0x170 }
+0x88298A30 = { name = "eot_YesNoWindow_InitConfig", size = 0x1C4 }
 
 [[midasm_hook]]
 address = 0x882314D4

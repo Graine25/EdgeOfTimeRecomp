@@ -10,6 +10,7 @@
 #include <format>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 #include <plume_render_interface.h>
@@ -718,16 +719,45 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   return true;
 }
 
+void Video::RequestShutdown() { state().shutting_down.store(true, std::memory_order_release); }
+
+bool Video::IsShuttingDown() { return state().shutting_down.load(std::memory_order_acquire); }
+
 void Video::BeginShutdown() {
-  state().shutting_down.store(true, std::memory_order_release);
+  auto &s = state();
+  s.shutting_down.store(true, std::memory_order_release);
   PsoPrecacheStop();
   PsoCacheFlushIfDirty(true);
+  if (s.quiesced)
+    return;
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1500);
+  while (!s.mutex.try_lock()) {
+    if (std::chrono::steady_clock::now() >= deadline) {
+      EOT_WARN("[gpu] shutdown: a thread is still in the renderer; exiting without the drain");
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  s.ready = false;
+  if (s.command_list_open && s.command_list) {
+    s.command_list->end();
+    s.command_list_open = false;
+  }
+  if (s.queue) {
+    for (u32 i = 0; i < kNumFrames; ++i) {
+      if (s.command_list_submitted[i] && s.fences[i]) {
+        s.queue->waitForCommandFence(s.fences[i].get());
+        s.command_list_submitted[i] = false;
+      }
+    }
+  }
+  s.quiesced = true;
 }
 
 void Video::Shutdown() {
   auto &s = state();
   std::unique_lock lock(s.mutex, std::try_to_lock);
-  if (!lock.owns_lock()) {
+  if (!lock.owns_lock() && !s.quiesced) {
     EOT_WARN("Shutdown: renderer busy, skipping GPU drain");
     return;
   }

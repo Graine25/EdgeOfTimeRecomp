@@ -116,6 +116,41 @@ u64 DescriptorKey(const GuestSurface &d) {
   return k;
 }
 
+static bool SurfaceDescriptorReferenced(const VideoState &s, u64 key) {
+  for (const auto &binding : s.surface_key_by_va) {
+    if (binding.second.key == key)
+      return true;
+  }
+  return false;
+}
+
+static void OrphanSurfaceDescriptor(VideoState &s, u64 key) {
+  if (!SurfaceDescriptorReferenced(s, key))
+    s.orphaned_surface_frame.try_emplace(key, s.guest_frames);
+}
+
+static void TrackSurfaceDescriptor(VideoState &s, u32 surface_va, u64 key) {
+  auto [binding, inserted] = s.surface_key_by_va.emplace(
+      surface_va, VideoState::SurfaceHeaderBinding{key, s.guest_frames});
+  s.orphaned_surface_frame.erase(key);
+  if (inserted)
+    return;
+  const u64 old_key = binding->second.key;
+  binding->second = {key, s.guest_frames};
+  if (old_key == key)
+    return;
+  OrphanSurfaceDescriptor(s, old_key);
+}
+
+static void ForgetSurfaceDescriptor(VideoState &s, u32 surface_va) {
+  const auto binding = s.surface_key_by_va.find(surface_va);
+  if (binding == s.surface_key_by_va.end())
+    return;
+  const u64 old_key = binding->second.key;
+  s.surface_key_by_va.erase(binding);
+  OrphanSurfaceDescriptor(s, old_key);
+}
+
 static bool HalvesTo(u32 full, u32 half) {
   return half && (half == full / 2 || half == (full + 1) / 2);
 }
@@ -145,6 +180,7 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     return nullptr;
   GuestSurface decoded;
   if (!DecodeHeader(surface_va, decoded)) {
+    ForgetSurfaceDescriptor(s, surface_va);
     u32 n;
     if (DiagShouldLog(0x5C00 ^ surface_va, &n))
       EOT_WARN("[surfaces] {:#x}: unreadable or absurd header", surface_va);
@@ -158,6 +194,7 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     slot->info = decoded.info;
     slot->hiControl = decoded.hiControl;
     slot->colorExpBias = decoded.colorExpBias;
+    TrackSurfaceDescriptor(s, surface_va, key);
     return slot.get();
   }
   if (slot)
@@ -166,6 +203,8 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
   *surf = std::move(decoded);
   if (!CreateHostTarget(s, *surf)) {
     slot.reset();
+    s.surfaces.erase(key);
+    ForgetSurfaceDescriptor(s, surface_va);
     return nullptr;
   }
   EOT_INFO("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {} {}x{}", surface_va,
@@ -174,7 +213,39 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
            surf->baseTile, static_cast<u32>(surf->host.format), surf->host.width,
            surf->host.height);
   slot = std::move(surf);
+  TrackSurfaceDescriptor(s, surface_va, key);
   return slot.get();
+}
+
+void EvictStaleGuestSurfaces(VideoState &s) {
+  constexpr u64 kSurfaceIdleFrames = 120;
+  for (auto binding = s.surface_key_by_va.begin(); binding != s.surface_key_by_va.end();) {
+    if (binding->second.lastSeenFrame + kSurfaceIdleFrames >= s.guest_frames) {
+      ++binding;
+      continue;
+    }
+    const u64 old_key = binding->second.key;
+    binding = s.surface_key_by_va.erase(binding);
+    OrphanSurfaceDescriptor(s, old_key);
+  }
+
+  for (auto it = s.orphaned_surface_frame.begin(); it != s.orphaned_surface_frame.end();) {
+    if (SurfaceDescriptorReferenced(s, it->first)) {
+      it = s.orphaned_surface_frame.erase(it);
+      continue;
+    }
+    if (it->second >= s.guest_frames) {
+      ++it;
+      continue;
+    }
+    const auto surface = s.surfaces.find(it->first);
+    if (surface != s.surfaces.end()) {
+      if (surface->second)
+        ParkHostTexture(s, surface->second->host);
+      s.surfaces.erase(surface);
+    }
+    it = s.orphaned_surface_frame.erase(it);
+  }
 }
 
 plume::RenderFramebuffer *GetFramebuffer(VideoState &s, HostTexture *const color[4],

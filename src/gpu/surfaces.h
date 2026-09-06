@@ -10,6 +10,8 @@ struct VideoState;
 
 GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va);
 
+void EvictStaleGuestSurfaces(VideoState &s);
+
 plume::RenderFormat SurfaceHostFormat(const GuestSurface &surface);
 
 GuestSurface *FindMultisampleAliasSource(VideoState &s, const GuestSurface &alias);

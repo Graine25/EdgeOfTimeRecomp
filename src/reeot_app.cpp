@@ -18,6 +18,7 @@
 
 #include "core/build_info.h"
 #include "core/logging.h"
+#include "core/quit.h"
 #include "gpu/device.h"
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
@@ -81,7 +82,7 @@ void ReeotApp::OnPreLaunchModule() {
   eot::gpu::SetOverlayDrawHook([this](plume::RenderCommandList *cmd,
                                       plume::RenderFramebuffer *framebuffer, uint32_t width,
                                       uint32_t height) {
-    if (!imgui_drawer() || !imgui_drawer()->HasDialogs())
+    if (!imgui_drawer() || !imgui_drawer()->HasDialogs() || eot::gpu::Video::IsShuttingDown())
       return;
     app_context().CallInUIThreadSynchronous([&] {
       eot::gpu::OverlayDrawContext ctx(width, height, cmd, framebuffer);
@@ -107,6 +108,7 @@ void ReeotApp::OnWindowPixelSizeChanged(uint32_t pixel_width, uint32_t pixel_hei
 }
 
 bool ReeotApp::OnWindowCloseRequested() {
-  eot::gpu::Video::BeginShutdown();
-  return true;
+  eot::gpu::Video::RequestShutdown();
+  app_context().ExecutePendingFunctionsFromUIThread();
+  eot::QuitProcess(0);
 }

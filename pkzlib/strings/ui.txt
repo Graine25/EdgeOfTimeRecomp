@@ -5,3 +5,5 @@ REEOT_EXIT_BODY	Return to desktop?
 REEOT_GRAPHICS	Graphics
 REEOT_EXIT_TO_MENU	Exit To Menu
 REEOT_EXIT_TICKER	Return to the desktop.
+REEOT_GRAPHICS_TITLE	GRAPHICS
+REEOT_GRAPHICS_BODY	Graphics options will live here. Press B to go back.

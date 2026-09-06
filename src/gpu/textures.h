@@ -10,7 +10,7 @@ namespace eot::gpu {
 
 struct VideoState;
 
-GuestTexture *GetGuestTexture(VideoState &s, u32 header_va);
+GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_image = true);
 
 u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t,
                               u32 swizzle = kIdentityFetchSwizzle);

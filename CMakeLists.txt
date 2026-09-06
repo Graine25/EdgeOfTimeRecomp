@@ -67,6 +67,7 @@ target_compile_options(reeot_shader_cache PRIVATE -O0 -w)
 set(REEOT_SOURCES
     src/main.cpp
     src/reeot_app.cpp
+    src/core/quit.cpp
     src/gpu/settings.cpp
     src/gpu/device.cpp
     src/gpu/frame_ring.cpp
