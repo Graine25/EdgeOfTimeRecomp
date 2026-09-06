@@ -92,7 +92,7 @@ REXCVAR_DEFINE_BOOL(eot_const_range, true, "eot",
                     "Upload only the prefix of each 4 KB float constant file the bound shader "
                     "can address (from its constant table) instead of the whole file.");
 REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "eot",
-                    "Mirror static guest vertex buffers into persistent host buffers on their "
+                    "Mirror stable guest vertex ranges into persistent host buffers on their "
                     "second sighting instead of byte-swapping the drawn range per draw.");
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
                     "Bloom (the HDR glow around bright light). Off keeps the tone curve.");

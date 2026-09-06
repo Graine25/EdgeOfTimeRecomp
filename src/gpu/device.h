@@ -76,7 +76,8 @@ struct PerfScope {
   }
   explicit PerfScope(f64 &a) : acc(a), t0(std::chrono::steady_clock::now()) {}
   ~PerfScope() {
-    acc += std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    if (!stopped)
+      acc += std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
   }
 };
 
@@ -177,6 +178,12 @@ struct VideoState {
   TextureSlotCache slot_cache[16];
   std::atomic<u64> texture_generation{1};
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
+  struct SurfaceHeaderBinding {
+    u64 key = 0;
+    u64 lastSeenFrame = 0;
+  };
+  std::unordered_map<u32, SurfaceHeaderBinding> surface_key_by_va;
+  std::unordered_map<u64, u64> orphaned_surface_frame;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
 
   struct CachedFramebuffer {
