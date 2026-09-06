@@ -7,6 +7,7 @@
 
 #include "core/memory_helpers.h"
 #include "core/quit_client.h"
+#include "gamelogic/ui/hud_api.h"
 #include "goliath/ui/menu_handles.h"
 
 REX_EXTERN(__imp__eot_YesNoWindow_InitConfig);
@@ -28,7 +29,7 @@ inline constexpr uint32_t kEvtConsumed = 8;
 inline constexpr uint32_t kEvtNav = 7;
 inline constexpr uint32_t kEvtSelect = 9;
 inline constexpr uint32_t kEvtBack = 10;
-inline constexpr uint32_t kEvtCancel = 12;
+inline constexpr uint32_t kEvtStart = 12;
 
 inline constexpr uint32_t kYesNoResultMessage = 0x0649D236;
 inline constexpr uint32_t kResultHandleOff = 0;
@@ -59,6 +60,12 @@ inline int AppendEntry(uint32_t desc, uint32_t handle) {
 inline void ConsumeEvent(uint32_t event) {
   if (event)
     eot::mem::store<uint8_t>(event + kEvtConsumed, 0);
+}
+
+inline constexpr uint32_t kMMMemoryMgrAlloc = 0x820820A8;
+inline uint32_t AllocGuest(const PPCContext &ctx, uint8_t *base, uint32_t size) {
+  const uint32_t block = hud::CallAt(ctx, base, kMMMemoryMgrAlloc, size, 16, 0xFFFFFFFFu, 0);
+  return block == hud::kNoWindow ? 0 : block;
 }
 
 inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t self,
