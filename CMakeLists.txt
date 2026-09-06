@@ -27,6 +27,22 @@ include(cmake/build_info.cmake)
 reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
 add_subdirectory(thirdparty)
+
+set(REEOT_REFERENCE_PAKS "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/reference_pak" CACHE PATH
+    "Directory holding the retail Main.pak / Common.pak the content package copies textures from")
+set(REEOT_PKZ_DATA "${CMAKE_CURRENT_SOURCE_DIR}/pkzlib")
+set(REEOT_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotUI.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${REEOT_PKZ_DATA}/ReeotUI.manifest" "${REEOT_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${REEOT_PKZ_DATA}/ReeotUI.manifest"
+            "${REEOT_PKZ_DATA}/strings/ui.txt"
+    COMMENT "Authoring ReeotUI.pkz from pkzlib/ReeotUI.manifest"
+    VERBATIM)
+add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}")
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -76,6 +92,7 @@ set(REEOT_SOURCES
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
+    src/goliath/loading/reeot_package.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
@@ -105,7 +122,10 @@ endif()
 rexglue_setup_target(reeot)
 
 if(TARGET reeot_GameLogic)
-    target_sources(reeot_GameLogic PRIVATE src/gamelogic/debug/debug_mode.cpp)
+    target_sources(reeot_GameLogic PRIVATE
+        src/gamelogic/debug/debug_mode.cpp
+        src/gamelogic/ui/pause_menu.cpp
+        src/gamelogic/ui/options_graphics.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 endif()

@@ -1,0 +1,7 @@
+package 0x7EE ReeotUI
+languages 1 2 5 3 4
+strings strings/ui.txt
+texture Reeot_PopUpBox from Main.pak Menu_PopUpBoxLarge_WebOfSkills[Hi]
+texture Reeot_Font_TempusGothic from Main.pak TempusGothic_texture_0
+texture Reeot_Font_SansaCon from Main.pak SansaCon-UltraBlack_texture_0
+compress true
