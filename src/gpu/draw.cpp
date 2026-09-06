@@ -951,7 +951,12 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
   st.frontFace = face_cw ? plume::RenderFrontFace::CLOCKWISE
                          : plume::RenderFrontFace::COUNTER_CLOCKWISE;
   const u32 clip = dev.U32(dev::kClipControl);
-  st.depthClip = (clip & ((1u << 26) | (1u << 27))) == 0;
+  st.depthClip = (clip & ((1u << 16) | (1u << 26) | (1u << 27))) == 0;
+  if (!st.depthClip) {
+    u32 n;
+    if (DiagShouldLog(0x6C1F, &n) && n < 3)
+      EOT_INFO("[draw] clip control {:#x}: depth clip off", clip);
+  }
 
   if (mode & (1u << 11)) {
     const float scale = dev.F32(dev::kPolyOffsetFrontScale);
