@@ -144,6 +144,7 @@ struct VideoState {
   std::mutex mutex;
   bool ready = false;
   std::atomic<bool> shutting_down{false};
+  bool quiesced = false;
   std::atomic<bool> resize_requested{false};
 
   bool command_list_open = false;
@@ -232,6 +233,8 @@ VideoState &state();
 class Video {
 public:
   static bool CreateHostDevice(rex::ui::Window *window);
+  static void RequestShutdown();
+  static bool IsShuttingDown();
   static void BeginShutdown();
   static void Shutdown();
   static plume::RenderDevice *HostDevice();

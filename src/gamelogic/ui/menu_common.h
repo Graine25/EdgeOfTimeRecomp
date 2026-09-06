@@ -6,6 +6,7 @@
 #include <rex/hook.h>
 
 #include "core/memory_helpers.h"
+#include "core/quit_client.h"
 #include "goliath/ui/menu_handles.h"
 
 REX_EXTERN(__imp__sub_88298A30);
@@ -87,7 +88,7 @@ inline bool ExitIfConfirmed(uint32_t self, uint32_t message, uint32_t result,
   if (handle != eot::mem::load<uint32_t>(self + L.handle))
     return false;
   if (eot::mem::load<uint32_t>(result + kResultValueOff) == kResultYes)
-    std::_Exit(0);
+    QuitProcessFromModule(0);
   return true;
 }
 
