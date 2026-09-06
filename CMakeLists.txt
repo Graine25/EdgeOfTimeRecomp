@@ -79,6 +79,8 @@ set(REEOT_SOURCES
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
+    src/goliath/ui/overlays/graphics_menu.cpp
+    src/goliath/ui/menu_labels.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
@@ -110,7 +112,11 @@ endif()
 rexglue_setup_target(reeot)
 
 if(TARGET reeot_GameLogic)
-    target_sources(reeot_GameLogic PRIVATE src/gamelogic/debug/debug_mode.cpp)
+    target_sources(reeot_GameLogic PRIVATE
+        src/gamelogic/debug/debug_mode.cpp
+        src/gamelogic/ui/pause_menu.cpp
+        src/gamelogic/ui/main_menu.cpp
+        src/gamelogic/ui/options_graphics.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 endif()

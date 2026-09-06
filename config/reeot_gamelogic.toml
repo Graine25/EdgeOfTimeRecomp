@@ -2230,3 +2230,39 @@ out_directory_path = "generated/gamelogic"
 0x883B7AF0 = { size = 0x10 }
 
 0x881F00F0 = { name = "eot_GameStateManagerSM2011_ReturnToFrontscreen", size = 0x150 }
+
+[[midasm_hook]]
+address = 0x882314D4
+name = "eot_PauseMenu_NavRightBoundFexit"
+registers = ["r31", "cr6", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8823B270
+name = "eot_OptionsBar_AddGraphics"
+registers = ["r6", "r31"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8823B68C
+name = "eot_OptionsBar_NavRightBound6"
+registers = ["r29", "cr6", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x88353480
+name = "eot_FrontMenu_AddEntries"
+registers = ["r6", "r31"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x883513A8
+name = "eot_FrontMenu_AddEntriesInit"
+registers = ["r6", "r31"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x883523B0
+name = "eot_FrontMenu_NavRightBound"
+registers = ["r11"]
+after_instruction = true
