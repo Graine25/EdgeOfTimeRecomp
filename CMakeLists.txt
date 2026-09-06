@@ -125,7 +125,6 @@ if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/ui/pause_menu.cpp
-        src/gamelogic/ui/main_menu.cpp
         src/gamelogic/ui/options_graphics.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")

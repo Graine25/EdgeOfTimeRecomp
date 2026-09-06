@@ -2248,21 +2248,3 @@ address = 0x8823B68C
 name = "eot_OptionsBar_NavRightBound6"
 registers = ["r29", "cr6", "xer"]
 after_instruction = true
-
-[[midasm_hook]]
-address = 0x88353480
-name = "eot_FrontMenu_AddEntries"
-registers = ["r6", "r31"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x883513A8
-name = "eot_FrontMenu_AddEntriesInit"
-registers = ["r6", "r31"]
-after_instruction = true
-
-[[midasm_hook]]
-address = 0x883523B0
-name = "eot_FrontMenu_NavRightBound"
-registers = ["r11"]
-after_instruction = true

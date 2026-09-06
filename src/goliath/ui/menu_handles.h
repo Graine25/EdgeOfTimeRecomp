@@ -16,6 +16,4 @@ inline constexpr uint32_t kHandleGraphics = kReeotHandleBase | 3;
 inline constexpr uint32_t kHandleExitToMenu = kReeotHandleBase | 4;
 inline constexpr uint32_t kHandleExitTicker = kReeotHandleBase | 5;
 
-inline constexpr uint32_t kHandleVipUnlockCode = 0x00280293;
-
 }
