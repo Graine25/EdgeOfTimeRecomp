@@ -2253,6 +2253,10 @@ out_directory_path = "generated/gamelogic"
 0x88283800 = { name = "eot_TCRWindow_HandleMessage", size = 0x398 }
 0x88294C38 = { name = "eot_HUDTween_Start", size = 0x430 }
 
+0x88345E98 = { name = "eot_HUDSavegameSelect_Construct", size = 0x3D0 }
+0x883469D8 = { name = "eot_HUDSavegameSelect_HandleInputEvent", size = 0x470 }
+0x88347D80 = { name = "eot_HUDSavegameSelect_HandleMessage", size = 0x368 }
+
 [[midasm_hook]]
 address = 0x882314D4
 name = "eot_PauseMenu_NavRightBoundFexit"

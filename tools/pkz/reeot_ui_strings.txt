@@ -7,3 +7,7 @@ REEOT_EXIT_TO_MENU	Exit To Menu
 REEOT_EXIT_TICKER	Return to the desktop.
 REEOT_GRAPHICS_TITLE	GRAPHICS
 REEOT_GRAPHICS_BODY	Graphics options will live here. Press B to go back.
+REEOT_LEAVE_TITLE	Leave the game?
+REEOT_LEAVE_BODY	You will return to the desktop.
+REEOT_YES	Yes
+REEOT_NO	No

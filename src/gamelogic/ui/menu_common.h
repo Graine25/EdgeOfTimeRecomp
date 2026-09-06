@@ -68,15 +68,25 @@ inline uint32_t AllocGuest(const PPCContext &ctx, uint8_t *base, uint32_t size) 
   return block == hud::kNoWindow ? 0 : block;
 }
 
-inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t self,
-                                const YesNoLayout &L) {
+inline constexpr uint32_t kYesNoCfgWindow = 56;
+inline constexpr uint32_t kYesNoCfgYes = 92;
+inline constexpr uint32_t kYesNoCfgNo = 96;
+
+inline uint32_t OpenConfirm(const PPCContext &ctx, uint8_t *base, uint32_t self, const YesNoLayout &L,
+                            uint32_t title, uint32_t body, uint32_t windowCrc = 0, uint32_t yesCrc = 0,
+                            uint32_t noCrc = 0) {
   const uint32_t config = self + L.config;
   PPCContext call = ctx;
   call.r3.u32 = config;
   __imp__eot_YesNoWindow_InitConfig(call, base);
   const uint32_t title_index = eot::mem::load<uint32_t>(self + L.titleIndex);
-  eot::mem::store<uint32_t>(config + (title_index + 8) * 4, kHandleExitTitle);
-  eot::mem::store<uint32_t>(self + L.body, kHandleExitBody);
+  eot::mem::store<uint32_t>(config + (title_index + 8) * 4, title);
+  eot::mem::store<uint32_t>(self + L.body, body);
+  if (windowCrc) {
+    eot::mem::store<uint32_t>(config + kYesNoCfgWindow, hud::Find(ctx, base, windowCrc));
+    eot::mem::store<uint32_t>(config + kYesNoCfgYes, hud::Find(ctx, base, yesCrc));
+    eot::mem::store<uint32_t>(config + kYesNoCfgNo, hud::Find(ctx, base, noCrc));
+  }
   if (L.state)
     eot::mem::store<uint32_t>(self + L.state, 2);
   call = ctx;
@@ -85,6 +95,10 @@ inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t s
   const uint32_t handle = call.r3.u32;
   eot::mem::store<uint32_t>(self + L.handle, handle);
   return handle;
+}
+
+inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t self, const YesNoLayout &L) {
+  return OpenConfirm(ctx, base, self, L, kHandleExitTitle, kHandleExitBody);
 }
 
 inline bool ExitIfConfirmed(uint32_t self, uint32_t message, uint32_t result,

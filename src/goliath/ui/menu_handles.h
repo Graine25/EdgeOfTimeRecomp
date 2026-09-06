@@ -17,5 +17,9 @@ inline constexpr uint32_t kHandleExitToMenu = kReeotHandleBase | 4;
 inline constexpr uint32_t kHandleExitTicker = kReeotHandleBase | 5;
 inline constexpr uint32_t kHandleGraphicsTitle = kReeotHandleBase | 6;
 inline constexpr uint32_t kHandleGraphicsBody = kReeotHandleBase | 7;
+inline constexpr uint32_t kHandleLeaveTitle = kReeotHandleBase | 8;
+inline constexpr uint32_t kHandleLeaveBody = kReeotHandleBase | 9;
+inline constexpr uint32_t kHandleYes = kReeotHandleBase | 10;
+inline constexpr uint32_t kHandleNo = kReeotHandleBase | 11;
 
 }
