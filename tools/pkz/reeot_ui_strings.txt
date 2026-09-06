@@ -1,0 +1,7 @@
+# NAME<TAB>text   (string id = line index, handle = 0x7EE00000 | id)
+REEOT_EXIT_GAME	Exit Game
+REEOT_EXIT_TITLE	Exit Game?
+REEOT_EXIT_BODY	Return to desktop?
+REEOT_GRAPHICS	Graphics
+REEOT_EXIT_TO_MENU	Exit To Menu
+REEOT_EXIT_TICKER	Return to the desktop.

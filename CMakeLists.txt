@@ -27,6 +27,17 @@ include(cmake/build_info.cmake)
 reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
 add_subdirectory(thirdparty)
+
+set(REEOT_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotUI.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make-strings "${REEOT_PKZ_OUTPUT}" 0x7EE ReeotUI
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
+    DEPENDS pkztool "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
+    COMMENT "Authoring ReeotUI.pkz from tools/pkz/reeot_ui_strings.txt"
+    VERBATIM)
+add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}")
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -79,8 +90,7 @@ set(REEOT_SOURCES
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
-    src/goliath/ui/overlays/graphics_menu.cpp
-    src/goliath/ui/menu_labels.cpp
+    src/goliath/loading/reeot_package.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp

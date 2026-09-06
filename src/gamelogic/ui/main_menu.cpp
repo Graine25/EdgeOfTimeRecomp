@@ -33,7 +33,9 @@ void PlaceExitEntry(uint32_t desc) {
   const uint32_t before = eot::mem::load<uint32_t>(desc + kDescCount);
   int slot = -1;
   for (uint32_t i = 0; i < before && i < kDescMaxSlots; ++i) {
-    if (eot::mem::load<uint32_t>(DescHandleAddr(desc, i)) == kHandleVipUnlockCode) {
+    const uint32_t h = eot::mem::load<uint32_t>(DescHandleAddr(desc, i));
+    if (h == kHandleVipUnlockCode || h == kHandleExitGame) {
+      eot::mem::store<uint32_t>(DescHandleAddr(desc, i), kHandleExitGame);
       slot = static_cast<int>(i);
       break;
     }

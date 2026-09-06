@@ -1,7 +1,5 @@
 #include <cstdint>
 
-#include <rex/cvar.h>
-
 #include "core/logging.h"
 #include "gamelogic/ui/menu_common.h"
 
@@ -14,9 +12,6 @@ using namespace eot::ui;
 constexpr uint32_t kRetailCount = 5;
 constexpr uint32_t kGraphicsIndex = 5;
 constexpr uint32_t kScreenCursorOff = 84;
-
-bool MenuOpen() { return rex::cvar::Query<bool>(kGraphicsMenuCvar); }
-void SetMenuOpen(bool on) { rex::cvar::SetFlagByName(kGraphicsMenuCvar, on ? "true" : "false"); }
 
 }
 
@@ -41,14 +36,8 @@ REX_HOOK_RAW(sub_8823B328) {
   const uint32_t self = ctx.r3.u32;
   const uint32_t event = ctx.r4.u32;
   const uint32_t type = event ? eot::mem::load<uint32_t>(event + kEvtType) : 0;
-  if (MenuOpen()) {
-    if (type == kEvtBack || type == kEvtCancel)
-      SetMenuOpen(false);
-    ConsumeEvent(event);
-    return;
-  }
   if (type == kEvtSelect && self && eot::mem::load<uint32_t>(self + kScreenCursorOff) == kGraphicsIndex) {
-    SetMenuOpen(true);
+    EOT_INFO("[menu] Graphics selected (no page yet)");
     ConsumeEvent(event);
     return;
   }

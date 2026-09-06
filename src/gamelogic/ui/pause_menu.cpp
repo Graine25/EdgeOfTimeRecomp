@@ -14,6 +14,7 @@ using namespace eot::ui;
 
 constexpr uint32_t kSelectedIndexOff = 40;
 constexpr uint32_t kRetailCount = 7;
+constexpr uint32_t kQuitGameIndex = 6;
 constexpr uint32_t kExitIndex = 7;
 constexpr YesNoLayout kPauseYesNo{76, 152, 160, 184, 80};
 
@@ -29,7 +30,11 @@ REX_HOOK_RAW(sub_88232718) {
   const uint32_t desc = ctx.r4.u32;
   __imp__sub_88232718(ctx, base);
   const uint32_t count = desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0;
-  const int slot = count == kRetailCount ? AppendEntry(desc, kHandleExitGame) : -1;
+  int slot = -1;
+  if (count == kRetailCount) {
+    eot::mem::store<uint32_t>(DescHandleAddr(desc, kQuitGameIndex), kHandleExitToMenu);
+    slot = AppendEntry(desc, kHandleExitGame);
+  }
   EOT_INFO("[menu] pause bar {:#x}: count {} -> {}, Exit Game slot {}", desc, count,
            desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0u, slot);
 }
