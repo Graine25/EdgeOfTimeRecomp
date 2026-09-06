@@ -292,6 +292,8 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
     }
   }
   t.uploaded = true;
+  if (info.mip_min_level == 0 && info.mip_max_level + 1 >= host.mipLevels)
+    host.needsClear = false;
 }
 
 }

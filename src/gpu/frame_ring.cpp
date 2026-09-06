@@ -175,6 +175,8 @@ void DestroyHostTexture(VideoState &s, HostTexture &host) {
 
 bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
                                 const plume::RenderTextureDesc &desc, const char *tag) {
+  const bool renderable = (desc.flags & plume::RenderTextureFlag::RENDER_TARGET) ||
+                          (desc.flags & plume::RenderTextureFlag::DEPTH_TARGET);
   for (size_t i = 0; i < s.host_texture_pool.size(); ++i) {
     auto &entry = s.host_texture_pool[i];
     if (entry.freedFrame + kNumFrames > s.guest_frames ||
@@ -190,6 +192,7 @@ bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
     host.mipViews = std::move(pooled.mipViews);
     host.mipFramebuffers = std::move(pooled.mipFramebuffers);
     host.layout = pooled.layout;
+    host.needsClear = renderable;
     s.perf.host_tex_recycled++;
     return true;
   }
@@ -197,6 +200,7 @@ bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
   host.desc = desc;
   host.desc.optimizedClearValue = nullptr;
   host.layout = plume::RenderTextureLayout::UNKNOWN;
+  host.needsClear = renderable && host.texture != nullptr;
   return host.texture != nullptr;
 }
 
