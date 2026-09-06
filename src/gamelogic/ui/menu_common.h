@@ -9,8 +9,8 @@
 #include "core/quit_client.h"
 #include "goliath/ui/menu_handles.h"
 
-REX_EXTERN(__imp__sub_88298A30);
-REX_EXTERN(__imp__sub_882825C8);
+REX_EXTERN(__imp__eot_YesNoWindow_InitConfig);
+REX_EXTERN(__imp__eot_YesNoWindow_Open);
 
 namespace eot::ui {
 
@@ -66,7 +66,7 @@ inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t s
   const uint32_t config = self + L.config;
   PPCContext call = ctx;
   call.r3.u32 = config;
-  __imp__sub_88298A30(call, base);
+  __imp__eot_YesNoWindow_InitConfig(call, base);
   const uint32_t title_index = eot::mem::load<uint32_t>(self + L.titleIndex);
   eot::mem::store<uint32_t>(config + (title_index + 8) * 4, kHandleExitTitle);
   eot::mem::store<uint32_t>(self + L.body, kHandleExitBody);
@@ -74,7 +74,7 @@ inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t s
     eot::mem::store<uint32_t>(self + L.state, 2);
   call = ctx;
   call.r3.u32 = config;
-  __imp__sub_882825C8(call, base);
+  __imp__eot_YesNoWindow_Open(call, base);
   const uint32_t handle = call.r3.u32;
   eot::mem::store<uint32_t>(self + L.handle, handle);
   return handle;

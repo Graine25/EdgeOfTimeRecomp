@@ -3,10 +3,10 @@
 #include "core/logging.h"
 #include "gamelogic/ui/menu_common.h"
 
-REX_EXTERN(__imp__sub_88232718);
-REX_EXTERN(__imp__sub_88232128);
-REX_EXTERN(__imp__sub_88232998);
-REX_EXTERN(__imp__sub_882305D8);
+REX_EXTERN(__imp__eot_PauseMenu_GetMainMenuBarInfo);
+REX_EXTERN(__imp__eot_PauseMenu_HandleMainMenuSelectOption);
+REX_EXTERN(__imp__eot_PauseMenu_HandleMessage);
+REX_EXTERN(__imp__eot_PauseMenu_EnterOpening);
 
 namespace {
 
@@ -26,9 +26,9 @@ void eot_PauseMenu_NavRightBoundFexit(PPCRegister &r31, PPCCRRegister &cr6, PPCX
   cr6.compare<int32_t>(r31.s32, static_cast<int32_t>(kRetailCount + 1), xer);
 }
 
-REX_HOOK_RAW(sub_88232718) {
+REX_HOOK_RAW(eot_PauseMenu_GetMainMenuBarInfo) {
   const uint32_t desc = ctx.r4.u32;
-  __imp__sub_88232718(ctx, base);
+  __imp__eot_PauseMenu_GetMainMenuBarInfo(ctx, base);
   const uint32_t count = desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0;
   int slot = -1;
   if (count == kRetailCount) {
@@ -39,7 +39,7 @@ REX_HOOK_RAW(sub_88232718) {
            desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0u, slot);
 }
 
-REX_HOOK_RAW(sub_88232128) {
+REX_HOOK_RAW(eot_PauseMenu_HandleMainMenuSelectOption) {
   const uint32_t self = ctx.r3.u32;
   if (self && eot::mem::load<uint32_t>(self + kSelectedIndexOff) == kExitIndex) {
     if (!g_confirm_pending) {
@@ -48,16 +48,16 @@ REX_HOOK_RAW(sub_88232128) {
     }
     return;
   }
-  __imp__sub_88232128(ctx, base);
+  __imp__eot_PauseMenu_HandleMainMenuSelectOption(ctx, base);
 }
 
-REX_HOOK_RAW(sub_88232998) {
+REX_HOOK_RAW(eot_PauseMenu_HandleMessage) {
   if (g_confirm_pending && ExitIfConfirmed(ctx.r3.u32, ctx.r4.u32, ctx.r5.u32, kPauseYesNo))
     g_confirm_pending = false;
-  __imp__sub_88232998(ctx, base);
+  __imp__eot_PauseMenu_HandleMessage(ctx, base);
 }
 
-REX_HOOK_RAW(sub_882305D8) {
+REX_HOOK_RAW(eot_PauseMenu_EnterOpening) {
   g_confirm_pending = false;
-  __imp__sub_882305D8(ctx, base);
+  __imp__eot_PauseMenu_EnterOpening(ctx, base);
 }

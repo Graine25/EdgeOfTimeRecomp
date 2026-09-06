@@ -13,7 +13,7 @@
 REX_EXTERN(__imp__eot_RenderComposition_ExecuteChain);
 REX_EXTERN(__imp__eot_GLAPICamera_SetFOVAngle);
 REX_EXTERN(__imp__eot_GLAPICamera_GetFOVAngle);
-REX_EXTERN(__imp__sub_821AB250);
+REX_EXTERN(__imp__eot_PAK_SelectLanguage);
 REX_EXTERN(__imp__eot_GLAPICamera_ShadowMapSetParams);
 
 namespace {
@@ -100,7 +100,7 @@ REX_HOOK_RAW(eot_RenderComposition_ExecuteChain) {
   __imp__eot_RenderComposition_ExecuteChain(ctx, base);
 }
 
-REX_HOOK_RAW(sub_821AB250) {
+REX_HOOK_RAW(eot_PAK_SelectLanguage) {
   const uint32_t record = ctx.r3.u32;
   const int32_t forced = Settings::QualityLevel();
   if (forced >= 0 && eot::mem::load<uint32_t>(kQualityLevel) != static_cast<uint32_t>(forced)) {
@@ -108,7 +108,7 @@ REX_HOOK_RAW(sub_821AB250) {
     eot::mem::store<uint32_t>(kQualityLevel + 4, static_cast<uint32_t>(forced));
   }
   const uint32_t before = eot::mem::load<uint32_t>(kQualityLevel);
-  __imp__sub_821AB250(ctx, base);
+  __imp__eot_PAK_SelectLanguage(ctx, base);
   if (!record || g_quality_logs.load(std::memory_order_relaxed) >= 24)
     return;
   const uint32_t count = eot::mem::load<uint32_t>(record + 496);

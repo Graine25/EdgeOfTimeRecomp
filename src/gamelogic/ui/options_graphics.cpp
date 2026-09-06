@@ -1,9 +1,11 @@
 #include <cstdint>
 
 #include "core/logging.h"
+#include "gamelogic/ui/hud_api.h"
 #include "gamelogic/ui/menu_common.h"
+#include "goliath/ui/name_crc.h"
 
-REX_EXTERN(__imp__sub_8823B328);
+REX_EXTERN(__imp__eot_HUDOptionsScreen_HandleInputEvent); // (this r3, event r4)
 
 namespace {
 
@@ -12,6 +14,19 @@ using namespace eot::ui;
 constexpr uint32_t kRetailCount = 5;
 constexpr uint32_t kGraphicsIndex = 5;
 constexpr uint32_t kScreenCursorOff = 84;
+
+constexpr const char *kPageWindows[] = {"Reeot_GraphicsBox", "Reeot_GraphicsTitle", "Reeot_GraphicsBody"};
+
+bool g_page_open = false;
+
+void ShowPage(const PPCContext &ctx, uint8_t *base, bool on) {
+  for (const char *name : kPageWindows) {
+    const uint32_t handle = hud::Find(ctx, base, NameCrc(name));
+    hud::Activate(ctx, base, handle, on);
+    EOT_DEBUG("[menu] graphics page: {} -> window {:#x} flags {:#x}", name, handle, hud::Flags(ctx, base, handle));
+  }
+  g_page_open = on;
+}
 
 }
 
@@ -32,14 +47,20 @@ void eot_OptionsBar_NavRightBound6(PPCRegister &r29, PPCCRRegister &cr6, PPCXERR
   cr6.compare<uint32_t>(r29.u32, kGraphicsIndex, xer);
 }
 
-REX_HOOK_RAW(sub_8823B328) {
+REX_HOOK_RAW(eot_HUDOptionsScreen_HandleInputEvent) {
   const uint32_t self = ctx.r3.u32;
   const uint32_t event = ctx.r4.u32;
   const uint32_t type = event ? eot::mem::load<uint32_t>(event + kEvtType) : 0;
-  if (type == kEvtSelect && self && eot::mem::load<uint32_t>(self + kScreenCursorOff) == kGraphicsIndex) {
-    EOT_INFO("[menu] Graphics selected (no page yet)");
+  if (g_page_open) {
+    if (type == kEvtBack || type == kEvtCancel)
+      ShowPage(ctx, base, false);
     ConsumeEvent(event);
     return;
   }
-  __imp__sub_8823B328(ctx, base);
+  if (type == kEvtSelect && self && eot::mem::load<uint32_t>(self + kScreenCursorOff) == kGraphicsIndex) {
+    ShowPage(ctx, base, true);
+    ConsumeEvent(event);
+    return;
+  }
+  __imp__eot_HUDOptionsScreen_HandleInputEvent(ctx, base);
 }
