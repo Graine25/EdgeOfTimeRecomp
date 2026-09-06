@@ -67,6 +67,7 @@ target_compile_options(reeot_shader_cache PRIVATE -O0 -w)
 set(REEOT_SOURCES
     src/main.cpp
     src/reeot_app.cpp
+    src/core/critical_section.cpp
     src/core/quit.cpp
     src/gpu/settings.cpp
     src/gpu/device.cpp
@@ -126,7 +127,8 @@ if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/ui/pause_menu.cpp
-        src/gamelogic/ui/options_graphics.cpp)
+        src/gamelogic/ui/options_graphics.cpp
+        src/gamelogic/ui/save_select.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 endif()

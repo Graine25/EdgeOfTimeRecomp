@@ -126,6 +126,16 @@ bool BindTargets(VideoState &s, Targets &t) {
     s.command_list->setFramebuffer(fb);
     s.bound_framebuffer = fb;
   }
+  for (u32 i = 0; i < t.colorCount; ++i) {
+    if (!colors[i]->needsClear)
+      continue;
+    s.command_list->clearColor(i, plume::RenderColor(0, 0, 0, 0), nullptr, 0);
+    colors[i]->needsClear = false;
+  }
+  if (depth && depth->needsClear) {
+    s.command_list->clearDepthStencil(true, true, 0.0f, 0, nullptr, 0);
+    depth->needsClear = false;
+  }
   return true;
 }
 
@@ -184,7 +194,10 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
     v.posOffset[1] -= 1.0f / std::max(1.0f, h);
   }
   const float S = t.scale;
-  v.vp = plume::RenderViewport(x0 * S, y0 * S, w * S, h * S, zmin, zmax);
+  const float hx0 = std::round(x0 * S), hx1 = std::round((x0 + w) * S);
+  const float hy0 = std::round(y0 * S), hy1 = std::round((y0 + h) * S);
+  v.vp = plume::RenderViewport(hx0, hy0, std::max(hx1 - hx0, 1.0f), std::max(hy1 - hy0, 1.0f),
+                               zmin, zmax);
 
   auto scissor_of = [](u32 tl, u32 br) {
     return plume::RenderRect(static_cast<i32>(tl & 0x7FFF), static_cast<i32>((tl >> 16) & 0x7FFF),

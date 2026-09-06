@@ -7,6 +7,7 @@
 
 #include "core/memory_helpers.h"
 #include "core/quit_client.h"
+#include "gamelogic/ui/hud_api.h"
 #include "goliath/ui/menu_handles.h"
 
 REX_EXTERN(__imp__eot_YesNoWindow_InitConfig);
@@ -28,7 +29,7 @@ inline constexpr uint32_t kEvtConsumed = 8;
 inline constexpr uint32_t kEvtNav = 7;
 inline constexpr uint32_t kEvtSelect = 9;
 inline constexpr uint32_t kEvtBack = 10;
-inline constexpr uint32_t kEvtCancel = 12;
+inline constexpr uint32_t kEvtStart = 12;
 
 inline constexpr uint32_t kYesNoResultMessage = 0x0649D236;
 inline constexpr uint32_t kResultHandleOff = 0;
@@ -61,15 +62,31 @@ inline void ConsumeEvent(uint32_t event) {
     eot::mem::store<uint8_t>(event + kEvtConsumed, 0);
 }
 
-inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t self,
-                                const YesNoLayout &L) {
+inline constexpr uint32_t kMMMemoryMgrAlloc = 0x820820A8;
+inline uint32_t AllocGuest(const PPCContext &ctx, uint8_t *base, uint32_t size) {
+  const uint32_t block = hud::CallAt(ctx, base, kMMMemoryMgrAlloc, size, 16, 0xFFFFFFFFu, 0);
+  return block == hud::kNoWindow ? 0 : block;
+}
+
+inline constexpr uint32_t kYesNoCfgWindow = 56;
+inline constexpr uint32_t kYesNoCfgYes = 92;
+inline constexpr uint32_t kYesNoCfgNo = 96;
+
+inline uint32_t OpenConfirm(const PPCContext &ctx, uint8_t *base, uint32_t self, const YesNoLayout &L,
+                            uint32_t title, uint32_t body, uint32_t windowCrc = 0, uint32_t yesCrc = 0,
+                            uint32_t noCrc = 0) {
   const uint32_t config = self + L.config;
   PPCContext call = ctx;
   call.r3.u32 = config;
   __imp__eot_YesNoWindow_InitConfig(call, base);
   const uint32_t title_index = eot::mem::load<uint32_t>(self + L.titleIndex);
-  eot::mem::store<uint32_t>(config + (title_index + 8) * 4, kHandleExitTitle);
-  eot::mem::store<uint32_t>(self + L.body, kHandleExitBody);
+  eot::mem::store<uint32_t>(config + (title_index + 8) * 4, title);
+  eot::mem::store<uint32_t>(self + L.body, body);
+  if (windowCrc) {
+    eot::mem::store<uint32_t>(config + kYesNoCfgWindow, hud::Find(ctx, base, windowCrc));
+    eot::mem::store<uint32_t>(config + kYesNoCfgYes, hud::Find(ctx, base, yesCrc));
+    eot::mem::store<uint32_t>(config + kYesNoCfgNo, hud::Find(ctx, base, noCrc));
+  }
   if (L.state)
     eot::mem::store<uint32_t>(self + L.state, 2);
   call = ctx;
@@ -78,6 +95,10 @@ inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t s
   const uint32_t handle = call.r3.u32;
   eot::mem::store<uint32_t>(self + L.handle, handle);
   return handle;
+}
+
+inline uint32_t OpenExitConfirm(const PPCContext &ctx, uint8_t *base, uint32_t self, const YesNoLayout &L) {
+  return OpenConfirm(ctx, base, self, L, kHandleExitTitle, kHandleExitBody);
 }
 
 inline bool ExitIfConfirmed(uint32_t self, uint32_t message, uint32_t result,

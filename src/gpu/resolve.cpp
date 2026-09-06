@@ -215,8 +215,12 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                          vh == static_cast<i32>(surf->height) && vw == mip_w && vh == mip_h;
       const bool same_format = src_host->format == target.host.format;
       const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
+      const bool covers_image = whole && target.host.mipLevels == 1;
       if (copies && surf->scale == 1.0f && src_host == &surf->host && same_format &&
-          scale == 1.0f && !reorder && (!depth_source || whole)) {
+          scale == 1.0f && !reorder && (!depth_source || whole) &&
+          (covers_image || !target.host.needsClear)) {
+        if (covers_image)
+          target.host.needsClear = false;
         auto *cmd = s.command_list;
         TransitionLocked(s, *src_host, plume::RenderTextureLayout::COPY_SOURCE);
         TransitionLocked(s, target.host, plume::RenderTextureLayout::COPY_DEST);
@@ -259,6 +263,19 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       TransitionLocked(s, target.host,
                        depth_source ? plume::RenderTextureLayout::DEPTH_WRITE
                                     : plume::RenderTextureLayout::COLOR_WRITE);
+      if (target.host.needsClear) {
+        for (u32 m = 0; m < target.host.mipLevels; ++m) {
+          plume::RenderFramebuffer *mfb = m == level ? fb : GetMipFramebuffer(s, target, m);
+          if (!mfb)
+            continue;
+          cmd->setFramebuffer(mfb);
+          if (target.host.isDepth)
+            cmd->clearDepthStencil(true, true, 0.0f, 0, nullptr, 0);
+          else
+            cmd->clearColor(0, plume::RenderColor(0, 0, 0, 0), nullptr, 0);
+        }
+        target.host.needsClear = false;
+      }
       cmd->setFramebuffer(fb);
       s.bound_framebuffer = fb;
       plume::RenderPipeline *pso =

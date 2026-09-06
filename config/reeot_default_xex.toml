@@ -2764,6 +2764,7 @@ strcpy_s           = 0x8233E498
 0x82182200 = { name = "eot_HUDWindowBC_ComputePos" }
 0x8217EA38 = { name = "eot_HUDText_BuildLayout" }
 0x82184060 = { name = "eot_HUDText_BuildDrawPacket" }
+
 0x820820A8 = { name = "eot_MMMemoryMgr_Alloc" }
 0x820C6610 = { name = "eot_HUDMgrBC_FindWindowFromCRC" }
 0x820C7010 = { name = "eot_HUDMgrBC_GetWin" }

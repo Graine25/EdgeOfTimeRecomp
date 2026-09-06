@@ -47,6 +47,7 @@ struct HostTexture {
   u32 sampleCount = 1;
   bool isDepth = false;
   bool renderable = false;
+  bool needsClear = false;
   std::vector<std::unique_ptr<plume::RenderTextureView>> mipViews;
   std::vector<std::unique_ptr<plume::RenderFramebuffer>> mipFramebuffers;
 

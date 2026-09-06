@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cstdint>
@@ -78,12 +80,21 @@ REX_HOOK_RAW(eot_RenderComposition_ExecuteChain) {
     const uint32_t flags = eot::mem::load<uint32_t>(cmd + kCommandFlags);
     const uint32_t bloom = eot::mem::load<uint8_t>(cmd + kCommandBloomEnable);
     const uint32_t seen = flags | (bloom ? 0x80000000u : 0u);
-    if (g_last_flags.exchange(seen) != seen)
+    static std::array<std::atomic<uint32_t>, 16> g_seen_flags{};
+    static std::atomic<uint32_t> g_seen_count{0};
+    bool logged = false;
+    for (uint32_t i = 0, n = std::min<uint32_t>(g_seen_count.load(), 16); i < n && !logged; ++i)
+      logged = g_seen_flags[i].load() == seen;
+    if (!logged && g_last_flags.exchange(seen) != seen) {
+      const uint32_t slot = g_seen_count.fetch_add(1);
+      if (slot < 16)
+        g_seen_flags[slot].store(seen);
       EOT_INFO("[postfx] stages {:#06x} bloom {} (dof {} mblur {} radial {} heat {}/{} grade {} "
                "grain {} edge {} halo {} bokeh {})",
                flags & 0xFFFF, bloom, (flags >> 1) & 1, (flags >> 2) & 1, (flags >> 3) & 1,
                (flags >> 5) & 1, (flags >> 6) & 1, (flags >> 8) & 1, (flags >> 10) & 1,
                (flags >> 11) & 1, (flags >> 12) & 1, (flags >> 15) & 1);
+    }
     const uint32_t mask = DisabledStages();
     const bool bloom_off = !Settings::Bloom() && bloom;
     if (mask & flags)

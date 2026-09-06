@@ -1186,7 +1186,7 @@ out_directory_path = "generated/gamelogic"
 0x88238F00 = { size = 0xC0 }
 0x882395C0 = { size = 0xD0 }
 0x8823A990 = { size = 0xD0 }
-0x8823AAC0 = { size = 0x420 }
+0x8823AAC0 = { name = "eot_HUDOptionsScreen_Construct", size = 0x420 }
 0x8823B130 = { name = "eot_HUDOptionsScreen_BuildBar", size = 0x160 }
 0x8823B290 = { size = 0x94 }
 0x8823B888 = { size = 0x84 }
@@ -1345,14 +1345,14 @@ out_directory_path = "generated/gamelogic"
 0x88281B18 = { size = 0x78 }
 0x882827F0 = { size = 0x138 }
 0x88282928 = { size = 0x98 }
-0x882829C0 = { size = 0x2D0 }
-0x88282C90 = { size = 0x20C }
-0x88282EA0 = { size = 0x17C }
-0x88283020 = { size = 0xF4 }
-0x88283118 = { size = 0x54 }
-0x88283170 = { size = 0x1A4 }
-0x88283318 = { size = 0x54 }
-0x88283370 = { size = 0x248 }
+0x882829C0 = { name = "eot_TCRWindow_IdleUpdate", size = 0x2D0 }
+0x88282C90 = { name = "eot_TCRWindow_OpeningEnter", size = 0x20C }
+0x88282EA0 = { name = "eot_TCRWindow_OpeningUpdate", size = 0x17C }
+0x88283020 = { name = "eot_TCRWindow_DelayUpdate", size = 0xF4 }
+0x88283118 = { name = "eot_TCRWindow_ActiveEnter", size = 0x54 }
+0x88283170 = { name = "eot_TCRWindow_ActiveUpdate", size = 0x1A4 }
+0x88283318 = { name = "eot_TCRWindow_ActiveExit", size = 0x54 }
+0x88283370 = { name = "eot_TCRWindow_ClosingEnter", size = 0x248 }
 0x882835B8 = { size = 0x1A0 }
 0x88283C90 = { size = 0x388 }
 0x88284480 = { size = 0x7C }
@@ -2238,6 +2238,24 @@ out_directory_path = "generated/gamelogic"
 0x8823B328 = { name = "eot_HUDOptionsScreen_HandleInputEvent", size = 0x3FC }
 0x882825C8 = { name = "eot_YesNoWindow_Open", size = 0x170 }
 0x88298A30 = { name = "eot_YesNoWindow_InitConfig", size = 0x1C4 }
+
+0x8812C360 = { name = "eot_Input_GetAxis", size = 0x118 }
+0x8812C478 = { name = "eot_Input_IsPressed", size = 0xA8 }
+0x882710F0 = { name = "eot_GameOptionsPopup_Prepare", size = 0x110 }
+0x88271200 = { name = "eot_GameOptionsPopup_OnShow", size = 0x118 }
+0x88271318 = { name = "eot_GameOptionsPopup_OnUpdate", size = 0x5B0 }
+0x88280F98 = { name = "eot_WindowComponent_Init", size = 0x128 }
+0x882810C0 = { name = "eot_WindowComponent_ShowHide", size = 0xF0 }
+0x882811B0 = { name = "eot_WindowComponent_Teardown", size = 0x1A8 }
+0x88281358 = { name = "eot_WindowComponent_HandleMessage", size = 0x178 }
+0x88281B90 = { name = "eot_TCRWindow_Construct", size = 0x580 }
+0x88282110 = { name = "eot_TCRWindow_Init", size = 0x4B8 }
+0x88283800 = { name = "eot_TCRWindow_HandleMessage", size = 0x398 }
+0x88294C38 = { name = "eot_HUDTween_Start", size = 0x430 }
+
+0x88345E98 = { name = "eot_HUDSavegameSelect_Construct", size = 0x3D0 }
+0x883469D8 = { name = "eot_HUDSavegameSelect_HandleInputEvent", size = 0x470 }
+0x88347D80 = { name = "eot_HUDSavegameSelect_HandleMessage", size = 0x368 }
 
 [[midasm_hook]]
 address = 0x882314D4

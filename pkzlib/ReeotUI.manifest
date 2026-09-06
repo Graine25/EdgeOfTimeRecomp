@@ -7,6 +7,11 @@ texture Reeot_Font_SansaCon from Main.pak SansaCon-UltraBlack_texture_0
 compress true
 textstyle Reeot_Style_Title from Main.pak TCRWindow_Title
 textstyle Reeot_Style_Body from Main.pak TCRWindow_Body
-window Reeot_GraphicsBox type=1 parent=0x7F85723D prio=200 rect=0.231,0.935,0.538,0.471 wide=0.286,0.920,0.429,0.500 texture=Reeot_PopUpBox
-window Reeot_GraphicsTitle type=4 parent=Reeot_GraphicsBox prio=1 flags=0x301 rect=0.031,-0.018,0.946,0.124 wide=0.028,-0.021,0.949,0.128 style=Reeot_Style_Title string=REEOT_GRAPHICS_TITLE textflags=0x30000 align=0,3
-window Reeot_GraphicsBody type=4 parent=Reeot_GraphicsBox prio=1 flags=0x1 rect=0.026,0.150,0.949,0.700 style=Reeot_Style_Body string=REEOT_GRAPHICS_BODY
+window Reeot_GraphicsPanel type=0 prio=1 rect=0,0,1,1 wide=0,0,1,1
+window Reeot_GraphicsBody type=4 parent=Reeot_GraphicsPanel prio=1 flags=0x1 rect=0.026,0.062,0.949,0.938 wide=0.027,0.052,0.949,0.943 style=Reeot_Style_Body string=REEOT_GRAPHICS_BODY
+textstyle Reeot_Style_Choice from Main.pak TCRWindow_Choice
+textstyle Reeot_Style_ChoiceSelected from Main.pak TCRWindow_ChoiceSelected
+window Reeot_LeaveWindow type=0 prio=1 rect=0,0,1,1 wide=0,0,1,1
+window Reeot_LeaveText type=4 parent=Reeot_LeaveWindow prio=1 flags=0x1 rect=0.027,0.062,0.948,0.723 style=Reeot_Style_Body string=REEOT_LEAVE_BODY
+window Reeot_LeaveYes type=4 parent=Reeot_LeaveWindow prio=1 flags=0x1 rect=0.040,0.810,0.400,0.150 style=Reeot_Style_Choice string=REEOT_YES textflags=0x30000 align=2,3
+window Reeot_LeaveNo type=4 parent=Reeot_LeaveWindow prio=1 flags=0x1 rect=0.560,0.810,0.400,0.150 style=Reeot_Style_Choice string=REEOT_NO textflags=0x30000 align=0,3
