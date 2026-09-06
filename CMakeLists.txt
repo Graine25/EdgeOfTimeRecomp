@@ -28,14 +28,18 @@ reeot_write_build_info("${REEOT_GEN_DIR}/core/build_info.h")
 
 add_subdirectory(thirdparty)
 
+set(REEOT_REFERENCE_PAKS "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/reference_pak" CACHE PATH
+    "Directory holding the retail Main.pak / Common.pak the content package copies textures from")
 set(REEOT_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotUI.pkz")
 add_custom_command(
     OUTPUT "${REEOT_PKZ_OUTPUT}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
-    COMMAND pkztool make-strings "${REEOT_PKZ_OUTPUT}" 0x7EE ReeotUI
+    COMMAND pkztool make "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotUI.manifest" "${REEOT_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotUI.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
-    DEPENDS pkztool "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
-    COMMENT "Authoring ReeotUI.pkz from tools/pkz/reeot_ui_strings.txt"
+    COMMENT "Authoring ReeotUI.pkz from tools/pkz/ReeotUI.manifest"
     VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}")
 include(cmake/host_shaders.cmake)
