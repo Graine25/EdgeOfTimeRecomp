@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 #include <rex/types.h>
@@ -50,12 +52,27 @@ enum class PsoSource : u8 { Draw = 0, CompiledIn = 1, LocalCsv = 2, Predicted = 
 void ZeroPipelineState(PipelineState &state);
 u64 HashPipelineState(const PipelineState &state);
 
+inline i32 PolygonOffsetUnits(float offset) {
+  const float layers = std::ceil(std::fabs(offset) * static_cast<float>(1u << 21));
+  const i32 units = static_cast<i32>(std::min(layers, 1.0e8f)) << 3;
+  return offset < 0.0f ? -units : units;
+}
+
+void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask);
+
 plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &state,
                                            bool worker = false,
-                                           PsoSource source = PsoSource::Draw);
+                                           PsoSource source = PsoSource::Draw,
+                                           u16 template_index = 0xFFFF);
 
 void PsoCachePrecache();
 
 void PsoCacheFlushIfDirty(bool force);
+
+void PsoCacheSetLoadingScreen(bool on);
+bool PsoCacheInLoadingScreen();
+
+void PsoCacheOnPackageLoad(u32 id);
+bool PsoCacheHoldPackage(u32 id);
 
 }

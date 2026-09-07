@@ -1,9 +1,12 @@
 #include "gpu/pipeline/pso_records.h"
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
-#include <cmath>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <format>
@@ -11,19 +14,39 @@
 #include <string>
 #include <vector>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include "core/logging.h"
 #include "gpu/settings.h"
+#include "gpu/shaders/guest_shaders.h"
 
 namespace eot::gpu {
 
 namespace {
 
-constexpr const char *kColumns =
-    "vsHash,psHash,spec,layoutKey,declRaw,strides,topology,rtFormats,rtCount,dsFormat,"
-    "sampleCount,cull,frontFace,depthBias,slopeScaledDepthBias,targetScale,depthClip,depthEnable,"
-    "depthWrite,depthFunc,stencilEnable,stencilReadMask,stencilWriteMask,stencilRef,"
-    "stencilFront,stencilBack,blend0,blend1,blend2,blend3,alphaToCoverage,frame,session";
-constexpr u32 kColumnCount = 33;
+enum Col : u32 {
+  cVsHash, cPsHash, cSpec, cLayoutKey, cDeclRaw, cStrides, cTopology, cRtFormats, cRtCount,
+  cDsFormat, cSampleCount, cCull, cFrontFace, cDepthBias, cSlopeScaledDepthBias, cTargetScale,
+  cDepthClip, cDepthEnable, cDepthWrite, cDepthFunc, cStencilEnable, cStencilReadMask,
+  cStencilWriteMask, cStencilRef, cStencilFront, cStencilBack, cBlend0, cBlend1, cBlend2, cBlend3,
+  cAlphaToCoverage, cFrame, cSession, cPackage, cCount
+};
+static_assert(cCount == PsoCsvLayout::kColumns);
+
+constexpr const char *kColumnNames[cCount] = {
+    "vsHash", "psHash", "spec", "layoutKey", "declRaw", "strides", "topology", "rtFormats",
+    "rtCount", "dsFormat", "sampleCount", "cull", "frontFace", "depthBias",
+    "slopeScaledDepthBias", "targetScale", "depthClip", "depthEnable", "depthWrite", "depthFunc",
+    "stencilEnable", "stencilReadMask", "stencilWriteMask", "stencilRef", "stencilFront",
+    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "frame", "session",
+    "package"};
 
 const char kHexDigits[] = "0123456789abcdef";
 
@@ -121,6 +144,22 @@ int HexVal(char c) {
   return -1;
 }
 
+std::string_view Trim(std::string_view s) {
+  while (!s.empty() && (s.back() == '\r' || s.back() == '\n' || s.back() == ' '))
+    s.remove_suffix(1);
+  while (!s.empty() && s.front() == ' ')
+    s.remove_prefix(1);
+  return s;
+}
+
+u32 VersionComment(std::string_view line) {
+  line = Trim(line);
+  if (!line.starts_with("# eot-pso v"))
+    return 0;
+  u64 v = 0;
+  return ParseU64(line.substr(11), &v) ? static_cast<u32>(v) : 0;
+}
+
 const char *const kCompiledInRows[] = {
 #include "gpu/pipeline/cache/eot_pipelines.inc"
     nullptr};
@@ -142,10 +181,6 @@ Capture &capture() {
   return c;
 }
 
-std::string SessionId(const std::string &tag) {
-  return tag.empty() ? PsoSessionStamp() : tag + "_" + PsoSessionStamp();
-}
-
 std::string SessionStampImpl() {
   const std::time_t now = std::time(nullptr);
   std::tm tm{};
@@ -159,9 +194,33 @@ std::string SessionStampImpl() {
   return buf;
 }
 
+std::string SessionTagImpl() {
+  char raw[256] = {};
+#if defined(_WIN32)
+  DWORD n = sizeof(raw);
+  if (!::GetComputerNameA(raw, &n))
+    raw[0] = 0;
+#else
+  if (gethostname(raw, sizeof(raw) - 1) != 0)
+    raw[0] = 0;
+#endif
+  std::string tag;
+  for (const char *p = raw; *p && tag.size() < 24; ++p) {
+    const unsigned char c = static_cast<unsigned char>(*p);
+    if (std::isalnum(c))
+      tag.push_back(static_cast<char>(std::tolower(c)));
+  }
+  return tag.empty() ? "session" : tag;
 }
 
-std::string PsoCsvHeader() { return std::format("# eot-pso v{}\n{}", kPsoCsvVersion, kColumns); }
+}
+
+std::string PsoCsvHeader() {
+  std::string h = std::format("# eot-pso v{}\n", kPsoCsvVersion);
+  for (u32 i = 0; i < cCount; ++i)
+    h += std::format("{}{}", i ? "," : "", kColumnNames[i]);
+  return h;
+}
 
 std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
   const PipelineState &s = r.state;
@@ -177,40 +236,67 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
   std::string rts;
   for (u32 i = 0; i < 4; ++i)
     rts += std::format("{}{}", i ? "|" : "", ei(s.rtFormats[i]));
+  std::string packages;
+  for (u32 i = 0; i < r.packageCount && i < kMaxRecordPackages; ++i)
+    packages += std::format("{}{:x}", i ? "|" : "", r.packages[i]);
   return std::format(
       "{:016x},{:016x},{:x},{:016x},{},{},{},{},{},{},{},{},{},{},{:.9g},{:.9g},{},{},{},{},{},{},"
-      "{},{},{},{},{},{},{},{},{},{},{}",
+      "{},{},{},{},{},{},{},{},{},{},{},{}",
       s.vsHash, s.psHash, s.spec, s.layoutKey, decl, strides, ei(s.topology), rts, s.rtCount,
       ei(s.dsFormat), s.sampleCount, ei(s.cull), ei(s.frontFace), s.depthBias,
       s.slopeScaledDepthBias,
       std::fabs(s.targetScale - RenderScaleFactor()) < 0.01f ? 0.0f : s.targetScale,
-      s.depthClip ? 1 : 0, s.depthEnable ? 1 : 0, s.depthWrite ? 1 : 0,
-      ei(s.depthFunc), s.stencilEnable ? 1 : 0, static_cast<unsigned>(s.stencilReadMask),
+      s.depthClip ? 1 : 0, s.depthEnable ? 1 : 0, s.depthWrite ? 1 : 0, ei(s.depthFunc),
+      s.stencilEnable ? 1 : 0, static_cast<unsigned>(s.stencilReadMask),
       static_cast<unsigned>(s.stencilWriteMask), static_cast<unsigned>(s.stencilRef),
       Stencil(s.stencilFront), Stencil(s.stencilBack), Blend(s.blend[0]), Blend(s.blend[1]),
-      Blend(s.blend[2]), Blend(s.blend[3]), s.alphaToCoverage ? 1 : 0, r.frame, session);
+      Blend(s.blend[2]), Blend(s.blend[3]), s.alphaToCoverage ? 1 : 0, r.frame, session,
+      packages);
 }
 
-bool PsoRecordFromCsv(std::string_view line, PsoRecord *out) {
-  while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
-    line.remove_suffix(1);
+bool PsoCsvParseHeader(std::string_view line, PsoCsvLayout *out) {
+  line = Trim(line);
+  if (!line.starts_with("vsHash"))
+    return false;
+  for (u32 i = 0; i < PsoCsvLayout::kColumns; ++i)
+    out->index[i] = -1;
+  const auto names = Split(line, ',');
+  out->fieldCount = static_cast<u32>(names.size());
+  for (u32 pos = 0; pos < names.size() && pos < 127; ++pos) {
+    for (u32 c = 0; c < cCount; ++c) {
+      if (names[pos] == kColumnNames[c]) {
+        out->index[c] = static_cast<i8>(pos);
+        break;
+      }
+    }
+  }
+  out->version = out->index[cTargetScale] < 0 ? 1 : out->index[cPackage] < 0 ? 2 : 3;
+  return true;
+}
+
+bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoRecord *out) {
+  line = Trim(line);
   if (line.empty() || line[0] == '#' || line.starts_with("vsHash"))
     return false;
   const auto c = Split(line, ',');
-  if (c.size() != kColumnCount)
+  if (c.size() != layout.fieldCount)
     return false;
+  auto field = [&](u32 col) -> std::string_view {
+    const int i = layout.index[col];
+    return i < 0 ? std::string_view() : c[static_cast<size_t>(i)];
+  };
   PsoRecord r{};
   ZeroPipelineState(r.state);
   PipelineState &s = r.state;
   u64 u;
   i64 i;
-  if (!ParseU64(c[0], &s.vsHash, 16) || !ParseU64(c[1], &s.psHash, 16) ||
-      !ParseU64(c[2], &u, 16))
+  if (!ParseU64(field(cVsHash), &s.vsHash, 16) || !ParseU64(field(cPsHash), &s.psHash, 16) ||
+      !ParseU64(field(cSpec), &u, 16))
     return false;
   s.spec = static_cast<u32>(u);
-  if (!ParseU64(c[3], &s.layoutKey, 16))
+  if (!ParseU64(field(cLayoutKey), &s.layoutKey, 16))
     return false;
-  const std::string_view hex = c[4];
+  const std::string_view hex = field(cDeclRaw);
   if (hex.size() % (2 * sizeof(DeclElement)) != 0 || hex.size() / 2 > sizeof(r.declRaw))
     return false;
   for (size_t k = 0; k < hex.size(); k += 2) {
@@ -220,7 +306,7 @@ bool PsoRecordFromCsv(std::string_view line, PsoRecord *out) {
     r.declRaw[k / 2] = static_cast<u8>(hi << 4 | lo);
   }
   r.declCount = static_cast<u32>(hex.size() / (2 * sizeof(DeclElement)));
-  const auto strides = Split(c[5], '|');
+  const auto strides = Split(field(cStrides), '|');
   if (strides.size() != 16)
     return false;
   for (u32 k = 0; k < 16; ++k) {
@@ -228,46 +314,77 @@ bool PsoRecordFromCsv(std::string_view line, PsoRecord *out) {
       return false;
     s.strides[k] = static_cast<u32>(i);
   }
-  if (!ParseEnum(c[6], &s.topology))
+  if (!ParseEnum(field(cTopology), &s.topology))
     return false;
-  const auto rts = Split(c[7], '|');
+  const auto rts = Split(field(cRtFormats), '|');
   if (rts.size() != 4)
     return false;
   for (u32 k = 0; k < 4; ++k)
     if (!ParseEnum(rts[k], &s.rtFormats[k]))
       return false;
-  if (!ParseI64(c[8], &i))
+  if (!ParseI64(field(cRtCount), &i))
     return false;
   s.rtCount = static_cast<u32>(i);
-  if (!ParseEnum(c[9], &s.dsFormat) || !ParseI64(c[10], &i))
+  if (!ParseEnum(field(cDsFormat), &s.dsFormat) || !ParseI64(field(cSampleCount), &i))
     return false;
   s.sampleCount = static_cast<u32>(i);
-  if (!ParseEnum(c[11], &s.cull) || !ParseEnum(c[12], &s.frontFace) || !ParseI64(c[13], &i))
+  if (!ParseEnum(field(cCull), &s.cull) || !ParseEnum(field(cFrontFace), &s.frontFace) ||
+      !ParseI64(field(cDepthBias), &i))
     return false;
   s.depthBias = static_cast<i32>(i);
-  if (!ParseF32(c[14], &s.slopeScaledDepthBias) || !ParseF32(c[15], &s.targetScale) ||
-      !ParseBool(c[16], &s.depthClip) || !ParseBool(c[17], &s.depthEnable) ||
-      !ParseBool(c[18], &s.depthWrite) || !ParseEnum(c[19], &s.depthFunc) ||
-      !ParseBool(c[20], &s.stencilEnable))
+  if (!ParseF32(field(cSlopeScaledDepthBias), &s.slopeScaledDepthBias))
+    return false;
+  if (layout.version >= 2) {
+    if (!ParseF32(field(cTargetScale), &s.targetScale))
+      return false;
+  } else if (s.depthBias) {
+    const i32 b = s.depthBias;
+    const i32 layers = static_cast<i32>(std::ceil((std::abs(b) + 0.5) / 4.0));
+    s.depthBias = (b < 0 ? -layers : layers) * 8;
+    s.targetScale = 0.0f;
+  }
+  if (!ParseBool(field(cDepthClip), &s.depthClip) || !ParseBool(field(cDepthEnable), &s.depthEnable) ||
+      !ParseBool(field(cDepthWrite), &s.depthWrite) || !ParseEnum(field(cDepthFunc), &s.depthFunc) ||
+      !ParseBool(field(cStencilEnable), &s.stencilEnable))
     return false;
   if (s.depthBias || s.slopeScaledDepthBias != 0.0f)
     s.targetScale = s.targetScale == 0.0f ? RenderScaleFactor() : s.targetScale;
   else
     s.targetScale = 1.0f;
   i64 m0, m1, m2;
-  if (!ParseI64(c[21], &m0) || !ParseI64(c[22], &m1) || !ParseI64(c[23], &m2))
+  if (!ParseI64(field(cStencilReadMask), &m0) || !ParseI64(field(cStencilWriteMask), &m1) ||
+      !ParseI64(field(cStencilRef), &m2))
     return false;
   s.stencilReadMask = static_cast<u8>(m0);
   s.stencilWriteMask = static_cast<u8>(m1);
   s.stencilRef = static_cast<u8>(m2);
-  if (!ParseStencil(c[24], &s.stencilFront) || !ParseStencil(c[25], &s.stencilBack))
+  if (!ParseStencil(field(cStencilFront), &s.stencilFront) ||
+      !ParseStencil(field(cStencilBack), &s.stencilBack))
     return false;
   for (u32 k = 0; k < 4; ++k)
-    if (!ParseBlend(c[26 + k], &s.blend[k]))
+    if (!ParseBlend(field(cBlend0 + k), &s.blend[k]))
       return false;
-  if (!ParseBool(c[30], &s.alphaToCoverage))
+  if (!ParseBool(field(cAlphaToCoverage), &s.alphaToCoverage))
     return false;
-  ParseU64(c[31], &r.frame);
+  ParseU64(field(cFrame), &r.frame);
+  const std::string_view pk = field(cPackage);
+  if (!pk.empty()) {
+    for (const auto p : Split(pk, '|')) {
+      if (ParseU64(p, &u, 16) && u < 0x1000 && r.packageCount < kMaxRecordPackages)
+        r.packages[r.packageCount++] = static_cast<u16>(u);
+    }
+  }
+  u32 spec_mask = ~0u;
+  if (s.vsHash) {
+    spec_mask = 0;
+    if (const ShaderCacheEntry *e = FindShaderCacheEntry(s.vsHash))
+      spec_mask |= e->specConstantsMask;
+    if (s.psHash) {
+      if (const ShaderCacheEntry *e = FindShaderCacheEntry(s.psHash))
+        spec_mask |= e->specConstantsMask;
+    }
+  }
+  CanonicalizePipelineState(s, spec_mask, 0xFFFFu);
   *out = r;
   return true;
 }
@@ -275,15 +392,21 @@ bool PsoRecordFromCsv(std::string_view line, PsoRecord *out) {
 const std::vector<PsoRecord> &CompiledInPipelines() {
   static const std::vector<PsoRecord> rows = [] {
     std::vector<PsoRecord> v;
+    PsoCsvLayout layout{};
+    bool have_layout = false;
     u32 bad = 0;
     for (const char *const *p = kCompiledInRows; *p; ++p) {
+      if (!have_layout) {
+        have_layout = PsoCsvParseHeader(*p, &layout);
+        continue;
+      }
       PsoRecord r;
-      if (PsoRecordFromCsv(*p, &r))
+      if (PsoRecordFromCsv(layout, *p, &r))
         v.push_back(r);
-      else if (**p != '#' && std::string_view(*p).substr(0, 6) != "vsHash")
+      else if (**p != '#')
         ++bad;
     }
-    if (bad)
+    if (bad || !have_layout)
       EOT_WARN("[pso] {} compiled-in rows did not parse (schema v{}); regenerate "
                "cache/eot_pipelines.inc with tools/pso/pso_merge.py",
                bad, kPsoCsvVersion);
@@ -297,31 +420,55 @@ std::string PsoSessionStamp() {
   return stamp;
 }
 
+std::string PsoSessionTag() {
+  static const std::string tag = SessionTagImpl();
+  return tag;
+}
+
 const std::vector<PsoTemplate> &CompiledInTemplates() {
   static const std::vector<PsoTemplate> rows = [] {
     std::vector<PsoTemplate> v;
+    PsoCsvLayout layout{};
+    bool have_layout = false;
     u32 bad = 0;
+    auto after_prefix = [](std::string_view line, std::string_view fields[4]) -> std::string_view {
+      size_t start = 0;
+      for (u32 k = 0; k < 4; ++k) {
+        const size_t comma = line.find(',', start);
+        if (comma == std::string_view::npos)
+          return {};
+        fields[k] = line.substr(start, comma - start);
+        start = comma + 1;
+      }
+      return line.substr(start);
+    };
     for (const char *const *p = kCompiledInTemplateRows; *p; ++p) {
       std::string_view line(*p);
-      if (line.empty() || line[0] == '#' || line.starts_with("technique"))
+      if (line.empty() || line[0] == '#')
         continue;
-      const size_t c1 = line.find(',');
-      const size_t c2 = c1 == std::string_view::npos ? c1 : line.find(',', c1 + 1);
-      const size_t c3 = c2 == std::string_view::npos ? c2 : line.find(',', c2 + 1);
-      u64 tech = 0, pass = 0, cls = 0;
+      std::string_view prefix[4];
+      const std::string_view rest = after_prefix(line, prefix);
+      if (!have_layout) {
+        have_layout = prefix[0] == "technique" && PsoCsvParseHeader(rest, &layout);
+        if (!have_layout)
+          ++bad;
+        continue;
+      }
+      u64 tech = 0, pass = 0, cls = 0, kind = 0;
       PsoRecord r;
-      if (c3 == std::string_view::npos || !ParseU64(line.substr(0, c1), &tech) ||
-          !ParseU64(line.substr(c1 + 1, c2 - c1 - 1), &pass) ||
-          !ParseU64(line.substr(c2 + 1, c3 - c2 - 1), &cls, 16) ||
-          !PsoRecordFromCsv(line.substr(c3 + 1), &r) || tech > 255 || pass > 255) {
+      if (rest.empty() || !ParseU64(prefix[0], &tech) || !ParseU64(prefix[1], &pass) ||
+          !ParseU64(prefix[2], &cls, 16) || !ParseU64(prefix[3], &kind) ||
+          !PsoRecordFromCsv(layout, rest, &r) || tech > 255 || pass > 255 || kind > 2) {
         ++bad;
         continue;
       }
-      v.push_back(PsoTemplate{static_cast<u8>(tech), static_cast<u8>(pass), static_cast<u32>(cls), r.state});
+      v.push_back(PsoTemplate{static_cast<u8>(tech), static_cast<u8>(pass),
+                              static_cast<PsoBiasKind>(kind), static_cast<u32>(cls), r.state});
     }
     if (bad)
       EOT_WARN("[pso] {} compiled-in template rows did not parse; regenerate "
-               "cache/eot_pso_templates.inc with tools/pso/pso_gen_templates.py", bad);
+               "cache/eot_pso_templates.inc with tools/pso/pso_gen_templates.py",
+               bad);
     return v;
   }();
   return rows;
@@ -336,7 +483,7 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
     if (!entry.is_regular_file() || entry.path().extension() != ".csv")
       continue;
     const std::string name = entry.path().filename().string();
-    if (name.starts_with("pso_pairs_") || name.starts_with("pso_predicted_"))
+    if (!name.starts_with("pso_misses_"))
       continue;
     FILE *f = std::fopen(entry.path().string().c_str(), "rb");
     if (!f)
@@ -348,41 +495,38 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
       data.append(buf, got);
     std::fclose(f);
     size_t rows = 0, bad = 0;
-    bool version_ok = true;
+    PsoCsvLayout layout{};
+    bool have_layout = false;
+    u32 version = 0;
     for (const auto line : Split(data, '\n')) {
-      if (line.starts_with("# eot-pso v")) {
-        u64 v = 0;
-        version_ok = ParseU64(line.substr(11), &v) && v == kPsoCsvVersion;
-        if (!version_ok) {
-          EOT_WARN("[pso] {}: schema v{} != v{}; ignored", entry.path().filename().string(), v,
-                   kPsoCsvVersion);
-          break;
-        }
+      if (!have_layout) {
+        if (const u32 v = VersionComment(line))
+          version = v;
+        have_layout = PsoCsvParseHeader(line, &layout);
         continue;
       }
       PsoRecord r;
-      if (PsoRecordFromCsv(line, &r)) {
+      if (PsoRecordFromCsv(layout, line, &r)) {
         out.push_back(r);
         ++rows;
-      } else if (!line.empty() && line[0] != '#' && !line.starts_with("vsHash") &&
-                 line != "\r") {
+      } else if (!Trim(line).empty() && line[0] != '#') {
         ++bad;
       }
     }
-    if (version_ok) {
-      n += rows;
-      EOT_INFO("[pso] {}: {} rows{}", entry.path().filename().string(), rows,
-               bad ? std::format(" ({} unparsable)", bad) : "");
-    }
+    n += rows;
+    EOT_INFO("[pso] {}: {} rows (v{}){}", name, rows, version ? version : layout.version,
+             bad ? std::format(" ({} unparsable)", bad) : "");
   }
   return n;
 }
 
-void PsoCaptureConfigure(const std::string &dir, const std::string &tag) {
+void PsoCaptureConfigure() {
   auto &c = capture();
   std::lock_guard lock(c.mutex);
-  c.dir = dir;
-  c.tag = tag;
+  std::error_code ec;
+  std::filesystem::create_directories(kPsoDir, ec);
+  c.dir = kPsoDir;
+  c.tag = PsoSessionTag();
   c.path.clear();
   c.headerWritten = false;
 }
@@ -395,9 +539,11 @@ void PsoCaptureAdd(const PsoRecord &r) {
   if (c.path.empty()) {
     std::error_code ec;
     std::filesystem::create_directories(c.dir, ec);
-    c.path = (std::filesystem::path(c.dir) / ("pso_misses_" + SessionId(c.tag) + ".csv")).string();
+    c.path = (std::filesystem::path(c.dir) /
+              ("pso_misses_" + c.tag + "_" + PsoSessionStamp() + ".csv"))
+                 .string();
   }
-  c.pending.push_back(PsoRecordToCsv(r, c.tag.empty() ? "-" : c.tag));
+  c.pending.push_back(PsoRecordToCsv(r, c.tag));
 }
 
 void PsoCaptureFlush(bool force, u64 guest_frame) {
@@ -428,6 +574,26 @@ void PsoCaptureFlush(bool force, u64 guest_frame) {
   EOT_INFO("[pso] {} new pipeline(s) captured -> {} ({} this session)", c.pending.size(), c.path,
            c.written);
   c.pending.clear();
+}
+
+void PsoWriteSessionFile(const std::string &name, const std::string &header,
+                         const std::vector<std::string> &rows) {
+  std::error_code ec;
+  std::filesystem::create_directories(kPsoDir, ec);
+  const std::string path = (std::filesystem::path(kPsoDir) / name).string();
+  FILE *f = std::fopen(path.c_str(), "wb");
+  if (!f) {
+    EOT_WARN("[pso] cannot write {}", path);
+    return;
+  }
+  std::fwrite(header.data(), 1, header.size(), f);
+  std::fputc('\n', f);
+  for (const std::string &row : rows) {
+    std::fwrite(row.data(), 1, row.size(), f);
+    std::fputc('\n', f);
+  }
+  std::fclose(f);
+  EOT_INFO("[pso] wrote {} ({} rows)", path, rows.size());
 }
 
 }

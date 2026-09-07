@@ -962,9 +962,7 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
     const float scale = dev.F32(dev::kPolyOffsetFrontScale);
     const float offset = dev.F32(dev::kPolyOffsetFrontOffset);
     st.slopeScaledDepthBias = scale / 16.0f;
-    const float layers = std::ceil(std::fabs(offset) * static_cast<float>(1u << 21));
-    const i32 units = static_cast<i32>(std::min(layers, 1.0e8f)) << 3;
-    st.depthBias = offset < 0.0f ? -units : units;
+    st.depthBias = PolygonOffsetUnits(offset);
   }
   const float rs = RenderScaleFactor();
   const float ts = std::fabs(t.scale - rs) < 0.01f ? rs : t.scale;
@@ -1297,6 +1295,10 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   st.topology = geom.topology;
   if (geom.rectList)
     st.cull = plume::RenderCullMode::NONE;
+  CanonicalizePipelineState(st,
+                            (vs->entry ? vs->entry->specConstantsMask : 0u) |
+                                (ps && ps->entry ? ps->entry->specConstantsMask : 0u),
+                            layout->streamMask);
   s.current_vs_va = vs_va;
   s.current_ps_va = ps_va;
   {

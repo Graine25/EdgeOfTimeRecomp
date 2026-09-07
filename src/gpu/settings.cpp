@@ -22,31 +22,6 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
     .range(0, 2);
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Present with vsync.");
-REXCVAR_DEFINE_STRING(eot_pso_dir, "pso", "eot",
-                      "Directory of pipeline capture CSVs: every *.csv in it is precached on "
-                      "worker threads at boot, and render-thread misses of this run are appended "
-                      "to a new pso_misses_<tag>_<time>.csv there (empty = off).");
-REXCVAR_DEFINE_STRING(eot_pso_tag, "", "eot",
-                      "Tester or area tag written into pipeline capture file names and rows.");
-REXCVAR_DEFINE_BOOL(eot_pso_capture, true, "eot",
-                    "Capture pipelines the render thread had to build to eot_pso_dir.");
-REXCVAR_DEFINE_BOOL(eot_pso_compiled_in, true, "eot",
-                    "Precache the compiled-in pipeline table at boot (false to measure the "
-                    "load-time predictor alone).");
-REXCVAR_DEFINE_BOOL(eot_pso_predict, true, "eot",
-                    "Predict and prebuild a model's pipelines from its materials when the "
-                    "guest streams it (ModelResource_LoadGeometry).");
-REXCVAR_DEFINE_BOOL(eot_pso_predict_all, false, "eot",
-                    "Predictor experiment: cross every material of a model with every descriptor "
-                    "stride instead of only the (material, stride) pairs descriptors reference.");
-REXCVAR_DEFINE_INT32(eot_pso_predict_fallback, 0, "eot",
-                     "Predictor template matching: 0 exact (technique, pass, material class) only, "
-                     "1 also the technique with the class for any pass, 2 also the technique alone.")
-    .range(0, 2);
-REXCVAR_DEFINE_INT32(eot_pso_gate_ms, 250, "eot",
-                     "Longest a model load waits for its predicted pipelines before the model "
-                     "is published (0 = never wait).")
-    .range(0, 5000);
 REXCVAR_DEFINE_BOOL(eot_profiler, false, "eot",
                     "Start the Tracy profiler at boot so a viewer can attach. Zones are "
                     "compiled into every non-Release build and cost nothing until then.");
@@ -59,9 +34,6 @@ REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "eot",
                      "Log a [hitch] line with that frame's own CPU split for any presented "
                      "frame longer than this many milliseconds (0 = off).")
     .range(0, 1000);
-REXCVAR_DEFINE_INT32(eot_pso_threads, 0, "eot",
-                     "Pipeline worker threads (0 = hardware threads - 2, clamped to 1..8).")
-    .range(0, 16);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video",
                       "Internal render scale: EDRAM surfaces and resolve mirrors are allocated at "
                       "guest size x this (0.25..4); the present scales to the window as before. "
@@ -187,15 +159,6 @@ f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
-std::string Settings::PsoDir() { return std::string(REXCVAR_GET(eot_pso_dir)); }
-std::string Settings::PsoTag() { return std::string(REXCVAR_GET(eot_pso_tag)); }
-bool Settings::PsoCapture() { return REXCVAR_GET(eot_pso_capture); }
-bool Settings::PsoCompiledIn() { return REXCVAR_GET(eot_pso_compiled_in); }
-bool Settings::PsoPredict() { return REXCVAR_GET(eot_pso_predict); }
-bool Settings::PsoPredictAll() { return REXCVAR_GET(eot_pso_predict_all); }
-i32 Settings::PsoPredictFallback() { return REXCVAR_GET(eot_pso_predict_fallback); }
-i32 Settings::PsoGateMs() { return REXCVAR_GET(eot_pso_gate_ms); }
-i32 Settings::PsoThreads() { return REXCVAR_GET(eot_pso_threads); }
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
 bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }

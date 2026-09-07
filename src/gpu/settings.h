@@ -40,15 +40,6 @@ struct Settings {
   static std::string Resolution();
   static i32 FpsLimit();
   static std::string AspectRatio();
-  static std::string PsoDir();
-  static std::string PsoTag();
-  static bool PsoCapture();
-  static bool PsoCompiledIn();
-  static bool PsoPredict();
-  static bool PsoPredictAll();
-  static i32 PsoPredictFallback();
-  static i32 PsoGateMs();
-  static i32 PsoThreads();
   static i32 HitchMs();
   static bool CommittedTextures();
   static bool Profiler();
@@ -75,6 +66,10 @@ inline u32 ScaleDimBy(u32 v, float s) {
 }
 inline u32 ScaleDim(u32 v) {
   return std::max(1u, static_cast<u32>(std::lround(v * RenderScaleFactor())));
+}
+inline f32 ShadowMapTargetScale() {
+  const i32 size = Settings::ShadowMapSize();
+  return size > 0 ? static_cast<f32>(std::clamp(size, 256, 8192)) / 1024.0f : RenderScaleFactor();
 }
 
 }

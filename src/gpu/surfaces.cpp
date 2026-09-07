@@ -66,10 +66,9 @@ bool DecodeHeader(u32 va, GuestSurface &out) {
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   HostTexture &host = surf.host;
   host.format = SurfaceHostFormat(surf);
-  surf.scale = RenderScaleFactor();
-  const i32 shadow_size = Settings::ShadowMapSize();
-  if (surf.isDepth && surf.width == 1024 && surf.height == 1024 && shadow_size > 0)
-    surf.scale = static_cast<float>(std::clamp(shadow_size, 256, 8192)) / 1024.0f;
+  surf.scale = surf.isDepth && surf.width == 1024 && surf.height == 1024
+                   ? ShadowMapTargetScale()
+                   : RenderScaleFactor();
   host.width = ScaleDimBy(surf.width, surf.scale);
   host.height = ScaleDimBy(surf.height, surf.scale);
   host.depth = 1;

@@ -2,94 +2,88 @@
 import argparse
 import csv
 import io
-import re
 import sys
 from collections import defaultdict
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pso_merge import upgrade_v1  # noqa: E402
 
-SCHEMA_VERSION = 2
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUT = REPO_ROOT / "src" / "gpu" / "pipeline" / "cache" / "eot_pso_templates.inc"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pso_common import (BIAS_COLUMNS, COLUMNS, DEFAULT_SHADER_CACHE, DEFAULT_TEMPLATES,  # noqa: E402
+                        SCHEMA_VERSION, canonicalize, collect_inputs, is_capture, is_pairs,
+                        is_template_usage, load_shader_masks, read_rows, row_line, write_inc)
+
 SPEC_LAYOUT_BITS = 0x5
 PAIRS_HEADER = "vsHash,psHash,technique,pass"
+DEPTH_TECHNIQUE = 5
 CLEAR = {"vsHash": "0" * 16, "psHash": "0" * 16, "layoutKey": "0" * 16, "declRaw": "",
-         "frame": "0", "session": "template"}
+         "frame": "0", "session": "template", "package": "",
+         "depthBias": "0", "slopeScaledDepthBias": "0", "targetScale": "1"}
+TEMPLATE_PREFIX = ["technique", "pass", "class", "biasKind"]
 
 
-def canon_decl(hexstr):
-    out = []
-    for i in range(0, len(hexstr), 24):
-        e = hexstr[i:i + 24]
-        out.append(e[:22] + "00" if len(e) == 24 else e)
-    return "".join(out)
+def template_identity(t):
+    return tuple(t[c] for c in COLUMNS if c not in ("frame", "session", "package", "layoutKey"))
 
 
-def read_csv(path):
+def read_raw(path):
     text = Path(path).read_text(encoding="utf-8", errors="replace")
     body = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
     if not body:
         return None, []
     reader = csv.DictReader(io.StringIO("\n".join(body)))
-    columns, rows = list(reader.fieldnames), list(reader)
-    if columns and columns[0] == "vsHash" and "depthBias" in columns:
-        columns, rows = upgrade_v1(columns, rows)
-    return columns, rows
-
-
-def collect(inputs):
-    files = []
-    for raw in inputs:
-        p = Path(raw)
-        if p.is_dir():
-            files.extend(sorted(p.rglob("*.csv")))
-        elif p.is_file():
-            files.append(p)
-        else:
-            sys.stderr.write(f"warning: missing {p}\n")
-    return files
+    return list(reader.fieldnames), list(reader)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("inputs", nargs="+", help="capture CSVs / merged table / pso_pairs files, or folders")
-    ap.add_argument("-o", "--output", default=str(DEFAULT_OUT))
+    ap.add_argument("inputs", nargs="+", help="capture CSVs / merged table / pso_pairs / pso_templates files, or folders")
+    ap.add_argument("-o", "--output", default=str(DEFAULT_TEMPLATES))
+    ap.add_argument("--shader-cache", default=str(DEFAULT_SHADER_CACHE))
+    ap.add_argument("--keep-unused", action="store_true", help="keep templates the usage files say were never used")
+    ap.add_argument("--prune-min", type=int, default=100,
+                    help="predicted pipelines a never-used template must have produced to be dropped")
     args = ap.parse_args()
 
+    masks = load_shader_masks(args.shader_cache) if args.shader_cache else None
     pair_slots = defaultdict(set)
     vs_slots = defaultdict(set)
     captures = []
-    columns = None
-    for f in collect(args.inputs):
-        if f.name.startswith("pso_predicted_"):
-            continue
-        cols, rows = read_csv(f)
-        if not rows:
-            continue
-        if cols[:4] == PAIRS_HEADER.split(","):
+    usage = defaultdict(lambda: [0, 0])
+    for f in collect_inputs(args.inputs):
+        if is_pairs(f):
+            cols, rows = read_raw(f)
+            if not cols or cols[:4] != PAIRS_HEADER.split(","):
+                sys.stderr.write(f"warning: {f}: not a pairs file; skipped\n")
+                continue
             for r in rows:
                 slot = (int(r["technique"]), int(r["pass"]), int(r.get("class", "0") or "0", 16))
                 pair_slots[(r["vsHash"].lower(), r["psHash"].lower())].add(slot)
                 vs_slots[r["vsHash"].lower()].add(slot)
-        elif cols and cols[0] == "vsHash":
-            if columns is None:
-                columns = cols
-            elif cols != columns:
-                sys.stderr.write(f"warning: {f}: column set differs; skipped\n")
+        elif is_template_usage(f):
+            cols, rows = read_raw(f)
+            if not cols or cols[:4] != TEMPLATE_PREFIX:
+                sys.stderr.write(f"warning: {f}: not a template usage file; skipped\n")
                 continue
-            captures.extend(rows)
+            for r in rows:
+                key = (int(r["technique"]), int(r["pass"]), int(r["class"], 16), int(r["biasKind"]),
+                       template_identity(r))
+                usage[key][0] += int(r.get("predicted", "0") or "0")
+                usage[key][1] += int(r.get("used", "0") or "0")
+        elif f.name.startswith("pso_") and not is_capture(f):
+            continue
         else:
-            sys.stderr.write(f"warning: {f}: unrecognised header; skipped\n")
+            cols, rows = read_rows(f)
+            if rows:
+                captures.extend(rows)
 
     if not pair_slots:
-        sys.exit("error: no pso_pairs_*.csv rows found (run the game with the predictor on first)")
+        sys.exit("error: no pso_pairs_*.csv rows found (run the game once: the predictor writes them)")
     if not captures:
         sys.exit("error: no capture rows found")
 
     templates = {}
     matched = unmatched = 0
     for r in captures:
+        canonicalize(r, masks)
         vs, ps = r["vsHash"].lower(), r["psHash"].lower()
         slots = pair_slots.get((vs, ps))
         if not slots and int(ps, 16) == 0:
@@ -98,32 +92,43 @@ def main():
             unmatched += 1
             continue
         matched += 1
+        biased = int(r["depthBias"] or "0") != 0 or float(r["slopeScaledDepthBias"] or "0") != 0.0
         t = dict(r)
         t.update(CLEAR)
         strides = t["strides"].split("|")
         strides[0] = "0"
         t["strides"] = "|".join(strides)
         t["spec"] = format(int(t["spec"], 16) & ~SPEC_LAYOUT_BITS, "x")
-        identity = tuple(t[c] for c in columns if c not in ("frame", "session"))
+        ident = template_identity(t)
         for tech, pas, cls in slots:
-            templates.setdefault((tech, pas, cls, identity), t)
+            kind = 0 if not biased else (2 if tech == DEPTH_TECHNIQUE else 1)
+            templates.setdefault((tech, pas, cls, kind, ident), t)
+
+    pruned = 0
+    if usage and not args.keep_unused:
+        for key in list(templates):
+            predicted, used = usage.get(key, (0, 0))
+            if used == 0 and predicted >= args.prune_min:
+                del templates[key]
+                pruned += 1
 
     rows = sorted(templates.items())
-    out = io.StringIO()
-    out.write(f"// eot-pso-templates v{SCHEMA_VERSION}: {len(rows)} template(s). "
-              "Generated by tools/pso/pso_gen_templates.py; do not edit.\n")
-    out.write(f'"technique,pass,class,{",".join(columns)}",\n')
+    header = ",".join(TEMPLATE_PREFIX + COLUMNS)
+    lines = []
     per_tech = defaultdict(int)
-    for (tech, pas, cls, _), t in rows:
-        line = io.StringIO()
-        csv.writer(line, lineterminator="").writerow([tech, pas, format(cls, "x")] + [t.get(c, "") for c in columns])
-        out.write(f'"{line.getvalue()}",\n')
+    per_kind = defaultdict(int)
+    for (tech, pas, cls, kind, _), t in rows:
+        lines.append(",".join([str(tech), str(pas), format(cls, "x"), str(kind)]) + "," + row_line(t))
         per_tech[tech] += 1
-    Path(args.output).write_text(out.getvalue(), encoding="utf-8", newline="\n")
+        per_kind[kind] += 1
+    write_inc(args.output,
+              f"// eot-pso-templates v{SCHEMA_VERSION}: {len(rows)} template(s). Generated by tools/pso/pso_gen_templates.py; do not edit.",
+              header, lines)
     print(f"{args.output}: {len(rows)} templates from {matched} matched capture rows "
-          f"({unmatched} rows with a shader pair no model slot has reported); "
+          f"({unmatched} rows with a shader pair no model slot has reported; {pruned} pruned as never used); "
           f"{len(pair_slots)} pairs known")
     print("templates per technique: " + ", ".join(f"{k}:{v}" for k, v in sorted(per_tech.items())))
+    print("bias kinds: " + ", ".join(f"{k}:{v}" for k, v in sorted(per_kind.items())))
 
 
 if __name__ == "__main__":
