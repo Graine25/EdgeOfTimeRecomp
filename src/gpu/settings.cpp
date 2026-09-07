@@ -98,9 +98,12 @@ REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
                      "Shadow map size per cascade in texels: 0 = follow the render resolution "
                      "(the console's 1024 scaled like the frame, 1750 at 1080p), or 1024 / 2048 / "
                      "4096 fixed. Applies to shadow surfaces created after the change.");
-REXCVAR_DEFINE_INT32(eot_anisotropy, 0, "EdgeOfTime/Graphics",
-                     "Anisotropic filtering: 0 = as the game asks per texture, 1 = off, "
-                     "2/4/8/16 = at least that level on every filtered texture.");
+REXCVAR_DEFINE_INT32(eot_anisotropy, 16, "EdgeOfTime/Graphics",
+                     "Anisotropic filtering: 0 = as the game asks per texture (the console "
+                     "asks for none), 1 = off, 2/4/8/16 = at least that level on every "
+                     "linearly filtered texture, trilinear with it. 16 is near-free on "
+                     "modern GPUs and keeps floors and walls sharp at grazing angles.")
+    .range(0, 16);
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video",
                       "Display brightness offset applied at present (-0.5 .. 0.5, 0 = off).");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video",

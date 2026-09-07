@@ -94,6 +94,7 @@ set(REEOT_SOURCES
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/movie_aspect.cpp
     src/gpu/patches/post_effects.cpp
+    src/gpu/patches/present_effects.cpp
     src/goliath/input/pc_controls.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
@@ -166,8 +167,11 @@ endif()
 foreach(shader IN ITEMS copy_vs imgui_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
 endforeach()
-foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps)
+foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps cas_ps)
     reeot_host_shader(reeot ${shader} ps_6_0)
+endforeach()
+foreach(shader IN ITEMS fxaa_ps fxaa_high_ps)
+    reeot_host_shader(reeot ${shader} ps_6_0 -I "${REXSDK_DIR}/thirdparty/fxaa")
 endforeach()
 
 if(REEOT_D3D12)

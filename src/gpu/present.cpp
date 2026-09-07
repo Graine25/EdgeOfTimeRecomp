@@ -21,6 +21,7 @@
 #include "gpu/imgui_overlay.h"
 #include "gpu/patches/aspect_ratio.h"
 #include "gpu/patches/movie_aspect.h"
+#include "gpu/patches/present_effects.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/settings.h"
 #include "gpu/surfaces.h"
@@ -345,6 +346,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       TransitionLocked(s, front->host, plume::RenderTextureLayout::SHADER_READ);
       src_index = BindTextureSRVSwizzledLocked(s, front->host, (front->fetch[3] >> 1) & 0xFFF);
       front->lastUseFrame = s.guest_frames;
+      src_index = ApplyPresentEffects(s, front->host, src_index);
     }
     const u32 lut_index = front ? EnsureGammaLutLocked(s) : kInvalidDescriptorIndex;
     cmd->setFramebuffer(s.swap_framebuffers[image].get());
@@ -382,6 +384,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       pc.resourceDescriptorIndex = src_index;
       pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
       pc.param0 = 1.0f;
+      SelectPresentBlitMode(front->host.width, front->host.height, w, h, pc.extra);
       pc.colorAdjust[0] = static_cast<float>(std::clamp(Settings::Brightness(), -0.5, 0.5));
       pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
       pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));

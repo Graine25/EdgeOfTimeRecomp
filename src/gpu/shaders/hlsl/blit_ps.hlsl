@@ -8,15 +8,85 @@ float SelectChannel(float4 v, uint sel)
     return sel < 4u ? v[sel] : (sel == 5u ? 1.0 : 0.0);
 }
 
+float Lanczos2(float x)
+{
+    x = abs(x);
+    if (x < 1e-4)
+        return 1.0;
+    if (x >= 2.0)
+        return 0.0;
+    const float px = 3.14159265 * x;
+    return (sin(px) / px) * (sin(px * 0.5) / (px * 0.5));
+}
+
+float4 BoxDownsample(Texture2D<float4> tex, float2 uv, uint2 size, uint ratio)
+{
+    const uint taps = min(ratio, 8u);
+    const float2 p = uv * float2(size);
+    const int2 base = int2(floor(p - float(ratio) * 0.5 + 0.5));
+    const int2 last = int2(size) - 1;
+    float4 acc = 0.0;
+    [loop] for (uint y = 0u; y < taps; ++y)
+    {
+        const int oy = (int)((y * ratio + ratio / 2u) / taps);
+        [loop] for (uint x = 0u; x < taps; ++x)
+        {
+            const int ox = (int)((x * ratio + ratio / 2u) / taps);
+            acc += tex.Load(int3(clamp(base + int2(ox, oy), int2(0, 0), last), 0));
+        }
+    }
+    return acc / (float)(taps * taps);
+}
+
+float4 LanczosUpsample(Texture2D<float4> tex, float2 uv, uint2 size)
+{
+    const float2 p = uv * float2(size) - 0.5;
+    const float2 f = frac(p);
+    const int2 base = int2(floor(p));
+    const int2 last = int2(size) - 1;
+    float wx[4], wy[4];
+    float sx = 0.0, sy = 0.0;
+    [unroll] for (int i = 0; i < 4; ++i)
+    {
+        wx[i] = Lanczos2(f.x - float(i - 1));
+        wy[i] = Lanczos2(f.y - float(i - 1));
+        sx += wx[i];
+        sy += wy[i];
+    }
+    float4 acc = 0.0;
+    [unroll] for (int j = 0; j < 4; ++j)
+    {
+        [unroll] for (int k = 0; k < 4; ++k)
+        {
+            const int2 c = clamp(base + int2(k - 1, j - 1), int2(0, 0), last);
+            acc += tex.Load(int3(c, 0)) * (wx[k] * wy[j]);
+        }
+    }
+    return acc / (sx * sy);
+}
+
 float4 main(in float4 position : SV_Position, in float2 texCoord : TEXCOORD) : SV_Target
 {
     Texture2D<float4> tex = g_Texture2DDescriptorHeap[g_PushConstants.ResourceDescriptorIndex];
     float2 uv = lerp(g_PushConstants.SourceRect.xy, g_PushConstants.SourceRect.zw, texCoord);
     uint w, h;
     tex.GetDimensions(w, h);
-    float2 texels_per_pixel = float2(ddx(uv.x) * w, ddy(uv.y) * h);
-    bool one_to_one = all(abs(texels_per_pixel - 1.0) < 0.01);
-    float4 s = tex.Sample(g_SamplerDescriptorHeap[one_to_one ? 1u : 0u], uv);
+    float4 s;
+    const uint mode = (uint)(g_PushConstants.Extra.x + 0.5);
+    if (mode == 1u)
+    {
+        s = BoxDownsample(tex, uv, uint2(w, h), max((uint)(g_PushConstants.Extra.y + 0.5), 2u));
+    }
+    else if (mode == 2u)
+    {
+        s = LanczosUpsample(tex, uv, uint2(w, h));
+    }
+    else
+    {
+        float2 texels_per_pixel = float2(ddx(uv.x) * w, ddy(uv.y) * h);
+        bool one_to_one = all(abs(texels_per_pixel - 1.0) < 0.01);
+        s = tex.Sample(g_SamplerDescriptorHeap[one_to_one ? 1u : 0u], uv);
+    }
     if (g_PushConstants.Param1 < 0.5 && (g_PushConstants.ResourceDescriptorIndex2 & 0x80000000u))
     {
         uint p = g_PushConstants.ResourceDescriptorIndex2;
