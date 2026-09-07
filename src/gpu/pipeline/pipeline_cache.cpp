@@ -128,7 +128,7 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
   desc.frontFace = st.frontFace;
   desc.depthClipEnabled = st.depthClip;
   desc.depthBias = st.depthBias;
-  desc.slopeScaledDepthBias = st.slopeScaledDepthBias;
+  desc.slopeScaledDepthBias = st.slopeScaledDepthBias * st.targetScale;
   desc.depthBiasClamp = 0.0f;
   desc.depthEnabled = st.depthEnable;
   desc.depthWriteEnabled = st.depthWrite;

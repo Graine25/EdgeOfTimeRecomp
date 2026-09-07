@@ -6,8 +6,10 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pso_merge import upgrade_v1  # noqa: E402
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = REPO_ROOT / "src" / "gpu" / "pipeline" / "cache" / "eot_pso_templates.inc"
 SPEC_LAYOUT_BITS = 0x5
@@ -30,7 +32,10 @@ def read_csv(path):
     if not body:
         return None, []
     reader = csv.DictReader(io.StringIO("\n".join(body)))
-    return reader.fieldnames, list(reader)
+    columns, rows = list(reader.fieldnames), list(reader)
+    if columns and columns[0] == "vsHash" and "depthBias" in columns:
+        columns, rows = upgrade_v1(columns, rows)
+    return columns, rows
 
 
 def collect(inputs):

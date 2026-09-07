@@ -29,6 +29,7 @@ struct PipelineState {
   plume::RenderFrontFace frontFace;
   i32 depthBias;
   float slopeScaledDepthBias;
+  float targetScale;
   bool depthClip;
   bool depthEnable;
   bool depthWrite;

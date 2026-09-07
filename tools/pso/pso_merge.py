@@ -7,7 +7,24 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+UPGRADED_COLUMNS_AFTER = "slopeScaledDepthBias"
+
+
+def upgrade_v1(columns, rows):
+    if "targetScale" in columns:
+        return columns, rows
+    i = columns.index(UPGRADED_COLUMNS_AFTER) + 1
+    columns = columns[:i] + ["targetScale"] + columns[i:]
+    for r in rows:
+        b = int(r.get("depthBias", "0") or "0")
+        if b:
+            layers = -(-(abs(b) + 0.5) // 4)
+            b = int(layers) * 8 * (1 if b > 0 else -1)
+            r["depthBias"] = str(b)
+        slope = float(r.get("slopeScaledDepthBias", "0") or "0")
+        r["targetScale"] = "0" if (b or slope != 0.0) else "1"
+    return columns, rows
 VERSION_RE = re.compile(r"^#\s*eot-pso\s+v(\d+)\s*$")
 DIAGNOSTIC_COLUMNS = {"layoutKey", "frame", "session"}
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -28,14 +45,17 @@ def read_rows(path):
         if line.startswith("#") or not line.strip():
             continue
         body.append(line)
-    if version is not None and version != SCHEMA_VERSION:
+    if version is not None and version not in (1, SCHEMA_VERSION):
         sys.stderr.write(f"warning: {path}: schema v{version} != v{SCHEMA_VERSION}; skipped\n")
         return None, []
     if not body:
         return None, []
     reader = csv.DictReader(io.StringIO("\n".join(body)))
     rows = [r for r in reader if r.get("vsHash")]
-    return reader.fieldnames, rows
+    columns = list(reader.fieldnames)
+    if "depthBias" in columns and (version == 1 or "targetScale" not in columns):
+        columns, rows = upgrade_v1(columns, rows)
+    return columns, rows
 
 
 def canon_decl(hexstr):

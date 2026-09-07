@@ -1,6 +1,7 @@
 #include "gpu/pipeline/pso_records.h"
 
 #include <charconv>
+#include <cmath>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -11,6 +12,7 @@
 #include <vector>
 
 #include "core/logging.h"
+#include "gpu/settings.h"
 
 namespace eot::gpu {
 
@@ -18,10 +20,10 @@ namespace {
 
 constexpr const char *kColumns =
     "vsHash,psHash,spec,layoutKey,declRaw,strides,topology,rtFormats,rtCount,dsFormat,"
-    "sampleCount,cull,frontFace,depthBias,slopeScaledDepthBias,depthClip,depthEnable,"
+    "sampleCount,cull,frontFace,depthBias,slopeScaledDepthBias,targetScale,depthClip,depthEnable,"
     "depthWrite,depthFunc,stencilEnable,stencilReadMask,stencilWriteMask,stencilRef,"
     "stencilFront,stencilBack,blend0,blend1,blend2,blend3,alphaToCoverage,frame,session";
-constexpr u32 kColumnCount = 32;
+constexpr u32 kColumnCount = 33;
 
 const char kHexDigits[] = "0123456789abcdef";
 
@@ -176,11 +178,13 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
   for (u32 i = 0; i < 4; ++i)
     rts += std::format("{}{}", i ? "|" : "", ei(s.rtFormats[i]));
   return std::format(
-      "{:016x},{:016x},{:x},{:016x},{},{},{},{},{},{},{},{},{},{},{:.9g},{},{},{},{},{},{},{},"
-      "{},{},{},{},{},{},{},{},{},{}",
+      "{:016x},{:016x},{:x},{:016x},{},{},{},{},{},{},{},{},{},{},{:.9g},{:.9g},{},{},{},{},{},{},"
+      "{},{},{},{},{},{},{},{},{},{},{}",
       s.vsHash, s.psHash, s.spec, s.layoutKey, decl, strides, ei(s.topology), rts, s.rtCount,
       ei(s.dsFormat), s.sampleCount, ei(s.cull), ei(s.frontFace), s.depthBias,
-      s.slopeScaledDepthBias, s.depthClip ? 1 : 0, s.depthEnable ? 1 : 0, s.depthWrite ? 1 : 0,
+      s.slopeScaledDepthBias,
+      std::fabs(s.targetScale - RenderScaleFactor()) < 0.01f ? 0.0f : s.targetScale,
+      s.depthClip ? 1 : 0, s.depthEnable ? 1 : 0, s.depthWrite ? 1 : 0,
       ei(s.depthFunc), s.stencilEnable ? 1 : 0, static_cast<unsigned>(s.stencilReadMask),
       static_cast<unsigned>(s.stencilWriteMask), static_cast<unsigned>(s.stencilRef),
       Stencil(s.stencilFront), Stencil(s.stencilBack), Blend(s.blend[0]), Blend(s.blend[1]),
@@ -241,24 +245,29 @@ bool PsoRecordFromCsv(std::string_view line, PsoRecord *out) {
   if (!ParseEnum(c[11], &s.cull) || !ParseEnum(c[12], &s.frontFace) || !ParseI64(c[13], &i))
     return false;
   s.depthBias = static_cast<i32>(i);
-  if (!ParseF32(c[14], &s.slopeScaledDepthBias) || !ParseBool(c[15], &s.depthClip) ||
-      !ParseBool(c[16], &s.depthEnable) || !ParseBool(c[17], &s.depthWrite) ||
-      !ParseEnum(c[18], &s.depthFunc) || !ParseBool(c[19], &s.stencilEnable))
+  if (!ParseF32(c[14], &s.slopeScaledDepthBias) || !ParseF32(c[15], &s.targetScale) ||
+      !ParseBool(c[16], &s.depthClip) || !ParseBool(c[17], &s.depthEnable) ||
+      !ParseBool(c[18], &s.depthWrite) || !ParseEnum(c[19], &s.depthFunc) ||
+      !ParseBool(c[20], &s.stencilEnable))
     return false;
+  if (s.depthBias || s.slopeScaledDepthBias != 0.0f)
+    s.targetScale = s.targetScale == 0.0f ? RenderScaleFactor() : s.targetScale;
+  else
+    s.targetScale = 1.0f;
   i64 m0, m1, m2;
-  if (!ParseI64(c[20], &m0) || !ParseI64(c[21], &m1) || !ParseI64(c[22], &m2))
+  if (!ParseI64(c[21], &m0) || !ParseI64(c[22], &m1) || !ParseI64(c[23], &m2))
     return false;
   s.stencilReadMask = static_cast<u8>(m0);
   s.stencilWriteMask = static_cast<u8>(m1);
   s.stencilRef = static_cast<u8>(m2);
-  if (!ParseStencil(c[23], &s.stencilFront) || !ParseStencil(c[24], &s.stencilBack))
+  if (!ParseStencil(c[24], &s.stencilFront) || !ParseStencil(c[25], &s.stencilBack))
     return false;
   for (u32 k = 0; k < 4; ++k)
-    if (!ParseBlend(c[25 + k], &s.blend[k]))
+    if (!ParseBlend(c[26 + k], &s.blend[k]))
       return false;
-  if (!ParseBool(c[29], &s.alphaToCoverage))
+  if (!ParseBool(c[30], &s.alphaToCoverage))
     return false;
-  ParseU64(c[30], &r.frame);
+  ParseU64(c[31], &r.frame);
   *out = r;
   return true;
 }

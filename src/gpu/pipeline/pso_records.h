@@ -11,7 +11,7 @@
 
 namespace eot::gpu {
 
-constexpr u32 kPsoCsvVersion = 1;
+constexpr u32 kPsoCsvVersion = 2;
 
 struct PsoRecord {
   PipelineState state;
