@@ -3,6 +3,11 @@
 #include <atomic>
 #include <functional>
 #include <chrono>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
 #include <map>
 #include <memory>
 #include <mutex>
@@ -70,20 +75,22 @@ struct PerfCounters {
   std::chrono::steady_clock::time_point last_present{};
 };
 
+inline u64 PerfNow() { return __rdtsc(); }
+f64 PerfMsPerTick();
 struct PerfScope {
   f64 &acc;
-  std::chrono::steady_clock::time_point t0;
+  u64 t0;
   bool stopped = false;
   void stop() {
     if (stopped)
       return;
-    acc += std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    acc += static_cast<f64>(PerfNow() - t0) * PerfMsPerTick();
     stopped = true;
   }
-  explicit PerfScope(f64 &a) : acc(a), t0(std::chrono::steady_clock::now()) {}
+  explicit PerfScope(f64 &a) : acc(a), t0(PerfNow()) {}
   ~PerfScope() {
     if (!stopped)
-      acc += std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - t0).count();
+      acc += static_cast<f64>(PerfNow() - t0) * PerfMsPerTick();
   }
 };
 

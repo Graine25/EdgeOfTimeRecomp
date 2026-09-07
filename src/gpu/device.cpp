@@ -3,6 +3,7 @@
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/pipeline/pso_precache.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -327,6 +328,21 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
   BeginCommandList(s);
   EOT_INFO("[dump] {} {}x{} scale {} -> {}", ok ? "wrote" : "FAILED", w, h, scale, path);
   return ok;
+}
+
+f64 PerfMsPerTick() {
+  static const f64 ms_per_tick = [] {
+    const auto s0 = std::chrono::steady_clock::now();
+    const u64 t0 = PerfNow();
+    auto s1 = s0;
+    do {
+      s1 = std::chrono::steady_clock::now();
+    } while (std::chrono::duration<f64, std::milli>(s1 - s0).count() < 2.0);
+    const u64 t1 = PerfNow();
+    return std::chrono::duration<f64, std::milli>(s1 - s0).count() /
+           static_cast<f64>(std::max<u64>(1, t1 - t0));
+  }();
+  return ms_per_tick;
 }
 
 void DrainHostDebugMessages(VideoState &s, const char *phase) {
