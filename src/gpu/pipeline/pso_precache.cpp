@@ -10,13 +10,15 @@
 #include <vector>
 
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #endif
 
 #include "core/logging.h"
 #include "gpu/device.h"
-#include "gpu/settings.h"
+#include "gpu/pipeline/pso_records.h"
 
 namespace eot::gpu {
 
@@ -34,6 +36,7 @@ struct Pool {
   std::deque<WorkItem> priority, background;
   std::vector<std::thread> threads;
   bool started = false, stop = false;
+  std::atomic<bool> loading{false};
 
   std::mutex dedupMutex;
   std::unordered_map<u64, PsoSource> queuedOrDone;
@@ -48,9 +51,12 @@ Pool &pool() {
 
 thread_local TokenPtr t_loadToken;
 
-void DemoteThread() {
+void SetWorkerPriority(bool loading) {
 #if defined(_WIN32)
-  ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+  ::SetThreadPriority(::GetCurrentThread(),
+                      loading ? THREAD_PRIORITY_ABOVE_NORMAL : THREAD_PRIORITY_BELOW_NORMAL);
+#else
+  (void)loading;
 #endif
 }
 
@@ -76,8 +82,9 @@ void ProcessItem(WorkItem &item) {
 }
 
 void WorkerLoop() {
-  DemoteThread();
   auto &p = pool();
+  bool priority_loading = false;
+  SetWorkerPriority(priority_loading);
   for (;;) {
     WorkItem item;
     {
@@ -93,6 +100,11 @@ void WorkerLoop() {
         p.background.pop_front();
       }
     }
+    const bool loading = p.loading.load(std::memory_order_relaxed);
+    if (loading != priority_loading) {
+      priority_loading = loading;
+      SetWorkerPriority(loading);
+    }
     ProcessItem(item);
   }
 }
@@ -107,9 +119,7 @@ void PsoPrecacheStart() {
   p.started = true;
   p.stop = false;
   const u32 hw = std::max(1u, std::thread::hardware_concurrency());
-  u32 count = static_cast<u32>(Settings::PsoThreads());
-  if (count == 0)
-    count = std::clamp(hw > 2 ? hw - 2 : 1u, 1u, 8u);
+  const u32 count = std::clamp(hw > 2 ? hw - 2 : 1u, kPsoMinThreads, kPsoMaxThreads);
   for (u32 i = 0; i < count; ++i)
     p.threads.emplace_back(WorkerLoop);
   EOT_INFO("[pso] {} pipeline worker thread(s)", count);
@@ -139,6 +149,10 @@ void PsoPrecacheStop() {
   p.started = false;
 }
 
+void PsoPrecacheSetLoading(bool loading) {
+  pool().loading.store(loading, std::memory_order_relaxed);
+}
+
 bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, bool priority, TokenPtr token) {
   auto &p = pool();
   const u64 key = HashPipelineState(rec.state);
@@ -152,8 +166,11 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, bool priority, T
     token->AddPending();
   {
     std::lock_guard lock(p.mutex);
-    if (p.stop)
+    if (p.stop) {
+      if (token)
+        token->ReleasePending();
       return false;
+    }
     (priority ? p.priority : p.background).push_back(WorkItem{rec, source, std::move(token)});
   }
   p.queued++;

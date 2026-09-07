@@ -6,9 +6,10 @@
 #include <rex/types.h>
 
 #include "gpu/pipeline/pipeline_cache.h"
-#include "gpu/pipeline/pso_records.h"
 
 namespace eot::gpu {
+
+struct PsoRecord;
 
 class CompileToken {
 public:
@@ -28,6 +29,8 @@ using TokenPtr = std::shared_ptr<CompileToken>;
 
 void PsoPrecacheStart();
 void PsoPrecacheStop();
+
+void PsoPrecacheSetLoading(bool loading);
 
 bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, bool priority,
                         TokenPtr token = nullptr);

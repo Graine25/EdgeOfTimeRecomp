@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <format>
@@ -14,6 +15,7 @@
 #include <vector>
 
 #include <rex/memory/utils.h>
+#include <xxhash.h>
 
 #include "core/logging.h"
 #include "core/profiling.h"
@@ -50,7 +52,6 @@ constexpr u32 kStride = 0x08;
 namespace material {
 constexpr u32 kSize = 0x3C0;
 constexpr u32 kFlags = 0x0C;
-constexpr u32 kPassCount = 0x70;
 constexpr u32 kBlendModeIndex = 0x106;
 constexpr u32 kAlphaRef = 0x170;
 constexpr u32 kDepthBias = 0x1C0;
@@ -60,6 +61,7 @@ constexpr u32 kPassSize = 0x58;
 constexpr u32 kMaxPasses = 5;
 constexpr u32 kTechniques = 11;
 constexpr u32 kFallbackTechnique = 3;
+constexpr u32 kFlagBiased = 1u << 8;
 }
 namespace node {
 constexpr u32 kVertexDecl = 0x20;
@@ -69,7 +71,9 @@ constexpr u32 kPixelShader = 0x20;  // pixel node: D3D pixel shader object
 
 constexpr u32 kMaxDescriptorsPerMesh = 4096;
 constexpr u8 kBundleTechnique = 255;
+constexpr u8 kDepthTechnique = 5;
 constexpr u32 kMaxMaterials = 512;
+constexpr size_t kMaxCasterSlots = 8192;
 
 struct Guest {
   const u8 *p = nullptr;
@@ -116,13 +120,28 @@ struct Slot {
   u32 stride = 0;
   u32 materialFlags = 0;
   u32 materialClass = 0;
+  f32 materialBias = 0.0f;
   u8 technique = 0, pass = 0;
   u32 declCount = 0;
   u8 declRaw[32 * sizeof(DeclElement)] = {};
 };
 
+u64 SlotKey(const Slot &s) {
+  struct {
+    u64 vs, ps;
+    u32 stride, cls;
+    u8 technique, pass;
+  } k{s.vsHash, s.psHash, s.stride, s.materialClass, s.technique, s.pass};
+  const u64 h = XXH3_64bits(&k, sizeof(k));
+  return h ^ XXH3_64bits(s.declRaw, s.declCount * sizeof(DeclElement));
+}
+
 struct WalkDiag {
   u32 nullVs = 0, nullPs = 0;
+};
+
+struct ShadowBias {
+  f32 offset, slope;
 };
 
 struct Predictor {
@@ -132,9 +151,10 @@ struct Predictor {
   std::set<std::tuple<u64, u64, u8, u8, u32>> pairsWritten;
   std::string pairsPath;
   bool pairsHeader = false;
-  std::string predictedPath;
-  bool predictedHeader = false;
   std::unordered_map<u32, std::pair<u32, u8>> nodeObjects;
+  std::vector<ShadowBias> shadowBiases;
+  std::vector<Slot> casterSlots;
+  std::unordered_set<u64> casterKeys;
 };
 
 Predictor &predictor() {
@@ -143,63 +163,29 @@ Predictor &predictor() {
 }
 
 void WritePairsLocked(Predictor &p, const std::vector<Slot> &slots) {
-  const std::string dir = Settings::PsoDir();
-  if (dir.empty() || !Settings::PsoCapture())
-    return;
   std::string rows;
   for (const Slot &s : slots) {
     if (!p.pairsWritten.emplace(s.vsHash, s.psHash, s.technique, s.pass, s.materialClass).second)
       continue;
     rows += std::format("{:016x},{:016x},{},{},{},{:x},{:x},{}\n", s.vsHash, s.psHash,
                         s.technique, s.pass, s.stride, s.materialFlags, s.materialClass,
-                        Settings::PsoTag().empty() ? "-" : Settings::PsoTag());
+                        PsoSessionTag());
   }
   if (rows.empty())
     return;
-  if (p.pairsPath.empty()) {
-    const std::string tag = Settings::PsoTag();
-    p.pairsPath =
-        dir + "/pso_pairs_" + (tag.empty() ? "" : tag + "_") + PsoSessionStamp() + ".csv";
-  }
+  if (p.pairsPath.empty())
+    p.pairsPath = std::string(kPsoDir) + "/pso_pairs_" + PsoSessionTag() + "_" +
+                  PsoSessionStamp() + ".csv";
   FILE *f = std::fopen(p.pairsPath.c_str(), p.pairsHeader ? "ab" : "wb");
   if (!f)
     return;
   if (!p.pairsHeader) {
-    const std::string h = std::format("# eot-pso-pairs v{}\nvsHash,psHash,technique,pass,stride,"
-                                      "materialFlags,class,session\n",
-                                      kPsoCsvVersion);
+    const std::string h = "# eot-pso-pairs v1\nvsHash,psHash,technique,pass,stride,"
+                          "materialFlags,class,session\n";
     std::fwrite(h.data(), 1, h.size(), f);
     p.pairsHeader = true;
   }
   std::fwrite(rows.data(), 1, rows.size(), f);
-  std::fclose(f);
-}
-
-void WritePredictedLocked(Predictor &p,
-                          const std::vector<std::pair<PsoRecord, std::tuple<u8, u8, u32>>> &recs) {
-  const std::string dir = Settings::PsoDir();
-  if (dir.empty() || !Settings::PsoCapture() || recs.empty())
-    return;
-  if (p.predictedPath.empty()) {
-    const std::string tag = Settings::PsoTag();
-    p.predictedPath =
-        dir + "/pso_predicted_" + (tag.empty() ? "" : tag + "_") + PsoSessionStamp() + ".csv";
-  }
-  FILE *f = std::fopen(p.predictedPath.c_str(), p.predictedHeader ? "ab" : "wb");
-  if (!f)
-    return;
-  if (!p.predictedHeader) {
-    const std::string h = PsoCsvHeader() + "\n";
-    std::fwrite(h.data(), 1, h.size(), f);
-    p.predictedHeader = true;
-  }
-  for (const auto &[r, slot] : recs) {
-    const std::string row =
-        PsoRecordToCsv(r, std::format("t{}p{}c{:x}", std::get<0>(slot), std::get<1>(slot),
-                                      std::get<2>(slot))) +
-        "\n";
-    std::fwrite(row.data(), 1, row.size(), f);
-  }
   std::fclose(f);
 }
 
@@ -208,6 +194,7 @@ void WalkMaterial(VideoState &s, const Guest &mat, const std::set<u32> *strides,
   const u32 mat_va = static_cast<u32>(reinterpret_cast<uintptr_t>(mat.p) & 0xFFFFFFFFu);
   const u32 flags = mat.U32(material::kFlags);
   const u32 mclass = MaterialClass(mat);
+  const f32 bias = (flags & material::kFlagBiased) ? mat.F32(material::kDepthBias) : 0.0f;
   for (u32 pass = 0; pass < material::kMaxPasses; ++pass) {
     const u32 pass_off = material::kPasses + pass * material::kPassSize;
     auto vs_node = [&](u32 t) { return mat.U32(pass_off + 4 * t); };
@@ -266,6 +253,7 @@ void WalkMaterial(VideoState &s, const Guest &mat, const std::set<u32> *strides,
       slot.psHash = ps ? ps->hash : 0;
       slot.materialFlags = flags;
       slot.materialClass = mclass;
+      slot.materialBias = bias;
       slot.technique = static_cast<u8>(t);
       slot.pass = static_cast<u8>(pass);
       slot.declCount = count;
@@ -321,15 +309,6 @@ void SnapshotModel(VideoState &s, u32 model_va, std::vector<Slot> &out, ModelDia
       refs.emplace(material_index, stride);
     }
   }
-  if (Settings::PsoPredictAll()) {
-    std::set<u32> strides;
-    for (const auto &[mi, st] : refs)
-      strides.insert(st);
-    refs.clear();
-    for (u32 mi = 0; mi < material_count; ++mi)
-      for (u32 st : strides)
-        refs.emplace(mi, st);
-  }
   diag.materials = material_count;
   diag.refs = static_cast<u32>(refs.size());
   for (auto it = refs.begin(); it != refs.end();) {
@@ -343,57 +322,92 @@ void SnapshotModel(VideoState &s, u32 model_va, std::vector<Slot> &out, ModelDia
   }
 }
 
-u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template,
-                 std::vector<std::pair<PsoRecord, std::tuple<u8, u8, u32>>> &predicted_rows) {
+u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template) {
   auto &p = predictor();
   const auto &templates = CompiledInTemplates();
   const TokenPtr token = PsoPrecacheCurrentToken();
+  std::vector<ShadowBias> shadow;
+  {
+    std::lock_guard lock(p.mutex);
+    shadow = p.shadowBiases;
+  }
+  const f32 shadow_scale = ShadowMapTargetScale();
+  const f32 scene_scale = RenderScaleFactor();
   u32 queued = 0;
   std::unordered_set<u64> seen;
   for (const Slot &slot : slots) {
     const ShaderCacheEntry *entry = FindShaderCacheEntry(slot.vsHash);
     if (!entry)
       continue;
+    u32 spec_mask = entry->specConstantsMask;
+    if (slot.psHash) {
+      if (const ShaderCacheEntry *pe = FindShaderCacheEntry(slot.psHash))
+        spec_mask |= pe->specConstantsMask;
+    }
     std::vector<VertexInput> inputs;
     VertexInputsFromEntry(*entry, inputs);
     const InputLayout *layout =
         GetInputLayoutFromRaw(slot.vsHash, inputs, slot.declRaw, slot.declCount);
     if (!layout)
       continue;
-    bool any = false;
-    static const int min_level = 2 - std::clamp(Settings::PsoPredictFallback(), 0, 2);
-    for (int level = 2; level >= min_level && !any; --level) {
-      for (const PsoTemplate &t : templates) {
-        if (t.technique != slot.technique)
-          continue;
-        if (level >= 1 && t.materialClass != slot.materialClass)
-          continue;
-        if (level == 2 && t.pass != slot.pass)
-          continue;
-        any = true;
-        PsoRecord r{};
-        r.state = t.state;
-        r.state.vsHash = slot.vsHash;
-        r.state.psHash = slot.psHash;
-        r.state.layoutKey = layout->key;
-        r.state.strides[0] = slot.stride;
-        r.state.spec = (t.state.spec & ~kSpecLayoutBits) | layout->spec;
-        r.declCount = slot.declCount;
-        std::memcpy(r.declRaw, slot.declRaw, slot.declCount * sizeof(DeclElement));
-        if (!seen.insert(HashPipelineState(r.state)).second)
-          continue;
-        if (PsoPrecacheEnqueue(r, PsoSource::Predicted, priority, token)) {
-          ++queued;
-          predicted_rows.emplace_back(
-              r, std::make_tuple(slot.technique, slot.pass, slot.materialClass));
+    bool any = false, caster = false;
+    auto enqueue = [&](PsoRecord &r) {
+      CanonicalizePipelineState(r.state, spec_mask, layout->streamMask);
+      if (!seen.insert(HashPipelineState(r.state)).second)
+        return;
+      if (PsoPrecacheEnqueue(r, PsoSource::Predicted, priority, token))
+        ++queued;
+    };
+    for (size_t ti = 0; ti < templates.size(); ++ti) {
+      const PsoTemplate &t = templates[ti];
+      if (t.technique != slot.technique || t.pass != slot.pass ||
+          t.materialClass != slot.materialClass)
+        continue;
+      any = true;
+      PsoRecord r{};
+      r.state = t.state;
+      r.state.vsHash = slot.vsHash;
+      r.state.psHash = slot.psHash;
+      r.state.layoutKey = layout->key;
+      r.state.strides[0] = slot.stride;
+      r.state.spec = (t.state.spec & ~kSpecLayoutBits) | layout->spec;
+      r.declCount = slot.declCount;
+      r.templateIndex = static_cast<u16>(std::min<size_t>(ti, kNoTemplate - 1));
+      std::memcpy(r.declRaw, slot.declRaw, slot.declCount * sizeof(DeclElement));
+      switch (t.biasKind) {
+      case PsoBiasKind::None:
+        enqueue(r);
+        break;
+      case PsoBiasKind::Material:
+        if (slot.materialBias == 0.0f)
+          break;
+        r.state.depthBias = PolygonOffsetUnits(slot.materialBias * 1.0e-5f);
+        r.state.slopeScaledDepthBias = slot.materialBias * 2.0f;
+        r.state.targetScale = scene_scale;
+        enqueue(r);
+        break;
+      case PsoBiasKind::ShadowCamera:
+        caster = true;
+        for (const ShadowBias &b : shadow) {
+          PsoRecord rc = r;
+          rc.state.depthBias = PolygonOffsetUnits(b.offset);
+          rc.state.slopeScaledDepthBias = b.slope;
+          rc.state.targetScale = shadow_scale;
+          enqueue(rc);
         }
+        break;
       }
+    }
+    if (caster) {
+      std::lock_guard lock(p.mutex);
+      if (p.casterSlots.size() < kMaxCasterSlots && p.casterKeys.insert(SlotKey(slot)).second)
+        p.casterSlots.push_back(slot);
     }
     if (!any) {
       ++*no_template;
       std::lock_guard lock(p.mutex);
-      if (p.noTemplateLogged.insert(slot.technique).second)
-        EOT_INFO("[pso] predictor: no template for technique {} yet (pass {}); capture more",
+      if (p.noTemplateLogged.insert(slot.technique | (slot.pass << 8)).second)
+        EOT_INFO("[pso] predictor: no template for technique {} pass {} yet; capture more",
                  slot.technique, slot.pass);
     }
   }
@@ -405,7 +419,7 @@ u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template
 u32 PredictModelLoad(u32 model_va) {
   EOT_CPU_ZONE("predict model load");
   auto &s = state();
-  if (!Settings::PsoPredict() || !s.ready || !s.device || !model_va)
+  if (!s.ready || !s.device || !model_va)
     return 0;
   std::vector<Slot> slots;
   ModelDiag diag;
@@ -414,8 +428,7 @@ u32 PredictModelLoad(u32 model_va) {
     SnapshotModel(s, model_va, slots, diag);
   }
   u32 no_template = 0;
-  std::vector<std::pair<PsoRecord, std::tuple<u8, u8, u32>>> predicted_rows;
-  const u32 queued = EnqueueSlots(slots, true, &no_template, predicted_rows);
+  const u32 queued = EnqueueSlots(slots, true, &no_template);
   auto &p = predictor();
   {
     std::lock_guard lock(p.mutex);
@@ -424,7 +437,6 @@ u32 PredictModelLoad(u32 model_va) {
     p.stats.queued += queued;
     p.stats.noTemplate += no_template;
     WritePairsLocked(p, slots);
-    WritePredictedLocked(p, predicted_rows);
   }
   EOT_DEBUG("[pso] predictor: model {:#x}: {} materials, {} (material,stride) refs, {} slots -> {} "
             "queued ({} without template); unresolved shader objects: {} vs, {} ps",
@@ -436,7 +448,7 @@ u32 PredictModelLoad(u32 model_va) {
 u32 PredictMaterialLoad(u32 material_va) {
   EOT_CPU_ZONE("predict material load");
   auto &s = state();
-  if (!Settings::PsoPredict() || !s.ready || !s.device || !material_va)
+  if (!s.ready || !s.device || !material_va)
     return 0;
   std::vector<Slot> slots;
   WalkDiag diag;
@@ -447,8 +459,7 @@ u32 PredictMaterialLoad(u32 material_va) {
       WalkMaterial(s, mat, nullptr, slots, diag);
   }
   u32 no_template = 0;
-  std::vector<std::pair<PsoRecord, std::tuple<u8, u8, u32>>> predicted_rows;
-  const u32 queued = EnqueueSlots(slots, false, &no_template, predicted_rows);
+  const u32 queued = EnqueueSlots(slots, false, &no_template);
   auto &p = predictor();
   {
     std::lock_guard lock(p.mutex);
@@ -457,7 +468,6 @@ u32 PredictMaterialLoad(u32 material_va) {
     p.stats.queued += queued;
     p.stats.noTemplate += no_template;
     WritePairsLocked(p, slots);
-    WritePredictedLocked(p, predicted_rows);
   }
   return queued;
 }
@@ -503,17 +513,43 @@ void PredictorNoteShaderBundle(u32 bundle_va) {
   }
   s.mutex.unlock();
   u32 no_template = 0;
-  std::vector<std::pair<PsoRecord, std::tuple<u8, u8, u32>>> predicted_rows;
-  const u32 queued = EnqueueSlots(slots, true, &no_template, predicted_rows);
+  const u32 queued = EnqueueSlots(slots, true, &no_template);
   {
     std::lock_guard plock(p.mutex);
     p.stats.slots++;
     p.stats.queued += queued;
     p.stats.noTemplate += no_template;
     WritePairsLocked(p, slots);
-    WritePredictedLocked(p, predicted_rows);
   }
   s.mutex.lock();
+}
+
+void PredictorNoteShadowBias(float offset, float slope) {
+  if (!std::isfinite(offset) || !std::isfinite(slope) || (offset == 0.0f && slope == 0.0f))
+    return;
+  auto &p = predictor();
+  std::vector<Slot> casters;
+  {
+    std::lock_guard lock(p.mutex);
+    for (const ShadowBias &b : p.shadowBiases)
+      if (b.offset == offset && b.slope == slope)
+        return;
+    p.shadowBiases.push_back(ShadowBias{offset, slope});
+    p.stats.shadowBiases++;
+    casters = p.casterSlots;
+  }
+  auto &s = state();
+  if (!s.ready || !s.device)
+    return;
+  u32 no_template = 0;
+  const u32 queued = EnqueueSlots(casters, true, &no_template);
+  {
+    std::lock_guard lock(p.mutex);
+    p.stats.queued += queued;
+  }
+  EOT_INFO("[pso] predictor: shadow caster offset {:g} slope {:g}: {} caster slot(s) re-crossed, "
+           "{} pipeline(s) queued",
+           offset, slope, casters.size(), queued);
 }
 
 std::string PsoPredictorDescribeObject(u32 shader_object_va) {

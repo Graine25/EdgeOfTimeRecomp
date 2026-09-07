@@ -949,14 +949,22 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
   st.frontFace = face_cw ? plume::RenderFrontFace::CLOCKWISE
                          : plume::RenderFrontFace::COUNTER_CLOCKWISE;
   const u32 clip = dev.U32(dev::kClipControl);
-  st.depthClip = (clip & ((1u << 26) | (1u << 27))) == 0;
+  st.depthClip = (clip & ((1u << 16) | (1u << 26) | (1u << 27))) == 0;
+  if (!st.depthClip) {
+    u32 n;
+    if (DiagShouldLog(0x6C1F, &n) && n < 3)
+      EOT_INFO("[draw] clip control {:#x}: depth clip off", clip);
+  }
 
   if (mode & (1u << 11)) {
     const float scale = dev.F32(dev::kPolyOffsetFrontScale);
     const float offset = dev.F32(dev::kPolyOffsetFrontOffset);
     st.slopeScaledDepthBias = scale / 16.0f;
-    st.depthBias = static_cast<i32>(offset * static_cast<float>(1 << 23));
+    st.depthBias = PolygonOffsetUnits(offset);
   }
+  const float rs = RenderScaleFactor();
+  const float ts = std::fabs(t.scale - rs) < 0.01f ? rs : t.scale;
+  st.targetScale = (st.depthBias || st.slopeScaledDepthBias != 0.0f) ? ts : 1.0f;
 
   const u32 dc = dev.U32(dev::kDepthControl);
   const bool has_ds = t.depth != nullptr;
@@ -1252,6 +1260,32 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   st.layout = layout;
   st.vsHash = vs->hash;
   st.psHash = ps ? ps->hash : 0;
+  if (!targets.colorCount && targets.depth) {
+    struct Snap {
+      u32 mode, cache204, cache208, vtx, vte, win;
+      float fs, fo, bs, bo, xs, xo, ys, yo;
+    };
+    static Snap last{};
+    static u32 lines = 0;
+    const Snap now{dev.U32(dev::kModeControl) & 0x1800u, mem::load<u32>(0x82496F7Cu + 204u * 4u),
+                   mem::load<u32>(0x82496F7Cu + 208u * 4u), dev.U32(dev::kVtxControl),
+                   dev.U32(dev::kVteControl), dev.U32(dev::kWindowOffset),
+                   dev.F32(dev::kPolyOffsetFrontScale), dev.F32(dev::kPolyOffsetFrontOffset),
+                   dev.F32(dev::kPolyOffsetBackScale), dev.F32(dev::kPolyOffsetBackOffset),
+                   dev.F32(dev::kVportXScale), dev.F32(dev::kVportXOffset),
+                   dev.F32(dev::kVportYScale), dev.F32(dev::kVportYOffset)};
+    if (std::memcmp(&now, &last, sizeof(now)) != 0 && lines < 64) {
+      last = now;
+      ++lines;
+      EOT_INFO("[shadow] caster draw: mode bits {:#x} front scale {:g} offset {:g} back scale {:g} "
+               "offset {:g} | cache 204 {:g} 208 {:g} -> host bias {} slope {:g} (vs {:016x}) | "
+               "vport x {:g}/{:g} y {:g}/{:g} vte {:#x} vtx {:#x} win {:#x} scale {:.4f}",
+               now.mode, now.fs, now.fo, now.bs, now.bo, std::bit_cast<float>(now.cache204),
+               std::bit_cast<float>(now.cache208), st.depthBias,
+               st.slopeScaledDepthBias * st.targetScale, st.vsHash, now.xs, now.xo, now.ys,
+               now.yo, now.vte, now.vtx, now.win, targets.scale);
+    }
+  }
   st.layoutKey = layout->key;
   st.spec = spec;
   for (u32 S = 0; S < 16; ++S)
@@ -1259,6 +1293,10 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   st.topology = geom.topology;
   if (geom.rectList)
     st.cull = plume::RenderCullMode::NONE;
+  CanonicalizePipelineState(st,
+                            (vs->entry ? vs->entry->specConstantsMask : 0u) |
+                                (ps && ps->entry ? ps->entry->specConstantsMask : 0u),
+                            layout->streamMask);
   s.current_vs_va = vs_va;
   s.current_ps_va = ps_va;
   {
