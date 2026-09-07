@@ -9,6 +9,7 @@
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
 #include "gpu/gpu_profiling.h"
+#include "gpu/gpu_timing.h"
 #include "gpu/format.h"
 
 namespace eot::gpu {
@@ -58,6 +59,7 @@ void BeginCommandList(VideoState &s) {
   s.command_list->setGraphicsDescriptorSet(s.sampler_descriptor_set.get(), 3);
   s.command_list->setGraphicsDescriptorSet(s.texture_descriptor_set.get(), 4);
   s.command_list_open = true;
+  GpuTimingFrameBegin(s, s.command_list, cur);
 #if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
   SetGPUProfilerCommandList(static_cast<plume::D3D12CommandList *>(s.command_list)->d3d);
 #endif
@@ -74,6 +76,7 @@ void SubmitOpenListLocked(VideoState &s) {
   if (!s.command_list_open)
     return;
   const u32 cur = s.frame.load(std::memory_order_relaxed);
+  GpuTimingFrameEnd(s.command_list);
   s.command_lists[cur]->end();
   s.command_list_open = false;
   s.bound_framebuffer = nullptr;
@@ -95,6 +98,7 @@ void AdvanceAndWaitReused(VideoState &s) {
   if (s.command_list_submitted[slot]) {
     s.queue->waitForCommandFence(s.fences[slot].get());
     s.command_list_submitted[slot] = false;
+    GpuTimingCollect(s, slot);
 #if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
     if (auto *ctx = GpuProfilerCtx()) {
       TracyD3D12NewFrame(ctx);

@@ -18,6 +18,7 @@
 #include "gpu/d3d.h"
 #include "core/profiling.h"
 #include "gpu/device.h"
+#include "gpu/gpu_timing.h"
 
 #include "gpu/settings.h"
 #include "gpu/format.h"
@@ -283,6 +284,7 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
         }
       }
       const u32 row_width_texels = static_cast<u32>(host_pitch / bpb) * fi->block_width;
+      GpuTimingMark(s, s.command_list, kGpuCatUpload);
       s.command_list->copyTextureRegion(
           plume::RenderTextureCopyLocation::Subresource(host.texture.get(), level,
                                                         host.arraySize > 1 ? slice : 0),
@@ -697,6 +699,8 @@ plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6]) {
   const bool aniso_on = aniso > 1 && !mag_point && !min_point;
   d.anisotropyEnabled = aniso_on;
   d.maxAnisotropy = aniso_on ? aniso : 1u;
+  if (aniso_on && fetch.mip_filter != xe::TextureFilter::kBaseMap)
+    d.mipmapMode = plume::RenderMipmapMode::LINEAR;
   d.borderColor = fetch.border_color == xe::BorderColor::k_ABGR_White
                       ? plume::RenderBorderColor::OPAQUE_WHITE
                       : plume::RenderBorderColor::TRANSPARENT_BLACK;
@@ -738,6 +742,15 @@ u32 ResolveSamplerSlotLocked(const plume::RenderSamplerDesc &desc) {
   auto sampler = s.device->createSampler(desc);
   s.sampler_descriptor_set->setSampler(slot, sampler.get());
   c.map.emplace(key, std::make_pair(std::move(sampler), slot));
+  static u32 logged = 0;
+  if (logged++ < 48)
+    EOT_INFO("[sampler] #{} slot {}: min {} mag {} mip {} aniso {}x{} lod bias {:g} lod {:g}..{:g} "
+             "address {}/{}/{}",
+             logged, slot, static_cast<int>(desc.minFilter), static_cast<int>(desc.magFilter),
+             static_cast<int>(desc.mipmapMode), desc.anisotropyEnabled ? 1 : 0,
+             desc.maxAnisotropy, desc.mipLODBias, desc.minLOD, desc.maxLOD,
+             static_cast<int>(desc.addressU), static_cast<int>(desc.addressV),
+             static_cast<int>(desc.addressW));
   return slot;
 }
 

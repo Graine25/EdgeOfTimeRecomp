@@ -22,6 +22,7 @@
 #include "gpu/device.h"
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
+#include "goliath/input/pc_controls.h"
 #include "goliath/ui/overlays/fps.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
@@ -51,6 +52,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults,
 
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   REXCVAR_SET(mnk_mode, true);
+  eot::goliath::InstallPcControls();
   if (eot::gpu::Settings::Profiler()) {
     rex::perf::Profiler::Startup();
     if (rex::perf::Profiler::is_enabled())

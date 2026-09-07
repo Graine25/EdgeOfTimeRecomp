@@ -26,6 +26,7 @@ struct Settings {
   static bool ColorGrading();
   static double FovScale();
   static i32 Anisotropy();
+  static i32 Msaa();
   static i32 QualityLevel();
   static i32 ShadowCascades();
   static i32 ShadowMapSize();

@@ -83,6 +83,7 @@ set(REEOT_SOURCES
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp
     src/gpu/gpu_profiling.cpp
+    src/gpu/gpu_timing.cpp
     src/gpu/pipeline/pso_records.cpp
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
@@ -92,6 +93,8 @@ set(REEOT_SOURCES
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/movie_aspect.cpp
     src/gpu/patches/post_effects.cpp
+    src/gpu/patches/present_effects.cpp
+    src/goliath/input/pc_controls.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
@@ -161,7 +164,9 @@ endif()
 foreach(shader IN ITEMS copy_vs imgui_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
 endforeach()
-foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps)
+foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps
+        resolve_msaa_color_2x_ps resolve_msaa_color_4x_ps resolve_msaa_color_8x_ps
+        resolve_msaa_depth_2x_ps resolve_msaa_depth_4x_ps resolve_msaa_depth_8x_ps)
     reeot_host_shader(reeot ${shader} ps_6_0)
 endforeach()
 

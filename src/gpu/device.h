@@ -3,6 +3,7 @@
 #include <atomic>
 #include <functional>
 #include <chrono>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -37,8 +38,9 @@ struct CopyPushConstants {
   float param1 = 0.0f;
   float rect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
   float colorAdjust[4] = {0.0f, 1.0f, 1.0f, 0.0f};
+  float extra[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 };
-static_assert(sizeof(CopyPushConstants) == 48);
+static_assert(sizeof(CopyPushConstants) == 64);
 
 struct PerfCounters {
   f64 draw_ms = 0, resolve_ms = 0, upload_ms = 0, link_ms = 0, pso_ms = 0;
@@ -61,6 +63,10 @@ struct PerfCounters {
   f64 alias_scan_ms = 0, msaa_scan_ms = 0;
   f64 resolve_mirror_ms = 0, resolve_fb_ms = 0, resolve_bind_ms = 0;
   u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;
+  u32 dead_resolves = 0;
+  f64 gpu_ms = 0;
+  u32 gpu_frames = 0;
+  std::map<u32, std::pair<f64, u32>> gpu_cats;
   std::chrono::steady_clock::time_point last_present{};
 };
 
@@ -138,6 +144,10 @@ struct VideoState {
   std::unique_ptr<plume::RenderShader> copy_depth_ps;
   std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> blit_pipelines;
   std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> depth_copy_pipelines;
+  u32 host_msaa_samples = 1;
+  std::unique_ptr<plume::RenderShader> resolve_msaa_color_ps[3];
+  std::unique_ptr<plume::RenderShader> resolve_msaa_depth_ps[3];
+  std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> resolve_msaa_pipelines;
 
   std::string backend_info;
 
@@ -259,6 +269,8 @@ bool BuildPipelineLayout(VideoState &s);
 bool BuildHelperPipelines(VideoState &s);
 bool BuildSwapFramebuffers(VideoState &s);
 plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format);
+plume::RenderPipeline *GetResolveMsaaPipeline(VideoState &s, plume::RenderFormat dst_format,
+                                              u32 src_samples, bool depth);
 plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format);
 
 void BeginCommandList(VideoState &s);

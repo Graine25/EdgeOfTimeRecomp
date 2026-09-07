@@ -1,5 +1,8 @@
 #include "gpu/settings.h"
 
+#include <charconv>
+#include <system_error>
+
 #include <rex/cvar.h>
 
 REXCVAR_DEFINE_INT32(eot_trace_frames, 0, "eot", "Frames of D3D call tracing")
@@ -42,7 +45,16 @@ REXCVAR_DEFINE_INT32(eot_shadow_cascades, 0, "EdgeOfTime/Graphics", "Shadow casc
 REXCVAR_DEFINE_DOUBLE(eot_shadow_distance_scale, 1.0, "EdgeOfTime/Graphics", "Shadow distance multiplier");
 REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "eot", "Force the pak language id");
 REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics", "Shadow map resolution");
-REXCVAR_DEFINE_INT32(eot_anisotropy, 0, "EdgeOfTime/Graphics", "Anisotropic filtering level");
+REXCVAR_DEFINE_INT32(eot_anisotropy, 16, "EdgeOfTime/Graphics", "Anisotropic filtering level")
+    .range(0, 16);
+REXCVAR_DEFINE_INT32(eot_msaa, 0, "EdgeOfTime/Graphics", "MSAA sample count")
+    .range(0, 8)
+    .validator([](std::string_view v) {
+      int n = 0;
+      const auto r = std::from_chars(v.data(), v.data() + v.size(), n);
+      return r.ec == std::errc() && (n == 0 || n == 2 || n == 4 || n == 8);
+    })
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video", "Screen brightness offset");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video", "Screen contrast amount");
 REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video", "Screen color saturation");
@@ -102,6 +114,7 @@ bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
+i32 Settings::Msaa() { return REXCVAR_GET(eot_msaa); }
 i32 Settings::QualityLevel() { return REXCVAR_GET(eot_debug_quality_level); }
 i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
 i32 Settings::ShadowMapSize() { return REXCVAR_GET(eot_shadow_map_size); }

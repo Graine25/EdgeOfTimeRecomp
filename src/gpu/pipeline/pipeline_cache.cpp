@@ -96,6 +96,7 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
   r.state.vs = nullptr;
   r.state.ps = nullptr;
   r.state.layout = nullptr;
+  r.state.sampleCount = 1;
   r.declCount = static_cast<u32>(l.declRaw.size() / sizeof(DeclElement));
   std::memcpy(r.declRaw, l.declRaw.data(), l.declRaw.size());
   r.frame = s.guest_frames;
@@ -106,7 +107,7 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
   PsoCaptureAdd(r);
 }
 
-void RouteRecord(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
+void RouteOne(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
   if (r.packageCount == 0) {
     *queued += PsoPrecacheEnqueue(r, source, false) ? 1 : 0;
     return;
@@ -116,6 +117,16 @@ void RouteRecord(const PsoRecord &r, PsoSource source, size_t *queued, size_t *p
   for (u32 i = 0; i < r.packageCount; ++i)
     l.sets[r.packages[i]].push_back(r);
   ++*per_package;
+}
+
+void RouteRecord(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
+  RouteOne(r, source, queued, per_package);
+  const u32 msaa = state().host_msaa_samples;
+  if (msaa > 1 && r.state.sampleCount == 1) {
+    PsoRecord twin = r;
+    twin.state.sampleCount = msaa;
+    RouteOne(twin, source, queued, per_package);
+  }
 }
 
 }
@@ -129,7 +140,8 @@ u64 HashPipelineState(const PipelineState &state) {
 
 void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask) {
   st.spec &= spec_mask;
-  st.sampleCount = 1;
+  if (st.sampleCount == 0)
+    st.sampleCount = 1;
   if (!st.depthEnable) {
     st.depthWrite = false;
     st.depthFunc = plume::RenderComparisonFunction::ALWAYS;

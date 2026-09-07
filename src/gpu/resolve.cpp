@@ -13,6 +13,7 @@
 #include "gpu/backend.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/gpu_timing.h"
 #include "gpu/gpu_profiling.h"
 
 #include "gpu/draw.h"
@@ -121,6 +122,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   EOT_CPU_ZONE("ResolveGuest");
   PerfScope perf_scope(s.perf.resolve_ms);
   s.perf.resolves++;
+  GpuTimingMark(s, s.command_list, kGpuCatResolve);
 
   const u32 source = flags & 7;
   const bool depth_source = source == 4;
@@ -204,6 +206,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
       target.resolvedMipMask |= 1u << level;
       target.lastUseFrame = s.guest_frames;
+      if (target.lastResolvedFrame && target.lastSampledFrame < target.lastResolvedFrame)
+        s.perf.dead_resolves++;
+      target.lastResolvedFrame = s.guest_frames;
     };
     static const bool copies = Settings::ResolveCopy();
     auto blit = [&](GuestTexture &target, u32 level, i32 vx, i32 vy, i32 vw, i32 vh, i32 sx0,
@@ -216,7 +221,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const bool same_format = src_host->format == target.host.format;
       const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
       const bool covers_image = whole && target.host.mipLevels == 1;
-      if (copies && surf->scale == 1.0f && src_host == &surf->host && same_format &&
+      const bool ms_src = src_host->sampleCount > 1;
+      if (copies && !ms_src && surf->scale == 1.0f && src_host == &surf->host && same_format &&
+          surf->allocWidth == surf->width && surf->allocHeight == surf->height &&
           scale == 1.0f && !reorder && (!depth_source || whole) &&
           (covers_image || !target.host.needsClear)) {
         if (covers_image)
@@ -278,11 +285,14 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       }
       cmd->setFramebuffer(fb);
       s.bound_framebuffer = fb;
-      plume::RenderPipeline *pso =
-          depth_source ? GetDepthCopyPipeline(s, target.host.format)
-                       : GetBlitPipeline(s, target.host.viewFormat != plume::RenderFormat::UNKNOWN
+      const plume::RenderFormat color_fmt = target.host.viewFormat != plume::RenderFormat::UNKNOWN
                                                 ? target.host.viewFormat
-                                                : target.host.format);
+                                                : target.host.format;
+      plume::RenderPipeline *pso =
+          ms_src ? GetResolveMsaaPipeline(s, depth_source ? target.host.format : color_fmt,
+                                          src_host->sampleCount, depth_source)
+          : depth_source ? GetDepthCopyPipeline(s, target.host.format)
+                         : GetBlitPipeline(s, color_fmt);
       if (!pso)
         return false;
       cmd->setPipeline(pso);
@@ -298,10 +308,13 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(target.fetch[3]);
       pc.param0 = scale;
       pc.param1 = 0.0f;
-      pc.rect[0] = static_cast<float>(sx0) / surf->width;
-      pc.rect[1] = static_cast<float>(sy0) / surf->height;
-      pc.rect[2] = static_cast<float>(sx0 + vw) / surf->width;
-      pc.rect[3] = static_cast<float>(sy0 + vh) / surf->height;
+      const GuestSurface &src_surf = alias_src ? *alias_src : *surf;
+      const float rx = static_cast<float>(src_surf.width) / static_cast<float>(surf->width);
+      const float ry = static_cast<float>(src_surf.height) / static_cast<float>(surf->height);
+      pc.rect[0] = static_cast<float>(sx0) * rx / static_cast<float>(src_surf.allocWidth);
+      pc.rect[1] = static_cast<float>(sy0) * ry / static_cast<float>(src_surf.allocHeight);
+      pc.rect[2] = static_cast<float>(sx0 + vw) * rx / static_cast<float>(src_surf.allocWidth);
+      pc.rect[3] = static_cast<float>(sy0 + vh) * ry / static_cast<float>(src_surf.allocHeight);
       bind_scope.stop();
       cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
                                     kCopyPushConstantByteOffset, sizeof(pc));
@@ -367,7 +380,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     static u32 k = 0;
     const std::string path = std::format("logs/f{}_r{}_{}_{:x}.ppm", s.guest_frames + 1, k++,
                                          depth_source ? "depth" : "color", src_va);
-    DumpHostTextureLocked(s, surf->host, path.c_str(), depth_source ? 1.0f : 1.0f);
+    if (surf->host.sampleCount == 1)
+      DumpHostTextureLocked(s, surf->host, path.c_str(), depth_source ? 1.0f : 1.0f);
     if (!s.command_list_open)
       return;
   }

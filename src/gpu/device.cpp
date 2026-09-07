@@ -27,16 +27,29 @@
 #include "core/logging.h"
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
+#include "gpu/format.h"
 #include "gpu/settings.h"
 
 #if defined(EOT_D3D12)
 #include "shaders/blit_ps.hlsl.dxil.h"
 #include "shaders/copy_depth_ps.hlsl.dxil.h"
 #include "shaders/copy_vs.hlsl.dxil.h"
+#include "shaders/resolve_msaa_color_2x_ps.hlsl.dxil.h"
+#include "shaders/resolve_msaa_color_4x_ps.hlsl.dxil.h"
+#include "shaders/resolve_msaa_color_8x_ps.hlsl.dxil.h"
+#include "shaders/resolve_msaa_depth_2x_ps.hlsl.dxil.h"
+#include "shaders/resolve_msaa_depth_4x_ps.hlsl.dxil.h"
+#include "shaders/resolve_msaa_depth_8x_ps.hlsl.dxil.h"
 #else
 #include "shaders/blit_ps.hlsl.spirv.h"
 #include "shaders/copy_depth_ps.hlsl.spirv.h"
 #include "shaders/copy_vs.hlsl.spirv.h"
+#include "shaders/resolve_msaa_color_2x_ps.hlsl.spirv.h"
+#include "shaders/resolve_msaa_color_4x_ps.hlsl.spirv.h"
+#include "shaders/resolve_msaa_color_8x_ps.hlsl.spirv.h"
+#include "shaders/resolve_msaa_depth_2x_ps.hlsl.spirv.h"
+#include "shaders/resolve_msaa_depth_4x_ps.hlsl.spirv.h"
+#include "shaders/resolve_msaa_depth_8x_ps.hlsl.spirv.h"
 #endif
 
 namespace plume {
@@ -584,7 +597,64 @@ bool BuildHelperPipelines(VideoState &s) {
     EOT_ERROR("createShader for the host helper passes failed");
     return false;
   }
+  s.resolve_msaa_color_ps[0] =
+      s.device->createShader(EOT_SHADER_BLOB(resolve_msaa_color_2x_ps), "main", kHostShaderFormat);
+  s.resolve_msaa_color_ps[1] =
+      s.device->createShader(EOT_SHADER_BLOB(resolve_msaa_color_4x_ps), "main", kHostShaderFormat);
+  s.resolve_msaa_color_ps[2] =
+      s.device->createShader(EOT_SHADER_BLOB(resolve_msaa_color_8x_ps), "main", kHostShaderFormat);
+  s.resolve_msaa_depth_ps[0] =
+      s.device->createShader(EOT_SHADER_BLOB(resolve_msaa_depth_2x_ps), "main", kHostShaderFormat);
+  s.resolve_msaa_depth_ps[1] =
+      s.device->createShader(EOT_SHADER_BLOB(resolve_msaa_depth_4x_ps), "main", kHostShaderFormat);
+  s.resolve_msaa_depth_ps[2] =
+      s.device->createShader(EOT_SHADER_BLOB(resolve_msaa_depth_8x_ps), "main", kHostShaderFormat);
+  for (u32 i = 0; i < 3; ++i) {
+    if (!s.resolve_msaa_color_ps[i] || !s.resolve_msaa_depth_ps[i]) {
+      EOT_ERROR("createShader for the multisample resolve passes failed");
+      return false;
+    }
+  }
   return GetBlitPipeline(s, plume::RenderFormat::B8G8R8A8_UNORM) != nullptr;
+}
+
+plume::RenderPipeline *GetResolveMsaaPipeline(VideoState &s, plume::RenderFormat dst_format,
+                                              u32 src_samples, bool depth) {
+  const int tier = src_samples == 2 ? 0 : src_samples == 4 ? 1 : src_samples == 8 ? 2 : -1;
+  if (tier < 0)
+    return nullptr;
+  const u64 key = (static_cast<u64>(dst_format) << 8) | (static_cast<u64>(tier) << 1) |
+                  (depth ? 1u : 0u);
+  auto it = s.resolve_msaa_pipelines.find(key);
+  if (it != s.resolve_msaa_pipelines.end())
+    return it->second.get();
+  plume::RenderGraphicsPipelineDesc desc;
+  desc.pipelineLayout = s.pipeline_layout.get();
+  desc.vertexShader = s.copy_vs.get();
+  desc.primitiveTopology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  desc.cullMode = plume::RenderCullMode::NONE;
+  desc.depthFunction = plume::RenderComparisonFunction::ALWAYS;
+  if (depth) {
+    desc.pixelShader = s.resolve_msaa_depth_ps[tier].get();
+    desc.depthEnabled = true;
+    desc.depthWriteEnabled = true;
+    desc.renderTargetCount = 0;
+    desc.depthTargetFormat = dst_format;
+  } else {
+    desc.pixelShader = s.resolve_msaa_color_ps[tier].get();
+    desc.depthEnabled = false;
+    desc.depthWriteEnabled = false;
+    desc.renderTargetCount = 1;
+    desc.renderTargetFormat[0] = dst_format;
+    desc.renderTargetBlend[0] = plume::RenderBlendDesc::Copy();
+    desc.depthTargetFormat = plume::RenderFormat::UNKNOWN;
+  }
+  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "resolve-msaa");
+  if (!pso)
+    return nullptr;
+  auto *raw = pso.get();
+  s.resolve_msaa_pipelines.emplace(key, std::move(pso));
+  return raw;
 }
 
 plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format) {
@@ -706,10 +776,29 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   InitGPUProfiler(static_cast<plume::D3D12Device *>(s.device.get())->d3d,
                   static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
 #endif
+  {
+    const i32 asked = Settings::Msaa();
+    u32 samples = asked == 2 || asked == 4 || asked == 8 ? static_cast<u32>(asked) : 1u;
+    if (samples > 1) {
+      const plume::RenderFormat formats[] = {
+          plume::RenderFormat::R16G16B16A16_FLOAT, plume::RenderFormat::R8G8B8A8_UNORM,
+          plume::RenderFormat::R16G16B16A16_UNORM, DepthRenderTargetFormat()};
+      plume::RenderSampleCounts mask = ~0u;
+      for (const plume::RenderFormat f : formats)
+        mask &= s.device->getSampleCountsSupported(f);
+      while (samples > 1 && !(mask & samples))
+        samples >>= 1;
+      if (samples != static_cast<u32>(asked))
+        EOT_WARN("[gpu] eot_msaa {} is not supported for every scene format (mask {:#x}); using {}x",
+                 asked, mask, samples);
+    }
+    s.host_msaa_samples = samples;
+  }
   s.ready = true;
-  EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots", s.backend_info,
-           s.device->getDescription().name, s.swap_chain->getWidth(),
-           s.swap_chain->getHeight(), kBindlessTextureCount);
+  EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots, msaa {}x on the "
+           "full-frame surfaces",
+           s.backend_info, s.device->getDescription().name, s.swap_chain->getWidth(),
+           s.swap_chain->getHeight(), kBindlessTextureCount, s.host_msaa_samples);
   EOT_INFO("[gpu] internal render {}x{} ({} = {:.3f}x the guest's {}x{}), fitted to the window at "
            "present; vsync {}, fps cap {}",
            InternalRenderWidth(), InternalRenderHeight(), Settings::Resolution(),

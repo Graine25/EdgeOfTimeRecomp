@@ -28,6 +28,7 @@
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/format.h"
+#include "gpu/gpu_timing.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/textures.h"
 #include "gpu/shaders/guest_shaders.h"
@@ -119,6 +120,13 @@ bool BindTargets(VideoState &s, Targets &t) {
     t.depth->drawn = true;
     t.depth->lastUseFrame = s.guest_frames;
   }
+  if (depth && t.colorCount && colors[0]->sampleCount != depth->sampleCount) {
+    u32 n;
+    if (DiagShouldLog(0x6C20, &n) && n < 8)
+      EOT_WARN("[draw] colour {}x{} ({}x samples) bound with depth {}x{} ({}x samples)",
+               t.color[0]->width, t.color[0]->height, colors[0]->sampleCount, t.depth->width,
+               t.depth->height, depth->sampleCount);
+  }
   plume::RenderFramebuffer *fb = GetFramebuffer(s, colors, t.colorCount, depth);
   if (!fb)
     return false;
@@ -126,6 +134,10 @@ bool BindTargets(VideoState &s, Targets &t) {
     s.command_list->setFramebuffer(fb);
     s.bound_framebuffer = fb;
   }
+  GpuTimingMark(s, s.command_list,
+                GpuTargetCategory(t.width == kGuestRenderWidth && t.height == kGuestRenderHeight,
+                                  t.depth != nullptr, t.colorCount,
+                                  t.colorCount ? static_cast<u32>(t.color[0]->host.format) : 0u));
   for (u32 i = 0; i < t.colorCount; ++i) {
     if (!colors[i]->needsClear)
       continue;
@@ -1019,7 +1031,8 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
   }
   st.rtCount = t.colorCount;
   st.dsFormat = has_ds ? t.depth->host.format : plume::RenderFormat::UNKNOWN;
-  st.sampleCount = 1;
+  st.sampleCount = t.colorCount ? t.color[0]->host.sampleCount
+                                : (t.depth ? t.depth->host.sampleCount : 1u);
   st.alphaToCoverage = (cc & (1u << 4)) != 0;
   *alpha_to_coverage_only = st.alphaToCoverage;
 
@@ -1070,6 +1083,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
         std::memcmp(cs.fc, fc, sizeof(fc)) == 0) {
       gt = cs.texture;
       gt->lastUseFrame = s.guest_frames;
+      gt->lastSampledFrame = s.guest_frames;
       TransitionLocked(s, gt->host, plume::RenderTextureLayout::SHADER_READ);
       index = cs.index;
       sampler = cs.sampler;
@@ -1083,6 +1097,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
         continue;
       }
       const u32 swizzle = (fc[3] >> 1) & 0xFFF;
+      gt->lastSampledFrame = s.guest_frames;
       index = PrepareTextureForSampling(s, *gt, swizzle);
       if (index == kInvalidDescriptorIndex) {
         u32 n;
@@ -1543,6 +1558,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("framebuffer creation failed", 0x6012);
     return;
   }
+  GpuTimingCountDraw(s);
   auto *cmd = s.command_list;
   const bool pipeline_changed = s.bound_pipeline != pipeline;
   if (pipeline_changed) {
