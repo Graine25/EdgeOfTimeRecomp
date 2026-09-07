@@ -3,6 +3,7 @@
 #include <atomic>
 #include <functional>
 #include <chrono>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -62,6 +63,10 @@ struct PerfCounters {
   f64 alias_scan_ms = 0, msaa_scan_ms = 0;
   f64 resolve_mirror_ms = 0, resolve_fb_ms = 0, resolve_bind_ms = 0;
   u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;
+  u32 dead_resolves = 0;
+  f64 gpu_ms = 0;
+  u32 gpu_frames = 0;
+  std::map<u32, std::pair<f64, u32>> gpu_cats;
   std::chrono::steady_clock::time_point last_present{};
 };
 

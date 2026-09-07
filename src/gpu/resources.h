@@ -78,6 +78,8 @@ struct GuestTexture {
   bool resolveOwned = false;
   u32 resolvedMipMask = 0;
   u64 lastUseFrame = 0;
+  u64 lastSampledFrame = 0;
+  u64 lastResolvedFrame = 0;
 };
 
 struct GuestSurface {

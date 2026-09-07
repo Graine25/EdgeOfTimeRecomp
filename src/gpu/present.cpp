@@ -18,6 +18,7 @@
 #include "gpu/constant_buffers.h"
 #include "core/profiling.h"
 #include "gpu/device.h"
+#include "gpu/gpu_timing.h"
 #include "gpu/imgui_overlay.h"
 #include "gpu/patches/aspect_ratio.h"
 #include "gpu/patches/movie_aspect.h"
@@ -208,19 +209,20 @@ void LogPerfLocked(VideoState &s) {
     return;
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws; "
-           "setup {:.2f} psolk {:.2f} streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies) upload {:.2f} ({}) link "
+           "setup {:.2f} psolk {:.2f} streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} dead) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} vtxcache hit {} miss {} "
            "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
-           "idx {} const {}",
+           "idx {} const {} | gpu {}",
            p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.setup_ms / n,
            p.pso_lookup_ms / n, p.stream_ms / n, p.vertex_copy_ms / n, p.const_ms / n,
-           p.bind_ms / n, p.const_file_hits / p.frames, p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.upload_ms / n,
+           p.bind_ms / n, p.const_file_hits / p.frames, p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.dead_resolves / p.frames, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
            p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
            p.acquire_ms / n, p.submit_ms / n, p.fence_ms / n, g_pace_ms / n,
            p.vertex_bytes / p.frames / 1024,
-           p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024);
+           p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024,
+           GpuTimingSummary(p));
   p = PerfCounters{};
   p.last_present = now;
   g_pace_ms = 0.0;
@@ -338,6 +340,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     }
 
     auto *cmd = s.command_list;
+    GpuTimingMark(s, cmd, kGpuCatPresent);
     plume::RenderTexture *back = s.swap_chain->getTexture(image);
     plume::RenderTextureBarrier to_rt(back, plume::RenderTextureLayout::COLOR_WRITE);
     cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_rt, 1);
@@ -418,6 +421,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     plume::RenderTextureBarrier to_present(back, plume::RenderTextureLayout::PRESENT);
     cmd->barriers(plume::RenderBarrierStage::NONE, &to_present, 1);
 
+    GpuTimingFrameEnd(cmd);
     s.command_lists[cur]->end();
     s.command_list_open = false;
     s.bound_framebuffer = nullptr;

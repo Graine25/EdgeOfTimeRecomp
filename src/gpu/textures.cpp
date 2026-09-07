@@ -17,6 +17,7 @@
 #include "gpu/d3d.h"
 #include "core/profiling.h"
 #include "gpu/device.h"
+#include "gpu/gpu_timing.h"
 
 #include "gpu/settings.h"
 #include "gpu/format.h"
@@ -282,6 +283,7 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
         }
       }
       const u32 row_width_texels = static_cast<u32>(host_pitch / bpb) * fi->block_width;
+      GpuTimingMark(s, s.command_list, kGpuCatUpload);
       s.command_list->copyTextureRegion(
           plume::RenderTextureCopyLocation::Subresource(host.texture.get(), level,
                                                         host.arraySize > 1 ? slice : 0),

@@ -13,6 +13,7 @@
 #include "gpu/backend.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/gpu_timing.h"
 #include "gpu/gpu_profiling.h"
 
 #include "gpu/draw.h"
@@ -121,6 +122,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   EOT_CPU_ZONE("ResolveGuest");
   PerfScope perf_scope(s.perf.resolve_ms);
   s.perf.resolves++;
+  GpuTimingMark(s, s.command_list, kGpuCatResolve);
 
   const u32 source = flags & 7;
   const bool depth_source = source == 4;
@@ -204,6 +206,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
       target.resolvedMipMask |= 1u << level;
       target.lastUseFrame = s.guest_frames;
+      if (target.lastResolvedFrame && target.lastSampledFrame < target.lastResolvedFrame)
+        s.perf.dead_resolves++;
+      target.lastResolvedFrame = s.guest_frames;
     };
     static const bool copies = Settings::ResolveCopy();
     auto blit = [&](GuestTexture &target, u32 level, i32 vx, i32 vy, i32 vw, i32 vh, i32 sx0,
