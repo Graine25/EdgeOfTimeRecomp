@@ -167,7 +167,9 @@ endif()
 foreach(shader IN ITEMS copy_vs imgui_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
 endforeach()
-foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps cas_ps)
+foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps cas_ps
+        resolve_msaa_color_2x_ps resolve_msaa_color_4x_ps resolve_msaa_color_8x_ps
+        resolve_msaa_depth_2x_ps resolve_msaa_depth_4x_ps resolve_msaa_depth_8x_ps)
     reeot_host_shader(reeot ${shader} ps_6_0)
 endforeach()
 foreach(shader IN ITEMS fxaa_ps fxaa_high_ps)

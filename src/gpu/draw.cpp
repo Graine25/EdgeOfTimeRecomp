@@ -121,6 +121,13 @@ bool BindTargets(VideoState &s, Targets &t) {
     t.depth->drawn = true;
     t.depth->lastUseFrame = s.guest_frames;
   }
+  if (depth && t.colorCount && colors[0]->sampleCount != depth->sampleCount) {
+    u32 n;
+    if (DiagShouldLog(0x6C20, &n) && n < 8)
+      EOT_WARN("[draw] colour {}x{} ({}x samples) bound with depth {}x{} ({}x samples)",
+               t.color[0]->width, t.color[0]->height, colors[0]->sampleCount, t.depth->width,
+               t.depth->height, depth->sampleCount);
+  }
   plume::RenderFramebuffer *fb = GetFramebuffer(s, colors, t.colorCount, depth);
   if (!fb)
     return false;
@@ -1021,7 +1028,8 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
   }
   st.rtCount = t.colorCount;
   st.dsFormat = has_ds ? t.depth->host.format : plume::RenderFormat::UNKNOWN;
-  st.sampleCount = 1;
+  st.sampleCount = t.colorCount ? t.color[0]->host.sampleCount
+                                : (t.depth ? t.depth->host.sampleCount : 1u);
   st.alphaToCoverage = (cc & (1u << 4)) != 0;
   *alpha_to_coverage_only = st.alphaToCoverage;
 

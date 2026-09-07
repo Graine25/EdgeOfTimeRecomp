@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <format>
 #include "gpu/surfaces.h"
 
 #include <memory>
@@ -63,6 +64,14 @@ bool DecodeHeader(u32 va, GuestSurface &out) {
   return true;
 }
 
+u32 HostSampleCountFor(const VideoState &s, const GuestSurface &surf) {
+  if (s.host_msaa_samples <= 1 || surf.msaaSamples != 1)
+    return 1;
+  if (surf.width != kGuestRenderWidth || surf.height != kGuestRenderHeight)
+    return 1;
+  return s.host_msaa_samples;
+}
+
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   HostTexture &host = surf.host;
   host.format = SurfaceHostFormat(surf);
@@ -74,7 +83,7 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   host.depth = 1;
   host.mipLevels = 1;
   host.arraySize = 1;
-  host.sampleCount = 1;
+  host.sampleCount = HostSampleCountFor(s, surf);
   host.isDepth = surf.isDepth;
   host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
 
@@ -88,6 +97,7 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   desc.format = host.format;
   desc.flags = surf.isDepth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
+  desc.multisampling.sampleCount = static_cast<plume::RenderSampleCounts>(host.sampleCount);
   desc.committed = Settings::CommittedTextures();
   plume::RenderClearValue clear;
   if (!surf.isDepth) {
@@ -206,11 +216,12 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     ForgetSurfaceDescriptor(s, surface_va);
     return nullptr;
   }
-  EOT_INFO("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {} {}x{}", surface_va,
+  EOT_INFO("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {} {}x{}{}", surface_va,
            surf->isDepth ? "depth" : "color", surf->width, surf->height,
            surf->isDepth ? surf->depthFormat : surf->colorFormat, surf->msaaSamples,
            surf->baseTile, static_cast<u32>(surf->host.format), surf->host.width,
-           surf->host.height);
+           surf->host.height,
+           surf->host.sampleCount > 1 ? std::format(" {}x samples", surf->host.sampleCount) : "");
   slot = std::move(surf);
   TrackSurfaceDescriptor(s, surface_va, key);
   return slot.get();

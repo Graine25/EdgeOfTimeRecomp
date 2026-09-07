@@ -216,7 +216,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const bool same_format = src_host->format == target.host.format;
       const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
       const bool covers_image = whole && target.host.mipLevels == 1;
-      if (copies && surf->scale == 1.0f && src_host == &surf->host && same_format &&
+      const bool ms_src = src_host->sampleCount > 1;
+      if (copies && !ms_src && surf->scale == 1.0f && src_host == &surf->host && same_format &&
           scale == 1.0f && !reorder && (!depth_source || whole) &&
           (covers_image || !target.host.needsClear)) {
         if (covers_image)
@@ -278,11 +279,14 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       }
       cmd->setFramebuffer(fb);
       s.bound_framebuffer = fb;
-      plume::RenderPipeline *pso =
-          depth_source ? GetDepthCopyPipeline(s, target.host.format)
-                       : GetBlitPipeline(s, target.host.viewFormat != plume::RenderFormat::UNKNOWN
+      const plume::RenderFormat color_fmt = target.host.viewFormat != plume::RenderFormat::UNKNOWN
                                                 ? target.host.viewFormat
-                                                : target.host.format);
+                                                : target.host.format;
+      plume::RenderPipeline *pso =
+          ms_src ? GetResolveMsaaPipeline(s, depth_source ? target.host.format : color_fmt,
+                                          src_host->sampleCount, depth_source)
+          : depth_source ? GetDepthCopyPipeline(s, target.host.format)
+                         : GetBlitPipeline(s, color_fmt);
       if (!pso)
         return false;
       cmd->setPipeline(pso);
@@ -367,7 +371,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     static u32 k = 0;
     const std::string path = std::format("logs/f{}_r{}_{}_{:x}.ppm", s.guest_frames + 1, k++,
                                          depth_source ? "depth" : "color", src_va);
-    DumpHostTextureLocked(s, surf->host, path.c_str(), depth_source ? 1.0f : 1.0f);
+    if (surf->host.sampleCount == 1)
+      DumpHostTextureLocked(s, surf->host, path.c_str(), depth_source ? 1.0f : 1.0f);
     if (!s.command_list_open)
       return;
   }

@@ -139,6 +139,10 @@ struct VideoState {
   std::unique_ptr<plume::RenderShader> copy_depth_ps;
   std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> blit_pipelines;
   std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> depth_copy_pipelines;
+  u32 host_msaa_samples = 1;
+  std::unique_ptr<plume::RenderShader> resolve_msaa_color_ps[3];
+  std::unique_ptr<plume::RenderShader> resolve_msaa_depth_ps[3];
+  std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> resolve_msaa_pipelines;
 
   std::string backend_info;
 
@@ -260,6 +264,8 @@ bool BuildPipelineLayout(VideoState &s);
 bool BuildHelperPipelines(VideoState &s);
 bool BuildSwapFramebuffers(VideoState &s);
 plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format);
+plume::RenderPipeline *GetResolveMsaaPipeline(VideoState &s, plume::RenderFormat dst_format,
+                                              u32 src_samples, bool depth);
 plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format);
 
 void BeginCommandList(VideoState &s);

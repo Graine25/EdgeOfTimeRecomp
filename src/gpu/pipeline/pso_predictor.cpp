@@ -351,12 +351,19 @@ u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template
     if (!layout)
       continue;
     bool any = false, caster = false;
+    const u32 msaa = state().host_msaa_samples;
     auto enqueue = [&](PsoRecord &r) {
       CanonicalizePipelineState(r.state, spec_mask, layout->streamMask);
-      if (!seen.insert(HashPipelineState(r.state)).second)
-        return;
-      if (PsoPrecacheEnqueue(r, PsoSource::Predicted, priority, token))
+      if (seen.insert(HashPipelineState(r.state)).second &&
+          PsoPrecacheEnqueue(r, PsoSource::Predicted, priority, token))
         ++queued;
+      if (msaa > 1 && r.state.sampleCount == 1) {
+        PsoRecord twin = r;
+        twin.state.sampleCount = msaa;
+        if (seen.insert(HashPipelineState(twin.state)).second &&
+            PsoPrecacheEnqueue(twin, PsoSource::Predicted, priority, token))
+          ++queued;
+      }
     };
     for (size_t ti = 0; ti < templates.size(); ++ti) {
       const PsoTemplate &t = templates[ti];

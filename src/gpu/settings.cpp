@@ -1,5 +1,8 @@
 #include "gpu/settings.h"
 
+#include <charconv>
+#include <system_error>
+
 #include <rex/cvar.h>
 
 REXCVAR_DEFINE_INT32(eot_trace_frames, 0, "eot",
@@ -104,6 +107,19 @@ REXCVAR_DEFINE_INT32(eot_anisotropy, 16, "EdgeOfTime/Graphics",
                      "linearly filtered texture, trilinear with it. 16 is near-free on "
                      "modern GPUs and keeps floors and walls sharp at grazing angles.")
     .range(0, 16);
+REXCVAR_DEFINE_INT32(eot_msaa, 0, "EdgeOfTime/Graphics",
+                     "Multisampling on the full-frame scene surfaces: 0 = off, 2, 4 or 8 "
+                     "samples, clamped to what the device supports. Every pass that draws "
+                     "into the frame is multisampled and the resolves average the samples, "
+                     "so geometry edges are anti-aliased before the post chain sees them. "
+                     "Costs VRAM and bandwidth in proportion. Requires restart.")
+    .range(0, 8)
+    .validator([](std::string_view v) {
+      int n = 0;
+      const auto r = std::from_chars(v.data(), v.data() + v.size(), n);
+      return r.ec == std::errc() && (n == 0 || n == 2 || n == 4 || n == 8);
+    })
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video",
                       "Display brightness offset applied at present (-0.5 .. 0.5, 0 = off).");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video",
@@ -182,6 +198,7 @@ bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
+i32 Settings::Msaa() { return REXCVAR_GET(eot_msaa); }
 i32 Settings::QualityLevel() { return REXCVAR_GET(eot_debug_quality_level); }
 i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
 i32 Settings::ShadowMapSize() { return REXCVAR_GET(eot_shadow_map_size); }
