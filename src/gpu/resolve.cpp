@@ -223,6 +223,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const bool covers_image = whole && target.host.mipLevels == 1;
       const bool ms_src = src_host->sampleCount > 1;
       if (copies && !ms_src && surf->scale == 1.0f && src_host == &surf->host && same_format &&
+          surf->allocWidth == surf->width && surf->allocHeight == surf->height &&
           scale == 1.0f && !reorder && (!depth_source || whole) &&
           (covers_image || !target.host.needsClear)) {
         if (covers_image)
@@ -307,10 +308,13 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(target.fetch[3]);
       pc.param0 = scale;
       pc.param1 = 0.0f;
-      pc.rect[0] = static_cast<float>(sx0) / surf->width;
-      pc.rect[1] = static_cast<float>(sy0) / surf->height;
-      pc.rect[2] = static_cast<float>(sx0 + vw) / surf->width;
-      pc.rect[3] = static_cast<float>(sy0 + vh) / surf->height;
+      const GuestSurface &src_surf = alias_src ? *alias_src : *surf;
+      const float rx = static_cast<float>(src_surf.width) / static_cast<float>(surf->width);
+      const float ry = static_cast<float>(src_surf.height) / static_cast<float>(surf->height);
+      pc.rect[0] = static_cast<float>(sx0) * rx / static_cast<float>(src_surf.allocWidth);
+      pc.rect[1] = static_cast<float>(sy0) * ry / static_cast<float>(src_surf.allocHeight);
+      pc.rect[2] = static_cast<float>(sx0 + vw) * rx / static_cast<float>(src_surf.allocWidth);
+      pc.rect[3] = static_cast<float>(sy0 + vh) * ry / static_cast<float>(src_surf.allocHeight);
       bind_scope.stop();
       cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
                                     kCopyPushConstantByteOffset, sizeof(pc));
