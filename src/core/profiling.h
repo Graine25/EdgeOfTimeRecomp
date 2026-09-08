@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(REXGLUE_ENABLE_PROFILING)
+#if defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING)
 
 #include <tracy/Tracy.hpp>
 

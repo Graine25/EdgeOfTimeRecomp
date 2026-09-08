@@ -45,7 +45,7 @@ REX_HOOK_RAW(eot_GLAPIPackage_Load) {
   __imp__eot_GLAPIPackage_Load(ctx, base);
   if (id == 0 || id >= kMaxPackages)
     return;
-  EOT_INFO("[pso] GLAPIPackage::Load({:#x} '{}')", id, PackageName(id));
+  EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, PackageName(id));
   eot::gpu::PsoCacheOnPackageLoad(id);
 }
 

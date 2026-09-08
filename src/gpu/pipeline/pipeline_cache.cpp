@@ -274,7 +274,7 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
     static u32 created = 0;
     if (created++ < 400 || !race) {
       const u32 vs_va = s.current_vs_va;
-      EOT_INFO("[pso] #{} render-thread build ({}) key={:016x} vs={:016x} ps={:016x} spec={:#x} "
+      EOT_DEBUG("[pso] #{} render-thread build ({}) key={:016x} vs={:016x} ps={:016x} spec={:#x} "
                "depth={}{} func{} stencil={} cull={} rt0fmt={} ds={} topo={} vsVa={:#x} psVa={:#x} "
                "nodes={}/{} origin={} package={:#x}{}",
                created, race ? std::string("race with ") + SourceName(known) : "GAP, captured",
@@ -377,8 +377,9 @@ void PsoCacheSetLoadingScreen(bool on) {
     l.screenSinceFrame = s.guest_frames;
     std::lock_guard lock(l.mutex);
     l.screens++;
-    EOT_INFO("[pso] loading screen up at frame {} (pool pending prio {} bg {})", s.guest_frames,
-             ps.priorityPending, ps.backgroundPending);
+    EOT_INFO("[pso] loading screen up at frame {} (pool pending prio {} bg {}){}", s.guest_frames,
+             ps.priorityPending, ps.backgroundPending,
+             l.screens == 1 ? "; the boot's: nothing waits behind it" : "");
     return;
   }
   u32 pending = 0;
@@ -395,6 +396,14 @@ void PsoCacheSetLoadingScreen(bool on) {
 }
 
 bool PsoCacheInLoadingScreen() { return loading().screen.load(std::memory_order_acquire); }
+
+bool PsoCacheWaitsAllowed() {
+  auto &l = loading();
+  if (!l.screen.load(std::memory_order_acquire))
+    return false;
+  std::lock_guard lock(l.mutex);
+  return l.screens > 1;
+}
 
 void PsoCacheOnPackageLoad(u32 id) {
   auto &l = loading();
@@ -419,13 +428,13 @@ void PsoCacheOnPackageLoad(u32 id) {
     l.setsQueued++;
     l.holds[id] = PackageHold{token, std::chrono::steady_clock::now(), false};
   }
-  EOT_INFO("[pso] package {:#x}: {} of {} recorded pipelines queued on the priority lane{}", id,
+  EOT_DEBUG("[pso] package {:#x}: {} of {} recorded pipelines queued on the priority lane{}", id,
            queued, rows.size(), l.screen.load(std::memory_order_relaxed) ? " (loading screen)" : "");
 }
 
 bool PsoCacheHoldPackage(u32 id) {
   auto &l = loading();
-  if (!l.screen.load(std::memory_order_acquire))
+  if (!PsoCacheWaitsAllowed())
     return false;
   std::lock_guard lock(l.mutex);
   auto it = l.holds.find(id);
@@ -438,7 +447,7 @@ bool PsoCacheHoldPackage(u32 id) {
   if (pending == 0 || ms >= kPsoHoldMaxMs) {
     if (h.held) {
       l.holdMs += ms;
-      EOT_INFO("[pso] package {:#x} released after {:.0f} ms{}", id, ms,
+      EOT_DEBUG("[pso] package {:#x} released after {:.0f} ms{}", id, ms,
                pending ? std::format(" (bounded, {} still building)", pending) : "");
     }
     l.holds.erase(it);

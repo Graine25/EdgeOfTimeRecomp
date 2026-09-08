@@ -14,7 +14,6 @@ namespace eot::gpu {
 constexpr u32 kPsoCsvVersion = 3;
 
 constexpr const char *kPsoDir = "pso";
-constexpr u32 kPsoGateMs = 250;
 constexpr u32 kPsoGateLoadingScreenMs = 5000;
 constexpr u32 kPsoHoldMaxMs = 8000;
 constexpr u32 kPsoMaxThreads = 8;

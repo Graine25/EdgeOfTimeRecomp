@@ -1,6 +1,6 @@
 #include "gpu/gpu_profiling.h"
 
-#if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+#if EOT_GPU_PROFILING
 
 namespace eot::gpu {
 

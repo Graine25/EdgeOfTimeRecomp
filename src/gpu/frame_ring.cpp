@@ -60,7 +60,7 @@ void BeginCommandList(VideoState &s) {
   s.command_list->setGraphicsDescriptorSet(s.texture_descriptor_set.get(), 4);
   s.command_list_open = true;
   GpuTimingFrameBegin(s, s.command_list, cur);
-#if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+#if EOT_GPU_PROFILING
   SetGPUProfilerCommandList(static_cast<plume::D3D12CommandList *>(s.command_list)->d3d);
 #endif
   s.bound_framebuffer = nullptr;
@@ -99,7 +99,7 @@ void AdvanceAndWaitReused(VideoState &s) {
     s.queue->waitForCommandFence(s.fences[slot].get());
     s.command_list_submitted[slot] = false;
     GpuTimingCollect(s, slot);
-#if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+#if EOT_GPU_PROFILING
     if (auto *ctx = GpuProfilerCtx()) {
       TracyD3D12NewFrame(ctx);
       TracyD3D12Collect(ctx);

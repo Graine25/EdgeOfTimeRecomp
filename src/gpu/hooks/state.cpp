@@ -168,7 +168,7 @@ extern "C" REX_FUNC(D3DDevice_SetGammaRamp) {
           mem::load<uint16_t>(device + kDeviceGammaShadow + (c * 256 + i) * 2);
   s.gamma_mode = VideoState::GammaMode::Table;
   s.gamma_lut_dirty = true;
-  EOT_INFO("[gamma] 256-entry ramp: r[0]={} r[32]={} r[64]={} r[128]={} r[255]={}",
+  EOT_DEBUG("[gamma] 256-entry ramp: r[0]={} r[32]={} r[64]={} r[128]={} r[255]={}",
            s.gamma_table[0][0], s.gamma_table[0][32], s.gamma_table[0][64], s.gamma_table[0][128],
            s.gamma_table[0][255]);
 }
@@ -192,7 +192,7 @@ extern "C" REX_FUNC(D3DDevice_SetPWLGamma) {
   }
   s.gamma_mode = VideoState::GammaMode::Pwl;
   s.gamma_lut_dirty = true;
-  EOT_INFO("[gamma] PWL ramp: r[0]={}+{} r[16]={}+{} r[32]={}+{} r[64]={}+{} r[127]={}+{}",
+  EOT_DEBUG("[gamma] PWL ramp: r[0]={}+{} r[16]={}+{} r[32]={}+{} r[64]={}+{} r[127]={}+{}",
            s.gamma_pwl[0][0][0], s.gamma_pwl[0][0][1], s.gamma_pwl[0][16][0],
            s.gamma_pwl[0][16][1], s.gamma_pwl[0][32][0], s.gamma_pwl[0][32][1],
            s.gamma_pwl[0][64][0], s.gamma_pwl[0][64][1], s.gamma_pwl[0][127][0],

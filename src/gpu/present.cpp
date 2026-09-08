@@ -98,7 +98,7 @@ u32 EnsureGammaLutLocked(VideoState &s) {
       }
       dst[v * 4 + 3] = 0xFFFF;
     }
-    EOT_INFO("[present] gamma LUT rebuilt ({}): r(0)={:.4f} r(32)={:.4f} r(128)={:.4f} "
+    EOT_DEBUG("[present] gamma LUT rebuilt ({}): r(0)={:.4f} r(32)={:.4f} r(128)={:.4f} "
              "r(512)={:.4f} r(1023)={:.4f}",
              s.gamma_mode == VideoState::GammaMode::Pwl ? "pwl" : "table",
              dst[0] / 65535.0f, dst[32 * 4] / 65535.0f, dst[128 * 4] / 65535.0f,

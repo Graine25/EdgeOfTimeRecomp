@@ -965,7 +965,7 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
   if (!st.depthClip) {
     u32 n;
     if (DiagShouldLog(0x6C1F, &n) && n < 3)
-      EOT_INFO("[draw] clip control {:#x}: depth clip off", clip);
+      EOT_DEBUG("[draw] clip control {:#x}: depth clip off", clip);
   }
 
   if (mode & (1u << 11)) {
@@ -1292,7 +1292,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     if (std::memcmp(&now, &last, sizeof(now)) != 0 && lines < 64) {
       last = now;
       ++lines;
-      EOT_INFO("[shadow] caster draw: mode bits {:#x} front scale {:g} offset {:g} back scale {:g} "
+      EOT_DEBUG("[shadow] caster draw: mode bits {:#x} front scale {:g} offset {:g} back scale {:g} "
                "offset {:g} | cache 204 {:g} 208 {:g} -> host bias {} slope {:g} (vs {:016x}) | "
                "vport x {:g}/{:g} y {:g}/{:g} vte {:#x} vtx {:#x} win {:#x} scale {:.4f}",
                now.mode, now.fs, now.fo, now.bs, now.bo, std::bit_cast<float>(now.cache204),

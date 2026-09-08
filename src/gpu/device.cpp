@@ -817,7 +817,7 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
     return false;
   }
 
-#if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+#if EOT_GPU_PROFILING
   InitGPUProfiler(static_cast<plume::D3D12Device *>(s.device.get())->d3d,
                   static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
 #endif

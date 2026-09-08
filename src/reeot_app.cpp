@@ -54,11 +54,16 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   REXCVAR_SET(mnk_mode, true);
   eot::goliath::InstallPcControls();
   if (eot::gpu::Settings::Profiler()) {
+#if defined(EOT_PROFILING)
     rex::perf::Profiler::Startup();
     if (rex::perf::Profiler::is_enabled())
       EOT_INFO("Tracy profiler started; connect a viewer to capture.");
     else
-      EOT_WARN("eot_profiler is set, but this build has no profiler compiled in.");
+      EOT_WARN("eot_profiler is set, but the SDK in this build has no profiler compiled in.");
+#else
+    EOT_WARN("eot_profiler is set, but this Release build has no zones compiled in: configure "
+             "with -DREEOT_PROFILING=ON.");
+#endif
   }
   config.graphics = nullptr;
 }

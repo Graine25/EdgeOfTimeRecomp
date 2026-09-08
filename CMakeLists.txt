@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(REEOT_D3D12 "Build the D3D12 renderer backend (OFF selects Vulkan)" ${WIN32})
+option(REEOT_PROFILING "Compile the Tracy zones into a Release build of reeot" OFF)
 
 set(REEOT_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(REEOT_SHADER_COMMON_H
@@ -148,7 +149,8 @@ target_compile_definitions(reeot PRIVATE
     _ITERATOR_DEBUG_LEVEL=0
     NOMINMAX
     WIN32_LEAN_AND_MEAN
-    $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>)
+    $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>
+    $<$<OR:$<BOOL:${REEOT_PROFILING}>,$<NOT:$<CONFIG:Release>>>:EOT_PROFILING>)
 
 target_link_libraries(reeot PRIVATE
     rex::ui

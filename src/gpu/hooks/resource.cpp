@@ -69,7 +69,7 @@ extern "C" REX_FUNC(XGRegisterPixelShader) {
 extern "C" REX_FUNC(D3DDevice_CreateVertexShader) {
   const u32 function = ctx.r3.u32;
   __imp__D3DDevice_CreateVertexShader(ctx, base);
-  EOT_INFO("[shaders] CreateVertexShader blob={:#x} -> obj={:#x} (hdr {:#x} {:#x} {:#x})",
+  EOT_DEBUG("[shaders] CreateVertexShader blob={:#x} -> obj={:#x} (hdr {:#x} {:#x} {:#x})",
            function, ctx.r3.u32, mem::load<u32>(function), mem::load<u32>(function + 4),
            mem::load<u32>(function + 8));
 }
@@ -77,7 +77,7 @@ extern "C" REX_FUNC(D3DDevice_CreateVertexShader) {
 extern "C" REX_FUNC(D3DDevice_CreatePixelShader) {
   const u32 function = ctx.r3.u32;
   __imp__D3DDevice_CreatePixelShader(ctx, base);
-  EOT_INFO("[shaders] CreatePixelShader blob={:#x} -> obj={:#x}", function, ctx.r3.u32);
+  EOT_DEBUG("[shaders] CreatePixelShader blob={:#x} -> obj={:#x}", function, ctx.r3.u32);
 }
 
 extern "C" REX_FUNC(D3D_UnlockResource) {

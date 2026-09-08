@@ -4,7 +4,13 @@
 
 #include "core/profiling.h"
 
-#if defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+#if defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+#define EOT_GPU_PROFILING 1
+#else
+#define EOT_GPU_PROFILING 0
+#endif
+
+#if EOT_GPU_PROFILING
 
 #include <plume_d3d12.h>
 #include <tracy/TracyD3D12.hpp>
@@ -27,7 +33,7 @@ ID3D12GraphicsCommandList *GpuProfilerCommandList();
         &TracyConcat(__tracy_gpu_sloc, TracyLine), TracyIsStarted                                  \
   }
 
-#elif defined(REXGLUE_ENABLE_PROFILING)
+#elif defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING)
 
 #define EOT_GPU_ZONE(name) ZoneNamedN(___tracy_scoped_zone, name, TracyIsStarted)
 

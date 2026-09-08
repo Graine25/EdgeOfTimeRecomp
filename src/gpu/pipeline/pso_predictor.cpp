@@ -414,7 +414,7 @@ u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template
       ++*no_template;
       std::lock_guard lock(p.mutex);
       if (p.noTemplateLogged.insert(slot.technique | (slot.pass << 8)).second)
-        EOT_INFO("[pso] predictor: no template for technique {} pass {} yet; capture more",
+        EOT_DEBUG("[pso] predictor: no template for technique {} pass {} yet; capture more",
                  slot.technique, slot.pass);
     }
   }
@@ -554,7 +554,7 @@ void PredictorNoteShadowBias(float offset, float slope) {
     std::lock_guard lock(p.mutex);
     p.stats.queued += queued;
   }
-  EOT_INFO("[pso] predictor: shadow caster offset {:g} slope {:g}: {} caster slot(s) re-crossed, "
+  EOT_DEBUG("[pso] predictor: shadow caster offset {:g} slope {:g}: {} caster slot(s) re-crossed, "
            "{} pipeline(s) queued",
            offset, slope, casters.size(), queued);
 }

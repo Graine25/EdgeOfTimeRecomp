@@ -11,7 +11,7 @@ REXCVAR_DEFINE_INT32(eot_trace_frames, 0, "eot", "Frames of D3D call tracing")
 REXCVAR_DEFINE_INT32(eot_trace_start_frame, 0, "eot", "Frame the trace starts")
     .range(0, 100000000);
 
-REXCVAR_DEFINE_INT32(eot_summary_frames, 600, "eot", "Frames of call summaries")
+REXCVAR_DEFINE_INT32(eot_summary_frames, 0, "eot", "Frames of call summaries")
     .range(0, 1000000);
 
 REXCVAR_DEFINE_INT32(eot_diag, 1, "eot", "Renderer log verbosity")
@@ -24,7 +24,7 @@ REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "eot", "Log frames slower than this")
     .range(0, 1000);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale");
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video", "Internal render resolution")
-    .allowed({"native", "720p", "1080p", "1440p"});
+    .allowed({"native", "720p", "1080p", "1440p", "2160p"});
 REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video", "Fullscreen aspect ratio")
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video", "Frame rate cap")
@@ -136,6 +136,8 @@ f32 ComputeRenderScale() {
     target_height = 1080;
   else if (preset == "1440p")
     target_height = 1440;
+  else if (preset == "2160p")
+    target_height = 2160;
   const f64 scale = target_height != 0
                         ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
                         : Settings::RenderScale();

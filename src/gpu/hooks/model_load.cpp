@@ -33,10 +33,8 @@ REX_HOOK_RAW(eot_ModelResource_LoadGeometry) {
   eot::gpu::PsoPrecacheBeginLoad();
   const uint32_t queued = eot::gpu::PredictModelLoad(model);
   __imp__eot_ModelResource_LoadGeometry(ctx, base);
-  if (queued) {
-    const uint32_t gate_ms = eot::gpu::PsoCacheInLoadingScreen()
-                                 ? eot::gpu::kPsoGateLoadingScreenMs
-                                 : eot::gpu::kPsoGateMs;
+  if (queued && eot::gpu::PsoCacheWaitsAllowed()) {
+    const uint32_t gate_ms = eot::gpu::kPsoGateLoadingScreenMs;
     if (!eot::gpu::PsoPrecacheWaitLoad(gate_ms) &&
         g_late_logs.fetch_add(1, std::memory_order_relaxed) < 32)
       EOT_INFO("[pso] predictor: model {:#x} published with pipelines still building after {} ms",
