@@ -43,12 +43,12 @@ REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video",
                       "Used when eot_resolution is native.");
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
                       "Internal render resolution: native (the guest's own 1120x632, scaled by "
-                      "eot_render_scale), 720p, 1080p or 1440p. The preset is a target height the "
-                      "scale is derived from; the present always fits the result to the window, so "
-                      "a 1440p internal image is blitted up to whatever the display is. Fidelity "
-                      "measurement (tools/score_dense.py) needs native, which is what the guest and "
-                      "the Xenia references render.")
-    .allowed({"native", "720p", "1080p", "1440p"});
+                      "eot_render_scale), 720p, 1080p, 1440p or 2160p (4K). The preset is a target "
+                      "height the scale is derived from; the present always fits the result to the "
+                      "window, so a 1440p internal image is blitted up to whatever the display is. "
+                      "Fidelity measurement (tools/score_dense.py) needs native, which is what the "
+                      "guest and the Xenia references render.")
+    .allowed({"native", "720p", "1080p", "1440p", "2160p"});
 REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
                       "Aspect ratio the game builds its projection for: auto follows the window, "
                       "the rest force a ratio. Wider than 16:9 shows more to the sides rather than "
@@ -220,6 +220,8 @@ f32 ComputeRenderScale() {
     target_height = 1080;
   else if (preset == "1440p")
     target_height = 1440;
+  else if (preset == "2160p")
+    target_height = 2160;
   const f64 scale = target_height != 0
                         ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
                         : Settings::RenderScale();
