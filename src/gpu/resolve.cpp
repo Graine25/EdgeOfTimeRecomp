@@ -15,9 +15,6 @@
 #include "gpu/device.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/gpu_profiling.h"
-#if defined(EOT_D3D12)
-#include <plume_d3d12.h>
-#endif
 
 #include "gpu/draw.h"
 #include "gpu/format.h"
@@ -285,48 +282,6 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
             cmd->clearColor(0, plume::RenderColor(0, 0, 0, 0), nullptr, 0);
         }
         target.host.needsClear = false;
-      }
-      if (ms_src && same_format && !reorder && level == 0 && src_host == &surf->host) {
-        const i32 shx0 = ScalePxBy(sx0, k), shy0 = ScalePxBy(sy0, k);
-        const i32 shx1 = ScalePxBy(sx0 + vw, k), shy1 = ScalePxBy(sy0 + vh, k);
-        const i32 rw = shx1 - shx0, rh = shy1 - shy0;
-        const bool fits = rw > 0 && rh > 0 && hx0 + rw <= static_cast<i32>(target.host.width) &&
-                          hy0 + rh <= static_cast<i32>(target.host.height) &&
-                          shx1 <= static_cast<i32>(src_host->width) &&
-                          shy1 <= static_cast<i32>(src_host->height);
-        bool issued = false;
-        if (fits && !depth_source) {
-          GpuTimingMark(s, cmd, kGpuCatResolveHw);
-          TransitionLocked(s, *src_host, plume::RenderTextureLayout::RESOLVE_SOURCE);
-          TransitionLocked(s, target.host, plume::RenderTextureLayout::RESOLVE_DEST);
-          const plume::RenderRect src_rect(shx0, shy0, shx1, shy1);
-          cmd->resolveTextureRegion(target.host.texture.get(), static_cast<u32>(hx0),
-                                    static_cast<u32>(hy0), src_host->texture.get(), &src_rect,
-                                    plume::RenderResolveMode::AVERAGE);
-          issued = true;
-        }
-#if defined(EOT_D3D12)
-        else if (fits && target.host.format == plume::RenderFormat::D32_FLOAT_S8_UINT) {
-          auto *list = static_cast<plume::D3D12CommandList *>(cmd);
-          if (list->d3dV1) {
-            GpuTimingMark(s, cmd, kGpuCatResolveDepth);
-            TransitionLocked(s, *src_host, plume::RenderTextureLayout::RESOLVE_SOURCE);
-            TransitionLocked(s, target.host, plume::RenderTextureLayout::RESOLVE_DEST);
-            D3D12_RECT rect{shx0, shy0, shx1, shy1};
-            list->d3dV1->ResolveSubresourceRegion(
-                static_cast<plume::D3D12Texture *>(target.host.texture.get())->d3d, 0,
-                static_cast<u32>(hx0), static_cast<u32>(hy0),
-                static_cast<plume::D3D12Texture *>(src_host->texture.get())->d3d, 0, &rect,
-                DXGI_FORMAT_D32_FLOAT_S8X24_UINT, D3D12_RESOLVE_MODE_MIN);
-            issued = true;
-          }
-        }
-#endif
-        if (issued) {
-          s.perf.resolve_hw++;
-          mark(target, level);
-          return true;
-        }
       }
       GpuTimingMark(s, cmd, depth_source ? kGpuCatResolveDepth : kGpuCatResolve);
       cmd->setFramebuffer(fb);

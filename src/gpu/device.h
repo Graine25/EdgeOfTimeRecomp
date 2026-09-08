@@ -60,7 +60,6 @@ struct PerfCounters {
   f64 pace_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
   u32 resolve_copies = 0;
-  u32 resolve_hw = 0;
   u32 host_textures = 0, host_views = 0, host_framebuffers = 0, host_parked = 0;
   u32 host_tex_surface = 0, host_tex_mirror = 0, host_tex_guest = 0;
   u32 host_tex_recycled = 0;
