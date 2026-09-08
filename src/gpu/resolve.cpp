@@ -283,6 +283,26 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         }
         target.host.needsClear = false;
       }
+      if (ms_src && !depth_source && same_format && !reorder && level == 0 &&
+          src_host == &surf->host) {
+        const i32 shx0 = ScalePxBy(sx0, k), shy0 = ScalePxBy(sy0, k);
+        const i32 shx1 = ScalePxBy(sx0 + vw, k), shy1 = ScalePxBy(sy0 + vh, k);
+        const i32 rw = shx1 - shx0, rh = shy1 - shy0;
+        if (rw > 0 && rh > 0 && hx0 + rw <= static_cast<i32>(target.host.width) &&
+            hy0 + rh <= static_cast<i32>(target.host.height) &&
+            shx1 <= static_cast<i32>(src_host->width) && shy1 <= static_cast<i32>(src_host->height)) {
+          TransitionLocked(s, *src_host, plume::RenderTextureLayout::RESOLVE_SOURCE);
+          TransitionLocked(s, target.host, plume::RenderTextureLayout::RESOLVE_DEST);
+          const plume::RenderRect src_rect(shx0, shy0, shx1, shy1);
+          cmd->resolveTextureRegion(target.host.texture.get(), static_cast<u32>(hx0),
+                                    static_cast<u32>(hy0), src_host->texture.get(), &src_rect,
+                                    depth_source ? plume::RenderResolveMode::MIN
+                                                 : plume::RenderResolveMode::AVERAGE);
+          s.perf.resolve_hw++;
+          mark(target, level);
+          return true;
+        }
+      }
       cmd->setFramebuffer(fb);
       s.bound_framebuffer = fb;
       const plume::RenderFormat color_fmt = target.host.viewFormat != plume::RenderFormat::UNKNOWN
