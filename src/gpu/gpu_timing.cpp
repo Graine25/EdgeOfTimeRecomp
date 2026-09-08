@@ -91,6 +91,10 @@ std::string GpuCategoryName(u32 cat) {
     return "upload";
   case kGpuCatPresentFx:
     return "present-fx";
+  case kGpuCatResolveHw:
+    return "resolve-hw";
+  case kGpuCatResolveDepth:
+    return "resolve-depth";
   default:
     break;
   }
