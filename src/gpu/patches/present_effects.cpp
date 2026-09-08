@@ -6,7 +6,8 @@
 
 #include <rex/cvar.h>
 
-REXCVAR_DEFINE_STRING(eot_upscale, "lanczos", "EdgeOfTime/Graphics", "Filter used for upscaling");
+REXCVAR_DEFINE_STRING(eot_upscale, "bicubic", "EdgeOfTime/Graphics", "Filter used for upscaling")
+    .allowed({"bilinear", "bicubic", "lanczos"});
 
 namespace eot::gpu {
 
@@ -24,8 +25,13 @@ void SelectPresentBlitMode(u32 src_w, u32 src_h, float dst_w, float dst_h, float
       return;
     }
   }
-  if (rx < 0.98f && ry < 0.98f && REXCVAR_GET(eot_upscale) == "lanczos")
-    extra[0] = 2.0f;
+  if (rx < 0.98f && ry < 0.98f) {
+    const std::string filter = REXCVAR_GET(eot_upscale);
+    if (filter == "lanczos")
+      extra[0] = 2.0f;
+    else if (filter == "bicubic")
+      extra[0] = 3.0f;
+  }
 }
 
 }

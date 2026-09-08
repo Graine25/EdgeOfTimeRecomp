@@ -349,6 +349,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       TransitionLocked(s, front->host, plume::RenderTextureLayout::SHADER_READ);
       src_index = BindTextureSRVSwizzledLocked(s, front->host, (front->fetch[3] >> 1) & 0xFFF);
       front->lastUseFrame = s.guest_frames;
+      GpuTimingMark(s, cmd, kGpuCatPresent);
     }
     const u32 lut_index = front ? EnsureGammaLutLocked(s) : kInvalidDescriptorIndex;
     cmd->setFramebuffer(s.swap_framebuffers[image].get());

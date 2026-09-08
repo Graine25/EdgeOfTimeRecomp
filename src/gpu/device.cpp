@@ -423,6 +423,28 @@ bool DiagShouldLog(u64 site, u32 *n_out) {
   return false;
 }
 
+static void ReportCreationFailure(plume::RenderDevice *device) {
+#if defined(EOT_D3D12)
+  static bool reported = false;
+  if (reported || !device)
+    return;
+  auto *d3d = static_cast<plume::D3D12Device *>(device)->d3d;
+  if (!d3d)
+    return;
+  const HRESULT reason = d3d->GetDeviceRemovedReason();
+  reported = true;
+  if (FAILED(reason))
+    EOT_ERROR("[gpu] the device was removed: reason {:#010x} (0x887A0005 reset, 0x887A0006 hung, "
+              "0x887A0007 internal error, 0x887A0020 driver); every creation fails from here",
+              static_cast<u32>(reason));
+  else
+    EOT_ERROR("[gpu] creation failed with the device alive: memory exhaustion (check commit "
+              "charge and event 2004)");
+#else
+  (void)device;
+#endif
+}
+
 std::unique_ptr<plume::RenderBuffer>
 CreateHostBuffer(plume::RenderDevice *device, const plume::RenderBufferDesc &desc,
                  const char *tag) {
@@ -436,8 +458,11 @@ CreateHostBuffer(plume::RenderDevice *device, const plume::RenderBufferDesc &des
       || static_cast<plume::VulkanBuffer *>(buffer.get())->vk == VK_NULL_HANDLE
 #endif
   ) {
-    EOT_ERROR("CreateHostBuffer({}) failed: backend resource null (size={} bytes)",
-              tag ? tag : "?", desc.size);
+    u32 n;
+    if (DiagShouldLog(0x4100 ^ desc.size, &n))
+      EOT_ERROR("CreateHostBuffer({}) failed: backend resource null (size={} bytes) x{}",
+                tag ? tag : "?", desc.size, n + 1);
+    ReportCreationFailure(device);
     return nullptr;
   }
   return buffer;
@@ -471,6 +496,7 @@ CreateHostTexture(plume::RenderDevice *device, const plume::RenderTextureDesc &d
       EOT_ERROR("CreateHostTexture({}) failed: backend resource null ({}x{} fmt={} flags={:#x}) x{}",
                 tag ? tag : "?", desc.width, desc.height, static_cast<u32>(desc.format),
                 static_cast<u32>(desc.flags), n + 1);
+    ReportCreationFailure(device);
     return nullptr;
   }
   return texture;
@@ -489,8 +515,11 @@ CreateHostGraphicsPipeline(plume::RenderDevice *device,
       || static_cast<plume::VulkanGraphicsPipeline *>(pipeline.get())->vk == VK_NULL_HANDLE
 #endif
   ) {
-    EOT_ERROR("CreateHostGraphicsPipeline({}) failed: backend pipeline null",
-              tag ? tag : "?");
+    u32 n;
+    if (DiagShouldLog(0x4200, &n))
+      EOT_ERROR("CreateHostGraphicsPipeline({}) failed: backend pipeline null x{}",
+                tag ? tag : "?", n + 1);
+    ReportCreationFailure(device);
     return nullptr;
   }
   return pipeline;

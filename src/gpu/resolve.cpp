@@ -283,6 +283,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         }
         target.host.needsClear = false;
       }
+      GpuTimingMark(s, cmd, depth_source ? kGpuCatResolveDepth : kGpuCatResolve);
       cmd->setFramebuffer(fb);
       s.bound_framebuffer = fb;
       const plume::RenderFormat color_fmt = target.host.viewFormat != plume::RenderFormat::UNKNOWN
