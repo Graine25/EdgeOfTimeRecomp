@@ -1337,7 +1337,18 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     s.current_origin =
         kOrigins[vs->createdByGuestCall ? 1 : 0][ps ? (ps->createdByGuestCall ? 2 : 1) : 0];
   }
-  plume::RenderPipeline *pipeline = GetOrCreatePipeline(s, st);
+  static PipelineState last_state{};
+  static plume::RenderPipeline *last_pipeline = nullptr;
+  plume::RenderPipeline *pipeline = last_pipeline;
+  if (!pipeline || std::memcmp(reinterpret_cast<const u8 *>(&st) + kPipelineKeyOffset,
+                               reinterpret_cast<const u8 *>(&last_state) + kPipelineKeyOffset,
+                               sizeof(st) - kPipelineKeyOffset) != 0) {
+    pipeline = GetOrCreatePipeline(s, st);
+    if (pipeline) {
+      last_state = st;
+      last_pipeline = pipeline;
+    }
+  }
   lap(s.perf.pso_lookup_ms);
   if (!pipeline) {
     Dropped("pipeline creation failed", 0x6008);

@@ -111,6 +111,8 @@ struct VertexInput {
   u8 usageIndex = 0;
 };
 
+struct InputLayout;
+
 struct GuestShader {
   u32 va = 0;
   u64 hash = 0;
@@ -121,6 +123,12 @@ struct GuestShader {
   std::vector<VertexInput> inputs;
   bool usesFloatConstants = true;
   u32 floatConstantRegs = 256;
+  u32 lastSpecMask = ~0u;
+  plume::RenderShader *lastHost = nullptr;
+  u32 lastDeclVa = 0;
+  u32 lastDeclCount = 0;
+  const InputLayout *lastLayout = nullptr;
+  u8 lastDeclRaw[32 * 12] = {};
 };
 
 }

@@ -336,7 +336,14 @@ plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 s
     }
     return nullptr;
   }
-  return GetHostShaderByHash(s, shader.hash, spec_mask, shader.isPixel);
+  if (shader.lastHost && shader.lastSpecMask == spec_mask)
+    return shader.lastHost;
+  plume::RenderShader *host = GetHostShaderByHash(s, shader.hash, spec_mask, shader.isPixel);
+  if (host) {
+    shader.lastSpecMask = spec_mask;
+    shader.lastHost = host;
+  }
+  return host;
 }
 
 }

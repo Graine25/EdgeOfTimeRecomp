@@ -236,6 +236,7 @@ struct VideoState {
   std::atomic<bool> pending_up_armed{false};
   u32 current_vs_va = 0, current_ps_va = 0;
   const char *current_origin = "";
+  u64 surface_generation = 0;
   u64 pending_mask[5]{};
   bool pending_mask_valid = false;
   struct PendingUpDraw {

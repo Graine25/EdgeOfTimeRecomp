@@ -4,6 +4,7 @@
 #include <mutex>
 #include <unordered_map>
 
+#include <rex/memory/utils.h>
 #include <xxhash.h>
 
 #include "core/logging.h"
@@ -119,13 +120,38 @@ void SetSwapBit(InputLayout &l, u32 usage, u32 index) {
 
 }
 
+static const InputLayout *GetInputLayoutSlow(VideoState &s, GuestShader &vs, u32 declaration_va,
+                                             u32 raw_count, const DeclElement *raw_elements,
+                                             bool raw_ok);
+
 const InputLayout *GetInputLayout(VideoState &s, GuestShader &vs, u32 declaration_va) {
-  (void)s;
   if (!declaration_va || vs.isPixel)
     return nullptr;
-  const u32 raw_count = mem::load<u32>(declaration_va + obj::kDeclElementCount);
-  const auto *raw_elements = mem::at<DeclElement>(declaration_va + obj::kDeclElements);
+  const u8 *decl_bytes = mem::at<u8>(declaration_va);
+  const u32 raw_count =
+      decl_bytes ? rex::memory::load_and_swap<u32>(decl_bytes + obj::kDeclElementCount) : 0;
+  const auto *raw_elements =
+      decl_bytes ? reinterpret_cast<const DeclElement *>(decl_bytes + obj::kDeclElements) : nullptr;
   const bool raw_ok = raw_count != 0 && raw_count <= 32 && raw_elements != nullptr;
+  static_assert(sizeof(vs.lastDeclRaw) >= 32 * sizeof(DeclElement));
+  if (raw_ok && vs.lastLayout && vs.lastDeclVa == declaration_va &&
+      vs.lastDeclCount == raw_count &&
+      std::memcmp(vs.lastDeclRaw, raw_elements, raw_count * sizeof(DeclElement)) == 0)
+    return vs.lastLayout;
+  const InputLayout *layout = GetInputLayoutSlow(s, vs, declaration_va, raw_count, raw_elements, raw_ok);
+  if (layout && raw_ok) {
+    vs.lastDeclVa = declaration_va;
+    vs.lastDeclCount = raw_count;
+    vs.lastLayout = layout;
+    std::memcpy(vs.lastDeclRaw, raw_elements, raw_count * sizeof(DeclElement));
+  }
+  return layout;
+}
+
+static const InputLayout *GetInputLayoutSlow(VideoState &s, GuestShader &vs, u32 declaration_va,
+                                             u32 raw_count, const DeclElement *raw_elements,
+                                             bool raw_ok) {
+  (void)s;
   if (raw_ok) {
     auto dit = decl_cache().find(declaration_va);
     if (dit != decl_cache().end() && dit->second.count == raw_count &&
