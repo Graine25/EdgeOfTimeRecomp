@@ -377,8 +377,9 @@ void PsoCacheSetLoadingScreen(bool on) {
     l.screenSinceFrame = s.guest_frames;
     std::lock_guard lock(l.mutex);
     l.screens++;
-    EOT_INFO("[pso] loading screen up at frame {} (pool pending prio {} bg {})", s.guest_frames,
-             ps.priorityPending, ps.backgroundPending);
+    EOT_INFO("[pso] loading screen up at frame {} (pool pending prio {} bg {}){}", s.guest_frames,
+             ps.priorityPending, ps.backgroundPending,
+             l.screens == 1 ? "; the boot's: nothing waits behind it" : "");
     return;
   }
   u32 pending = 0;
@@ -395,6 +396,14 @@ void PsoCacheSetLoadingScreen(bool on) {
 }
 
 bool PsoCacheInLoadingScreen() { return loading().screen.load(std::memory_order_acquire); }
+
+bool PsoCacheWaitsAllowed() {
+  auto &l = loading();
+  if (!l.screen.load(std::memory_order_acquire))
+    return false;
+  std::lock_guard lock(l.mutex);
+  return l.screens > 1;
+}
 
 void PsoCacheOnPackageLoad(u32 id) {
   auto &l = loading();
@@ -425,7 +434,7 @@ void PsoCacheOnPackageLoad(u32 id) {
 
 bool PsoCacheHoldPackage(u32 id) {
   auto &l = loading();
-  if (!l.screen.load(std::memory_order_acquire))
+  if (!PsoCacheWaitsAllowed())
     return false;
   std::lock_guard lock(l.mutex);
   auto it = l.holds.find(id);

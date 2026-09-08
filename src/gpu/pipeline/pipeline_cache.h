@@ -74,5 +74,6 @@ bool PsoCacheInLoadingScreen();
 
 void PsoCacheOnPackageLoad(u32 id);
 bool PsoCacheHoldPackage(u32 id);
+bool PsoCacheWaitsAllowed();
 
 }
