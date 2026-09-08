@@ -128,8 +128,8 @@ plume::RenderFormat SurfaceHostFormat(const GuestSurface &surface) {
 
 u64 DescriptorKey(const GuestSurface &d) {
   u64 k = d.baseTile;
-  k = k * 0x9E3779B97F4A7C15ull ^ d.width;
-  k = k * 0x9E3779B97F4A7C15ull ^ d.height;
+  k = k * 0x9E3779B97F4A7C15ull ^ d.allocWidth;
+  k = k * 0x9E3779B97F4A7C15ull ^ d.allocHeight;
   k = k * 0x9E3779B97F4A7C15ull ^ (d.isDepth ? 0x100u : 0u);
   k = k * 0x9E3779B97F4A7C15ull ^ (d.isDepth ? d.depthFormat : d.colorFormat);
   k = k * 0x9E3779B97F4A7C15ull ^ d.msaaSamples;
@@ -237,6 +237,7 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
       EOT_WARN("[surfaces] {:#x}: unreadable or absurd header", surface_va);
     return nullptr;
   }
+  HostAllocationSize(decoded, decoded.allocWidth, decoded.allocHeight);
   const u64 key = DescriptorKey(decoded);
   auto &slot = s.surfaces[key];
   auto remember = [&](GuestSurface *surf) {
@@ -253,6 +254,9 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     slot->surfaceInfo = decoded.surfaceInfo;
     slot->info = decoded.info;
     slot->hiControl = decoded.hiControl;
+    slot->sizeBits = decoded.sizeBits;
+    slot->width = decoded.width;
+    slot->height = decoded.height;
     slot->colorExpBias = decoded.colorExpBias;
     TrackSurfaceDescriptor(s, surface_va, key);
     return remember(slot.get());
