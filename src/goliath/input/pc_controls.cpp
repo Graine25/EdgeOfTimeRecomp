@@ -11,18 +11,18 @@
 
 REXCVAR_DEFINE_STRING(eot_key_jump, "Space", EOT_KEYS, "Jump (A)");
 REXCVAR_DEFINE_STRING(eot_key_light_attack, "LMB", EOT_KEYS, "Light attack (X)");
-REXCVAR_DEFINE_STRING(eot_key_heavy_attack, "E", EOT_KEYS, "Heavy attack (Y)");
-REXCVAR_DEFINE_STRING(eot_key_web, "F", EOT_KEYS, "Web / interact (B)");
-REXCVAR_DEFINE_STRING(eot_key_grab, "MMB", EOT_KEYS, "Grab (RB)");
+REXCVAR_DEFINE_STRING(eot_key_heavy_attack, "MMB", EOT_KEYS, "Heavy attack (Y)");
+REXCVAR_DEFINE_STRING(eot_key_web, "E", EOT_KEYS, "Web / interact (B)");
+REXCVAR_DEFINE_STRING(eot_key_grab, "Q", EOT_KEYS, "Grab (RB)");
 REXCVAR_DEFINE_STRING(eot_key_web_swing, "RMB", EOT_KEYS, "Web swing, hold (RT)");
 REXCVAR_DEFINE_STRING(eot_key_hyper_sense, "Shift", EOT_KEYS,
                       "Hyper-Sense / Accelerated Decoy (LT)");
-REXCVAR_DEFINE_STRING(eot_key_time_stop, "Q", EOT_KEYS, "Time Stop (L3 + R3)");
+REXCVAR_DEFINE_STRING(eot_key_time_stop, "F", EOT_KEYS, "Time Stop (L3 + R3)");
 REXCVAR_DEFINE_STRING(eot_key_spider_sense, "R", EOT_KEYS, "Spider-Sense (D-pad up)");
-REXCVAR_DEFINE_STRING(eot_key_center_camera, "C", EOT_KEYS, "Center camera (R3)");
+REXCVAR_DEFINE_STRING(eot_key_center_camera, "Backtick", EOT_KEYS, "Center camera (R3)");
 REXCVAR_DEFINE_STRING(eot_key_upgrades, "Tab", EOT_KEYS, "Upgrades (Back)");
-REXCVAR_DEFINE_STRING(eot_key_pause, "Return", EOT_KEYS, "Pause (Start)");
-REXCVAR_DEFINE_STRING(eot_key_dpad_down, "", EOT_KEYS, "D-pad down");
+REXCVAR_DEFINE_STRING(eot_key_pause, "Escape", EOT_KEYS, "Pause (Start)");
+REXCVAR_DEFINE_STRING(eot_key_dpad_down, "C", EOT_KEYS, "D-pad down");
 REXCVAR_DEFINE_STRING(eot_key_dpad_left, "", EOT_KEYS, "D-pad left");
 REXCVAR_DEFINE_STRING(eot_key_dpad_right, "", EOT_KEYS, "D-pad right");
 
