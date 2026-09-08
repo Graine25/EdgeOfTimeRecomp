@@ -244,7 +244,7 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
     }
   }
 
-  EOT_INFO("[shaders] {} {:#x} hash {:016x} {} inputs={} spec={:#x} regs={}",
+  EOT_DEBUG("[shaders] {} {:#x} hash {:016x} {} inputs={} spec={:#x} regs={}",
             is_pixel ? "ps" : "vs", object_va, hash, sh->entry ? "hit" : "MISS",
             sh->inputs.size(), sh->entry ? sh->entry->specConstantsMask : 0,
             sh->floatConstantRegs);

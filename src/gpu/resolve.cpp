@@ -146,7 +146,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     src_host = &alias_src->host;
     u32 n;
     if (DiagShouldLog(0x7400 ^ src_va, &n) && n == 0)
-      EOT_INFO("[resolve] {:#x}: {}x{} {}x-msaa alias -> sampling {}x{} 1x surface {:#x}", src_va,
+      EOT_DEBUG("[resolve] {:#x}: {}x{} {}x-msaa alias -> sampling {}x{} 1x surface {:#x}", src_va,
                surf->width, surf->height, surf->msaaSamples, alias_src->width, alias_src->height,
                alias_src->va);
   }
@@ -189,7 +189,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const bool diag_now =
           Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame());
       if ((DiagShouldLog(0x7100 ^ dest_texture_va ^ (dest_level << 8), &n) && n == 0) || diag_now) {
-        EOT_INFO("[resolve] {} {:#x} -> tex {:#x} mip {} rect {},{}-{},{} at {},{} exp rt{} "
+        EOT_DEBUG("[resolve] {} {:#x} -> tex {:#x} mip {} rect {},{}-{},{} at {},{} exp rt{} "
                   "copy{} tex{} => x{} ({} -> host fmt {}) fetch=[{:08x} {:08x} {:08x} {:08x}] "
                   "base {:#x} pitch {} {}x{} {}",
                   depth_source ? "depth" : "color", src_va, dest_texture_va, dest_level, x0, y0,
@@ -246,7 +246,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                         static_cast<u32>(target.host.format) ^ (reorder ? 0x40000 : 0) ^
                         (src_host != &surf->host ? 0x80000 : 0) ^ (depth_source ? 0x100000 : 0);
         if (copies && DiagShouldLog(key, &n) && n == 0)
-          EOT_INFO("[resolve] blit kept: host fmt {} -> {}{}{}{}", static_cast<u32>(src_host->format),
+          EOT_DEBUG("[resolve] blit kept: host fmt {} -> {}{}{}{}", static_cast<u32>(src_host->format),
                    static_cast<u32>(target.host.format), reorder ? " reorder" : "",
                    src_host != &surf->host ? " msaa-alias" : "",
                    depth_source && !whole ? " depth-subrect" : "");
@@ -362,7 +362,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         {
           u32 n;
           if (DiagShouldLog(0x7300 ^ alias_va ^ dest_texture_va, &n) && n == 0)
-            EOT_INFO("[resolve] {:#x} also lands in {:#x} ({}x{} base {:#x}) at {},{} ({}x{})",
+            EOT_DEBUG("[resolve] {:#x} also lands in {:#x} ({}x{} base {:#x}) at {},{} ({}x{})",
                      dest_texture_va, alias_va, t->width, t->height, t->baseAddress, cx0, cy0,
                      cx1 - cx0, cy1 - cy0);
         }

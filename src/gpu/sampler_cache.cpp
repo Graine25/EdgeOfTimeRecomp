@@ -177,7 +177,7 @@ u32 ResolveSamplerSlotLocked(const plume::RenderSamplerDesc &desc) {
   c.map.emplace(key, std::make_pair(std::move(sampler), slot));
   static u32 logged = 0;
   if (logged++ < 48)
-    EOT_INFO("[sampler] #{} slot {}: min {} mag {} mip {} aniso {}x{} lod bias {:g} lod {:g}..{:g} "
+    EOT_DEBUG("[sampler] #{} slot {}: min {} mag {} mip {} aniso {}x{} lod bias {:g} lod {:g}..{:g} "
              "address {}/{}/{}",
              logged, slot, static_cast<int>(desc.minFilter), static_cast<int>(desc.magFilter),
              static_cast<int>(desc.mipmapMode), desc.anisotropyEnabled ? 1 : 0,

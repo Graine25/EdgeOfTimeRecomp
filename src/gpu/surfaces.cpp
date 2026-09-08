@@ -274,7 +274,7 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     ForgetSurfaceDescriptor(s, surface_va);
     return nullptr;
   }
-  EOT_INFO("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {} {}x{}{}{}", surface_va,
+  EOT_DEBUG("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {} {}x{}{}{}", surface_va,
            surf->isDepth ? "depth" : "color", surf->width, surf->height,
            surf->isDepth ? surf->depthFormat : surf->colorFormat, surf->msaaSamples,
            surf->baseTile, static_cast<u32>(surf->host.format), surf->host.width,

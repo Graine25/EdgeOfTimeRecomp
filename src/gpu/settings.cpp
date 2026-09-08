@@ -14,9 +14,9 @@ REXCVAR_DEFINE_INT32(eot_trace_start_frame, 0, "eot",
                      "Guest frame at which the eot_trace_frames call trace begins.")
     .range(0, 100000000);
 
-REXCVAR_DEFINE_INT32(eot_summary_frames, 600, "eot",
+REXCVAR_DEFINE_INT32(eot_summary_frames, 0, "eot",
                      "Log a one-line per-frame D3D call summary for the first "
-                     "N frames.")
+                     "N frames (0 = off).")
     .range(0, 1000000);
 
 REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
@@ -26,8 +26,9 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Present with vsync.");
 REXCVAR_DEFINE_BOOL(eot_profiler, false, "eot",
-                    "Start the Tracy profiler at boot so a viewer can attach. Zones are "
-                    "compiled into every non-Release build and cost nothing until then.");
+                    "Start the Tracy profiler at boot so a viewer can attach. Zones are compiled "
+                    "into every non-Release build (a Release one only with -DREEOT_PROFILING=ON) "
+                    "and cost nothing until then.");
 REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "eot",
                     "Give every EDRAM surface, resolve mirror and guest texture its own "
                     "dedicated allocation. The game resizes render targets every frame in "

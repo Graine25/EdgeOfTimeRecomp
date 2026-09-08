@@ -90,7 +90,7 @@ REX_HOOK_RAW(eot_RenderComposition_ExecuteChain) {
       const uint32_t slot = g_seen_count.fetch_add(1);
       if (slot < 16)
         g_seen_flags[slot].store(seen);
-      EOT_INFO("[postfx] stages {:#06x} bloom {} (dof {} mblur {} radial {} heat {}/{} grade {} "
+      EOT_DEBUG("[postfx] stages {:#06x} bloom {} (dof {} mblur {} radial {} heat {}/{} grade {} "
                "grain {} edge {} halo {} bokeh {})",
                flags & 0xFFFF, bloom, (flags >> 1) & 1, (flags >> 2) & 1, (flags >> 3) & 1,
                (flags >> 5) & 1, (flags >> 6) & 1, (flags >> 8) & 1, (flags >> 10) & 1,
@@ -105,7 +105,7 @@ REX_HOOK_RAW(eot_RenderComposition_ExecuteChain) {
     const uint32_t applied = (flags & ~mask) | (bloom_off || !bloom ? 0u : 0x80000000u);
     static std::atomic<uint32_t> last_applied{0xFFFFFFFFu};
     if (((mask & flags) || bloom_off) && last_applied.exchange(applied) != applied)
-      EOT_INFO("[postfx] applied {:#06x} bloom {} (requested {:#06x} bloom {}; options cleared {:#06x}{})",
+      EOT_DEBUG("[postfx] applied {:#06x} bloom {} (requested {:#06x} bloom {}; options cleared {:#06x}{})",
                applied & 0xFFFF, bloom_off ? 0u : bloom, flags & 0xFFFF, bloom, mask & flags,
                bloom_off ? " + bloom byte" : "");
   }
@@ -139,7 +139,7 @@ REX_HOOK_RAW(eot_PAK_SelectLanguage) {
   std::string levels;
   for (uint32_t i = 0; i < count; ++i)
     levels += std::to_string(key[2 + i]) + (i + 1 < count ? "," : "");
-  EOT_INFO("[quality] record {:#x}: levels [{}] quality {} -> {} (selected index {} mask {:#x})",
+  EOT_DEBUG("[quality] record {:#x}: levels [{}] quality {} -> {} (selected index {} mask {:#x})",
            record, levels, before, eot::mem::load<uint32_t>(kQualityLevel),
            eot::mem::load<uint32_t>(record + 500), eot::mem::load<uint32_t>(record + 152));
 }
@@ -162,7 +162,7 @@ REX_HOOK_RAW(eot_GLAPICamera_ShadowMapSetParams) {
           dump += std::to_string(f);
         dump += i + 1 < 18 ? " " : "";
       }
-      EOT_INFO("[shadow] ShadowMapSetParams({:#x}, {:#x}) block: {}", ctx.r3.u32, ctx.r4.u32, dump);
+      EOT_DEBUG("[shadow] ShadowMapSetParams({:#x}, {:#x}) block: {}", ctx.r3.u32, ctx.r4.u32, dump);
     }
     const int32_t cascades = Settings::ShadowCascades();
     const uint32_t had = eot::mem::load<uint32_t>(params + kShadowCascades);
@@ -177,7 +177,7 @@ REX_HOOK_RAW(eot_GLAPICamera_ShadowMapSetParams) {
       }
       if (auto_split)
         eot::mem::store<uint8_t>(params + kShadowAutoSplit, 1);
-      EOT_INFO("[shadow] cascades {} -> {}{}", had, cascades, auto_split ? " (engine split)" : "");
+      EOT_DEBUG("[shadow] cascades {} -> {}{}", had, cascades, auto_split ? " (engine split)" : "");
     }
     const double scale = Settings::ShadowDistanceScale();
     if (scale > 0.1 && scale < 10.0 && scale != 1.0) {
@@ -197,7 +197,7 @@ REX_HOOK_RAW(eot_GLAPICamera_SetFOVAngle) {
   const double scale = FovScale();
   if (g_fov_logs.load(std::memory_order_relaxed) < 4) {
     g_fov_logs.fetch_add(1, std::memory_order_relaxed);
-    EOT_INFO("[postfx] SetFOVAngle({:#x}, {:#x}) = {:.4f} (scale {:.3f})", ctx.r3.u32, ctx.r4.u32,
+    EOT_DEBUG("[postfx] SetFOVAngle({:#x}, {:#x}) = {:.4f} (scale {:.3f})", ctx.r3.u32, ctx.r4.u32,
              ctx.f1.f64, scale);
   }
   if (scale != 1.0)

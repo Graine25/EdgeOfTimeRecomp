@@ -381,7 +381,7 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
   if (slot) {
     u32 n;
     if (DiagShouldLog(0x5EA0 ^ header_va, &n))
-      EOT_INFO("[textures] {:#x}: header changed ({}x{} fmt {} base {:#x} -> {}x{} fmt {} base "
+      EOT_DEBUG("[textures] {:#x}: header changed ({}x{} fmt {} base {:#x} -> {}x{} fmt {} base "
                "{:#x}), recreating (x{})",
                header_va, slot->width, slot->height, static_cast<u32>(slot->format),
                slot->baseAddress, InfoWidth(info), InfoHeight(info),
@@ -396,7 +396,7 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
       continue;
     u32 n;
     if (DiagShouldLog(0x5EB0 ^ header_va, &n))
-      EOT_INFO("[textures] {:#x}: aliases {:#x} ({}x{} fmt {} base {:#x})", header_va, other_va,
+      EOT_DEBUG("[textures] {:#x}: aliases {:#x} ({}x{} fmt {} base {:#x})", header_va, other_va,
                other->width, other->height, static_cast<u32>(other->format), other->baseAddress);
     infos()[header_va] = info;
     slot = other;
@@ -437,7 +437,7 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
   if (stale && t.resolveOwned) {
     u32 n;
     if (seq > t.uploadedUnlockSeq && DiagShouldLog(0x5E80 ^ t.va, &n))
-      EOT_INFO("[textures] {:#x}: Unlock on a resolve-owned mirror ignored (seq {} -> {})", t.va,
+      EOT_DEBUG("[textures] {:#x}: Unlock on a resolve-owned mirror ignored (seq {} -> {})", t.va,
                t.uploadedUnlockSeq, seq);
     t.uploadedUnlockSeq = seq;
   } else if (stale) {
@@ -478,7 +478,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       return false;
     const u32 want_w = ScaleDimBy(InfoWidth(info), k), want_h = ScaleDimBy(InfoHeight(info), k);
     if (k != RenderScaleFactor() && (t.host.width != want_w || t.host.height != want_h))
-      EOT_INFO("[textures] {:#x}: resolve mirror at x{:.2f}: {}x{}", t.va, k, want_w, want_h);
+      EOT_DEBUG("[textures] {:#x}: resolve mirror at x{:.2f}: {}x{}", t.va, k, want_w, want_h);
     if (!t.host.texture || t.host.format != want || t.host.width != want_w ||
         t.host.height != want_h) {
       EOT_DEBUG("[textures] {:#x}: switching mirror to resolve format {} {}x{} (was {} {}x{})",

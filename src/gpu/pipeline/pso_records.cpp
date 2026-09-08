@@ -514,7 +514,7 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
       }
     }
     n += rows;
-    EOT_INFO("[pso] {}: {} rows (v{}){}", name, rows, version ? version : layout.version,
+    EOT_DEBUG("[pso] {}: {} rows (v{}){}", name, rows, version ? version : layout.version,
              bad ? std::format(" ({} unparsable)", bad) : "");
   }
   return n;
