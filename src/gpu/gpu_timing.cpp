@@ -89,6 +89,8 @@ std::string GpuCategoryName(u32 cat) {
     return "present";
   case kGpuCatUpload:
     return "upload";
+  case kGpuCatPresentFx:
+    return "present-fx";
   default:
     break;
   }

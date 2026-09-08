@@ -11,6 +11,7 @@
 #include "core/logging.h"
 #include "gpu/backend.h"
 #include "gpu/device.h"
+#include "gpu/gpu_timing.h"
 #include "gpu/settings.h"
 #include "gpu/surfaces.h"
 
@@ -32,11 +33,12 @@ REXCVAR_DEFINE_DOUBLE(eot_sharpen, 0.5, "EdgeOfTime/Graphics",
                       "AMD FidelityFX contrast-adaptive sharpening at present: 0 = off, up to "
                       "1 = strongest. Restores the crispness the display scaling takes.")
     .range(0.0, 1.0);
-REXCVAR_DEFINE_STRING(eot_upscale, "lanczos", "EdgeOfTime/Graphics",
+REXCVAR_DEFINE_STRING(eot_upscale, "bicubic", "EdgeOfTime/Graphics",
                       "Filter used when the window is larger than the internal render: "
-                      "bilinear, or lanczos (4x4 Lanczos-2, keeps edges sharp). A window "
-                      "smaller than the render by a whole factor is always box-filtered, "
-                      "which is how supersampling resolves.");
+                      "bilinear; bicubic (Catmull-Rom through five bilinear taps, as sharp "
+                      "as Lanczos-2 at a third of its cost); or lanczos (4x4 Lanczos-2, "
+                      "sixteen taps). A window smaller than the render by a whole factor is "
+                      "always box-filtered, which is how supersampling resolves.");
 
 namespace eot::gpu {
 
@@ -169,6 +171,7 @@ u32 ApplyPresentEffects(VideoState &s, HostTexture &front, u32 front_srv) {
     return front_srv;
   if (!EnsurePipelines(s))
     return front_srv;
+  GpuTimingMark(s, s.command_list, kGpuCatPresentFx);
   auto &e = effects();
   if (!EnsureTarget(s, e.ping, front.width, front.height) ||
       !EnsureTarget(s, e.pong, front.width, front.height))
@@ -203,8 +206,13 @@ void SelectPresentBlitMode(u32 src_w, u32 src_h, float dst_w, float dst_h, float
       return;
     }
   }
-  if (rx < 0.98f && ry < 0.98f && REXCVAR_GET(eot_upscale) == "lanczos")
-    extra[0] = 2.0f;
+  if (rx < 0.98f && ry < 0.98f) {
+    const std::string filter = REXCVAR_GET(eot_upscale);
+    if (filter == "lanczos")
+      extra[0] = 2.0f;
+    else if (filter == "bicubic")
+      extra[0] = 3.0f;
+  }
 }
 
 }

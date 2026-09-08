@@ -18,6 +18,7 @@ constexpr u32 kGpuCatShadow = 1;
 constexpr u32 kGpuCatResolve = 2;
 constexpr u32 kGpuCatPresent = 3;
 constexpr u32 kGpuCatUpload = 4;
+constexpr u32 kGpuCatPresentFx = 5;
 
 u32 GpuTargetCategory(bool full_frame, bool has_depth, u32 color_count, u32 color0_host_format);
 std::string GpuCategoryName(u32 cat);
