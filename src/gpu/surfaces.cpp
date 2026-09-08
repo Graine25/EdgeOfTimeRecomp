@@ -128,8 +128,8 @@ plume::RenderFormat SurfaceHostFormat(const GuestSurface &surface) {
 
 u64 DescriptorKey(const GuestSurface &d) {
   u64 k = d.baseTile;
-  k = k * 0x9E3779B97F4A7C15ull ^ d.width;
-  k = k * 0x9E3779B97F4A7C15ull ^ d.height;
+  k = k * 0x9E3779B97F4A7C15ull ^ d.allocWidth;
+  k = k * 0x9E3779B97F4A7C15ull ^ d.allocHeight;
   k = k * 0x9E3779B97F4A7C15ull ^ (d.isDepth ? 0x100u : 0u);
   k = k * 0x9E3779B97F4A7C15ull ^ (d.isDepth ? d.depthFormat : d.colorFormat);
   k = k * 0x9E3779B97F4A7C15ull ^ d.msaaSamples;
@@ -195,9 +195,40 @@ GuestSurface *FindMultisampleAliasSource(VideoState &s, const GuestSurface &alia
   return best;
 }
 
+namespace {
+struct SurfaceLookupEntry {
+  u32 va = 0;
+  u32 words[5] = {};
+  u64 key = 0;
+  u64 generation = 0;
+  u64 frame = 0;
+  GuestSurface *surf = nullptr;
+};
+SurfaceLookupEntry g_surface_lookup[16];
+constexpr u32 kHeaderWordOffsets[5] = {obj::kSurfaceInfo, obj::kSurfaceColorInfo,
+                                       obj::kSurfaceHiControl, obj::kSurfaceSize,
+                                       obj::kSurfaceFormat};
+}
+
 GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
   if (!surface_va)
     return nullptr;
+  SurfaceLookupEntry &lookup = g_surface_lookup[(surface_va >> 4) & 15];
+  u32 words[5] = {};
+  const u8 *header = mem::at<u8>(surface_va);
+  if (header) {
+    for (u32 i = 0; i < 5; ++i)
+      words[i] = rex::memory::load_and_swap<u32>(header + kHeaderWordOffsets[i]);
+    if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
+        std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
+      lookup.surf->va = surface_va;
+      if (lookup.frame != s.guest_frames) {
+        lookup.frame = s.guest_frames;
+        TrackSurfaceDescriptor(s, surface_va, lookup.key);
+      }
+      return lookup.surf;
+    }
+  }
   GuestSurface decoded;
   if (!DecodeHeader(surface_va, decoded)) {
     ForgetSurfaceDescriptor(s, surface_va);
@@ -206,24 +237,40 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
       EOT_WARN("[surfaces] {:#x}: unreadable or absurd header", surface_va);
     return nullptr;
   }
+  HostAllocationSize(decoded, decoded.allocWidth, decoded.allocHeight);
   const u64 key = DescriptorKey(decoded);
   auto &slot = s.surfaces[key];
+  auto remember = [&](GuestSurface *surf) {
+    lookup.va = surface_va;
+    std::memcpy(lookup.words, words, sizeof(words));
+    lookup.key = key;
+    lookup.generation = s.surface_generation;
+    lookup.frame = s.guest_frames;
+    lookup.surf = header ? surf : nullptr;
+    return surf;
+  };
   if (slot && slot->host.valid()) {
     slot->va = surface_va;
     slot->surfaceInfo = decoded.surfaceInfo;
     slot->info = decoded.info;
     slot->hiControl = decoded.hiControl;
+    slot->sizeBits = decoded.sizeBits;
+    slot->width = decoded.width;
+    slot->height = decoded.height;
     slot->colorExpBias = decoded.colorExpBias;
     TrackSurfaceDescriptor(s, surface_va, key);
-    return slot.get();
+    return remember(slot.get());
   }
-  if (slot)
+  if (slot) {
     ParkHostTexture(s, slot->host);
+    s.surface_generation++;
+  }
   auto surf = std::make_unique<GuestSurface>();
   *surf = std::move(decoded);
   if (!CreateHostTarget(s, *surf)) {
     slot.reset();
     s.surfaces.erase(key);
+    s.surface_generation++;
     ForgetSurfaceDescriptor(s, surface_va);
     return nullptr;
   }
@@ -238,7 +285,7 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
            surf->host.sampleCount > 1 ? std::format(" {}x samples", surf->host.sampleCount) : "");
   slot = std::move(surf);
   TrackSurfaceDescriptor(s, surface_va, key);
-  return slot.get();
+  return remember(slot.get());
 }
 
 void EvictStaleGuestSurfaces(VideoState &s) {
@@ -267,6 +314,7 @@ void EvictStaleGuestSurfaces(VideoState &s) {
       if (surface->second)
         ParkHostTexture(s, surface->second->host);
       s.surfaces.erase(surface);
+      s.surface_generation++;
     }
     it = s.orphaned_surface_frame.erase(it);
   }

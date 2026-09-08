@@ -1171,10 +1171,10 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   EOT_CPU_ZONE("ExecuteDraw");
   PerfScope perf_scope(s.perf.draw_ms);
   s.perf.draws++;
-  auto lap_t0 = std::chrono::steady_clock::now();
+  u64 lap_t0 = PerfNow();
   auto lap = [&](f64 &acc) {
-    const auto t1 = std::chrono::steady_clock::now();
-    acc += std::chrono::duration<f64, std::milli>(t1 - lap_t0).count();
+    const u64 t1 = PerfNow();
+    acc += static_cast<f64>(t1 - lap_t0) * PerfMsPerTick();
     lap_t0 = t1;
   };
   DeviceView dev = Device(device_va);
@@ -1315,12 +1315,23 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   s.current_vs_va = vs_va;
   s.current_ps_va = ps_va;
   {
-    static char origin[32];
-    std::snprintf(origin, sizeof(origin), "%s/%s", vs->createdByGuestCall ? "bundle" : "stream",
-                  ps ? (ps->createdByGuestCall ? "bundle" : "stream") : "none");
-    s.current_origin = origin;
+    static const char *const kOrigins[2][3] = {{"stream/none", "stream/stream", "stream/bundle"},
+                                               {"bundle/none", "bundle/stream", "bundle/bundle"}};
+    s.current_origin =
+        kOrigins[vs->createdByGuestCall ? 1 : 0][ps ? (ps->createdByGuestCall ? 2 : 1) : 0];
   }
-  plume::RenderPipeline *pipeline = GetOrCreatePipeline(s, st);
+  static PipelineState last_state{};
+  static plume::RenderPipeline *last_pipeline = nullptr;
+  plume::RenderPipeline *pipeline = last_pipeline;
+  if (!pipeline || std::memcmp(reinterpret_cast<const u8 *>(&st) + kPipelineKeyOffset,
+                               reinterpret_cast<const u8 *>(&last_state) + kPipelineKeyOffset,
+                               sizeof(st) - kPipelineKeyOffset) != 0) {
+    pipeline = GetOrCreatePipeline(s, st);
+    if (pipeline) {
+      last_state = st;
+      last_pipeline = pipeline;
+    }
+  }
   lap(s.perf.pso_lookup_ms);
   if (!pipeline) {
     Dropped("pipeline creation failed", 0x6008);
@@ -1759,8 +1770,11 @@ void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, floa
   const plume::RenderRect *rects = nullptr;
   u32 rect_count = 0;
   if (rect_va) {
-    rect = plume::RenderRect(mem::load<i32>(rect_va), mem::load<i32>(rect_va + 4),
-                             mem::load<i32>(rect_va + 8), mem::load<i32>(rect_va + 12));
+    const float k = targets.scale;
+    rect = plume::RenderRect(ScalePxBy(mem::load<i32>(rect_va), k),
+                             ScalePxBy(mem::load<i32>(rect_va + 4), k),
+                             ScalePxBy(mem::load<i32>(rect_va + 8), k),
+                             ScalePxBy(mem::load<i32>(rect_va + 12), k));
     rects = &rect;
     rect_count = 1;
   }
