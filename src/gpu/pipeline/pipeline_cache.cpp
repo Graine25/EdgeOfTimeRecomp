@@ -109,7 +109,8 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
 
 void RouteOne(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
   if (r.packageCount == 0) {
-    *queued += PsoPrecacheEnqueue(r, source, false) ? 1 : 0;
+    const bool known = source == PsoSource::CompiledIn || source == PsoSource::LocalCsv;
+    *queued += PsoPrecacheEnqueue(r, source, known) ? 1 : 0;
     return;
   }
   auto &l = loading();
@@ -120,13 +121,13 @@ void RouteOne(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_
 }
 
 void RouteRecord(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
-  RouteOne(r, source, queued, per_package);
   const u32 msaa = state().host_msaa_samples;
   if (msaa > 1 && r.state.sampleCount == 1) {
     PsoRecord twin = r;
     twin.state.sampleCount = msaa;
     RouteOne(twin, source, queued, per_package);
   }
+  RouteOne(r, source, queued, per_package);
 }
 
 }
@@ -356,11 +357,12 @@ void PsoCachePrecache() {
     std::lock_guard lock(l.mutex);
     packages = l.sets.size();
   }
-  EOT_INFO("[pso] boot: {} compiled-in + {} local rows -> {} queued on the background lane, {} "
+  const size_t routed = (compiled_in + local) * (state().host_msaa_samples > 1 ? 2u : 1u);
+  EOT_INFO("[pso] boot: {} compiled-in + {} local rows -> {} queued on the priority lane, {} "
            "held for {} level package(s) ({} duplicate); templates: {}; capturing gaps to {}/ as '{}'",
            compiled_in, local, queued, per_package, packages,
-           compiled_in + local - queued - per_package, CompiledInTemplates().size(), kPsoDir,
-           PsoSessionTag());
+           routed > queued + per_package ? routed - queued - per_package : 0u,
+           CompiledInTemplates().size(), kPsoDir, PsoSessionTag());
 }
 
 void PsoCacheSetLoadingScreen(bool on) {
