@@ -69,6 +69,9 @@ struct PerfCounters {
   f64 resolve_mirror_ms = 0, resolve_fb_ms = 0, resolve_bind_ms = 0;
   u64 vertex_bytes = 0, index_bytes = 0, constant_bytes = 0;
   u32 dead_resolves = 0;
+  u32 mask_clean[5]{};
+  u32 mask_state_clean = 0, mask_reusable = 0;
+  u32 mask_pipeline_mismatch = 0, mask_fetch_mismatch = 0;
   f64 gpu_ms = 0;
   u32 gpu_frames = 0;
   std::map<u32, std::pair<f64, u32>> gpu_cats;
@@ -233,6 +236,8 @@ struct VideoState {
   std::atomic<bool> pending_up_armed{false};
   u32 current_vs_va = 0, current_ps_va = 0;
   const char *current_origin = "";
+  u64 pending_mask[5]{};
+  bool pending_mask_valid = false;
   struct PendingUpDraw {
     bool valid = false;
     u32 device_va = 0;

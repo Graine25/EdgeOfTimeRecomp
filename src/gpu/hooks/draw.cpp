@@ -1,9 +1,11 @@
 #include <rex/hook.h>
 
+#include "core/memory_helpers.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
 #include "gpu/trace.h"
 
+using namespace eot;
 using namespace eot::gpu;
 
 REX_EXTERN(__imp__D3DDevice_DrawVertices);
@@ -13,9 +15,18 @@ REX_EXTERN(__imp__D3DDevice_Resolve);
 REX_EXTERN(__imp__D3DDevice_BeginVertices);
 REX_EXTERN(__imp__D3DDevice_BeginIndexedVertices);
 
+static void SnapshotPendingMasks(u32 device) {
+  auto &s = state();
+  for (u32 i = 0; i < 5; ++i)
+    s.pending_mask[i] = (static_cast<u64>(mem::load<u32>(device + 8 * i)) << 32) |
+                        mem::load<u32>(device + 8 * i + 4);
+  s.pending_mask_valid = true;
+}
+
 extern "C" REX_FUNC(D3DDevice_DrawVertices) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32, start = ctx.r5.u32, count = ctx.r6.u32;
+  SnapshotPendingMasks(device);
   {
     PerfScope guest_scope(state().perf.guest_d3d_ms);
     state().perf.guest_d3d_calls++;
@@ -31,6 +42,7 @@ extern "C" REX_FUNC(D3DDevice_DrawIndexedVertices) {
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32;
   const i32 base_vertex = ctx.r5.s32;
   const u32 start_index = ctx.r6.u32, count = ctx.r7.u32;
+  SnapshotPendingMasks(device);
   {
     PerfScope guest_scope(state().perf.guest_d3d_ms);
     state().perf.guest_d3d_calls++;

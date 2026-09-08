@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstddef>
 #include <cstring>
 #include <format>
 #include <mutex>
@@ -1191,6 +1192,20 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   if (!s.command_list_open)
     return;
 
+  u64 masks[5];
+  for (u32 i = 0; i < 5; ++i) {
+    if (device_image)
+      masks[i] = (static_cast<u64>(dev.U32(8 * i)) << 32) | dev.U32(8 * i + 4);
+    else
+      masks[i] = s.pending_mask_valid ? s.pending_mask[i] : ~0ull;
+    if (!masks[i])
+      s.perf.mask_clean[i]++;
+  }
+  s.pending_mask_valid = false;
+  const bool state_clean = !(masks[2] | masks[3] | masks[4]);
+  if (state_clean)
+    s.perf.mask_state_clean++;
+
   const u32 vs_va = dev.U32(dev::kVertexShader);
   const u32 ps_va = dev.U32(dev::kPixelShader);
   GuestShader *vs = FindGuestShader(s, vs_va);
@@ -1328,6 +1343,25 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("pipeline creation failed", 0x6008);
     return;
   }
+  struct LastDraw {
+    bool valid = false;
+    GuestShader *vs = nullptr, *ps = nullptr;
+    const GuestSurface *color0 = nullptr, *depth = nullptr;
+    const InputLayout *layout = nullptr;
+    u32 prim = 0;
+    plume::RenderPipeline *pipeline = nullptr;
+    u32 bindings[80] = {};
+  };
+  static LastDraw last;
+  const bool reusable = state_clean && last.valid && !geom.rectList && last.vs == vs &&
+                        last.ps == ps &&
+                        last.color0 == (targets.colorCount ? targets.color[0] : nullptr) &&
+                        last.depth == targets.depth && last.layout == layout && last.prim == prim;
+  if (reusable) {
+    s.perf.mask_reusable++;
+    if (last.pipeline != pipeline)
+      s.perf.mask_pipeline_mismatch++;
+  }
 
   UploadAlloc index_alloc;
   u32 index_count = 0;
@@ -1462,6 +1496,18 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     PerfScope bind_scope(s.perf.bind_ms);
     BindTexturesAndSamplers(s, dev, sc);
   }
+  static_assert(offsetof(SharedConstants, booleans) == sizeof(last.bindings));
+  if (reusable && std::memcmp(last.bindings, &sc, sizeof(last.bindings)) != 0)
+    s.perf.mask_fetch_mismatch++;
+  last.valid = true;
+  last.vs = vs;
+  last.ps = ps;
+  last.color0 = targets.colorCount ? targets.color[0] : nullptr;
+  last.depth = targets.depth;
+  last.layout = layout;
+  last.prim = prim;
+  last.pipeline = pipeline;
+  std::memcpy(last.bindings, &sc, sizeof(last.bindings));
   for (u32 i = 0; i < 4; ++i) {
     sc.booleans[i] = dev.U32(dev::kVsBoolConstants + 4 * i);
     sc.booleans[4 + i] = dev.U32(dev::kPsBoolConstants + 4 * i);
