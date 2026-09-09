@@ -1466,7 +1466,6 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("constant upload failed", 0x6010);
     return;
   }
-  s.perf.constant_bytes += sizeof(SharedConstants);
   const ViewportInfo vp = ComputeViewport(dev, targets);
   SharedConstants sc;
   {
@@ -1500,9 +1499,14 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   sc.alphaThreshold = dev.F32(dev::kAlphaRef);
   std::memcpy(sc.posScale, vp.posScale, sizeof(sc.posScale));
   std::memcpy(sc.posOffset, vp.posOffset, sizeof(sc.posOffset));
-  if (!UploadBytes(&sc, sizeof(sc), kConstantBufferAlignment, &shared_alloc)) {
-    Dropped("shared constant upload failed", 0x6011);
-    return;
+  const bool shared_changed =
+      !s.shared_bound || std::memcmp(&s.last_shared, &sc, sizeof(sc)) != 0;
+  if (shared_changed) {
+    if (!UploadBytes(&sc, sizeof(sc), kConstantBufferAlignment, &shared_alloc)) {
+      Dropped("shared constant upload failed", 0x6011);
+      return;
+    }
+    s.perf.constant_bytes += sizeof(SharedConstants);
   }
   lap(s.perf.const_ms);
 
@@ -1596,13 +1600,21 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     cmd->setScissors(&vp.scissor, 1);
     last_sc = vp.scissor;
   }
-  const UploadAlloc *roots[3] = {&vs_consts, &ps_consts, &shared_alloc};
-  for (u32 r = 0; r < 3; ++r) {
+  const UploadAlloc *roots[2] = {&vs_consts, &ps_consts};
+  for (u32 r = 0; r < 2; ++r) {
     if (s.bound_root_buffer[r] == roots[r]->buffer && s.bound_root_offset[r] == roots[r]->offset)
       continue;
     cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(roots[r]->buffer, roots[r]->offset), r);
     s.bound_root_buffer[r] = roots[r]->buffer;
     s.bound_root_offset[r] = roots[r]->offset;
+  }
+  if (shared_changed) {
+    cmd->setGraphicsRootDescriptor(
+        plume::RenderBufferReference(shared_alloc.buffer, shared_alloc.offset), 2);
+    s.bound_root_buffer[2] = shared_alloc.buffer;
+    s.bound_root_offset[2] = shared_alloc.offset;
+    s.last_shared = sc;
+    s.shared_bound = true;
   }
   cmd->setVertexBuffers(0, views, max_slot + 1, slots);
   if (layout->needsSyntheticSlot) {

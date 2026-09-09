@@ -93,6 +93,8 @@ set(REEOT_SOURCES
     src/gpu/hooks/model_load.cpp
     src/gpu/hooks/package_load.cpp
     src/gpu/patches/frame_time.cpp
+    src/gpu/patches/update_rate.cpp
+    src/gpu/patches/physics_step.cpp
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/movie_aspect.cpp
     src/gpu/patches/post_effects.cpp
@@ -135,6 +137,7 @@ rexglue_setup_target(reeot)
 if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
+        src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/ui/pause_menu.cpp
         src/gamelogic/ui/options_graphics.cpp
         src/gamelogic/ui/save_select.cpp)

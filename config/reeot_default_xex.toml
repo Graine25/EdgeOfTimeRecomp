@@ -2758,6 +2758,11 @@ strcpy_s           = 0x8233E498
 
 0x82224FF8 = { name = "eot_GEEngineMgrBC_UpdateFrameTime" }
 
+0x820DC400 = { name = "eot_UpdateGate_Tick" }
+0x82227700 = { name = "eot_UpdateGate_Reroll" }
+0x821D9E70 = { name = "eot_PhysicsWorld_Update" }
+0x821CFF18 = { name = "eot_PhysicsWorld_Interpolate" }
+
 0x82120C98 = { name = "eot_RenderCommand_DrawMovie" }
 0x8211DE60 = { name = "eot_Movie_DrawFrame" }
 

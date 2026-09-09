@@ -16,9 +16,9 @@ namespace {
 struct State {
   std::mutex mutex;
   std::vector<std::string> lines;
-  u32 counters[static_cast<u32>(Counter::Count)] = {};
+  std::atomic<u32> counters[static_cast<u32>(Counter::Count)] = {};
   std::atomic<i32> frames_left{-1};
-  u64 frames_seen = 0;
+  std::atomic<u64> frames_seen{0};
 };
 
 State &st() {
@@ -27,8 +27,10 @@ State &st() {
 }
 
 void InitOnce(State &s) {
-  if (s.frames_left.load(std::memory_order_relaxed) == -1)
-    s.frames_left.store(Settings::TraceFrames(), std::memory_order_relaxed);
+  i32 expected = -1;
+  if (s.frames_left.load(std::memory_order_relaxed) == expected)
+    s.frames_left.compare_exchange_strong(expected, Settings::TraceFrames(),
+                                          std::memory_order_relaxed);
 }
 
 const char *CounterName(Counter c) {
@@ -75,7 +77,8 @@ bool Enabled() {
   InitOnce(s);
   if (s.frames_left.load(std::memory_order_relaxed) <= 0)
     return false;
-  return static_cast<i64>(s.frames_seen) >= Settings::TraceStartFrame();
+  return static_cast<i64>(s.frames_seen.load(std::memory_order_relaxed)) >=
+         Settings::TraceStartFrame();
 }
 
 void Line(std::string_view text) {
@@ -87,17 +90,20 @@ void Line(std::string_view text) {
 
 void Bump(Counter c) {
   auto &s = st();
-  std::lock_guard lock(s.mutex);
-  s.counters[static_cast<u32>(c)]++;
+  const i32 summary_frames = Settings::SummaryFrames();
+  if (summary_frames <= 0 ||
+      s.frames_seen.load(std::memory_order_relaxed) >= static_cast<u64>(summary_frames))
+    return;
+  s.counters[static_cast<u32>(c)].fetch_add(1, std::memory_order_relaxed);
 }
 
 void EndFrame(u64 frame_index) {
   auto &s = st();
   InitOnce(s);
   std::lock_guard lock(s.mutex);
-  s.frames_seen++;
+  const u64 frames_seen = s.frames_seen.fetch_add(1, std::memory_order_relaxed) + 1;
   if (s.frames_left.load(std::memory_order_relaxed) > 0 &&
-      static_cast<i64>(s.frames_seen) > Settings::TraceStartFrame()) {
+      static_cast<i64>(frames_seen) > Settings::TraceStartFrame()) {
     EOT_INFO("[d3d-trace] ---- frame {} begin ({} calls) ----", frame_index, s.lines.size());
     for (size_t i = 0; i < s.lines.size(); ++i)
       EOT_INFO("[d3d-trace] {:5} {}", i, s.lines[i]);
@@ -105,16 +111,16 @@ void EndFrame(u64 frame_index) {
     s.frames_left.fetch_sub(1, std::memory_order_relaxed);
   }
   s.lines.clear();
-  if (static_cast<i64>(s.frames_seen) <= Settings::SummaryFrames()) {
-    std::string summary;
-    for (u32 i = 0; i < static_cast<u32>(Counter::Count); ++i) {
-      if (s.counters[i])
-        summary += std::format(" {}={}", CounterName(static_cast<Counter>(i)), s.counters[i]);
-    }
+  const bool emit_summary = static_cast<i64>(frames_seen) <= Settings::SummaryFrames();
+  std::string summary;
+  for (u32 i = 0; i < static_cast<u32>(Counter::Count); ++i) {
+    const u32 count = s.counters[i].exchange(0, std::memory_order_relaxed);
+    if (emit_summary && count)
+      summary += std::format(" {}={}", CounterName(static_cast<Counter>(i)), count);
+  }
+  if (emit_summary) {
     EOT_INFO("[d3d-frame] {}:{}", frame_index, summary);
   }
-  for (auto &c : s.counters)
-    c = 0;
 }
 
 void PresentMarker(u64 frame_index) {
