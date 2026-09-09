@@ -86,7 +86,6 @@ set(REEOT_SOURCES
     src/gpu/gpu_profiling.cpp
     src/gpu/gpu_timing.cpp
     src/gpu/pipeline/pso_records.cpp
-    src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/model_load.cpp
     src/gpu/hooks/package_load.cpp

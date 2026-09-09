@@ -5,7 +5,6 @@
 
 #include "core/logging.h"
 #include "gpu/pipeline/pipeline_cache.h"
-#include "gpu/pipeline/pso_precache.h"
 #include "gpu/pipeline/pso_predictor.h"
 #include "gpu/pipeline/pso_records.h"
 
