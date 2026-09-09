@@ -16,10 +16,10 @@
 #include "core/memory_helpers.h"
 #include "gpu/patches/aspect_ratio.h"
 
-REXCVAR_DEFINE_STRING(eot_ui_aspect, "lock", "eot", "HUD layout on ultrawide")
+REXCVAR_DEFINE_STRING(eot_ui_aspect, "lock", "EdgeOfTime/Config", "HUD layout on ultrawide")
     .allowed({"lock", "stretch"});
 
-REXCVAR_DEFINE_BOOL(eot_ui_aspect_log, false, "eot", "Log HUD layout decisions");
+REXCVAR_DEFINE_BOOL(eot_ui_aspect_log, false, "EdgeOfTime/Debug", "Log HUD layout decisions");
 
 REX_EXTERN(__imp__eot_HUDWindowBC_ComputePos);
 

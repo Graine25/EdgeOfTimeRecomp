@@ -28,6 +28,7 @@
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/format.h"
+#include "gpu/quality.h"
 #include "gpu/settings.h"
 
 #if defined(EOT_D3D12)
@@ -820,6 +821,7 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   InitGPUProfiler(static_cast<plume::D3D12Device *>(s.device.get())->d3d,
                   static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
 #endif
+  ApplyQualityPresetAtBoot();
   {
     const i32 asked = Settings::Msaa();
     u32 samples = asked == 2 || asked == 4 || asked == 8 ? static_cast<u32>(asked) : 1u;

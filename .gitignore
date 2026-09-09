@@ -69,3 +69,5 @@ Testing/
 .cache/
 /captures
 /shader_notes
+/pso
+/reference

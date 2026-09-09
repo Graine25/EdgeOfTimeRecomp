@@ -13,7 +13,7 @@
 
 #include "core/memory_helpers.h"
 
-REXCVAR_DEFINE_BOOL(show_fps_overlay, false, "EdgeOfTime/gpu", "Show the FPS overlay");
+REXCVAR_DEFINE_BOOL(show_fps_overlay, false, "EdgeOfTime/Video", "Show the FPS overlay");
 
 namespace {
 

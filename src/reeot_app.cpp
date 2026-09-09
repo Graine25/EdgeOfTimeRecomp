@@ -37,7 +37,7 @@ ReeotApp::ReeotApp(rex::ui::WindowedAppContext &ctx) : rex::ReXApp(ctx, "reeot",
 
 ReeotApp::~ReeotApp() = default;
 
-REXCVAR_DEFINE_STRING(eot_data_root, "", "eot", "Game data folder");
+REXCVAR_DEFINE_STRING(eot_data_root, "", "EdgeOfTime/Config", "Game data folder");
 
 std::optional<rex::PathConfig>
 ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults,

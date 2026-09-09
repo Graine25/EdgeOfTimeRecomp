@@ -6,7 +6,7 @@
 
 #include "core/memory_helpers.h"
 
-REXCVAR_DEFINE_BOOL(eot_debug_mode, false, "eot", "Developer level select menu")
+REXCVAR_DEFINE_BOOL(eot_debug_mode, false, "EdgeOfTime/Config", "Developer level select menu")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 REX_EXTERN(__imp__eot_GLInstanciateHUDLevelSelect);
