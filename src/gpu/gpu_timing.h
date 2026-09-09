@@ -18,7 +18,6 @@ constexpr u32 kGpuCatShadow = 1;
 constexpr u32 kGpuCatResolve = 2;
 constexpr u32 kGpuCatPresent = 3;
 constexpr u32 kGpuCatUpload = 4;
-constexpr u32 kGpuCatPresentFx = 5;
 constexpr u32 kGpuCatResolveHw = 6;
 constexpr u32 kGpuCatResolveDepth = 7;
 
