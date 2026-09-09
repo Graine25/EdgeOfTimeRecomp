@@ -16,13 +16,13 @@
 #include "core/memory_helpers.h"
 #include "gpu/patches/aspect_ratio.h"
 
-REXCVAR_DEFINE_STRING(eot_ui_aspect, "lock", "eot",
+REXCVAR_DEFINE_STRING(eot_ui_aspect, "lock", "EdgeOfTime/Config",
                       "HUD layout when the display is wider than 16:9: lock holds it in a centred "
                       "16:9 region (backgrounds still cover the screen), stretch is the retail "
                       "full-width behaviour.")
     .allowed({"lock", "stretch"});
 
-REXCVAR_DEFINE_BOOL(eot_ui_aspect_log, false, "eot",
+REXCVAR_DEFINE_BOOL(eot_ui_aspect_log, false, "EdgeOfTime/Debug",
                     "Trace the HUD aspect policy: a census line the first time each window is "
                     "laid out (CRC, name, rect, policy and its PARENT, whether or not it moves) "
                     "plus the rect before and after for the first 24 remaps.");

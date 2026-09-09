@@ -37,7 +37,7 @@ ReeotApp::ReeotApp(rex::ui::WindowedAppContext &ctx) : rex::ReXApp(ctx, "reeot",
 
 ReeotApp::~ReeotApp() = default;
 
-REXCVAR_DEFINE_STRING(eot_data_root, "", "eot",
+REXCVAR_DEFINE_STRING(eot_data_root, "", "EdgeOfTime/Config",
                       "Game data directory (the folder holding Default.xex); the "
                       "config-file alternative to --game_data_root.");
 

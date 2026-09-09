@@ -6,7 +6,7 @@
 
 #include "core/memory_helpers.h"
 
-REXCVAR_DEFINE_BOOL(eot_debug_mode, false, "eot",
+REXCVAR_DEFINE_BOOL(eot_debug_mode, false, "EdgeOfTime/Config",
                     "Open the game's own developer level selector from the front screen instead "
                     "of the retail one. B returns to the front screen.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);

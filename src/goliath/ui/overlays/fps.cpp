@@ -13,7 +13,7 @@
 
 #include "core/memory_helpers.h"
 
-REXCVAR_DEFINE_BOOL(show_fps_overlay, false, "EdgeOfTime/gpu",
+REXCVAR_DEFINE_BOOL(show_fps_overlay, false, "EdgeOfTime/Video",
                     "Show the FPS / frame time overlay (engine FPS from guest memory, host "
                     "present time).");
 

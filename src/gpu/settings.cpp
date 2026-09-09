@@ -5,36 +5,36 @@
 
 #include <rex/cvar.h>
 
-REXCVAR_DEFINE_INT32(eot_trace_frames, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_trace_frames, 0, "EdgeOfTime/Debug",
                      "Log every hooked D3D call with its arguments for the "
                      "first N frames (Phase 0 call-stream trace).")
     .range(0, 100000);
 
-REXCVAR_DEFINE_INT32(eot_trace_start_frame, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_trace_start_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame at which the eot_trace_frames call trace begins.")
     .range(0, 100000000);
 
-REXCVAR_DEFINE_INT32(eot_summary_frames, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_summary_frames, 0, "EdgeOfTime/Debug",
                      "Log a one-line per-frame D3D call summary for the first "
                      "N frames (0 = off).")
     .range(0, 1000000);
 
-REXCVAR_DEFINE_INT32(eot_diag, 1, "eot",
+REXCVAR_DEFINE_INT32(eot_diag, 1, "EdgeOfTime/Debug",
                      "Renderer diagnostics verbosity: 0 quiet, 1 dropped draws "
                      "and unmapped resources (rate limited), 2 verbose.")
     .range(0, 2);
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Present with vsync.");
-REXCVAR_DEFINE_BOOL(eot_profiler, false, "eot",
+REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug",
                     "Start the Tracy profiler at boot so a viewer can attach. Zones are compiled "
                     "into every non-Release build (a Release one only with -DREEOT_PROFILING=ON) "
                     "and cost nothing until then.");
-REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "eot",
+REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "EdgeOfTime/Config",
                     "Give every EDRAM surface, resolve mirror and guest texture its own "
                     "dedicated allocation. The game resizes render targets every frame in "
                     "some scenes, and a dedicated allocation costs about a millisecond each; "
                     "suballocating from shared heaps is far cheaper.");
-REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug",
                      "Log a [hitch] line with that frame's own CPU split for any presented "
                      "frame longer than this many milliseconds (0 = off).")
     .range(0, 1000);
@@ -60,14 +60,14 @@ REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
                      "menu presets). The guest runs one frame per present, so this paces the whole "
                      "game, not just the display.")
     .range(0, 1000);
-REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "eot",
+REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "EdgeOfTime/Config",
                     "Perform same-format, 1:1, no-reorder resolves as texture copies instead of "
                     "full-screen sampling draws. Measured neutral on the GPU and slower to record "
                     "on D3D12/AMD (2026-09-03); off until re-tested on Vulkan.");
-REXCVAR_DEFINE_BOOL(eot_const_range, true, "eot",
+REXCVAR_DEFINE_BOOL(eot_const_range, true, "EdgeOfTime/Config",
                     "Upload only the prefix of each 4 KB float constant file the bound shader "
                     "can address (from its constant table) instead of the whole file.");
-REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "eot",
+REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "EdgeOfTime/Config",
                     "Mirror stable guest vertex ranges into persistent host buffers on their "
                     "second sighting instead of byte-swapping the drawn range per draw.");
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
@@ -93,7 +93,7 @@ REXCVAR_DEFINE_INT32(eot_shadow_cascades, 0, "EdgeOfTime/Graphics",
 REXCVAR_DEFINE_DOUBLE(eot_shadow_distance_scale, 1.0, "EdgeOfTime/Graphics",
                       "Multiplier on the level's shadow distance (1 = as the level asks; "
                       "2 casts shadows twice as far at the same map resolution).");
-REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "eot",
+REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "EdgeOfTime/Debug",
                      "Reverse-engineering aid: force the content quality level the pak loader "
                      "matches against each resource's level list (-1 = the game's own, 1 on the "
                      "console; the paks carry 1,2,3,4,5,8,9). Not a user option until the levels "
@@ -130,29 +130,29 @@ REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video",
 REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video",
                       "Display gamma applied at present before the console's own ramp "
                       "(0.5 .. 2.0, 1 = off).");
-REXCVAR_DEFINE_INT32(eot_perf_frames, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_perf_frames, 0, "EdgeOfTime/Debug",
                      "Log a [perf] line every N presented frames: CPU ms per frame in draws, "
                      "resolves, texture uploads, shader links, pipeline builds and the present "
                      "phases, plus upload bytes (0 = off).");
 
-REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame whose draws are logged in detail and whose resolve "
                      "sources are dumped as logs/f<N>_r<K>.ppm (0 = off).")
     .range(0, 100000000);
 
-REXCVAR_DEFINE_INT32(eot_rdc_frame, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_rdc_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame to capture with the in-process RenderDoc API "
                      "(0 = off; needs eot_rdc_dll).")
     .range(0, 100000000);
 
 REXCVAR_DEFINE_STRING(eot_rdc_dll,
                       "C:/Users/rieng/Documents/GitHub/renderdoc/x64/Development/renderdoc.dll",
-                      "eot", "renderdoc.dll to load before the host device is created.");
+                      "EdgeOfTime/Debug", "renderdoc.dll to load before the host device is created.");
 
-REXCVAR_DEFINE_STRING(eot_rdc_path, "D:/reeot_caps/tmp/reeot", "eot",
+REXCVAR_DEFINE_STRING(eot_rdc_path, "D:/reeot_caps/tmp/reeot", "EdgeOfTime/Debug",
                       "RenderDoc capture file path template.");
 
-REXCVAR_DEFINE_INT32(eot_dump_every, 0, "eot",
+REXCVAR_DEFINE_INT32(eot_dump_every, 0, "EdgeOfTime/Debug",
                      "Write the presented back buffer as logs/frame_<N>.ppm every N "
                      "presented frames (0 = off).")
     .range(0, 1000000);
@@ -161,7 +161,7 @@ REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "EdgeOfTime/Video",
                     "Map the presented front buffer through the guest's display gamma "
                     "ramp (SetGammaRamp / SetPWLGamma), as the console's scan-out LUT does.");
 
-REXCVAR_DEFINE_BOOL(eot_present_log, false, "eot",
+REXCVAR_DEFINE_BOOL(eot_present_log, false, "EdgeOfTime/Debug",
                     "Write '[present] frame N t=<epoch_ms>' per present so "
                     "external screenshots align to renderer frames.");
 

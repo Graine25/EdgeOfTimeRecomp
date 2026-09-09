@@ -70,6 +70,7 @@ set(REEOT_SOURCES
     src/core/critical_section.cpp
     src/core/quit.cpp
     src/gpu/settings.cpp
+    src/gpu/quality.cpp
     src/gpu/device.cpp
     src/gpu/frame_ring.cpp
     src/gpu/present.cpp
