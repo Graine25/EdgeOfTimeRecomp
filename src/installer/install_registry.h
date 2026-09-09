@@ -19,6 +19,8 @@ struct InstallConfig {
 
 std::optional<InstallConfig> ReadInstallRegistry();
 
+bool InstallIsPresent(const InstallConfig &config);
+
 bool WriteInstallRegistry(const InstallConfig &config);
 
 bool ClearInstallRegistry();
