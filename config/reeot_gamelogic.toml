@@ -398,13 +398,13 @@ out_directory_path = "generated/gamelogic"
 0x88114F00 = { size = 0x6C }
 0x88115098 = { size = 0x8C }
 0x88115128 = { size = 0x8 }
-0x88115130 = { size = 0x430 }
+0x88115130 = { name = "eot_Heavy_ShootA", size = 0x430 }
 0x881158C8 = { size = 0xF0 }
 0x881159B8 = { size = 0x118 }
 0x88115AD0 = { size = 0x78 }
 0x88115B48 = { size = 0xC4 }
 0x88115C10 = { size = 0x7C }
-0x88115C90 = { size = 0x1D0 }
+0x88115C90 = { name = "eot_Heavy_MultiMissileUpdate", size = 0x1D0 }
 0x88116028 = { size = 0x148 }
 0x881164D8 = { size = 0x148 }
 0x88116620 = { size = 0x78 }
@@ -613,10 +613,26 @@ out_directory_path = "generated/gamelogic"
 0x881569C8 = { size = 0x1B4 }
 0x88156ED8 = { size = 0x110 }
 0x88157730 = { size = 0x78 }
-0x88158030 = { size = 0x35C }
+0x88158030 = { name = "eot_SiegeRocket_Launch", size = 0x35C }
+0x881886D8 = { name = "eot_Projectile_Launch" }
+0x88186E48 = { name = "eot_Projectile_CheckRay" }
+0x88186B80 = { name = "eot_Projectile_BackRay" }
+0x881875A0 = { name = "eot_Projectile_ObjCollision" }
+0x881872B0 = { name = "eot_Projectile_RayCollision" }
+0x881885B0 = { name = "eot_Projectile_Kill" }
+0x881879D0 = { name = "eot_Projectile_DirectEffect" }
+0x88115E60 = { name = "eot_Heavy_ShootB" }
+0x880D27E0 = { name = "eot_AI_IsAnimationCompleted" }
 0x88158390 = { size = 0x244 }
 0x881585D8 = { size = 0x6C }
-0x88158648 = { size = 0xD50 }
+0x88158648 = { name = "eot_SiegeRocket_Tick", size = 0xD50 }
+0x88159D08 = { name = "eot_SiegeRocket_HandleMessage" }
+0x88159398 = { name = "eot_SiegeRocket_Explode" }
+0x88159618 = { name = "eot_SiegeRocket_ExplodeBigTime" }
+0x88159BB0 = { name = "eot_SiegeRocket_Reset" }
+0x88157F80 = { name = "eot_SiegeRocket_RemoveActive" }
+0x881598B8 = { name = "eot_SiegeRocket_OnCharacterContact" }
+0x88159A68 = { name = "eot_SiegeRocket_OnForceFieldContact" }
 0x8815A630 = { size = 0x2E0 }
 0x8815B040 = { size = 0xDC }
 0x8815B120 = { size = 0xD4 }
@@ -1011,7 +1027,7 @@ out_directory_path = "generated/gamelogic"
 0x881F4FF0 = { size = 0x12C }
 0x881F5DA8 = { size = 0x9C }
 0x881F66F8 = { size = 0x190 }
-0x881F6A00 = { size = 0x280 }
+0x881F6A00 = { name = "eot_PostFXManager_Tick", size = 0x280 }
 0x881FCF88 = { size = 0xF0 }
 0x881FD278 = { size = 0x3A0 }
 0x881FD6A0 = { size = 0xFC }

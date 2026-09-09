@@ -261,6 +261,7 @@ public:
   static void RequestResize();
 
   static void Present(u32 front_buffer_texture_va);
+  static void PresentOverlayOnly();
 };
 
 std::unique_ptr<plume::RenderBuffer> CreateHostBuffer(plume::RenderDevice *device,
@@ -284,7 +285,6 @@ plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat d
 void BeginCommandList(VideoState &s);
 void SubmitOpenListLocked(VideoState &s);
 void AdvanceAndWaitReused(VideoState &s);
-void DrainSlot(VideoState &s, u32 slot);
 void ParkTexture(VideoState &s, std::unique_ptr<plume::RenderTexture> t);
 void ParkView(VideoState &s, std::unique_ptr<plume::RenderTextureView> v);
 void ParkFramebuffer(VideoState &s, std::unique_ptr<plume::RenderFramebuffer> f);

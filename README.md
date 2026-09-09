@@ -29,6 +29,13 @@ Due to this significant constraint, the development team of EdgeOfTime-Recompile
 
 https://github.com/user-attachments/assets/95bbe327-8363-4dbc-96ef-e0079e6e0a73
 
+### Native Rendering Explanation
+
+The game's rendering calls are hooked one by one and replayed on a modern GPU API (D3D12 on Windows, Vulkan elsewhere). The catch with modern APIs is the pipeline: on the Xbox 360 the game simply switched shaders and render state whenever it liked, but D3D12 wants every combination of vertex shader, pixel shader, vertex layout, blend, depth and rasteriser state compiled up front into a "pipeline state object" (PSO). The game has thousands of these combinations, and every one the port meets for the first time has to be compiled right there on the render thread, which costs several milliseconds and shows up as a stutter. That is the hitching people notice in early builds, and it has nothing to do with how fast the machine is.
+
+reeot deals with it in three layers. First, a **shipped table**: every pipeline ever captured from a play session is stored as a row in `config/pso/eot_pipelines.csv` and compiled into the executable. Rows that belong to no particular level are built on worker threads during the intro, and rows tagged with a level package are built when that package loads, under the game's own loading screen, which the port holds until they are ready. Second, a **predictor**: when the game streams a material or a model, the port already knows its shaders, vertex layout and strides, so it crosses them with the render-state templates learned from previous captures and builds the likely pipelines before the first draw needs them. Third, **capture**: whatever still slips through and has to be built at draw time is written to `pso/pso_misses_<machine>_<time>.csv`, tagged with the level it happened in, together with a small file saying which predictions were actually used.
+
+Those capture files are the whole point of the playtest. Each tester plays through the game and sends back their `pso/` folder; the files are merged into the table (`tools/pso/pso_merge.py`), duplicates collapse, anything the shader cache cannot build is dropped, and the templates are regenerated from what the sessions actually drew. Every round of testing shrinks the number of pipelines nobody has seen yet, and a session whose capture file comes back empty means that build already covered everything it drew. The end goal is that by release every pipeline the game can ask for is already in the executable, so nobody ever compiles one while playing and the port runs as smoothly on the first launch as it does on the tenth.
 
 # Contributions
 ### What we need

@@ -12,6 +12,11 @@
 #endif
 
 #include <plume_render_interface.h>
+#if defined(EOT_D3D12)
+#include <plume_d3d12.h>
+#else
+#include <plume_vulkan.h>
+#endif
 
 #include "core/logging.h"
 #include "gpu/backend.h"
@@ -33,20 +38,134 @@ namespace eot::gpu {
 
 namespace {
 
+bool ReportSwapChainFailure(VideoState &s, const char *operation) {
+  bool device_removed = false;
+#if defined(EOT_D3D12)
+  auto *device = static_cast<plume::D3D12Device *>(s.device.get());
+  const HRESULT reason = device && device->d3d ? device->d3d->GetDeviceRemovedReason() : S_OK;
+  if (FAILED(reason)) {
+    device_removed = true;
+    EOT_ERROR("[present] {} failed; D3D12 device removed reason {:#010x}", operation,
+              static_cast<u32>(reason));
+  } else {
+    EOT_WARN("[present] {} failed with the D3D12 device still alive", operation);
+  }
+#else
+  EOT_WARN("[present] {} failed (the swap chain may be out of date)", operation);
+#endif
+  DrainHostDebugMessages(s, operation);
+  return device_removed;
+}
+
+void DisableFailedDevice(VideoState &s) {
+  s.ready = false;
+  for (bool &submitted : s.command_list_submitted)
+    submitted = false;
+}
+
 bool HandleResize(VideoState &s) {
-  if (!s.resize_requested.exchange(false, std::memory_order_acq_rel))
-    return true;
+  const bool requested = s.resize_requested.exchange(false, std::memory_order_acq_rel);
+  if (!requested && !s.swap_chain->needsResize())
+    return !s.swap_framebuffers.empty();
+
+#if defined(EOT_D3D12)
+  auto *d3d_device = static_cast<plume::D3D12Device *>(s.device.get());
+  if (d3d_device && d3d_device->d3d &&
+      FAILED(d3d_device->d3d->GetDeviceRemovedReason())) {
+    ReportSwapChainFailure(s, "swap-chain resize requested after device removal");
+    DisableFailedDevice(s);
+    return false;
+  }
+#endif
+
+  SubmitOpenListLocked(s);
   for (u32 i = 0; i < kNumFrames; ++i) {
     if (s.command_list_submitted[i]) {
       s.queue->waitForCommandFence(s.fences[i].get());
+      GpuTimingCollect(s, i);
       s.command_list_submitted[i] = false;
     }
   }
-  s.swap_framebuffers.clear();
-  s.swap_chain->resize();
-  if (s.swap_chain->isEmpty())
+
+#if !defined(EOT_D3D12)
+  auto *vk_queue = static_cast<plume::VulkanCommandQueue *>(s.queue.get());
+  VkResult idle_result = VK_ERROR_DEVICE_LOST;
+  if (vk_queue && vk_queue->queue) {
+    const std::scoped_lock queue_lock(*vk_queue->queue->mutex);
+    idle_result = vkQueueWaitIdle(vk_queue->queue->vk);
+  }
+  if (idle_result != VK_SUCCESS) {
+    EOT_ERROR("[present] vkQueueWaitIdle before resize failed with error {:#010x}; "
+              "renderer disabled",
+              static_cast<u32>(idle_result));
+    ReportSwapChainFailure(s, "present queue idle wait");
+    DisableFailedDevice(s);
     return false;
-  return BuildSwapFramebuffers(s);
+  }
+#endif
+
+  s.swap_framebuffers.clear();
+  s.render_semaphores.clear();
+  if (!s.swap_chain->resize()) {
+    const bool nonzero_size = s.swap_chain->getWidth() && s.swap_chain->getHeight();
+    if (nonzero_size)
+      ReportSwapChainFailure(s, "swap-chain resize");
+#if defined(EOT_D3D12)
+    if (nonzero_size) {
+      auto *device = static_cast<plume::D3D12Device *>(s.device.get());
+      if (!device || !device->d3d || FAILED(device->d3d->GetDeviceRemovedReason())) {
+        s.ready = false;
+        return false;
+      }
+      auto *failed = static_cast<plume::D3D12SwapChain *>(s.swap_chain.get());
+      const plume::RenderSwapChainDesc replacement_desc = failed->desc;
+      const bool vsync_enabled = failed->isVsyncEnabled();
+      s.swap_chain.reset();
+      auto replacement = s.queue->createSwapChain(replacement_desc);
+      auto *candidate = replacement
+                            ? static_cast<plume::D3D12SwapChain *>(replacement.get())
+                            : nullptr;
+      bool textures_ready = candidate && candidate->textures.size() >= candidate->desc.textureCount;
+      if (textures_ready) {
+        for (u32 i = 0; i < candidate->desc.textureCount; ++i)
+          textures_ready = textures_ready && candidate->textures[i].d3d != nullptr;
+      }
+      if (!replacement || replacement->isEmpty() || !textures_ready) {
+        if (replacement) {
+          auto *bad = candidate;
+          if (bad->textures.size() < bad->desc.textureCount)
+            bad->desc.textureCount = static_cast<u32>(bad->textures.size());
+        }
+        EOT_ERROR("[present] failed to recreate the D3D12 swap chain; renderer disabled");
+        s.ready = false;
+        return false;
+      }
+      s.swap_chain = std::move(replacement);
+      s.swap_chain->setVsyncEnabled(vsync_enabled);
+      if (!BuildSwapFramebuffers(s)) {
+        ReportSwapChainFailure(s, "replacement swap-chain framebuffer rebuild");
+        s.resize_requested.store(true, std::memory_order_release);
+        return false;
+      }
+      EOT_WARN("[present] recovered from ResizeBuffers failure with a fresh swap chain");
+      return true;
+    }
+#else
+    if (nonzero_size)
+      s.resize_requested.store(true, std::memory_order_release);
+#endif
+    return false;
+  }
+  if (s.swap_chain->isEmpty()) {
+    s.resize_requested.store(true, std::memory_order_release);
+    return false;
+  }
+  if (!BuildSwapFramebuffers(s)) {
+    ReportSwapChainFailure(s, "swap-chain framebuffer rebuild");
+    s.resize_requested.store(true, std::memory_order_release);
+    return false;
+  }
+  return true;
 }
 
 u32 EnsureGammaLutLocked(VideoState &s) {
@@ -289,7 +408,6 @@ void FrameLimitWait() {
 void Video::Present(u32 front_buffer_texture_va) {
   EOT_CPU_ZONE("Present");
   auto &s = state();
-  u32 drained_slot = ~0u;
   {
     std::lock_guard lock(s.mutex);
     s.guest_frames++;
@@ -317,10 +435,15 @@ void Video::Present(u32 front_buffer_texture_va) {
     (void)vsync_changed;
 #endif
     if (!HandleResize(s)) {
+      if (!s.ready)
+        return;
       SubmitOpenListLocked(s);
       AdvanceAndWaitReused(s);
       return;
     }
+    BeginCommandList(s);
+    if (!s.command_list_open)
+      return;
 
     const u32 cur = s.recording_slot();
     u32 image = 0;
@@ -334,6 +457,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       u32 n;
       if (DiagShouldLog(0x8001, &n))
         EOT_WARN("[present] acquireTexture failed (minimised?)");
+      s.resize_requested.store(true, std::memory_order_release);
       SubmitOpenListLocked(s);
       AdvanceAndWaitReused(s);
       return;
@@ -352,9 +476,30 @@ void Video::Present(u32 front_buffer_texture_va) {
       GpuTimingMark(s, cmd, kGpuCatPresent);
     }
     const u32 lut_index = front ? EnsureGammaLutLocked(s) : kInvalidDescriptorIndex;
+
+    const float out_w = static_cast<float>(s.swap_chain->getWidth());
+    const float out_h = static_cast<float>(s.swap_chain->getHeight());
+    float fit_w = out_w, fit_h = out_h, fit_x = 0.0f, fit_y = 0.0f;
+    if (src_index != kInvalidDescriptorIndex) {
+      ApplyAspectRatio();
+      const bool movie = TakeMovieDrawnFlag();
+      const float aspect =
+          movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
+      fit_h = out_w / aspect;
+      if (fit_h > out_h) {
+        fit_h = out_h;
+        fit_w = out_h * aspect;
+      }
+      fit_x = (out_w - fit_w) * 0.5f;
+      fit_y = (out_h - fit_h) * 0.5f;
+    }
+
     cmd->setFramebuffer(s.swap_framebuffers[image].get());
     s.bound_framebuffer = nullptr;
-    cmd->clearColor(0, plume::RenderColor(0, 0, 0, 1), nullptr, 0);
+    const bool uncovered =
+        src_index == kInvalidDescriptorIndex || fit_w < out_w || fit_h < out_h;
+    if (uncovered)
+      cmd->clearColor(0, plume::RenderColor(0, 0, 0, 1), nullptr, 0);
     const i32 dump_every = Settings::DumpEvery();
     if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
       const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
@@ -363,21 +508,10 @@ void Video::Present(u32 front_buffer_texture_va) {
       cmd->setFramebuffer(s.swap_framebuffers[image].get());
     }
     if (src_index != kInvalidDescriptorIndex) {
-      const float out_w = static_cast<float>(s.swap_chain->getWidth());
-      const float out_h = static_cast<float>(s.swap_chain->getHeight());
-      ApplyAspectRatio();
-      const bool movie = TakeMovieDrawnFlag();
-      const float aspect =
-          movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
-      float w = out_w, h = out_w / aspect;
-      if (h > out_h) {
-        h = out_h;
-        w = out_h * aspect;
-      }
-      const float x = (out_w - w) * 0.5f, y = (out_h - h) * 0.5f;
-      plume::RenderViewport vp(x, y, w, h, 0.0f, 1.0f);
-      plume::RenderRect sc(static_cast<i32>(x), static_cast<i32>(y), static_cast<i32>(x + w),
-                           static_cast<i32>(y + h));
+      plume::RenderViewport vp(fit_x, fit_y, fit_w, fit_h, 0.0f, 1.0f);
+      plume::RenderRect sc(static_cast<i32>(fit_x), static_cast<i32>(fit_y),
+                           static_cast<i32>(fit_x + fit_w),
+                           static_cast<i32>(fit_y + fit_h));
       cmd->setViewports(&vp, 1);
       cmd->setScissors(&sc, 1);
       plume::RenderPipeline *pso = GetBlitPipeline(s, plume::RenderFormat::B8G8R8A8_UNORM);
@@ -387,7 +521,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       pc.resourceDescriptorIndex = src_index;
       pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
       pc.param0 = 1.0f;
-      SelectPresentBlitMode(front->host.width, front->host.height, w, h, pc.extra);
+      SelectPresentBlitMode(front->host.width, front->host.height, fit_w, fit_h, pc.extra);
       pc.colorAdjust[0] = static_cast<float>(std::clamp(Settings::Brightness(), -0.5, 0.5));
       pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
       pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));
@@ -400,7 +534,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
                                     sizeof(pc));
       cmd->drawInstanced(3, 1, 0, 0);
-    } else {
+    } else if (front_buffer_texture_va) {
       u32 n;
       if (DiagShouldLog(0x8002, &n))
         EOT_WARN("[present] no front buffer mirror for {:#x}; presenting black",
@@ -433,7 +567,14 @@ void Video::Present(u32 front_buffer_texture_va) {
       PerfScope perf_scope(s.perf.submit_ms);
       s.queue->executeCommandLists(lists, 1, wait, 1, signal, 1, s.fences[cur].get());
       s.command_list_submitted[cur] = true;
-      s.swap_chain->present(image, signal, 1);
+      if (!s.swap_chain->present(image, signal, 1)) {
+        const bool device_removed = ReportSwapChainFailure(s, "swap-chain present");
+        if (device_removed) {
+          DisableFailedDevice(s);
+          return;
+        }
+        s.resize_requested.store(true, std::memory_order_release);
+      }
     }
     s.presented_frames++;
     trace::PresentMarker(s.presented_frames);
@@ -444,14 +585,13 @@ void Video::Present(u32 front_buffer_texture_va) {
     }
     LogPerfLocked(s);
     PsoCacheFlushIfDirty(false);
-    drained_slot = s.recording_slot();
     DrainHostDebugMessages(s, "present");
     RenderDocFrameBoundary(s.guest_frames);
   }
-  if (drained_slot != ~0u)
-    DrainSlot(s, drained_slot);
   FrameLimitWait();
   EOT_FRAME_MARK();
 }
+
+void Video::PresentOverlayOnly() { Present(0); }
 
 }

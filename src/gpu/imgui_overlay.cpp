@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <vector>
 
 #include <plume_render_interface.h>
@@ -23,9 +24,39 @@
 
 namespace eot::gpu {
 
+void DestroyHostTexture(VideoState &s, HostTexture &host);
+
 namespace {
 
 OverlayDrawHook g_hook;
+thread_local bool g_video_lock_borrowed = false;
+
+struct PendingTextureRetirements {
+  std::mutex mutex;
+  std::vector<HostTexture> hosts;
+};
+
+PendingTextureRetirements &PendingRetirements() {
+  static auto *queue = new PendingTextureRetirements;
+  return *queue;
+}
+
+void QueueTextureRetirement(HostTexture host) {
+  auto &pending = PendingRetirements();
+  std::lock_guard lock(pending.mutex);
+  pending.hosts.push_back(std::move(host));
+}
+
+void DrainTextureRetirementsLocked(VideoState &s) {
+  std::vector<HostTexture> hosts;
+  {
+    auto &pending = PendingRetirements();
+    std::lock_guard lock(pending.mutex);
+    hosts.swap(pending.hosts);
+  }
+  for (auto &host : hosts)
+    DestroyHostTexture(s, host);
+}
 
 struct Ortho {
   float scale[2];
@@ -41,7 +72,14 @@ public:
   OverlayTexture(u32 width, u32 height, HostTexture host, u32 slot)
       : rex::ui::ImmediateTexture(width, height), host_(std::move(host)), slot_(slot) {}
 
-  ~OverlayTexture() override { ReleaseTextureSRVLocked(state(), host_); }
+  ~OverlayTexture() override {
+    auto &s = state();
+    if (g_video_lock_borrowed) {
+      DestroyHostTexture(s, host_);
+      return;
+    }
+    QueueTextureRetirement(std::move(host_));
+  }
 
   u32 slot() const { return slot_; }
 
@@ -104,8 +142,12 @@ bool OverlayDrawer::EnsureResources(VideoState &s) {
   sampler_set.end(true, kBindlessSamplerCount);
   layout_builder.addDescriptorSet(sampler_set);
   layout_builder.addPushConstant(0, 2, sizeof(Ortho), plume::RenderShaderStageFlag::VERTEX);
+#if defined(EOT_D3D12)
+  layout_builder.addPushConstant(1, 2, sizeof(Slots), plume::RenderShaderStageFlag::PIXEL);
+#else
   layout_builder.addPushConstant(1, 2, sizeof(Slots), plume::RenderShaderStageFlag::PIXEL,
                                  sizeof(Ortho));
+#endif
   layout_builder.end();
   layout_ = layout_builder.create(s.device.get());
   if (!layout_) {
@@ -181,6 +223,7 @@ OverlayDrawer::CreateTexture(u32 width, u32 height, rex::ui::ImmediateTextureFil
   host.texture = CreateHostTexture(s.device.get(), desc, "overlay-texture");
   if (!host.valid())
     return nullptr;
+  host.desc = desc;
   host.format = desc.format;
   host.viewFormat = plume::RenderFormat::UNKNOWN;
   host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
@@ -191,15 +234,23 @@ OverlayDrawer::CreateTexture(u32 width, u32 height, rex::ui::ImmediateTextureFil
   host.arraySize = 1;
   host.layout = plume::RenderTextureLayout::UNKNOWN;
 
+  UploadAlloc staging;
+  u64 pitch = 0;
   if (data) {
     const u32 row = width * 4;
-    const u64 pitch = (row + kTextureRowPitchAlignment - 1) & ~u64(kTextureRowPitchAlignment - 1);
-    UploadAlloc staging;
+    pitch = (row + kTextureRowPitchAlignment - 1) & ~u64(kTextureRowPitchAlignment - 1);
     if (!s.command_list_open || !UploadAllocate(pitch * height, kTexturePlacementAlignment,
                                                 &staging))
       return nullptr;
     for (u32 y = 0; y < height; ++y)
       std::memcpy(staging.cpu + y * pitch, data + size_t(y) * row, row);
+  }
+
+  const u32 slot = BindTextureSRVLocked(s, host);
+  if (slot == kInvalidDescriptorIndex)
+    return nullptr;
+
+  if (data) {
     TransitionLocked(s, host, plume::RenderTextureLayout::COPY_DEST);
     s.command_list->copyTextureRegion(
         plume::RenderTextureCopyLocation::Subresource(host.texture.get(), 0, 0),
@@ -209,9 +260,6 @@ OverlayDrawer::CreateTexture(u32 width, u32 height, rex::ui::ImmediateTextureFil
         0, 0, 0);
   }
   TransitionLocked(s, host, plume::RenderTextureLayout::SHADER_READ);
-  const u32 slot = BindTextureSRVLocked(s, host);
-  if (slot == kInvalidDescriptorIndex)
-    return nullptr;
   return std::make_unique<OverlayTexture>(width, height, std::move(host), slot);
 }
 
@@ -320,6 +368,12 @@ void OverlayDrawer::End() {
 
 }
 
+OverlayVideoLockScope::OverlayVideoLockScope() : previous_(g_video_lock_borrowed) {
+  g_video_lock_borrowed = true;
+}
+
+OverlayVideoLockScope::~OverlayVideoLockScope() { g_video_lock_borrowed = previous_; }
+
 std::unique_ptr<rex::ui::ImmediateDrawer> CreateOverlayDrawer() {
   return std::make_unique<OverlayDrawer>();
 }
@@ -328,6 +382,7 @@ void SetOverlayDrawHook(OverlayDrawHook hook) { g_hook = std::move(hook); }
 
 void RunOverlayDrawHook(plume::RenderCommandList *cmd, plume::RenderFramebuffer *framebuffer,
                         u32 width, u32 height) {
+  DrainTextureRetirementsLocked(state());
   if (g_hook)
     g_hook(cmd, framebuffer, width, height);
 }

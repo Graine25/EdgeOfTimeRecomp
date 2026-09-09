@@ -14,6 +14,18 @@ struct RenderFramebuffer;
 
 namespace eot::gpu {
 
+class OverlayVideoLockScope final {
+public:
+  OverlayVideoLockScope();
+  ~OverlayVideoLockScope();
+
+  OverlayVideoLockScope(const OverlayVideoLockScope &) = delete;
+  OverlayVideoLockScope &operator=(const OverlayVideoLockScope &) = delete;
+
+private:
+  bool previous_;
+};
+
 class OverlayDrawContext final : public rex::ui::AppUIDrawContext {
 public:
   OverlayDrawContext(u32 width, u32 height, plume::RenderCommandList *cmd,

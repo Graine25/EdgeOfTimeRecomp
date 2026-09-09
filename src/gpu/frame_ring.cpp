@@ -1,5 +1,3 @@
-#include <mutex>
-
 #include <plume_render_interface.h>
 #include <cstring>
 #include <memory>
@@ -106,16 +104,12 @@ void AdvanceAndWaitReused(VideoState &s) {
     }
 #endif
   }
-  UploadRingResetFrame(slot);
-}
-
-void DrainSlot(VideoState &s, u32 slot) {
-  std::lock_guard lock(s.mutex);
   s.view_graveyard[slot].clear();
   s.framebuffer_graveyard[slot].clear();
   s.texture_graveyard[slot].clear();
   s.buffer_graveyard[slot].clear();
   DrainDescriptorSlotsLocked(s, slot);
+  UploadRingResetFrame(slot);
 }
 
 void ParkTexture(VideoState &s, std::unique_ptr<plume::RenderTexture> t) {

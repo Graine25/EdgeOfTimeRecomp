@@ -1,6 +1,7 @@
 #include "goliath/ui/overlays/fps.h"
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <chrono>
 #include <cmath>
@@ -12,11 +13,26 @@
 
 #include "core/memory_helpers.h"
 
-REXCVAR_DEFINE_BOOL(show_fps_overlay, true, "EdgeOfTime/gpu", "Show the FPS overlay");
+REXCVAR_DEFINE_BOOL(show_fps_overlay, false, "EdgeOfTime/gpu", "Show the FPS overlay");
 
 namespace {
 
 using namespace eot;
+
+std::atomic<bool> g_fps_overlay_enabled{false};
+
+void EnsureFpsOverlayStateInitialized() {
+  static const bool initialized = [] {
+    g_fps_overlay_enabled.store(REXCVAR_GET(show_fps_overlay), std::memory_order_relaxed);
+    rex::cvar::RegisterChangeCallback(
+        "show_fps_overlay", [](std::string_view, std::string_view) {
+          g_fps_overlay_enabled.store(REXCVAR_GET(show_fps_overlay),
+                                      std::memory_order_release);
+        });
+    return true;
+  }();
+  (void)initialized;
+}
 
 constexpr u32 kFpsStructPointerAddr = 0x824E66D0;
 constexpr u32 kFrameDeltaTimeAddr = 0x824E5A8C;
@@ -107,14 +123,32 @@ struct HostFrameClock {
   }
 };
 
+HostFrameClock g_host_frame_clock;
+
+}
+
+bool FpsOverlayEnabled() {
+  EnsureFpsOverlayStateInitialized();
+  return g_fps_overlay_enabled.load(std::memory_order_acquire);
+}
+
+void FpsOverlayDialog::SyncEnabledState() {
+  const bool enabled = FpsOverlayEnabled();
+  if (registered_ == enabled)
+    return;
+  g_host_frame_clock = {};
+  if (enabled)
+    imgui_drawer()->AddDialog(this);
+  else
+    imgui_drawer()->RemoveDialog(this);
+  registered_ = enabled;
 }
 
 void FpsOverlayDialog::OnDraw(ImGuiIO &io) {
   (void)io;
-  static HostFrameClock host;
-  host.Tick();
-  if (!REXCVAR_GET(show_fps_overlay))
+  if (!FpsOverlayEnabled())
     return;
+  g_host_frame_clock.Tick();
 
   ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f));
   ImGui::SetNextWindowBgAlpha(0.5f);
@@ -148,7 +182,8 @@ void FpsOverlayDialog::OnDraw(ImGuiIO &io) {
 
     char host_buf[80];
     std::snprintf(host_buf, sizeof(host_buf), "host %.1f ms avg | worst %.0f ms",
-                  static_cast<double>(host.Average()), static_cast<double>(host.Worst()));
+                  static_cast<double>(g_host_frame_clock.Average()),
+                  static_cast<double>(g_host_frame_clock.Worst()));
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 1.0f, 1.0f), "%s", host_buf);
   }
   ImGui::End();
