@@ -1,0 +1,51 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
+@EOT_EMBED_DECLS@
+namespace eot {
+
+struct EmbeddedAsset {
+  std::string_view name;
+  const uint8_t *data;
+  size_t size;
+
+  std::span<const uint8_t> bytes() const { return {data, size}; }
+  std::string_view text() const {
+    return {reinterpret_cast<const char *>(data), size};
+  }
+};
+
+inline constexpr EmbeddedAsset kEmbeddedAssets[] = {
+@EOT_EMBED_ENTRIES@};
+
+namespace detail {
+void NoSuchEmbeddedAsset();
+}
+
+consteval EmbeddedAsset Embedded(std::string_view name) {
+  for (const EmbeddedAsset &asset : kEmbeddedAssets)
+    if (asset.name == name)
+      return asset;
+  detail::NoSuchEmbeddedAsset();
+  return {};
+}
+
+constexpr std::span<const EmbeddedAsset> EmbeddedGroup(std::string_view dir) {
+  const EmbeddedAsset *first = nullptr;
+  size_t count = 0;
+  for (const EmbeddedAsset &asset : kEmbeddedAssets) {
+    if (asset.name.size() <= dir.size() || !asset.name.starts_with(dir) ||
+        asset.name[dir.size()] != '/')
+      continue;
+    if (!first)
+      first = &asset;
+    ++count;
+  }
+  return {first, count};
+}
+
+}
