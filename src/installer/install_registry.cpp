@@ -65,14 +65,12 @@ std::optional<InstallConfig> ReadInstallRegistry() {
   if (auto v = ReadString(key, L"AppVersion"))
     cfg.app_version = WideToUtf8(*v);
 
-  std::error_code ec;
-  const auto xex = cfg.game_data_path() / "Default.xex";
-  if (!std::filesystem::exists(xex, ec)) {
-    EOT_WARN("[install] the record names {} but it holds no Default.xex; treating as not installed",
-             cfg.game_data_path().string());
-    return std::nullopt;
-  }
   return cfg;
+}
+
+bool InstallIsPresent(const InstallConfig &config) {
+  std::error_code ec;
+  return std::filesystem::is_regular_file(config.game_data_path() / "Default.xex", ec);
 }
 
 bool WriteInstallRegistry(const InstallConfig &config) {
@@ -115,6 +113,7 @@ namespace eot::installer {
 std::optional<InstallConfig> ReadInstallRegistry() { return std::nullopt; }
 bool WriteInstallRegistry(const InstallConfig &) { return false; }
 bool ClearInstallRegistry() { return true; }
+bool InstallIsPresent(const InstallConfig &) { return false; }
 
 }
 

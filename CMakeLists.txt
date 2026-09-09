@@ -77,6 +77,8 @@ set(REEOT_SOURCES
     src/platform/file_dialog.cpp
     src/platform/desktop_shortcut.cpp
     src/platform/process.cpp
+    src/platform/fatal_dialog.cpp
+    src/platform/crash_handler.cpp
     src/ui/theme.cpp
     src/installer/install_registry.cpp
     src/installer/self_install.cpp
@@ -171,14 +173,16 @@ target_include_directories(reeot PRIVATE
 if(REEOT_BUILD_INSTALLER)
     target_sources(reeot PRIVATE
         src/installer/disc_install.cpp
-        src/installer/installer_wizard.cpp)
+        src/installer/installer_wizard.cpp
+        src/installer/upgrade_prompt.cpp)
 endif()
 
 set(reeot_program_files
     "$<TARGET_FILE_NAME:reeot>"
     "$<TARGET_FILE_NAME:rex::runtime>"
     "pkz"
-    "eot_hud_aspect.toml")
+    "eot_hud_aspect.toml"
+    "gamecontrollerdb.txt")
 if(TARGET reeot_GameLogic)
     list(APPEND reeot_program_files "$<TARGET_FILE_NAME:reeot_GameLogic>")
 endif()
@@ -200,6 +204,12 @@ inline constexpr const char *kProgramFiles[] = {
 ${reeot_program_files_cxx}
 };
 ")
+
+add_custom_command(TARGET reeot POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gamecontrollerdb/gamecontrollerdb.txt"
+        $<TARGET_FILE_DIR:reeot>
+    VERBATIM)
 
 target_compile_definitions(reeot PRIVATE
     _ITERATOR_DEBUG_LEVEL=0

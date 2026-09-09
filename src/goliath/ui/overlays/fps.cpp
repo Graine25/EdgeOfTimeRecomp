@@ -150,6 +150,8 @@ void FpsOverlayDialog::OnDraw(ImGuiIO &io) {
   (void)io;
   if (!FpsOverlayEnabled())
     return;
+  if (!REX_KERNEL_STATE())
+    return;
   g_host_frame_clock.Tick();
 
   ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f));

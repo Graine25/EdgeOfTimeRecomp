@@ -1,0 +1,220 @@
+#include "platform/crash_handler.h"
+
+#include <algorithm>
+#include <atomic>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <string>
+#include <typeinfo>
+
+#include <rex/exception_handler.h>
+#include <rex/filesystem.h>
+#include <rex/logging.h>
+#include <rex/runtime.h>
+#include <rex/types.h>
+#include <rex/version.h>
+
+#include "core/build_info.h"
+#include "core/logging.h"
+#include "platform/fatal_dialog.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+
+extern "C" IMAGE_DOS_HEADER __ImageBase;
+#endif
+
+namespace eot::platform {
+namespace {
+
+constexpr u64 kGuestAddressSpaceSize = 0x100000000ull;
+
+constexpr u64 kHostImageSpan = 0x20000000ull;
+
+#if defined(_WIN32)
+u64 HostModuleBase() { return reinterpret_cast<u64>(&__ImageBase); }
+#else
+u64 HostModuleBase() { return 0; }
+#endif
+
+std::string g_host_module_name;
+bool g_crash_handler_installed = false;
+
+const char *HostModuleName() { return g_host_module_name.empty() ? "host" : g_host_module_name.c_str(); }
+
+std::atomic_flag s_reporting = ATOMIC_FLAG_INIT;
+
+const char *ExceptionCodeName(rex::arch::Exception::Code code) {
+  using Code = rex::arch::Exception::Code;
+  switch (code) {
+  case Code::kAccessViolation:
+    return "ACCESS_VIOLATION";
+  case Code::kIllegalInstruction:
+    return "ILLEGAL_INSTRUCTION";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+const char *AvOperationName(rex::arch::Exception::AccessViolationOperation op) {
+  using Op = rex::arch::Exception::AccessViolationOperation;
+  switch (op) {
+  case Op::kRead:
+    return "read";
+  case Op::kWrite:
+    return "write";
+  default:
+    return "unknown";
+  }
+}
+
+bool InModule(u64 address, u64 base) { return base && address >= base && address - base < kHostImageSpan; }
+
+void LogBacktrace(u64 base) {
+#if defined(_WIN32)
+  void *frames[32] = {};
+  const USHORT n = RtlCaptureStackBackTrace(0, 32, frames, nullptr);
+  if (!n)
+    return;
+  EOT_CRITICAL("backtrace ({} frames, top frames are the crash handler):", n);
+  for (USHORT i = 0; i < n; ++i) {
+    const u64 a = reinterpret_cast<u64>(frames[i]);
+    if (InModule(a, base))
+      EOT_CRITICAL("    [{:>2}] {:#018x}  ({}+{:#010x})", i, a, HostModuleName(), a - base);
+    else
+      EOT_CRITICAL("    [{:>2}] {:#018x}", i, a);
+  }
+#else
+  (void)base;
+#endif
+}
+
+void LogStackCodeAddresses(const rex::arch::HostThreadContext *ctx, u64 base) {
+  if (!ctx)
+    return;
+#if REX_ARCH_AMD64
+  const u64 sp = ctx->int_registers[4];
+  if (!sp || (sp % sizeof(u64)) != 0)
+    return;
+  constexpr u64 kPageSize = 4096;
+  const u64 limit = std::min(sp + 64 * sizeof(u64), (sp | (kPageSize - 1)) + 1);
+  EOT_CRITICAL("stack code addresses (sp {:#018x}, first is the return address of the call that faulted):", sp);
+  u32 found = 0;
+  for (u64 p = sp; p + sizeof(u64) <= limit; p += sizeof(u64)) {
+    u64 v = 0;
+    std::memcpy(&v, reinterpret_cast<const void *>(p), sizeof(v));
+    if (!InModule(v, base))
+      continue;
+    EOT_CRITICAL("    [sp+{:#05x}] {:#018x}  ({}+{:#010x})", p - sp, v, HostModuleName(), v - base);
+    if (++found >= 24)
+      break;
+  }
+  if (!found)
+    EOT_CRITICAL("    (no module addresses on the stack)");
+#else
+  (void)base;
+#endif
+}
+
+void LogRegisters(const rex::arch::HostThreadContext *ctx) {
+  if (!ctx)
+    return;
+#if REX_ARCH_AMD64
+  static const char *const kNames[16] = {"rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
+                                         "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15"};
+  EOT_CRITICAL("    rip = {:#018x}   eflags = {:#010x}", ctx->rip, ctx->eflags);
+  for (int i = 0; i < 16; ++i)
+    EOT_CRITICAL("    {:>3} = {:#018x}", kNames[i], ctx->int_registers[i]);
+#endif
+}
+
+bool CrashHandler(rex::arch::Exception *ex, void *) {
+  if (s_reporting.test_and_set(std::memory_order_acq_rel))
+    return false;
+
+  const u64 host_base = HostModuleBase();
+  EOT_CRITICAL("================ reeot host crash ================");
+  EOT_CRITICAL("build: reeot " REEOT_VERSION_STRING " " REEOT_GIT_COMMIT " " REXGLUE_BUILD_TITLE);
+  EOT_CRITICAL("module base: {} @ {:#018x}", HostModuleName(), host_base);
+  EOT_CRITICAL("exception: {} @ host pc {:#018x}", ExceptionCodeName(ex->code()), ex->pc());
+  if (InModule(ex->pc(), host_base))
+    EOT_CRITICAL("faulting RVA: {}+{:#010x}", HostModuleName(), ex->pc() - host_base);
+
+  if (ex->code() == rex::arch::Exception::Code::kAccessViolation) {
+    const u64 fa = ex->fault_address();
+    EOT_CRITICAL("fault address: {:#018x} ({})", fa, AvOperationName(ex->access_violation_operation()));
+    auto *rt = rex::Runtime::instance();
+    u8 *membase = rt ? rt->virtual_membase() : nullptr;
+    const u64 base = reinterpret_cast<u64>(membase);
+    if (membase && fa >= base && fa < base + kGuestAddressSpaceSize)
+      EOT_CRITICAL("guest fault VA: {:#010x}", static_cast<u32>(fa - base));
+  }
+
+  EOT_CRITICAL("registers:");
+  LogRegisters(ex->thread_context());
+  LogStackCodeAddresses(ex->thread_context(), host_base);
+  rex::FlushLogging();
+  LogBacktrace(host_base);
+  EOT_CRITICAL("===================================================");
+  rex::FlushLogging();
+
+  const std::string where = InModule(ex->pc(), host_base)
+                                ? fmt::format("{}+{:#010x}", HostModuleName(), ex->pc() - host_base)
+                                : fmt::format("{:#018x}", ex->pc());
+  ShowFatalError("reeot crashed",
+                 fmt::format("reeot hit a fatal error and has to close.\n\n{} at {}", ExceptionCodeName(ex->code()),
+                             where));
+  return false;
+}
+
+[[noreturn]] void TerminateHandler() {
+  if (s_reporting.test_and_set(std::memory_order_acq_rel))
+    std::_Exit(3);
+
+  std::string detail = "std::terminate with no active exception";
+  if (auto current = std::current_exception()) {
+    try {
+      std::rethrow_exception(current);
+    } catch (const std::exception &e) {
+      detail = std::string("uncaught ") + typeid(e).name() + ": " + e.what();
+    } catch (...) {
+      detail = "uncaught exception of a non-std type";
+    }
+  }
+
+  EOT_CRITICAL("================ reeot host crash ================");
+  EOT_CRITICAL("build: reeot " REEOT_VERSION_STRING " " REEOT_GIT_COMMIT " " REXGLUE_BUILD_TITLE);
+  EOT_CRITICAL("{}", detail);
+  LogBacktrace(HostModuleBase());
+  EOT_CRITICAL("===================================================");
+  rex::FlushLogging();
+  ShowFatalError("reeot crashed", "reeot hit a fatal error and has to close.\n\n" + detail);
+  std::abort();
+}
+
+}
+
+void InstallTerminateHandler() {
+  if (g_host_module_name.empty())
+    g_host_module_name = rex::filesystem::GetExecutablePath().filename().string();
+  std::set_terminate(&TerminateHandler);
+}
+
+void InstallCrashHandler() {
+  InstallTerminateHandler();
+  if (g_crash_handler_installed)
+    return;
+  rex::arch::ExceptionHandler::Install(&CrashHandler, nullptr);
+  g_crash_handler_installed = true;
+  EOT_DEBUG("[crash] last-chance handler installed");
+}
+
+void UninstallCrashHandler() {
+  if (!g_crash_handler_installed)
+    return;
+  rex::arch::ExceptionHandler::Uninstall(&CrashHandler, nullptr);
+  g_crash_handler_installed = false;
+}
+
+}

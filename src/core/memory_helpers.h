@@ -10,14 +10,16 @@ template <typename T> using be = rex::be<T>;
 namespace mem {
 
 template <typename T> inline T *at(u32 va) {
-  auto *memory = REX_KERNEL_MEMORY();
+  auto *kernel = REX_KERNEL_STATE();
+  auto *memory = kernel ? kernel->memory() : nullptr;
   if (!memory || va < 0x1000)
     return nullptr;
   return memory->template TranslateVirtual<T *>(va);
 }
 
 template <typename T> inline T *phys(u32 gpu_address) {
-  auto *memory = REX_KERNEL_MEMORY();
+  auto *kernel = REX_KERNEL_STATE();
+  auto *memory = kernel ? kernel->memory() : nullptr;
   if (!memory)
     return nullptr;
   return memory->template TranslatePhysical<T *>(gpu_address & 0x1FFFFFFFu);
