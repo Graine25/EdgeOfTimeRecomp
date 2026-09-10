@@ -10,9 +10,9 @@
  *          Data/GameLogic.dllp, are laid beside the disc's Default.xex and
  *          GameLogic.dll: the SDK loader applies a sibling patch when it
  *          loads a module, so the game boots with the update without the
- *          port patching anything itself. DLC packages are copied as they
- *          are into the content tree the SDK enumerates,
- *          Content/0000000000000000/<title id>/<content type>/.
+ *          port patching anything itself. DLC packages are kept as they
+ *          are in the install's dlc folder, and published into the profile
+ *          at every boot (installer/dlc_publish.h).
  * @license BSD 3-Clause, see LICENSE
  */
 #pragma once

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "installer/dlc_publish.h"
 #include "installer/install_registry.h"
 #include "installer/self_install.h"
 

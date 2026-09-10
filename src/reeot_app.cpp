@@ -183,6 +183,8 @@ rex::PathConfig ReeotApp::PathsForInstall(const rex::PathConfig &defaults,
   UseInstallRoot(cfg.install_root, paths);
   paths.game_data_root = cfg.game_data_path();
   eot::installer::WritePortFiles(paths.game_data_root);
+  eot::installer::PublishDlc(cfg.install_root / eot::installer::kDlcFolderName, paths.game_data_root,
+                             profile_root_);
   EOT_INFO("[install] using the install at {} (recorded by {}; profile {})", cfg.install_root.string(),
            cfg.app_version, profile_root_.string());
   return paths;
@@ -193,6 +195,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
   if (auto named = NamedGameFolder()) {
     EOT_INFO("[install] game folder {}", named->string());
     eot::installer::WritePortFiles(*named);
+    eot::installer::PublishDlc(install_root_ / eot::installer::kDlcFolderName, *named, profile_root_);
     rex::PathConfig paths = defaults;
     paths.game_data_root = *named;
     return paths;
@@ -348,6 +351,7 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
     EOT_INFO("[install] {} settings written to {}", choices.settings.size(), paths.config_path.string());
   }
   eot::installer::AdoptLegacyUserData(profile_root_);
+  eot::installer::PublishDlc(install_root / eot::installer::kDlcFolderName, cfg.game_data_path(), profile_root_);
 
   if (choices.create_shortcut) {
     std::string shortcut_error;
