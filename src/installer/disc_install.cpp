@@ -11,6 +11,7 @@
 #include <rex/system/xcontent.h>
 
 #include <array>
+#include <optional>
 #include <format>
 #include <fstream>
 #include <utility>
@@ -153,6 +154,102 @@ bool ExtractPackageFile(Entry *entry, const fs::path &dest_path, InstallProgress
 
 constexpr std::array<const char *, 2> kUpdateFiles = {"Default.xexp", "Data/GameLogic.dllp"};
 
+bool ReadXexVersions(const fs::path &xex, uint32_t &version, uint32_t &base_version) {
+  std::ifstream in(xex, std::ios::binary);
+  if (!in)
+    return false;
+  auto read_be32 = [&](std::streamoff at, uint32_t &out) {
+    uint8_t b[4];
+    in.seekg(at);
+    in.read(reinterpret_cast<char *>(b), 4);
+    if (!in)
+      return false;
+    out = (uint32_t(b[0]) << 24) | (uint32_t(b[1]) << 16) | (uint32_t(b[2]) << 8) | uint32_t(b[3]);
+    return true;
+  };
+  uint32_t magic = 0, header_count = 0;
+  if (!read_be32(0, magic) || magic != 0x58455832u || !read_be32(0x14, header_count))
+    return false;
+  constexpr uint32_t kExecutionInfoKey = 0x00040006;
+  for (uint32_t i = 0; i < header_count && i < 256; ++i) {
+    uint32_t key = 0, offset = 0;
+    if (!read_be32(0x18 + i * 8, key) || !read_be32(0x18 + i * 8 + 4, offset))
+      return false;
+    if (key != kExecutionInfoKey)
+      continue;
+    return read_be32(offset + 4, version) && read_be32(offset + 8, base_version);
+  }
+  return false;
+}
+
+bool IsContentPackagePath(const std::string &rel) {
+  if (rel.rfind("Content/", 0) != 0)
+    return false;
+  size_t slashes = 0;
+  for (char c : rel)
+    slashes += c == '/';
+  return slashes == 4;
+}
+
+}
+
+std::optional<GameFolder> InspectGameFolder(const fs::path &picked, std::string &error) {
+  std::error_code ec;
+  fs::path root;
+  if (fs::is_regular_file(picked / "Default.xex", ec))
+    root = picked;
+  else if (fs::is_regular_file(picked / "game" / "Default.xex", ec))
+    root = picked / "game";
+  else {
+    error = "No Default.xex in the folder";
+    return std::nullopt;
+  }
+  if (!fs::is_regular_file(root / "Data" / "GameLogic.dll", ec)) {
+    error = "No Data/GameLogic.dll beside Default.xex";
+    return std::nullopt;
+  }
+
+  GameFolder folder;
+  folder.root = root;
+  bool xexp = false, dllp = false;
+  for (const auto &it : fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied, ec)) {
+    if (ec || !it.is_regular_file(ec))
+      continue;
+    const std::string rel = fs::relative(it.path(), root, ec).generic_string();
+    if (ec || rel.empty())
+      continue;
+    if (rel.rfind("$SystemUpdate/", 0) == 0 || rel == "Data/ReeotUI.pkz")
+      continue;
+    if (rel.rfind("Content/", 0) == 0) {
+      if (IsContentPackagePath(rel))
+        folder.content_packages.push_back(it.path());
+      continue;
+    }
+    xexp = xexp || rel == kUpdateFiles[0];
+    dllp = dllp || rel == kUpdateFiles[1];
+    const size_t size = it.file_size(ec);
+    folder.files.emplace_back(rel, size);
+    folder.total_bytes += size;
+  }
+  folder.update_files_present = xexp && dllp;
+
+  uint32_t version = 0, base = 0;
+  if (ReadXexVersions(root / "Default.xex", version, base))
+    folder.executable_patched = version != base;
+  EOT_INFO("[install] game folder {}: {} files, {} bytes, executable version {:#010x} (base {:#010x}), {}, {} "
+           "content package(s)",
+           root.string(), folder.files.size(), folder.total_bytes, version, base,
+           folder.executable_patched ? "patched in place"
+           : folder.update_files_present ? "with the update's patch files"
+                                         : "without the update",
+           folder.content_packages.size());
+  return folder;
+}
+
+std::string GameFolderFingerprint(const GameFolder &folder) {
+  std::error_code ec;
+  return "folder:" + std::to_string(fs::file_size(folder.root / "Default.xex", ec)) + ":" +
+         std::to_string(folder.files.size()) + ":" + std::to_string(folder.total_bytes);
 }
 
 std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &game_data_dest, bool repair,
@@ -160,17 +257,21 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
   return std::thread([sources, game_data_dest, repair, &progress]() {
     auto finish = [&]() { progress.complete.store(true); };
 
-    auto disc = OpenDiscImage(sources.disc);
-    if (!disc) {
-      Fail(progress, "Failed to open the disc image.");
-      finish();
-      return;
-    }
-    Entry *root = disc->ResolvePath("");
-    if (!root) {
-      Fail(progress, "The disc image has no root directory.");
-      finish();
-      return;
+    std::unique_ptr<DiscImageDevice> disc;
+    Entry *root = nullptr;
+    if (!sources.folder) {
+      disc = OpenDiscImage(sources.disc);
+      if (!disc) {
+        Fail(progress, "Failed to open the disc image.");
+        finish();
+        return;
+      }
+      root = disc->ResolvePath("");
+      if (!root) {
+        Fail(progress, "The disc image has no root directory.");
+        finish();
+        return;
+      }
     }
 
     struct PlanItem {
@@ -196,12 +297,17 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
       plan.push_back({std::move(path), entry, std::move(host_file), size, needs_copy});
     };
 
-    std::vector<std::pair<std::string, Entry *>> disc_files;
-    CollectFiles(root, "", disc_files);
-    for (auto &[rel, entry] : disc_files) {
-      if (rel.rfind("$SystemUpdate/", 0) == 0 || rel.rfind("$SystemUpdate\\", 0) == 0)
-        continue;
-      add(rel, entry, {}, entry->size());
+    if (sources.folder) {
+      for (const auto &[rel, size] : sources.folder->files)
+        add(rel, nullptr, sources.folder->root / fs::path(rel), size);
+    } else {
+      std::vector<std::pair<std::string, Entry *>> disc_files;
+      CollectFiles(root, "", disc_files);
+      for (auto &[rel, entry] : disc_files) {
+        if (rel.rfind("$SystemUpdate/", 0) == 0 || rel.rfind("$SystemUpdate\\", 0) == 0)
+          continue;
+        add(rel, entry, {}, entry->size());
+      }
     }
 
     std::unique_ptr<StfsContainerDevice> update;
