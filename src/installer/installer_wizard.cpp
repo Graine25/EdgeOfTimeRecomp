@@ -51,6 +51,7 @@ constexpr const char *kSuggestedResolution = "1080p";
 #else
 constexpr const char *kSuggestedResolution = "720p";
 #endif
+constexpr const char *kSuggestedVsync = "false";
 
 struct SettingRow {
   const char *label;
@@ -70,10 +71,7 @@ const SettingRow kSettingRows[] = {
     {"Frame rate limit",
      "eot_fps_limit",
      {{"30 fps", "30"}, {"60 fps", "60"}, {"120 fps", "120"}, {"Unlimited", "0"}}},
-};
-
-constexpr std::pair<const char *, const char *> kImpliedSettings[] = {
-    {"eot_vsync", "false"},
+    {"Vsync", "eot_vsync", {{"Off", "false"}, {"On", "true"}}},
 };
 
 int RowSelected(const SettingRow &row) {
@@ -244,16 +242,14 @@ void InstallerWizard::SuggestDefaults() {
   };
   suggest("eot_quality_preset", kSuggestedPreset);
   suggest("eot_resolution", kSuggestedResolution);
-  for (const auto &[cvar, value] : kImpliedSettings)
-    rex::cvar::SetFlagByName(cvar, value);
+  if (!rex::cvar::HasNonDefaultValue("eot_vsync"))
+    rex::cvar::SetFlagByName("eot_vsync", kSuggestedVsync);
 }
 
 void InstallerWizard::RecordSettings() {
   choices_.settings.clear();
   for (const SettingRow &row : kSettingRows)
     choices_.settings.push_back({row.cvar, rex::cvar::GetFlagByName(row.cvar)});
-  for (const auto &[cvar, value] : kImpliedSettings)
-    choices_.settings.push_back({cvar, value});
 }
 
 void InstallerWizard::Prefill() {
