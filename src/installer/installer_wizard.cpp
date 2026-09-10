@@ -72,6 +72,10 @@ const SettingRow kSettingRows[] = {
      {{"30 fps", "30"}, {"60 fps", "60"}, {"120 fps", "120"}, {"Unlimited", "0"}}},
 };
 
+constexpr std::pair<const char *, const char *> kImpliedSettings[] = {
+    {"eot_vsync", "false"},
+};
+
 int RowSelected(const SettingRow &row) {
   const std::string current = rex::cvar::GetFlagByName(row.cvar);
   for (size_t i = 0; i < row.values.size(); ++i)
@@ -240,12 +244,16 @@ void InstallerWizard::SuggestDefaults() {
   };
   suggest("eot_quality_preset", kSuggestedPreset);
   suggest("eot_resolution", kSuggestedResolution);
+  for (const auto &[cvar, value] : kImpliedSettings)
+    rex::cvar::SetFlagByName(cvar, value);
 }
 
 void InstallerWizard::RecordSettings() {
   choices_.settings.clear();
   for (const SettingRow &row : kSettingRows)
     choices_.settings.push_back({row.cvar, rex::cvar::GetFlagByName(row.cvar)});
+  for (const auto &[cvar, value] : kImpliedSettings)
+    choices_.settings.push_back({cvar, value});
 }
 
 void InstallerWizard::Prefill() {
