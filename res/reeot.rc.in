@@ -1,0 +1,31 @@
+// The Windows resources of reeot.exe, configured by CMake (the version
+// comes from project()). Icon 1 is the first icon in the file, which is the
+// one Explorer, the taskbar, the desktop shortcut and SDL's window class
+// pick up on their own.
+#include <winver.h>
+
+1 ICON "@REEOT_ICON_FILE@"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION    @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+PRODUCTVERSION @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+FILEOS         VOS_NT_WINDOWS32
+FILETYPE       VFT_APP
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "FileDescription", "Spider-Man: Edge of Time, recompiled"
+      VALUE "FileVersion",     "@PROJECT_VERSION@"
+      VALUE "InternalName",    "reeot"
+      VALUE "OriginalFilename", "reeot.exe"
+      VALUE "ProductName",     "reeot"
+      VALUE "ProductVersion",  "@PROJECT_VERSION@"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1200
+  END
+END
