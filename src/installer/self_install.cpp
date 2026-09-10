@@ -11,6 +11,16 @@ namespace eot::installer {
 
 namespace fs = std::filesystem;
 
+std::vector<std::string> MissingProgramFiles() {
+  const fs::path here = rex::filesystem::GetExecutableFolder();
+  std::vector<std::string> missing;
+  std::error_code ec;
+  for (const char *rel : kProgramFiles)
+    if (!fs::exists(here / rel, ec))
+      missing.push_back(rel);
+  return missing;
+}
+
 bool CopyProgramTo(const fs::path &install, std::string &error) {
   const fs::path here = rex::filesystem::GetExecutableFolder();
   std::error_code ec;
@@ -22,8 +32,8 @@ bool CopyProgramTo(const fs::path &install, std::string &error) {
     const fs::path src = here / rel;
     const fs::path dst = install / rel;
     if (!fs::exists(src, ec)) {
-      EOT_WARN("[install] program file {} is not beside the executable; skipped", rel);
-      continue;
+      error = std::string(rel) + " is not beside " + here.string();
+      return false;
     }
     fs::create_directories(dst.parent_path(), ec);
     if (fs::is_directory(src, ec)) {

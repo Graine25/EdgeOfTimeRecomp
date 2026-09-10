@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include <rex/cvar.h>
-#include <rex/dbg.h>
 #include <rex/filesystem.h>
 #include <rex/perf/counter.h>
 #include <rex/runtime.h>
@@ -160,15 +159,6 @@ void ReeotApp::OnConfigurePaths(rex::PathConfig &paths) {
     return;
   }
   UseInstallRoot(*root, paths);
-
-  if (!SamePlace(eot::platform::ProgramDir(), install_root_)) {
-    const std::string warning =
-        "reeot is running outside of its install folder. Run reeot.exe from " + install_root_.string();
-    if (rex::debug::IsDebuggerAttached())
-      EOT_WARN("{}", warning);
-    else
-      eot::platform::ShowWarning("reeot", warning);
-  }
 }
 
 void ReeotApp::OnPostInitLogging() {
@@ -198,20 +188,6 @@ rex::PathConfig ReeotApp::PathsForInstall(const rex::PathConfig &defaults,
   return paths;
 }
 
-bool ReeotApp::NeedsUpgradePrompt(const eot::installer::InstallConfig &cfg) const {
-#ifdef REEOT_BUILD_INSTALLER
-  return !SamePlace(eot::platform::ProgramDir(), cfg.install_root);
-#else
-  (void)cfg;
-  return false;
-#endif
-}
-
-void ReeotApp::RestampInstall(const eot::installer::InstallConfig &cfg) {
-  if (!eot::installer::WriteInstallRegistry(cfg))
-    EOT_WARN("[install] the record could not be restamped; the update will be offered again");
-}
-
 std::optional<rex::PathConfig>
 ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(rex::PathConfig)> resume) {
   if (auto named = NamedGameFolder()) {
@@ -232,22 +208,8 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
   if (auto cfg = eot::installer::ReadInstallRegistry()) {
     const bool present = eot::installer::InstallIsPresent(*cfg);
     const bool current = cfg->schema_version == eot::installer::kInstallSchemaVersion;
-    if (present && current && !repair_requested) {
-      if (cfg->app_version != REEOT_VERSION_STRING) {
-        EOT_INFO("[install] the install at {} records version {}, this is {}", cfg->install_root.string(),
-                 cfg->app_version, REEOT_VERSION_STRING);
-#ifdef REEOT_BUILD_INSTALLER
-        if (NeedsUpgradePrompt(*cfg)) {
-          if (!BeginPreGuestUI())
-            return std::nullopt;
-          BeginUpgrade(*cfg, defaults, resume);
-          return std::nullopt;
-        }
-#endif
-        RestampInstall(*cfg);
-      }
+    if (present && current && !repair_requested)
       return PathsForInstall(defaults, *cfg);
-    }
     if (repair_requested)
       EOT_INFO("[install] eot_repair: opening the installer in repair mode on {}", cfg->install_root.string());
     else if (!present)
@@ -339,40 +301,6 @@ void ReeotApp::QuitNow() {
 }
 
 #ifdef REEOT_BUILD_INSTALLER
-void ReeotApp::BeginUpgrade(const eot::installer::InstallConfig &cfg, rex::PathConfig defaults,
-                            std::function<void(rex::PathConfig)> resume) {
-  upgrade_prompt_ = std::make_unique<eot::installer::UpgradePrompt>(
-      imgui_drawer(), app_context(), cfg.install_root, cfg.app_version,
-      [this, cfg, defaults, resume](bool accepted) { FinishUpgrade(accepted, cfg, defaults, resume); });
-}
-
-void ReeotApp::FinishUpgrade(bool accepted, eot::installer::InstallConfig cfg, rex::PathConfig defaults,
-                             std::function<void(rex::PathConfig)> resume) {
-  StopPreGuestPump();
-  upgrade_prompt_.reset();
-
-  if (!accepted) {
-    EOT_INFO("[install] update declined; booting the install as it stands");
-    eot::platform::UninstallCrashHandler();
-    resume(PathsForInstall(defaults, cfg));
-    return;
-  }
-
-  std::string copy_error;
-  if (!eot::installer::CopyProgramTo(cfg.install_root, copy_error)) {
-    eot::platform::ShowFatalError("Update failed", "Could not copy " + copy_error + " into " +
-                                                       cfg.install_root.string() +
-                                                       "\n\nThe installed version is untouched.");
-    QuitNow();
-  }
-  RestampInstall(cfg);
-  if (!eot::platform::SpawnReplacement(cfg.install_root / kExecutable))
-    eot::platform::ShowFatalError("Updated, could not start it",
-                                  std::string("reeot is up to date. Run ") + kExecutable + " from\n" +
-                                      cfg.install_root.string());
-  QuitNow();
-}
-
 void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex::PathConfig)> resume,
                                bool completed, const eot::installer::InstallConfig &cfg,
                                const eot::installer::WizardChoices &choices) {
@@ -390,8 +318,8 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
     std::string copy_error;
     if (!eot::installer::CopyProgramTo(install_root, copy_error)) {
       if (eot::platform::ShowFatalErrorWithAction("Install failed",
-                                                  "Could not copy " + copy_error + " into " +
-                                                      install_root.string() +
+                                                  "Could not copy the program into " + install_root.string() +
+                                                      ": " + copy_error +
                                                       "\n\nNothing was recorded, so a retry starts over.",
                                                   "Retry", window())) {
         if (!eot::platform::RelaunchSelf())
@@ -511,7 +439,6 @@ void ReeotApp::OnShutdown() {
   StopPreGuestPump();
 #ifdef REEOT_BUILD_INSTALLER
   installer_wizard_.reset();
-  upgrade_prompt_.reset();
 #endif
   eot::gpu::Video::BeginShutdown();
   eot::gpu::Video::Shutdown();

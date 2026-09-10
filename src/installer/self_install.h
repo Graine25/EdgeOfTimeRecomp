@@ -9,8 +9,11 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace eot::installer {
+
+std::vector<std::string> MissingProgramFiles();
 
 bool CopyProgramTo(const std::filesystem::path &install, std::string &error);
 
