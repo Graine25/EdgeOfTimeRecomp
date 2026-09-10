@@ -130,10 +130,10 @@ REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video",
 REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video",
                       "Display gamma applied at present before the console's own ramp "
                       "(0.5 .. 2.0, 1 = off).");
-REXCVAR_DEFINE_INT32(eot_perf_frames, 0, "EdgeOfTime/Debug",
+REXCVAR_DEFINE_INT32(eot_perf_frames, 600, "EdgeOfTime/Debug",
                      "Log a [perf] line every N presented frames: CPU ms per frame in draws, "
                      "resolves, texture uploads, shader links, pipeline builds and the present "
-                     "phases, plus upload bytes (0 = off).");
+                     "phases, plus upload bytes and GPU ms per frame (0 = off).");
 
 REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame whose draws are logged in detail and whose resolve "
