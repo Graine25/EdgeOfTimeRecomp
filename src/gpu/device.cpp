@@ -798,8 +798,9 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   }
   s.command_list = s.command_lists[0].get();
 
-  plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM,
-                                  kNumFrames + 1);
+  constexpr uint32_t kMaxFrameLatency = 2;
+  plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM, kNumFrames + 1,
+                                  false, kMaxFrameLatency);
   s.swap_chain = s.queue->createSwapChain(desc);
   if (s.swap_chain) {
     s.swap_chain->setVsyncEnabled(Settings::Vsync());
@@ -852,6 +853,11 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
            RenderScaleFactor(), kGuestRenderWidth, kGuestRenderHeight,
            Settings::Vsync() ? "on" : "off",
            Settings::FpsLimit() > 0 ? std::to_string(Settings::FpsLimit()) : std::string("none"));
+#if defined(EOT_D3D12)
+  EOT_INFO("[gpu] swap chain: {} buffers, {} frames in flight, tearing {}", kNumFrames + 1, kMaxFrameLatency,
+           static_cast<plume::D3D12Interface *>(s.render_iface.get())->allowTearing ? "allowed"
+                                                                                  : "not supported here");
+#endif
   return true;
 }
 
