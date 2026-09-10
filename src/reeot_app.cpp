@@ -86,6 +86,7 @@ void ApplyReeotCvarDefaults() {
   SetCvarDefault("hid_mappings_file",
                  (rex::filesystem::GetExecutableFolder() / "gamecontrollerdb.txt").generic_string());
   SetCvarDefault("log_flush_interval", "1");
+  SetCvarDefault("license_mask", "1");
 }
 
 std::string SanitizeProfileName(const std::string &raw) {
