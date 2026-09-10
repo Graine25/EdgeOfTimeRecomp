@@ -818,7 +818,7 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
 
   constexpr uint32_t kMaxFrameLatency = 2;
   plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM, kNumFrames + 1,
-                                  false, kMaxFrameLatency);
+                                  true, kMaxFrameLatency);
   s.swap_chain = s.queue->createSwapChain(desc);
   if (s.swap_chain) {
     s.swap_chain->setVsyncEnabled(Settings::Vsync());

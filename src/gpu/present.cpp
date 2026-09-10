@@ -450,6 +450,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     bool acquired = false;
     {
       PerfScope perf_scope(s.perf.acquire_ms);
+      s.swap_chain->wait();
       acquired = s.swap_chain->acquireTexture(s.acquire_semaphores[cur].get(), &image) &&
                  image < s.swap_framebuffers.size();
     }
