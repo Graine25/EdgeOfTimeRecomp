@@ -104,6 +104,7 @@ set(REEOT_SOURCES
     src/gpu/format.cpp
     src/gpu/constant_buffers.cpp
     src/gpu/textures.cpp
+    src/gpu/texture_replace.cpp
     src/gpu/surfaces.cpp
     src/gpu/vertex_layout.cpp
     src/gpu/draw.cpp
