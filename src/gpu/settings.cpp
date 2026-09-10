@@ -59,7 +59,7 @@ REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video", "Screen brightnes
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video", "Screen contrast amount");
 REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video", "Screen color saturation");
 REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video", "Screen gamma curve");
-REXCVAR_DEFINE_INT32(eot_perf_frames, 0, "EdgeOfTime/Debug", "Perf log every N frames");
+REXCVAR_DEFINE_INT32(eot_perf_frames, 600, "EdgeOfTime/Debug", "Perf log every N frames");
 
 REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug", "Frame to log in detail")
     .range(0, 100000000);

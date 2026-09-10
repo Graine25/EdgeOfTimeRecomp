@@ -13,6 +13,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include <SDL3/SDL.h>
 #include <plume_render_interface.h>
 #include <plume_render_interface_builders.h>
 #if defined(EOT_D3D12)
@@ -750,6 +751,23 @@ plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat d
   return raw;
 }
 
+namespace {
+
+std::string PanelMode() {
+  int count = 0;
+  SDL_Window **windows = SDL_GetWindows(&count);
+  SDL_Window *win = (windows && count > 0) ? windows[0] : nullptr;
+  SDL_free(windows);
+  if (!win)
+    return "unknown";
+  const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(win));
+  if (!mode)
+    return "unknown";
+  return fmt::format("{}x{} @ {:.0f} Hz", mode->w, mode->h, mode->refresh_rate);
+}
+
+}
+
 bool Video::CreateHostDevice(rex::ui::Window *window) {
   if (!window) {
     EOT_ERROR("Video::CreateHostDevice: null window");
@@ -797,8 +815,9 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   }
   s.command_list = s.command_lists[0].get();
 
-  plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM,
-                                  kNumFrames + 1);
+  constexpr uint32_t kMaxFrameLatency = 2;
+  plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM, kNumFrames + 1,
+                                  true, kMaxFrameLatency);
   s.swap_chain = s.queue->createSwapChain(desc);
   if (s.swap_chain) {
     s.swap_chain->setVsyncEnabled(Settings::Vsync());
@@ -851,6 +870,13 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
            RenderScaleFactor(), kGuestRenderWidth, kGuestRenderHeight,
            Settings::Vsync() ? "on" : "off",
            Settings::FpsLimit() > 0 ? std::to_string(Settings::FpsLimit()) : std::string("none"));
+#if defined(EOT_D3D12)
+  EOT_INFO("[gpu] swap chain: {} buffers, {} frames in flight, tearing {}; panel {}", kNumFrames + 1,
+           kMaxFrameLatency,
+           static_cast<plume::D3D12Interface *>(s.render_iface.get())->allowTearing ? "allowed"
+                                                                                  : "not supported here",
+           PanelMode());
+#endif
   return true;
 }
 

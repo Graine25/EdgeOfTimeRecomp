@@ -47,13 +47,12 @@ protected:
   void OnDraw(ImGuiIO &io) override;
 
 private:
-  enum class Page { Content, Options, Installing, Done };
+  enum class Page { Main, Installing, Done };
 
-  void DrawContent();
-  void DrawOptions();
+  void DrawMain();
   void DrawSources();
   void DrawDlcSection();
-  void DrawPreferences();
+  void DrawSettings();
   void DrawFooter();
   void DrawInstalling();
   void DrawDone();
@@ -63,7 +62,10 @@ private:
   void PickDlc();
   void PickInstallDir();
   void Prefill();
+  void SuggestDefaults();
+  void RecordSettings();
   void AddDlc(const std::filesystem::path &path);
+  std::string MissingProgramFilesLine() const;
   void ValidateDisc();
   void ValidateUpdate();
   bool InputsReady() const;
@@ -79,7 +81,7 @@ private:
   std::unique_ptr<rex::ui::ImmediateTexture> background_texture_;
   bool background_tried_ = false;
 
-  Page page_ = Page::Content;
+  Page page_ = Page::Main;
 
   std::filesystem::path disc_path_;
   bool disc_valid_ = false;
@@ -100,6 +102,7 @@ private:
 
   std::filesystem::path install_dir_;
   std::string install_status_;
+  std::vector<std::string> missing_program_files_;
 
   WizardChoices choices_;
   bool create_shortcut_ = false;

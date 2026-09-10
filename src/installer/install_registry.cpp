@@ -3,6 +3,16 @@
 #include "core/build_info.h"
 #include "core/logging.h"
 
+namespace eot::installer {
+
+std::filesystem::path InstallRootFor(const std::filesystem::path &picked) {
+  if (picked.filename() == kInstallFolderName)
+    return picked;
+  return picked / kInstallFolderName;
+}
+
+}
+
 #if defined(_WIN32)
 #include <windows.h>
 

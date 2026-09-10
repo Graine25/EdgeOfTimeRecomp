@@ -7,8 +7,9 @@
  *
  *          The startup follows reblue's app (BSD 3-Clause, Tom Clay): the
  *          cvar defaults the port moves, the single-instance lock, the build
- *          banner, the crash reporters, the three answers to where the game
- *          is, the offer to copy a newer build over the install.
+ *          banner, the crash reporters, the install root with its profiles,
+ *          the three answers to where the game is. Not its updater: an
+ *          install is booted as it is, from wherever the exe runs.
  * @license BSD 3-Clause, see LICENSE
  */
 #pragma once
@@ -18,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <thread>
 
 #include <rex/rex_app.h>
@@ -47,9 +49,10 @@ protected:
   bool OnWindowCloseRequested() override;
 
 private:
+  std::optional<std::filesystem::path> NamedGameFolder() const;
+  std::optional<std::filesystem::path> EarlyInstallRoot() const;
+  void UseInstallRoot(const std::filesystem::path &root, rex::PathConfig &paths);
   rex::PathConfig PathsForInstall(const rex::PathConfig &defaults, const eot::installer::InstallConfig &cfg);
-  bool NeedsUpgradePrompt(const eot::installer::InstallConfig &cfg) const;
-  void RestampInstall(const eot::installer::InstallConfig &cfg);
 
   void InstallOverlayHook();
   bool BeginPreGuestUI();
@@ -58,16 +61,15 @@ private:
   void QuitNow();
 
 #ifdef REEOT_BUILD_INSTALLER
-  void BeginUpgrade(const eot::installer::InstallConfig &cfg, rex::PathConfig defaults,
-                    std::function<void(rex::PathConfig)> resume);
-  void FinishUpgrade(bool accepted, eot::installer::InstallConfig cfg, rex::PathConfig defaults,
-                     std::function<void(rex::PathConfig)> resume);
   void FinishInstaller(rex::PathConfig defaults, std::function<void(rex::PathConfig)> resume, bool completed,
                        const eot::installer::InstallConfig &cfg, const eot::installer::WizardChoices &choices);
 
   std::unique_ptr<eot::installer::InstallerWizard> installer_wizard_;
-  std::unique_ptr<eot::installer::UpgradePrompt> upgrade_prompt_;
 #endif
+
+  std::string active_profile_ = "default";
+  std::filesystem::path install_root_;
+  std::filesystem::path profile_root_;
 
   std::thread pre_guest_pump_;
   std::atomic<bool> pre_guest_pump_stop_{false};

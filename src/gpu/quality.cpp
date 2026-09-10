@@ -21,7 +21,7 @@ struct Gate {
 };
 
 constexpr Gate kGates[] = {
-    {"eot_msaa", "0", "2", "4"},
+    {"eot_msaa", "0", "4", "8"},
     {"eot_upscale", "bilinear", "bicubic", "lanczos"},
     {"eot_anisotropy", "0", "8", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096"},

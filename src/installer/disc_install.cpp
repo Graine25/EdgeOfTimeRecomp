@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "core/logging.h"
+#include "installer/dlc_publish.h"
 
 namespace eot::installer {
 
@@ -175,6 +176,7 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
 
     struct PlanItem {
       std::string path;
+      fs::path dest;
       Entry *entry;
       fs::path host_file;
       size_t size;
@@ -189,11 +191,15 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
       std::error_code ec;
       return !(fs::exists(dest, ec) && fs::file_size(dest, ec) == size);
     };
-    auto add = [&](std::string path, Entry *entry, fs::path host_file, size_t size) {
-      const bool needs_copy = will_copy(game_data_dest / fs::path(path), size);
+    auto add_to = [&](std::string path, fs::path dest, Entry *entry, fs::path host_file, size_t size) {
+      const bool needs_copy = will_copy(dest, size);
       if (needs_copy)
         total_bytes += size;
-      plan.push_back({std::move(path), entry, std::move(host_file), size, needs_copy});
+      plan.push_back({std::move(path), std::move(dest), entry, std::move(host_file), size, needs_copy});
+    };
+    auto add = [&](std::string path, Entry *entry, fs::path host_file, size_t size) {
+      const fs::path dest = game_data_dest / fs::path(path);
+      add_to(std::move(path), dest, entry, std::move(host_file), size);
     };
 
     std::vector<std::pair<std::string, Entry *>> disc_files;
@@ -226,15 +232,6 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
       }
     }
 
-    if (!sources.packages.empty()) {
-      std::error_code ec;
-      for (const auto &it : fs::directory_iterator(sources.packages, ec)) {
-        if (!it.is_regular_file() || it.path().extension() != ".pkz")
-          continue;
-        add("Data/" + it.path().filename().string(), nullptr, it.path(), fs::file_size(it.path(), ec));
-      }
-    }
-
     for (const fs::path &package : sources.dlc) {
       const PackageInfo info = InspectPackage(package);
       if (!info.ok) {
@@ -244,9 +241,9 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
       }
       std::error_code ec;
       const size_t size = fs::file_size(package, ec);
-      const std::string rel = std::format("Content/0000000000000000/{:08X}/{:08X}/{}", info.title_id,
-                                          info.content_type, package.filename().string());
-      add(rel, nullptr, package, size);
+      const fs::path dlc_dir = game_data_dest.parent_path() / kDlcFolderName;
+      add_to(std::string(kDlcFolderName) + "/" + package.filename().string(), dlc_dir / package.filename(),
+             nullptr, package, size);
     }
 
     progress.files_total.store(plan.size());
@@ -265,7 +262,7 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
         continue;
       }
       progress.SetCurrentFile(item.path);
-      const fs::path dest = game_data_dest / fs::path(item.path);
+      const fs::path &dest = item.dest;
       bool ok = false;
       if (item.entry == nullptr) {
         fs::create_directories(dest.parent_path(), ec);
