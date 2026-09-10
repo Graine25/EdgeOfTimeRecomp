@@ -391,6 +391,7 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
     SetCvarValue("mnk_mode", "false");
 
   SetCvarValue("eot_debug_pause", "false");
+  SetCvarValue("eot_freecam", "false");
   if (eot::gpu::Settings::Profiler()) {
 #if defined(EOT_PROFILING)
     rex::perf::Profiler::Startup();
