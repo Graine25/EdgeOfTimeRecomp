@@ -41,8 +41,7 @@ ImFont *g_path_font = nullptr;
 constexpr const char *kTitleMain = "reeot - Installer";
 constexpr const char *kTitleRepair = "reeot - Repair";
 constexpr const char *kRepairNotice =
-    "An existing install was detected. Select the disc image and the title update again to add or "
-    "repair files; files already installed are left in place.";
+    "Existing install found. Pick the disc image and the title update again; files already there are kept.";
 constexpr const char *kSpaceHint = "(~6 GB required)";
 
 constexpr const char *kSuggestedPreset = "medium";
@@ -95,6 +94,18 @@ void DrawTitle(const char *text) {
   ImGui::TextUnformatted(text);
   if (g_title_font)
     ImGui::PopFont();
+}
+
+std::string ShownName(const std::string &utf8) {
+  std::string out;
+  for (size_t i = 0; i < utf8.size();) {
+    const auto lead = static_cast<unsigned char>(utf8[i]);
+    const size_t length = lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
+    if (length <= 2)
+      out.append(utf8, i, length);
+    i += length;
+  }
+  return out;
 }
 
 void SectionHeader(const char *text) {
@@ -232,7 +243,7 @@ std::string InstallerWizard::MissingProgramFilesLine() const {
   std::string line = "Missing beside reeot.exe: ";
   for (size_t i = 0; i < missing_program_files_.size(); ++i)
     line += (i ? ", " : "") + missing_program_files_[i];
-  return line + ". Copy the whole release folder, then start again.";
+  return line + ". Copy the whole release folder.";
 }
 
 void InstallerWizard::SuggestDefaults() {
@@ -291,7 +302,7 @@ void InstallerWizard::AddDlc(const std::filesystem::path &path) {
   const PackageInfo info = InspectPackage(entry.path);
   const std::string why = info.ok ? CheckDlcPackage(info) : info.error;
   entry.valid = why.empty();
-  entry.name = info.display_name.empty() ? entry.path.filename().string() : info.display_name;
+  entry.name = info.display_name.empty() ? entry.path.filename().string() : ShownName(info.display_name);
   entry.status = entry.valid ? "Valid" : why;
   dlc_.push_back(std::move(entry));
 }
@@ -554,8 +565,8 @@ void InstallerWizard::DrawMain() {
   DrawDlcSection();
 
   ImGui::Dummy(ImVec2(0, 10));
-  SectionHeader("Install Directory");
-  DirectoryRow("Install Location", repair_ ? "(existing install)" : kSpaceHint, install_dir_, "install_dir",
+  SectionHeader("Install Folder");
+  DirectoryRow("Location", repair_ ? "(existing install)" : kSpaceHint, install_dir_, "install_dir",
                [this]() { PickInstallDir(); });
 
   ImGui::Dummy(ImVec2(0, 10));
@@ -565,7 +576,7 @@ void InstallerWizard::DrawMain() {
 }
 
 void InstallerWizard::DrawSources() {
-  SectionHeader("Install Sources");
+  SectionHeader("Sources");
 
   const ImGuiTableFlags flags = ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_NoBordersInBody;
   if (!ImGui::BeginTable("##inputs", 3, flags))
@@ -574,10 +585,10 @@ void InstallerWizard::DrawSources() {
   ImGui::TableSetupColumn("##path", ImGuiTableColumnFlags_WidthStretch);
   ImGui::TableSetupColumn("##status", ImGuiTableColumnFlags_WidthFixed, 260.0f);
 
-  SourceRow("disc", "Select Disc Image", disc_path_, "not selected", disc_valid_, disc_status_,
+  SourceRow("disc", "Disc Image...", disc_path_, "not selected", disc_valid_, disc_status_,
             [this]() { PickDisc(); });
-  SourceRow("update", "Select Title Update", update_path_, "required: the game was patched by it", update_valid_,
-            update_status_, [this]() { PickUpdate(); });
+  SourceRow("update", "Title Update...", update_path_, "required", update_valid_, update_status_,
+            [this]() { PickUpdate(); });
 
   ImGui::EndTable();
 }
@@ -586,7 +597,7 @@ void InstallerWizard::DrawDlcSection() {
   SectionHeader("Downloadable Content");
 
   if (dlc_.empty()) {
-    ImGui::TextDisabled("No content packages selected.");
+    ImGui::TextDisabled("None selected.");
   } else {
     const char *remove_label = "Remove";
     const float remove_width =
@@ -620,7 +631,7 @@ void InstallerWizard::DrawDlcSection() {
   }
 
   ImGui::Spacing();
-  if (ImGui::Button("Add package...", ImVec2(160, 0)))
+  if (ImGui::Button("Add Package...", ImVec2(160, 0)))
     PickDlc();
 }
 
