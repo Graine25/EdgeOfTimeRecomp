@@ -226,15 +226,6 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
       }
     }
 
-    if (!sources.packages.empty()) {
-      std::error_code ec;
-      for (const auto &it : fs::directory_iterator(sources.packages, ec)) {
-        if (!it.is_regular_file() || it.path().extension() != ".pkz")
-          continue;
-        add("Data/" + it.path().filename().string(), nullptr, it.path(), fs::file_size(it.path(), ec));
-      }
-    }
-
     for (const fs::path &package : sources.dlc) {
       const PackageInfo info = InspectPackage(package);
       if (!info.ok) {

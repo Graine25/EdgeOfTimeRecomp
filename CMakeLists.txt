@@ -50,6 +50,12 @@ add_custom_command(
     COMMENT "Authoring ReeotUI.pkz from tools/pkz/ReeotUI.manifest"
     VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}")
+reeot_embed_generated(
+    INPUT       "${REEOT_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotUI.pkz"
+    ACCESSOR    EmbeddedPortPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_package.h"
+    SOURCES_VAR REEOT_EMBED_PACKAGE_SOURCE)
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -83,6 +89,7 @@ set(REEOT_SOURCES
     src/installer/install_registry.cpp
     src/installer/self_install.cpp
     ${REEOT_EMBED_SOURCES}
+    ${REEOT_EMBED_PACKAGE_SOURCE}
     src/core/critical_section.cpp
     src/core/quit.cpp
     src/gpu/settings.cpp
@@ -179,8 +186,6 @@ endif()
 set(reeot_program_files
     "$<TARGET_FILE_NAME:reeot>"
     "$<TARGET_FILE_NAME:rex::runtime>"
-    "pkz"
-    "metadata"
     "gamecontrollerdb.txt")
 if(TARGET reeot_GameLogic)
     list(APPEND reeot_program_files "$<TARGET_FILE_NAME:reeot_GameLogic>")
@@ -211,9 +216,6 @@ add_custom_command(TARGET reeot POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gamecontrollerdb/gamecontrollerdb.txt"
         $<TARGET_FILE_DIR:reeot>
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/res/metadata"
-        "$<TARGET_FILE_DIR:reeot>/metadata"
     VERBATIM)
 
 target_compile_definitions(reeot PRIVATE

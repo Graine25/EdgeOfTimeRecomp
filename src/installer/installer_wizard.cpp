@@ -436,7 +436,6 @@ void InstallerWizard::StartInstall() {
   sources.update = update_path_;
   for (const auto &d : dlc_)
     sources.dlc.push_back(d.path);
-  sources.packages = platform::ProgramDir() / "pkz";
 
   try {
     install_thread_ = Installer::RunAsync(sources, abs_game, repair_, progress_);
