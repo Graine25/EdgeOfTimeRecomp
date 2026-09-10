@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -59,7 +58,6 @@ private:
   void DrawDone();
 
   void PickDisc();
-  void PickFolder();
   void PickUpdate();
   void PickDlc();
   void PickInstallDir();
@@ -69,9 +67,7 @@ private:
   void AddDlc(const std::filesystem::path &path);
   std::string MissingProgramFilesLine() const;
   void ValidateDisc();
-  void ValidateFolder();
   void ValidateUpdate();
-  bool UpdateCoveredByFolder() const;
   bool InputsReady() const;
   void StartInstall();
   void Finish(bool completed);
@@ -91,11 +87,6 @@ private:
   bool disc_valid_ = false;
   std::string disc_status_;
   std::string disc_fingerprint_;
-
-  std::filesystem::path folder_path_;
-  std::optional<GameFolder> folder_;
-  bool folder_valid_ = false;
-  std::string folder_status_;
 
   std::filesystem::path update_path_;
   bool update_valid_ = false;

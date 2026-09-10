@@ -1,8 +1,7 @@
 /**
  * @file    installer/disc_install.h
- * @brief   The game's disc image (or a folder it was already extracted
- *          to), title update and content packages laid into the install's
- *          game folder.
+ * @brief   The game's disc image, title update and content packages
+ *          extracted into the install's game folder.
  *
  *          After reblue's installer/disc_install (BSD 3-Clause, Tom Clay).
  *          Edge of Time ships on one disc; its title update and DLC come as
@@ -24,10 +23,8 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 namespace rex::filesystem {
@@ -90,22 +87,8 @@ PackageInfo InspectPackage(const std::filesystem::path &path);
 std::string CheckUpdatePackage(const PackageInfo &info);
 std::string CheckDlcPackage(const PackageInfo &info);
 
-struct GameFolder {
-  std::filesystem::path root;
-  std::vector<std::pair<std::string, size_t>> files;
-  size_t total_bytes = 0;
-  bool executable_patched = false;
-  bool update_files_present = false;
-  std::vector<std::filesystem::path> content_packages;
-};
-
-std::optional<GameFolder> InspectGameFolder(const std::filesystem::path &picked, std::string &error);
-
-std::string GameFolderFingerprint(const GameFolder &folder);
-
 struct InstallSources {
   std::filesystem::path disc;
-  std::optional<GameFolder> folder;
   std::filesystem::path update;
   std::vector<std::filesystem::path> dlc;
 };
