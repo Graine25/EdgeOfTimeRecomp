@@ -6,6 +6,7 @@
 #include <rex/hook.h>
 
 #include "core/memory_helpers.h"
+#include "goliath/debug/scene_pause.h"
 #include "gpu/settings.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgrBC_UpdateFrameTime);
@@ -26,6 +27,8 @@ bool UnlockWanted() {
 }
 
 REX_HOOK_RAW(eot_GEEngineMgrBC_UpdateFrameTime) {
+  eot::debug::ScenePauseTick();
+
   if (!UnlockWanted() || eot::mem::load<uint8_t>(kFixedFrameTimeFlag) != 0) {
     __imp__eot_GEEngineMgrBC_UpdateFrameTime(ctx, base);
     return;

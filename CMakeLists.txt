@@ -125,6 +125,7 @@ set(REEOT_SOURCES
     src/gpu/patches/post_effects.cpp
     src/gpu/patches/present_effects.cpp
     src/goliath/input/pc_controls.cpp
+    src/goliath/debug/scene_pause.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
