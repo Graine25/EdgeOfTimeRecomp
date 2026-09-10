@@ -152,6 +152,10 @@ REXCVAR_DEFINE_STRING(eot_rdc_dll,
 REXCVAR_DEFINE_STRING(eot_rdc_path, "D:/reeot_caps/tmp/reeot", "EdgeOfTime/Debug",
                       "RenderDoc capture file path template.");
 
+REXCVAR_DEFINE_BOOL(eot_texture_replace, true, "EdgeOfTime/Config",
+                    "Replace textures with DDS files in the textures/ folder, keyed by content hash.");
+REXCVAR_DEFINE_BOOL(eot_dump_textures, false, "EdgeOfTime/Debug",
+                    "Write every guest texture seen to textures/dump/ as a DDS named by its content hash.");
 REXCVAR_DEFINE_INT32(eot_dump_every, 0, "EdgeOfTime/Debug",
                      "Write the presented back buffer as logs/frame_<N>.ppm every N "
                      "presented frames (0 = off).")
@@ -184,6 +188,8 @@ bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures);
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
+bool Settings::TextureReplace() { return REXCVAR_GET(eot_texture_replace); }
+bool Settings::DumpTextures() { return REXCVAR_GET(eot_dump_textures); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }

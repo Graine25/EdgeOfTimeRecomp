@@ -46,6 +46,8 @@ struct Settings {
   static bool Profiler();
   static i32 PerfFrames();
   static i32 DumpEvery();
+  static bool TextureReplace();
+  static bool DumpTextures();
   static i32 DiagFrame();
   static i32 RenderDocFrame();
   static std::string RenderDocDll();
