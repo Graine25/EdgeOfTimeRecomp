@@ -7,6 +7,7 @@
 #include <rex/hook.h>
 
 #include "core/memory_helpers.h"
+#include "goliath/debug/freecam.h"
 #include "goliath/debug/scene_pause.h"
 
 REX_EXTERN(__imp__eot_GLAPIEngine_SetTimeScale);
@@ -47,6 +48,10 @@ void StoreScale(float scale) {
 
 bool HudHidden() {
   return g_frozen.load(std::memory_order_relaxed) && REXCVAR_GET(eot_debug_pause_hide_hud);
+}
+
+bool InputBlocked() {
+  return g_frozen.load(std::memory_order_relaxed) || eot::debug::FreecamActive();
 }
 
 }
@@ -97,7 +102,7 @@ REX_HOOK_RAW(eot_HUDWindow_DrawTree) {
 REX_HOOK_RAW(eot_Engine_UpdateInput) {
   __imp__eot_Engine_UpdateInput(ctx, base);
 
-  if (g_frozen.load(std::memory_order_relaxed)) {
+  if (InputBlocked()) {
     g_saved_input_mask = eot::mem::load<uint32_t>(kInputMask);
     g_input_held = true;
     eot::mem::store<uint32_t>(kInputMask, 0u);
