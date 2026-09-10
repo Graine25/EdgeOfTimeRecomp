@@ -17,7 +17,7 @@ std::vector<std::string> MissingProgramFiles();
 
 bool CopyProgramTo(const std::filesystem::path &install, std::string &error);
 
-void SyncPortPackages(const std::filesystem::path &game);
+void WritePortFiles(const std::filesystem::path &game);
 
 void AdoptLegacyUserData(const std::filesystem::path &profile);
 

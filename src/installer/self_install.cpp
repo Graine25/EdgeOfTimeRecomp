@@ -1,10 +1,18 @@
 #include "installer/self_install.h"
 
+#include <algorithm>
+#include <fstream>
 #include <iterator>
+#include <span>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <rex/filesystem.h>
 
 #include "core/logging.h"
+#include "embedded.h"
+#include "embedded_package.h"
 #include "installer/program_files.h"
 
 namespace eot::installer {
@@ -51,25 +59,44 @@ bool CopyProgramTo(const fs::path &install, std::string &error) {
   return true;
 }
 
-void SyncPortPackages(const fs::path &game) {
-  const fs::path here = rex::filesystem::GetExecutableFolder() / "pkz";
+namespace {
+
+bool FileHolds(const fs::path &path, std::span<const uint8_t> bytes) {
   std::error_code ec;
-  if (!fs::is_directory(here, ec))
+  if (!fs::is_regular_file(path, ec) || fs::file_size(path, ec) != bytes.size())
+    return false;
+  std::ifstream in(path, std::ios::binary);
+  std::vector<uint8_t> have(bytes.size());
+  in.read(reinterpret_cast<char *>(have.data()), static_cast<std::streamsize>(have.size()));
+  return in.good() && std::equal(have.begin(), have.end(), bytes.begin());
+}
+
+void WriteAsset(const EmbeddedAsset &asset, const fs::path &path, size_t &written) {
+  if (FileHolds(path, asset.bytes()))
     return;
-  for (const auto &it : fs::directory_iterator(here, ec)) {
-    if (!it.is_regular_file() || it.path().extension() != ".pkz")
-      continue;
-    const fs::path dst = game / "Data" / it.path().filename();
-    if (fs::exists(dst, ec) && fs::file_size(dst, ec) == fs::file_size(it.path(), ec))
-      continue;
-    fs::create_directories(dst.parent_path(), ec);
-    fs::copy_file(it.path(), dst, fs::copy_options::overwrite_existing, ec);
-    if (ec)
-      EOT_WARN("[install] could not refresh {} in {}: {}", it.path().filename().string(), dst.parent_path().string(),
-               ec.message());
-    else
-      EOT_INFO("[install] {} refreshed in {}", it.path().filename().string(), dst.parent_path().string());
+  std::error_code ec;
+  fs::create_directories(path.parent_path(), ec);
+  std::ofstream out(path, std::ios::binary | std::ios::trunc);
+  out.write(reinterpret_cast<const char *>(asset.data), static_cast<std::streamsize>(asset.size));
+  if (!out) {
+    EOT_WARN("[install] could not write {}", path.string());
+    return;
   }
+  ++written;
+}
+
+}
+
+void WritePortFiles(const fs::path &game) {
+  size_t written = 0;
+  const EmbeddedAsset package = EmbeddedPortPackage();
+  WriteAsset(package, game / "Data" / fs::path(std::string(package.name)).filename(), written);
+  constexpr std::string_view kMetadata = "metadata";
+  const fs::path metadata = game.parent_path() / std::string(kMetadata);
+  for (const EmbeddedAsset &asset : EmbeddedGroup(kMetadata))
+    WriteAsset(asset, metadata / std::string(asset.name.substr(kMetadata.size() + 1)), written);
+  if (written)
+    EOT_INFO("[install] {} port file(s) written for {}", written, game.string());
 }
 
 void AdoptLegacyUserData(const fs::path &profile) {

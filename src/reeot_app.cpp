@@ -182,7 +182,7 @@ rex::PathConfig ReeotApp::PathsForInstall(const rex::PathConfig &defaults,
   rex::PathConfig paths = defaults;
   UseInstallRoot(cfg.install_root, paths);
   paths.game_data_root = cfg.game_data_path();
-  eot::installer::SyncPortPackages(paths.game_data_root);
+  eot::installer::WritePortFiles(paths.game_data_root);
   EOT_INFO("[install] using the install at {} (recorded by {}; profile {})", cfg.install_root.string(),
            cfg.app_version, profile_root_.string());
   return paths;
@@ -192,6 +192,7 @@ std::optional<rex::PathConfig>
 ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(rex::PathConfig)> resume) {
   if (auto named = NamedGameFolder()) {
     EOT_INFO("[install] game folder {}", named->string());
+    eot::installer::WritePortFiles(*named);
     rex::PathConfig paths = defaults;
     paths.game_data_root = *named;
     return paths;
@@ -330,6 +331,7 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
     }
   }
 
+  eot::installer::WritePortFiles(cfg.game_data_path());
   if (!eot::installer::WriteInstallRegistry(cfg))
     EOT_WARN("[install] the install record could not be written; the installer will show again");
   EOT_INFO("[install] installed to {} (disc {})", install_root.string(), cfg.disc_fingerprint);

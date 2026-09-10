@@ -91,7 +91,6 @@ struct InstallSources {
   std::filesystem::path disc;
   std::filesystem::path update;
   std::vector<std::filesystem::path> dlc;
-  std::filesystem::path packages;
 };
 
 class Installer {
