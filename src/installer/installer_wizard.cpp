@@ -20,8 +20,7 @@
 #include "ui/theme.h"
 
 REXCVAR_DEFINE_STRING(eot_install_disc, "", "EdgeOfTime/Config",
-                      "Disc image, or folder the game was extracted to, the installer starts with "
-                      "selected.");
+                      "Disc image the installer starts with selected.");
 REXCVAR_DEFINE_STRING(eot_install_update, "", "EdgeOfTime/Config",
                       "Title update package the installer starts with selected.");
 REXCVAR_DEFINE_STRING(eot_install_dlc, "", "EdgeOfTime/Config",
@@ -42,8 +41,8 @@ ImFont *g_path_font = nullptr;
 constexpr const char *kTitleMain = "reeot - Installer";
 constexpr const char *kTitleRepair = "reeot - Repair";
 constexpr const char *kRepairNotice =
-    "An existing install was detected. Select the disc image or the game folder and the title update "
-    "again to add or repair files; files already installed are left in place.";
+    "An existing install was detected. Select the disc image and the title update again to add or "
+    "repair files; files already installed are left in place.";
 constexpr const char *kSpaceHint = "(~6 GB required)";
 
 constexpr const char *kSuggestedPreset = "medium";
@@ -255,11 +254,7 @@ void InstallerWizard::RecordSettings() {
 
 void InstallerWizard::Prefill() {
   const std::string disc = REXCVAR_GET(eot_install_disc);
-  std::error_code ec;
-  if (!disc.empty() && std::filesystem::is_directory(disc, ec)) {
-    folder_path_ = disc;
-    ValidateFolder();
-  } else if (!disc.empty()) {
+  if (!disc.empty()) {
     disc_path_ = disc;
     ValidateDisc();
   }
@@ -315,7 +310,7 @@ void InstallerWizard::Finish(bool completed) {
 
   InstallConfig cfg;
   cfg.install_root = std::filesystem::absolute(install_dir_);
-  cfg.disc_fingerprint = folder_valid_ ? GameFolderFingerprint(*folder_) : disc_fingerprint_;
+  cfg.disc_fingerprint = disc_fingerprint_;
 
   EOT_INFO("[install] wizard finished, completed={}", completed);
 
@@ -328,29 +323,6 @@ void InstallerWizard::Finish(bool completed) {
   auto cb = on_done_;
   const WizardChoices choices = choices_;
   app_context_.CallInUIThreadDeferred([cb, completed, cfg, choices]() { cb(completed, cfg, choices); });
-}
-
-void InstallerWizard::ValidateFolder() {
-  folder_valid_ = false;
-  folder_.reset();
-  if (folder_path_.empty()) {
-    folder_status_.clear();
-    return;
-  }
-  std::string why;
-  folder_ = InspectGameFolder(folder_path_, why);
-  if (!folder_) {
-    folder_status_ = why;
-    return;
-  }
-  folder_valid_ = true;
-  folder_status_ = "Valid: " + std::to_string(folder_->files.size()) + " files";
-  for (const auto &package : folder_->content_packages)
-    AddDlc(package);
-}
-
-bool InstallerWizard::UpdateCoveredByFolder() const {
-  return folder_valid_ && (folder_->executable_patched || folder_->update_files_present);
 }
 
 void InstallerWizard::ValidateDisc() {
@@ -393,9 +365,7 @@ void InstallerWizard::ValidateUpdate() {
 bool InstallerWizard::InputsReady() const {
   if (!missing_program_files_.empty())
     return false;
-  if (!(disc_valid_ || folder_valid_) || install_dir_.empty())
-    return false;
-  if (!update_valid_ && !UpdateCoveredByFolder())
+  if (!disc_valid_ || !update_valid_ || install_dir_.empty())
     return false;
   for (const auto &d : dlc_)
     if (!d.valid)
@@ -412,19 +382,7 @@ void InstallerWizard::PickDisc() {
   if (!picked)
     return;
   disc_path_ = *picked;
-  folder_path_.clear();
-  ValidateFolder();
   ValidateDisc();
-}
-
-void InstallerWizard::PickFolder() {
-  auto picked = platform::ShowOpenFolderDialog(L"Select the Extracted Game Folder");
-  if (!picked)
-    return;
-  folder_path_ = *picked;
-  disc_path_.clear();
-  ValidateDisc();
-  ValidateFolder();
 }
 
 void InstallerWizard::PickUpdate() {
@@ -478,10 +436,7 @@ void InstallerWizard::StartInstall() {
   EOT_INFO("[install]   game data  -> '{}'", abs_game.string());
 
   InstallSources sources;
-  if (folder_valid_)
-    sources.folder = folder_;
-  else
-    sources.disc = disc_path_;
+  sources.disc = disc_path_;
   sources.update = update_path_;
   for (const auto &d : dlc_)
     sources.dlc.push_back(d.path);
@@ -501,8 +456,8 @@ void InstallerWizard::OnDraw(ImGuiIO &) {
     if (InputsReady()) {
       StartInstall();
     } else {
-      EOT_ERROR("[install] unattended install cannot start: disc {} folder {} update {} dir {} {}",
-                disc_status_, folder_status_, update_status_, install_dir_.string(), MissingProgramFilesLine());
+      EOT_ERROR("[install] unattended install cannot start: disc {} update {} dir {} {}", disc_status_,
+                update_status_, install_dir_.string(), MissingProgramFilesLine());
       unattended_ = false;
     }
   }
@@ -619,17 +574,10 @@ void InstallerWizard::DrawSources() {
   ImGui::TableSetupColumn("##path", ImGuiTableColumnFlags_WidthStretch);
   ImGui::TableSetupColumn("##status", ImGuiTableColumnFlags_WidthFixed, 260.0f);
 
-  SourceRow("disc", "Select Disc Image", disc_path_, folder_valid_ ? "the game folder is used instead" : "not selected",
-            disc_valid_, disc_status_, [this]() { PickDisc(); });
-  SourceRow("folder", "Select Game Folder", folder_path_,
-            disc_valid_ ? "the disc image is used instead" : "or: the game already extracted", folder_valid_,
-            folder_status_, [this]() { PickFolder(); });
-  const bool covered = UpdateCoveredByFolder();
-  const char *update_hint = !covered                              ? "required: the game was patched by it"
-                            : folder_->executable_patched         ? "not needed: the executable is already patched"
-                                                                  : "included in the game folder";
-  SourceRow("update", "Select Title Update", update_path_, update_hint, update_valid_ || covered,
-            update_path_.empty() && covered ? std::string("Valid") : update_status_, [this]() { PickUpdate(); });
+  SourceRow("disc", "Select Disc Image", disc_path_, "not selected", disc_valid_, disc_status_,
+            [this]() { PickDisc(); });
+  SourceRow("update", "Select Title Update", update_path_, "required: the game was patched by it", update_valid_,
+            update_status_, [this]() { PickUpdate(); });
 
   ImGui::EndTable();
 }
