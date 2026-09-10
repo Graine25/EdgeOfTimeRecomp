@@ -68,6 +68,18 @@ bool SamePlace(const fs::path &a, const fs::path &b) {
   return a.lexically_normal() == b.lexically_normal();
 }
 
+bool SetCvarValue(std::string_view name, const std::string &value) {
+  for (auto &entry : rex::cvar::GetRegistry()) {
+    if (entry.name != name)
+      continue;
+    if (!entry.setter)
+      return false;
+    entry.setter(value);
+    return true;
+  }
+  return false;
+}
+
 bool SetCvarDefault(std::string_view name, const std::string &value) {
   for (auto &entry : rex::cvar::GetRegistry()) {
     if (entry.name != name)
@@ -375,6 +387,10 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
 
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   eot::goliath::InstallPcControls();
+  if (rex::cvar::Query<bool>("eot_debug_mode"))
+    SetCvarValue("mnk_mode", "false");
+
+  SetCvarValue("eot_debug_pause", "false");
   if (eot::gpu::Settings::Profiler()) {
 #if defined(EOT_PROFILING)
     rex::perf::Profiler::Startup();
