@@ -65,6 +65,7 @@ private:
   void SuggestDefaults();
   void RecordSettings();
   void AddDlc(const std::filesystem::path &path);
+  std::string MissingProgramFilesLine() const;
   void ValidateDisc();
   void ValidateUpdate();
   bool InputsReady() const;
@@ -101,6 +102,7 @@ private:
 
   std::filesystem::path install_dir_;
   std::string install_status_;
+  std::vector<std::string> missing_program_files_;
 
   WizardChoices choices_;
   bool create_shortcut_ = false;

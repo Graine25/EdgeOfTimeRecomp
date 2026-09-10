@@ -14,6 +14,7 @@
 #include "core/encoding.h"
 #include "core/logging.h"
 #include "embedded.h"
+#include "installer/self_install.h"
 #include "platform/file_dialog.h"
 #include "platform/process.h"
 #include "ui/theme.h"
@@ -216,8 +217,20 @@ InstallerWizard::InstallerWizard(rex::ui::ImGuiDrawer *drawer, rex::ui::Immediat
       on_done_(std::move(on_done)), repair_(repair), install_dir_(default_install_dir) {
   if (existing)
     disc_fingerprint_ = existing->disc_fingerprint;
+  missing_program_files_ = MissingProgramFiles();
+  if (!missing_program_files_.empty())
+    EOT_ERROR("[install] {}", MissingProgramFilesLine());
   SuggestDefaults();
   Prefill();
+}
+
+std::string InstallerWizard::MissingProgramFilesLine() const {
+  if (missing_program_files_.empty())
+    return {};
+  std::string line = "Missing beside reeot.exe: ";
+  for (size_t i = 0; i < missing_program_files_.size(); ++i)
+    line += (i ? ", " : "") + missing_program_files_[i];
+  return line + ". Copy the whole release folder, then start again.";
 }
 
 void InstallerWizard::SuggestDefaults() {
@@ -346,6 +359,8 @@ void InstallerWizard::ValidateUpdate() {
 }
 
 bool InstallerWizard::InputsReady() const {
+  if (!missing_program_files_.empty())
+    return false;
   if (!disc_valid_ || !update_valid_ || install_dir_.empty())
     return false;
   for (const auto &d : dlc_)
@@ -438,8 +453,8 @@ void InstallerWizard::OnDraw(ImGuiIO &) {
     if (InputsReady()) {
       StartInstall();
     } else {
-      EOT_ERROR("[install] unattended install cannot start: disc {} update {} dir {}", disc_status_,
-                update_status_, install_dir_.string());
+      EOT_ERROR("[install] unattended install cannot start: disc {} update {} dir {} {}", disc_status_,
+                update_status_, install_dir_.string(), MissingProgramFilesLine());
       unattended_ = false;
     }
   }
@@ -521,6 +536,12 @@ void InstallerWizard::DrawMain() {
 
   if (repair_) {
     ImGui::TextWrapped("%s", kRepairNotice);
+    ImGui::Spacing();
+  }
+  if (!missing_program_files_.empty()) {
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.35f, 0.35f, 1.0f));
+    ImGui::TextWrapped("%s", MissingProgramFilesLine().c_str());
+    ImGui::PopStyleColor();
     ImGui::Spacing();
   }
 

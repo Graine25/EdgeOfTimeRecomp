@@ -173,8 +173,7 @@ target_include_directories(reeot PRIVATE
 if(REEOT_BUILD_INSTALLER)
     target_sources(reeot PRIVATE
         src/installer/disc_install.cpp
-        src/installer/installer_wizard.cpp
-        src/installer/upgrade_prompt.cpp)
+        src/installer/installer_wizard.cpp)
 endif()
 
 set(reeot_program_files
@@ -182,7 +181,6 @@ set(reeot_program_files
     "$<TARGET_FILE_NAME:rex::runtime>"
     "pkz"
     "metadata"
-    "eot_hud_aspect.toml"
     "gamecontrollerdb.txt")
 if(TARGET reeot_GameLogic)
     list(APPEND reeot_program_files "$<TARGET_FILE_NAME:reeot_GameLogic>")
@@ -205,6 +203,9 @@ inline constexpr const char *kProgramFiles[] = {
 ${reeot_program_files_cxx}
 };
 ")
+list(JOIN reeot_program_files "\n" reeot_program_files_txt)
+file(GENERATE OUTPUT "$<TARGET_FILE_DIR:reeot>/program_files.txt"
+     CONTENT "${reeot_program_files_txt}\n")
 
 add_custom_command(TARGET reeot POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
