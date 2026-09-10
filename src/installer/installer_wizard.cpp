@@ -39,11 +39,155 @@ ImFont *g_path_font = nullptr;
 
 constexpr const char *kTitleMain = "reeot - Installer";
 constexpr const char *kTitleRepair = "reeot - Repair";
-constexpr const char *kTitleOptions = "reeot - Options";
 constexpr const char *kRepairNotice =
-    "An existing install was detected. Select the disc image again to add or repair files; files "
-    "already installed are left in place.";
+    "An existing install was detected. Select the disc image and the title update again to add or "
+    "repair files; files already installed are left in place.";
 constexpr const char *kSpaceHint = "(~6 GB required)";
+
+constexpr const char *kSuggestedPreset = "medium";
+#if defined(_WIN32)
+constexpr const char *kSuggestedResolution = "1080p";
+#else
+constexpr const char *kSuggestedResolution = "720p";
+#endif
+
+struct SettingRow {
+  const char *label;
+  const char *cvar;
+  std::vector<std::pair<const char *, const char *>> values;
+};
+
+const SettingRow kSettingRows[] = {
+    {"Quality preset", "eot_quality_preset", {{"Low", "low"}, {"Medium", "medium"}, {"High", "high"}}},
+    {"Display mode", "fullscreen", {{"Windowed", "false"}, {"Fullscreen", "true"}}},
+    {"Resolution",
+     "eot_resolution",
+     {{"720p", "720p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}},
+    {"Aspect ratio",
+     "eot_aspect_ratio",
+     {{"Auto", "auto"}, {"4:3", "4:3"}, {"16:9", "16:9"}, {"16:10", "16:10"}, {"21:9", "21:9"}, {"32:9", "32:9"}}},
+    {"Frame rate limit",
+     "eot_fps_limit",
+     {{"30 fps", "30"}, {"60 fps", "60"}, {"120 fps", "120"}, {"Unlimited", "0"}}},
+};
+
+int RowSelected(const SettingRow &row) {
+  const std::string current = rex::cvar::GetFlagByName(row.cvar);
+  for (size_t i = 0; i < row.values.size(); ++i)
+    if (current == row.values[i].second)
+      return static_cast<int>(i);
+  return -1;
+}
+
+const SettingRow *FindRow(const char *cvar) {
+  for (const SettingRow &row : kSettingRows)
+    if (std::strcmp(row.cvar, cvar) == 0)
+      return &row;
+  return nullptr;
+}
+
+void DrawTitle(const char *text) {
+  if (g_title_font)
+    ImGui::PushFont(g_title_font);
+  ImGui::TextUnformatted(text);
+  if (g_title_font)
+    ImGui::PopFont();
+}
+
+void SectionHeader(const char *text) {
+  ImGui::TextUnformatted(text);
+  ImGui::Separator();
+  ImGui::Spacing();
+}
+
+void FilenameCell(const std::filesystem::path &path) {
+  if (path.empty()) {
+    ImGui::TextDisabled("not selected");
+    return;
+  }
+  ImGui::TextUnformatted(path.filename().string().c_str());
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", path.string().c_str());
+}
+
+void StatusCell(bool valid, const std::string &status) {
+  if (status.empty())
+    return;
+  const ImVec4 color = valid ? ImVec4(0.3f, 0.9f, 0.3f, 1.0f) : ImVec4(0.9f, 0.3f, 0.3f, 1.0f);
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextColored(color, "%s", status.c_str());
+}
+
+void SourceRow(const char *id, const char *button, const std::filesystem::path &path, const char *empty_hint,
+               bool valid, const std::string &status, const std::function<void()> &on_pick) {
+  ImGui::PushID(id);
+  ImGui::TableNextRow();
+  ImGui::TableSetColumnIndex(0);
+  if (ImGui::Button(button, ImVec2(-FLT_MIN, 0)))
+    on_pick();
+  ImGui::TableSetColumnIndex(1);
+  ImGui::AlignTextToFramePadding();
+  if (path.empty())
+    ImGui::TextDisabled("%s", empty_hint);
+  else
+    FilenameCell(path);
+  ImGui::TableSetColumnIndex(2);
+  StatusCell(valid, status);
+  ImGui::PopID();
+}
+
+void DirectoryRow(const char *heading, const char *sublabel, const std::filesystem::path &path, const char *id,
+                  const std::function<void()> &on_change) {
+  ImGui::PushID(id);
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted(heading);
+  ImGui::SameLine();
+  ImGui::PushStyleColor(ImGuiCol_Text, ui::Theme::White(0.55f));
+  ImGui::TextUnformatted(sublabel);
+  ImGui::PopStyleColor();
+  ImGui::SameLine();
+  if (ImGui::Button("Change"))
+    on_change();
+
+  if (g_path_font)
+    ImGui::PushFont(g_path_font);
+  ImGui::Indent(12.0f);
+  if (path.empty())
+    ImGui::TextDisabled("not selected");
+  else
+    ImGui::TextWrapped("%s", path.string().c_str());
+  ImGui::Unindent(12.0f);
+  if (g_path_font)
+    ImGui::PopFont();
+  ImGui::PopID();
+}
+
+constexpr float kLabelColumn = 150.0f;
+constexpr float kValueWidth = 190.0f;
+
+void SettingCells(const SettingRow &row, const std::function<void(const SettingRow &, int)> &pick) {
+  ImGui::PushID(row.cvar);
+  ImGui::TableNextColumn();
+  ImGui::AlignTextToFramePadding();
+  ImGui::TextUnformatted(row.label);
+  ImGui::TableNextColumn();
+  const int count = static_cast<int>(row.values.size());
+  const int selected = RowSelected(row);
+  const char *current = selected >= 0 ? row.values[static_cast<size_t>(selected)].first : "";
+  ImGui::SetNextItemWidth(kValueWidth);
+  if (ImGui::BeginCombo("##value", current)) {
+    for (int i = 0; i < count; ++i) {
+      ImGui::PushID(i);
+      if (ImGui::Selectable(row.values[static_cast<size_t>(i)].first, i == selected))
+        pick(row, i);
+      if (i == selected)
+        ImGui::SetItemDefaultFocus();
+      ImGui::PopID();
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::PopID();
+}
 
 }
 
@@ -72,7 +216,23 @@ InstallerWizard::InstallerWizard(rex::ui::ImGuiDrawer *drawer, rex::ui::Immediat
       on_done_(std::move(on_done)), repair_(repair), install_dir_(default_install_dir) {
   if (existing)
     disc_fingerprint_ = existing->disc_fingerprint;
+  SuggestDefaults();
   Prefill();
+}
+
+void InstallerWizard::SuggestDefaults() {
+  auto suggest = [](const char *cvar, const char *value) {
+    if (const SettingRow *row = FindRow(cvar); row && RowSelected(*row) < 0)
+      rex::cvar::SetFlagByName(cvar, value);
+  };
+  suggest("eot_quality_preset", kSuggestedPreset);
+  suggest("eot_resolution", kSuggestedResolution);
+}
+
+void InstallerWizard::RecordSettings() {
+  choices_.settings.clear();
+  for (const SettingRow &row : kSettingRows)
+    choices_.settings.push_back({row.cvar, rex::cvar::GetFlagByName(row.cvar)});
 }
 
 void InstallerWizard::Prefill() {
@@ -99,7 +259,7 @@ void InstallerWizard::Prefill() {
   }
   const std::string dir = REXCVAR_GET(eot_install_dir);
   if (!dir.empty())
-    install_dir_ = dir;
+    install_dir_ = InstallRootFor(dir);
   unattended_ = REXCVAR_GET(eot_install_unattended) && !disc.empty();
   if (unattended_)
     EOT_INFO("[install] unattended install from {} into {}", disc, install_dir_.string());
@@ -136,6 +296,12 @@ void InstallerWizard::Finish(bool completed) {
   cfg.disc_fingerprint = disc_fingerprint_;
 
   EOT_INFO("[install] wizard finished, completed={}", completed);
+
+  REXCVAR_SET(eot_install_disc, "");
+  REXCVAR_SET(eot_install_update, "");
+  REXCVAR_SET(eot_install_dlc, "");
+  REXCVAR_SET(eot_install_dir, "");
+  REXCVAR_SET(eot_install_unattended, false);
 
   auto cb = on_done_;
   const WizardChoices choices = choices_;
@@ -180,9 +346,7 @@ void InstallerWizard::ValidateUpdate() {
 }
 
 bool InstallerWizard::InputsReady() const {
-  if (!disc_valid_ || install_dir_.empty())
-    return false;
-  if (!update_path_.empty() && !update_valid_)
+  if (!disc_valid_ || !update_valid_ || install_dir_.empty())
     return false;
   for (const auto &d : dlc_)
     if (!d.valid)
@@ -227,7 +391,7 @@ void InstallerWizard::PickInstallDir() {
   auto picked = platform::ShowOpenFolderDialog(L"Select Install Location");
   if (!picked)
     return;
-  install_dir_ = *picked;
+  install_dir_ = InstallRootFor(*picked);
   install_status_.clear();
 }
 
@@ -245,6 +409,7 @@ void InstallerWizard::StartInstall() {
   done_success_ = false;
   install_status_.clear();
   page_ = Page::Installing;
+  RecordSettings();
 
   const auto abs_install = std::filesystem::absolute(install_dir_);
   const auto abs_game = abs_install / "game";
@@ -269,7 +434,7 @@ void InstallerWizard::StartInstall() {
 }
 
 void InstallerWizard::OnDraw(ImGuiIO &) {
-  if (unattended_ && page_ == Page::Content && !finished_) {
+  if (unattended_ && page_ == Page::Main && !finished_) {
     if (InputsReady()) {
       StartInstall();
     } else {
@@ -278,9 +443,8 @@ void InstallerWizard::OnDraw(ImGuiIO &) {
       unattended_ = false;
     }
   }
-  if (unattended_ && page_ == Page::Done) {
+  if (unattended_ && page_ == Page::Done)
     Finish(done_success_);
-  }
 
   if (!background_texture_ && !background_tried_ && immediate_drawer_) {
     background_tried_ = true;
@@ -331,11 +495,8 @@ void InstallerWizard::OnDraw(ImGuiIO &) {
       if (g_body_font)
         ImGui::PushFont(g_body_font);
       switch (page_) {
-      case Page::Content:
-        DrawContent();
-        break;
-      case Page::Options:
-        DrawOptions();
+      case Page::Main:
+        DrawMain();
         break;
       case Page::Installing:
         DrawInstalling();
@@ -354,120 +515,7 @@ void InstallerWizard::OnDraw(ImGuiIO &) {
   ImGui::End();
 }
 
-namespace {
-
-void DrawTitle(const char *text) {
-  if (g_title_font)
-    ImGui::PushFont(g_title_font);
-  ImGui::TextUnformatted(text);
-  if (g_title_font)
-    ImGui::PopFont();
-}
-
-void SectionHeader(const char *text) {
-  ImGui::TextUnformatted(text);
-  ImGui::Separator();
-  ImGui::Spacing();
-}
-
-void FilenameCell(const std::filesystem::path &path) {
-  if (path.empty()) {
-    ImGui::TextDisabled("not selected");
-    return;
-  }
-  ImGui::TextUnformatted(path.filename().string().c_str());
-  if (ImGui::IsItemHovered())
-    ImGui::SetTooltip("%s", path.string().c_str());
-}
-
-void StatusCell(bool valid, const std::string &status) {
-  if (status.empty())
-    return;
-  const ImVec4 color = valid ? ImVec4(0.3f, 0.9f, 0.3f, 1.0f) : ImVec4(0.9f, 0.3f, 0.3f, 1.0f);
-  ImGui::AlignTextToFramePadding();
-  ImGui::TextColored(color, "%s", status.c_str());
-}
-
-void DirectoryRow(const char *heading, const char *sublabel, const std::filesystem::path &path, const char *id,
-                  const std::function<void()> &on_change) {
-  ImGui::PushID(id);
-  ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted(heading);
-  ImGui::SameLine();
-  ImGui::PushStyleColor(ImGuiCol_Text, ui::Theme::White(0.55f));
-  ImGui::TextUnformatted(sublabel);
-  ImGui::PopStyleColor();
-  ImGui::SameLine();
-  if (ImGui::Button("Change"))
-    on_change();
-
-  if (g_path_font)
-    ImGui::PushFont(g_path_font);
-  ImGui::Indent(12.0f);
-  if (path.empty())
-    ImGui::TextDisabled("not selected");
-  else
-    ImGui::TextWrapped("%s", path.string().c_str());
-  ImGui::Unindent(12.0f);
-  if (g_path_font)
-    ImGui::PopFont();
-  ImGui::PopID();
-}
-
-constexpr float kLabelColumn = 190.0f;
-constexpr float kValueWidth = 200.0f;
-
-bool BeginRows(const char *id) {
-  if (!ImGui::BeginTable(id, 2, ImGuiTableFlags_SizingFixedFit))
-    return false;
-  ImGui::TableSetupColumn("##label", ImGuiTableColumnFlags_WidthFixed, kLabelColumn);
-  ImGui::TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch);
-  return true;
-}
-
-void OptionRow(const char *label, int count, int selected, const std::function<const char *(int)> &text,
-               const std::function<void(int)> &pick) {
-  if (count <= 0)
-    return;
-  ImGui::PushID(label);
-  ImGui::TableNextRow();
-  ImGui::TableSetColumnIndex(0);
-  ImGui::AlignTextToFramePadding();
-  ImGui::TextUnformatted(label);
-  ImGui::TableSetColumnIndex(1);
-  const char *current = selected >= 0 && selected < count ? text(selected) : "";
-  ImGui::SetNextItemWidth(kValueWidth);
-  if (ImGui::BeginCombo("##value", current)) {
-    for (int i = 0; i < count; ++i) {
-      ImGui::PushID(i);
-      if (ImGui::Selectable(text(i), i == selected))
-        pick(i);
-      if (i == selected)
-        ImGui::SetItemDefaultFocus();
-      ImGui::PopID();
-    }
-    ImGui::EndCombo();
-  }
-  ImGui::PopID();
-}
-
-struct StringRow {
-  const char *label;
-  const char *cvar;
-  std::vector<std::pair<const char *, const char *>> values;
-};
-
-int RowSelected(const StringRow &row) {
-  const std::string current = rex::cvar::GetFlagByName(row.cvar);
-  for (size_t i = 0; i < row.values.size(); ++i)
-    if (current == row.values[i].second)
-      return static_cast<int>(i);
-  return -1;
-}
-
-}
-
-void InstallerWizard::DrawContent() {
+void InstallerWizard::DrawMain() {
   DrawTitle(repair_ ? kTitleRepair : kTitleMain);
   ImGui::Spacing();
 
@@ -479,12 +527,16 @@ void InstallerWizard::DrawContent() {
   DrawSources();
 
   ImGui::Dummy(ImVec2(0, 10));
+  DrawDlcSection();
+
+  ImGui::Dummy(ImVec2(0, 10));
   SectionHeader("Install Directory");
   DirectoryRow("Install Location", repair_ ? "(existing install)" : kSpaceHint, install_dir_, "install_dir",
                [this]() { PickInstallDir(); });
 
   ImGui::Dummy(ImVec2(0, 10));
-  DrawDlcSection();
+  DrawSettings();
+
   DrawFooter();
 }
 
@@ -498,32 +550,10 @@ void InstallerWizard::DrawSources() {
   ImGui::TableSetupColumn("##path", ImGuiTableColumnFlags_WidthStretch);
   ImGui::TableSetupColumn("##status", ImGuiTableColumnFlags_WidthFixed, 260.0f);
 
-  ImGui::PushID("disc");
-  ImGui::TableNextRow();
-  ImGui::TableSetColumnIndex(0);
-  if (ImGui::Button("Select Disc Image", ImVec2(-FLT_MIN, 0)))
-    PickDisc();
-  ImGui::TableSetColumnIndex(1);
-  ImGui::AlignTextToFramePadding();
-  FilenameCell(disc_path_);
-  ImGui::TableSetColumnIndex(2);
-  StatusCell(disc_valid_, disc_status_);
-  ImGui::PopID();
-
-  ImGui::PushID("update");
-  ImGui::TableNextRow();
-  ImGui::TableSetColumnIndex(0);
-  if (ImGui::Button("Select Title Update", ImVec2(-FLT_MIN, 0)))
-    PickUpdate();
-  ImGui::TableSetColumnIndex(1);
-  ImGui::AlignTextToFramePadding();
-  if (update_path_.empty())
-    ImGui::TextDisabled("optional: the game runs without it");
-  else
-    FilenameCell(update_path_);
-  ImGui::TableSetColumnIndex(2);
-  StatusCell(update_valid_, update_status_);
-  ImGui::PopID();
+  SourceRow("disc", "Select Disc Image", disc_path_, "not selected", disc_valid_, disc_status_,
+            [this]() { PickDisc(); });
+  SourceRow("update", "Select Title Update", update_path_, "required: the game was patched by it", update_valid_,
+            update_status_, [this]() { PickUpdate(); });
 
   ImGui::EndTable();
 }
@@ -570,58 +600,29 @@ void InstallerWizard::DrawDlcSection() {
     PickDlc();
 }
 
-void InstallerWizard::DrawOptions() {
-  DrawTitle(kTitleOptions);
-  ImGui::Spacing();
+void InstallerWizard::DrawSettings() {
+  SectionHeader("Settings");
 
-  auto pick = [this](const char *cvar, const char *value) {
-    rex::cvar::SetFlagByName(cvar, value);
-    std::erase_if(choices_.settings, [&](const SettingPick &p) { return p.cvar == cvar; });
-    choices_.settings.push_back({cvar, value});
+  auto pick = [](const SettingRow &row, int i) {
+    rex::cvar::SetFlagByName(row.cvar, row.values[static_cast<size_t>(i)].second);
   };
-  auto draw_row = [&](const StringRow &row) {
-    OptionRow(
-        row.label, static_cast<int>(row.values.size()), RowSelected(row),
-        [&row](int i) { return row.values[static_cast<size_t>(i)].first; },
-        [&row, &pick](int i) { pick(row.cvar, row.values[static_cast<size_t>(i)].second); });
-  };
-
-  SectionHeader("Display");
-  if (BeginRows("##display_rows")) {
-    static const StringRow kDisplayMode{"Display mode", "fullscreen", {{"Windowed", "false"}, {"Fullscreen", "true"}}};
-    static const StringRow kResolution{
-        "Resolution", "eot_resolution", {{"720p", "720p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}};
-    static const StringRow kAspect{"Aspect ratio",
-                                   "eot_aspect_ratio",
-                                   {{"Auto", "auto"}, {"4:3", "4:3"}, {"16:9", "16:9"}, {"16:10", "16:10"}, {"21:9", "21:9"}, {"32:9", "32:9"}}};
-    static const StringRow kFps{"Frame rate limit",
-                                "eot_fps_limit",
-                                {{"30 fps", "30"}, {"60 fps", "60"}, {"120 fps", "120"}, {"Unlimited", "0"}}};
-    draw_row(kDisplayMode);
-    draw_row(kResolution);
-    draw_row(kAspect);
-    draw_row(kFps);
+  if (ImGui::BeginTable("##settings", 4, ImGuiTableFlags_SizingFixedFit)) {
+    ImGui::TableSetupColumn("##l0", ImGuiTableColumnFlags_WidthFixed, kLabelColumn);
+    ImGui::TableSetupColumn("##v0", ImGuiTableColumnFlags_WidthFixed, kValueWidth + 30.0f);
+    ImGui::TableSetupColumn("##l1", ImGuiTableColumnFlags_WidthFixed, kLabelColumn);
+    ImGui::TableSetupColumn("##v1", ImGuiTableColumnFlags_WidthStretch);
+    int cell = 0;
+    for (const SettingRow &row : kSettingRows) {
+      if (cell % 2 == 0)
+        ImGui::TableNextRow();
+      SettingCells(row, pick);
+      ++cell;
+    }
     ImGui::EndTable();
   }
 
-  ImGui::Dummy(ImVec2(0, 6));
-  SectionHeader("Graphics");
-  if (BeginRows("##graphics_rows")) {
-    static const StringRow kQuality{"Quality preset",
-                                    "eot_quality_preset",
-                                    {{"Low", "low"}, {"Medium", "medium"}, {"High", "high"}, {"Custom", "custom"}}};
-    draw_row(kQuality);
-    ImGui::EndTable();
-  }
-
-  ImGui::Dummy(ImVec2(0, 6));
-  DrawPreferences();
-  DrawFooter();
-}
-
-void InstallerWizard::DrawPreferences() {
-  SectionHeader("Preferences");
 #if defined(_WIN32)
+  ImGui::Spacing();
   if (ImGui::Checkbox("Create a desktop shortcut", &create_shortcut_))
     choices_.create_shortcut = create_shortcut_;
 #endif
@@ -640,18 +641,8 @@ void InstallerWizard::DrawFooter() {
   constexpr float kButtonWidth = 130.0f;
   constexpr ImVec2 kButton(kButtonWidth, 0);
 
-  if (page_ == Page::Content) {
-    if (ImGui::Button("Exit", kButton))
-      Finish(false);
-    ImGui::SameLine();
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - kButtonWidth);
-    if (ImGui::Button("Next", kButton))
-      page_ = Page::Options;
-    return;
-  }
-
-  if (ImGui::Button("Back", kButton))
-    page_ = Page::Content;
+  if (ImGui::Button("Exit", kButton))
+    Finish(false);
   ImGui::SameLine();
   ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - kButtonWidth);
   ImGui::BeginDisabled(!InputsReady());
@@ -695,8 +686,8 @@ void InstallerWizard::DrawInstalling() {
     if (install_thread_.joinable())
       install_thread_.join();
     if (progress_.canceled.load()) {
-      install_status_ = "Previous install was canceled. Review inputs and click Install to resume.";
-      page_ = Page::Options;
+      install_status_ = "The install was canceled. Check the inputs and click Install to resume.";
+      page_ = Page::Main;
     } else if (progress_.failed.load()) {
       done_success_ = false;
       done_message_ = "Install failed: " + progress_.GetError();

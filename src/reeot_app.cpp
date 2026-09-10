@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include <rex/cvar.h>
+#include <rex/dbg.h>
 #include <rex/filesystem.h>
 #include <rex/perf/counter.h>
 #include <rex/runtime.h>
@@ -37,6 +38,10 @@
 #include "platform/process.h"
 #include "ui/theme.h"
 
+REXCVAR_DEFINE_STRING(profile, "default", "EdgeOfTime/Config",
+                      "Active profile name. Selects <install root>/profiles/<name> as the user data "
+                      "location: the config, the saves, the cache.")
+    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 #ifdef REEOT_BUILD_INSTALLER
 REXCVAR_DEFINE_BOOL(eot_repair, false, "EdgeOfTime/Config",
                     "Open the installer in repair mode on the recorded install at the next "
@@ -84,6 +89,24 @@ void ApplyReeotCvarDefaults() {
   SetCvarDefault("log_flush_interval", "1");
 }
 
+std::string SanitizeProfileName(const std::string &raw) {
+  std::string out;
+  for (char c : raw) {
+    const auto uc = static_cast<unsigned char>(c);
+    if (uc < 0x20 || c == '/' || c == '\\' || c == ':')
+      continue;
+    out += c;
+  }
+  const auto b = out.find_first_not_of(" .");
+  const auto e = out.find_last_not_of(" .");
+  if (b == std::string::npos)
+    return "default";
+  out = out.substr(b, e - b + 1);
+  if (out.empty() || out == "." || out == "..")
+    return "default";
+  return out;
+}
+
 }
 
 std::unique_ptr<rex::ui::WindowedApp> ReeotApp::Create(rex::ui::WindowedAppContext &ctx) {
@@ -96,9 +119,56 @@ ReeotApp::ReeotApp(rex::ui::WindowedAppContext &ctx) : rex::ReXApp(ctx, "reeot",
 
 ReeotApp::~ReeotApp() = default;
 
+std::optional<fs::path> ReeotApp::NamedGameFolder() const {
+  std::string named = REXCVAR_GET(game_data_root);
+  if (named.empty())
+    if (auto positional = GetArgument("game_directory"))
+      named = *positional;
+  if (named.empty() || !GameFolderHolds(named))
+    return std::nullopt;
+  return fs::absolute(named);
+}
+
+std::optional<fs::path> ReeotApp::EarlyInstallRoot() const {
+  if (auto named = NamedGameFolder())
+    return named->parent_path();
+  if (auto cfg = eot::installer::ReadInstallRegistry())
+    if (cfg->schema_version == eot::installer::kInstallSchemaVersion && eot::installer::InstallIsPresent(*cfg))
+      return cfg->install_root;
+  return std::nullopt;
+}
+
+void ReeotApp::UseInstallRoot(const fs::path &root, rex::PathConfig &paths) {
+  install_root_ = root;
+  profile_root_ = root / "profiles" / active_profile_;
+  std::error_code ec;
+  fs::create_directories(profile_root_, ec);
+  paths.user_data_root = profile_root_;
+  paths.cache_root = profile_root_ / "cache";
+  paths.config_path = profile_root_ / "reeot.toml";
+}
+
 void ReeotApp::OnConfigurePaths(rex::PathConfig &paths) {
-  (void)paths;
   eot::platform::InstallTerminateHandler();
+
+  active_profile_ = SanitizeProfileName(REXCVAR_GET(profile));
+  REXCVAR_SET(profile, "default");
+
+  const std::optional<fs::path> root = EarlyInstallRoot();
+  if (!root) {
+    paths.config_path.clear();
+    return;
+  }
+  UseInstallRoot(*root, paths);
+
+  if (!SamePlace(eot::platform::ProgramDir(), install_root_)) {
+    const std::string warning =
+        "reeot is running outside of its install folder. Run reeot.exe from " + install_root_.string();
+    if (rex::debug::IsDebuggerAttached())
+      EOT_WARN("{}", warning);
+    else
+      eot::platform::ShowWarning("reeot", warning);
+  }
 }
 
 void ReeotApp::OnPostInitLogging() {
@@ -107,6 +177,8 @@ void ReeotApp::OnPostInitLogging() {
            REEOT_GIT_DIRTY ? " (local modifications)" : "");
   EOT_INFO("  built:   " REEOT_BUILD_TIMESTAMP " with " REEOT_BUILD_COMPILER);
   EOT_INFO("  sdk:     rexglue-v" REXGLUE_VERSION_STRING " " REXGLUE_BUILD_PLATFORM " @" REXGLUE_BUILD_TIMESTAMP);
+  if (!install_root_.empty())
+    EOT_INFO("  profile: {} ({})", active_profile_, profile_root_.string());
 
   if (!eot::platform::AcquireInstanceLock()) {
     eot::platform::ShowFatalError("reeot is already running", "Close the running copy before starting another.");
@@ -117,10 +189,12 @@ void ReeotApp::OnPostInitLogging() {
 
 rex::PathConfig ReeotApp::PathsForInstall(const rex::PathConfig &defaults,
                                           const eot::installer::InstallConfig &cfg) {
-  EOT_INFO("[install] using the install at {} (recorded by {})", cfg.install_root.string(), cfg.app_version);
-  eot::installer::SyncPortPackages(cfg.game_data_path());
   rex::PathConfig paths = defaults;
+  UseInstallRoot(cfg.install_root, paths);
   paths.game_data_root = cfg.game_data_path();
+  eot::installer::SyncPortPackages(paths.game_data_root);
+  EOT_INFO("[install] using the install at {} (recorded by {}; profile {})", cfg.install_root.string(),
+           cfg.app_version, profile_root_.string());
   return paths;
 }
 
@@ -140,18 +214,14 @@ void ReeotApp::RestampInstall(const eot::installer::InstallConfig &cfg) {
 
 std::optional<rex::PathConfig>
 ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(rex::PathConfig)> resume) {
-  fs::path named = defaults.game_data_root;
-  if (const std::string cvar = REXCVAR_GET(game_data_root); !cvar.empty())
-    named = cvar;
-  if (!named.empty()) {
-    if (GameFolderHolds(named)) {
-      EOT_INFO("[install] game folder {}", named.string());
-      rex::PathConfig paths = defaults;
-      paths.game_data_root = named;
-      return paths;
-    }
-    EOT_WARN("[install] {} holds no Default.xex; looking for an install instead", named.string());
+  if (auto named = NamedGameFolder()) {
+    EOT_INFO("[install] game folder {}", named->string());
+    rex::PathConfig paths = defaults;
+    paths.game_data_root = *named;
+    return paths;
   }
+  if (const std::string named = REXCVAR_GET(game_data_root); !named.empty())
+    EOT_WARN("[install] {} holds no Default.xex; looking for an install instead", named);
 
   bool repair_requested = false;
 #ifdef REEOT_BUILD_INSTALLER
@@ -175,9 +245,6 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
         }
 #endif
         RestampInstall(*cfg);
-      } else if (!SamePlace(eot::platform::ProgramDir(), cfg->install_root)) {
-        EOT_WARN("[install] running from {} rather than the install folder {}",
-                 eot::platform::ProgramDir().string(), cfg->install_root.string());
       }
       return PathsForInstall(defaults, *cfg);
     }
@@ -207,7 +274,8 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
     return std::nullopt;
   std::error_code ec;
   const bool repair = existing && fs::is_directory(existing->install_root, ec);
-  const fs::path default_install_dir = existing ? existing->install_root : eot::platform::ProgramDir();
+  const fs::path default_install_dir =
+      existing ? existing->install_root : eot::installer::InstallRootFor(eot::platform::ProgramDir());
   installer_wizard_ = std::make_unique<eot::installer::InstallerWizard>(
       imgui_drawer(), immediate_drawer(), app_context(), default_install_dir, repair,
       existing ? &*existing : nullptr,
@@ -338,13 +406,18 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
     EOT_WARN("[install] the install record could not be written; the installer will show again");
   EOT_INFO("[install] installed to {} (disc {})", install_root.string(), cfg.disc_fingerprint);
 
-  const fs::path config = in_place || defaults.config_path.empty()
-                              ? defaults.config_path
-                              : install_root / defaults.config_path.filename();
-  if (!choices.settings.empty() && !config.empty()) {
-    rex::cvar::SaveConfig(config);
-    EOT_INFO("[install] {} settings written to {}", choices.settings.size(), config.string());
+  rex::PathConfig paths = defaults;
+  UseInstallRoot(install_root, paths);
+  if (!choices.settings.empty()) {
+    std::error_code ec;
+    if (fs::exists(paths.config_path, ec))
+      rex::cvar::LoadConfig(paths.config_path);
+    for (const auto &pick : choices.settings)
+      rex::cvar::SetFlagByName(pick.cvar, pick.value);
+    rex::cvar::SaveConfig(paths.config_path);
+    EOT_INFO("[install] {} settings written to {}", choices.settings.size(), paths.config_path.string());
   }
+  eot::installer::AdoptLegacyUserData(profile_root_);
 
   if (choices.create_shortcut) {
     std::string shortcut_error;
