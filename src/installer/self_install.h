@@ -16,4 +16,6 @@ bool CopyProgramTo(const std::filesystem::path &install, std::string &error);
 
 void SyncPortPackages(const std::filesystem::path &game);
 
+void AdoptLegacyUserData(const std::filesystem::path &profile);
+
 }

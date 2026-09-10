@@ -62,4 +62,29 @@ void SyncPortPackages(const fs::path &game) {
   }
 }
 
+void AdoptLegacyUserData(const fs::path &profile) {
+  const fs::path legacy = rex::filesystem::GetUserFolder() / "reeot";
+  std::error_code ec;
+  if (!fs::is_directory(legacy, ec) || fs::equivalent(legacy, profile, ec))
+    return;
+  size_t adopted = 0;
+  for (const auto &it : fs::directory_iterator(legacy, ec)) {
+    const std::string name = it.path().filename().string();
+    if (!it.is_directory() || name == "cache" || name.find('.') != std::string::npos)
+      continue;
+    const fs::path dst = profile / name;
+    if (fs::exists(dst, ec))
+      continue;
+    fs::copy(it.path(), dst, fs::copy_options::recursive, ec);
+    if (ec) {
+      EOT_WARN("[install] could not adopt {} from {}: {}", name, legacy.string(), ec.message());
+      ec.clear();
+      continue;
+    }
+    ++adopted;
+  }
+  if (adopted)
+    EOT_INFO("[install] adopted {} folder(s) of saves from {} into {}", adopted, legacy.string(), profile.string());
+}
+
 }
