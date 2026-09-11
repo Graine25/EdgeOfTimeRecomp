@@ -118,6 +118,7 @@ set(REEOT_SOURCES
     src/platform/file_dialog.cpp
     src/platform/desktop_shortcut.cpp
     src/platform/process.cpp
+    src/platform/display.cpp
     src/platform/fatal_dialog.cpp
     src/platform/crash_handler.cpp
     src/ui/theme.cpp
@@ -273,8 +274,8 @@ target_compile_definitions(reeot PRIVATE
     $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>
     $<$<OR:$<BOOL:${REEOT_PROFILING}>,$<NOT:$<CONFIG:Release>>>:EOT_PROFILING>)
 
+target_include_directories(reeot PRIVATE "${REXSDK_DIR}/thirdparty/imgui")
 target_link_libraries(reeot PRIVATE
-    rex::ui
     plume
     reeot_shader_cache
     xxHash::xxhash

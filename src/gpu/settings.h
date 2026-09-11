@@ -57,6 +57,7 @@ struct Settings {
 constexpr u32 kGuestRenderWidth = 1120;
 constexpr u32 kGuestRenderHeight = 632;
 
+void SetAutoRenderHeight(u32 height);
 f32 RenderScaleFactor();
 u32 InternalRenderWidth();
 u32 InternalRenderHeight();
