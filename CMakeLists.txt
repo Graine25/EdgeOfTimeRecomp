@@ -118,7 +118,6 @@ set(REEOT_SOURCES
     src/gpu/gpu_timing.cpp
     src/gpu/pipeline/pso_records.cpp
     src/gpu/pipeline/pso_predictor.cpp
-    src/gpu/hooks/model_load.cpp
     src/gpu/hooks/package_load.cpp
     src/gpu/patches/frame_time.cpp
     src/gpu/patches/update_rate.cpp
