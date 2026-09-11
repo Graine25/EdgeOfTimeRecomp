@@ -7,14 +7,12 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/ui/menu_handles.h"
-#include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgr_LoadMainPackage);
 REX_EXTERN(__imp__eot_MMMemoryMgr_Alloc);
 REX_EXTERN(__imp__eot_PKPackageMgrBC_Load);
 REX_EXTERN(__imp__eot_PKPackage_Mount); // PKPackage_Mount(package r3)
 REX_EXTERN(__imp__eot_Stream_Open);
-REX_EXTERN(__imp__eot_GLAPIResource_FindResourceFromCRC); // (type r3, nameCRC r4) -> resource or 0
 
 namespace {
 
@@ -74,9 +72,6 @@ uint32_t LoadPackage(const PPCContext &ctx, uint8_t *base, uint32_t id) {
   return call.r3.u32;
 }
 
-constexpr const char *kReeotTextures[] = {"Reeot_PopUpBox", "Reeot_Font_TempusGothic", "Reeot_Font_SansaCon"};
-constexpr uint32_t kResourceTypeTexture = 4;
-
 std::string GuestString(uint32_t addr, uint32_t max = 160) {
   std::string s;
   for (uint32_t i = 0; addr && i < max; ++i) {
@@ -105,13 +100,6 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
     eot::mem::store<uint32_t>(package + 160, flags | 0x8);
     EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", eot::ui::kReeotPackageName, flags,
              flags | 0x8);
-  }
-  for (const char *name : kReeotTextures) {
-    PPCContext call = ctx;
-    call.r3.u32 = kResourceTypeTexture;
-    call.r4.u32 = eot::ui::NameCrc(name);
-    __imp__eot_GLAPIResource_FindResourceFromCRC(call, base);
-    EOT_DEBUG("[pkg] texture {} (crc {:#010x}) -> resource {:#x}", name, eot::ui::NameCrc(name), call.r3.u32);
   }
 }
 
