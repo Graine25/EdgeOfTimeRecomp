@@ -74,8 +74,8 @@ constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
                                   {"REEOT_VAL_2160P", "2160p"}};
-constexpr Choice kAspect[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_9", "16:9"},
-                              {"REEOT_VAL_16_10", "16:10"}, {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};
+constexpr Choice kAspect[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"},
+                              {"REEOT_VAL_16_9", "16:9"}, {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};
 constexpr Choice kPreset[] = {{"REEOT_VAL_LOW", "low"}, {"REEOT_VAL_MEDIUM", "medium"}, {"REEOT_VAL_HIGH", "high"},
                               {"REEOT_VAL_CUSTOM", "custom"}};
 constexpr Choice kMsaa[] = {{"REEOT_VAL_OFF", "0"}, {"REEOT_VAL_2X", "2"}, {"REEOT_VAL_4X", "4"}, {"REEOT_VAL_8X", "8"}};
@@ -141,7 +141,8 @@ constexpr Page kGraphicsPage = {"REEOT_GRAPHICS_TITLE", "REEOT_GRAPHICS", kGraph
 
 constexpr uint32_t kRetailCount = 5;
 constexpr uint32_t kVideoIndex = 1;
-constexpr uint32_t kGraphicsIndex = 5;
+constexpr uint32_t kGraphicsIndex = 2;
+constexpr uint32_t kLastIndex = kRetailCount;
 constexpr uint32_t kScreenCursorOff = 84;
 
 namespace cfg {
@@ -855,21 +856,28 @@ REX_HOOK_RAW(eot_HUDOptionsScreen_BuildBar) {
 
 void eot_OptionsBar_AddGraphics(PPCRegister &r6, PPCRegister &r31) {
   const uint32_t desc = r6.u32;
-  if (!desc || eot::mem::load<uint32_t>(desc + kDescCount) != kRetailCount)
+  if (!desc || eot::mem::load<uint32_t>(desc + kDescCount) != kRetailCount || !g_video_label || !g_graphics_label)
     return;
-  if (g_video_label)
-    eot::mem::store<uint32_t>(DescHandleAddr(desc, kVideoIndex), g_video_label);
-  const int slot = g_graphics_label ? AppendEntry(desc, g_graphics_label) : -1;
-  EOT_INFO("[menu] options bar {:#x}: Video in slot {}, Graphics in slot {}", desc, kVideoIndex, slot);
-  if (slot < 0)
-    return;
+  eot::mem::store<uint32_t>(DescHandleAddr(desc, kVideoIndex), g_video_label);
+  for (uint32_t i = kRetailCount; i > kGraphicsIndex; --i) {
+    eot::mem::store<uint32_t>(DescHandleAddr(desc, i), eot::mem::load<uint32_t>(DescHandleAddr(desc, i - 1)));
+    eot::mem::store<uint32_t>(DescPropAddr(desc, i), eot::mem::load<uint32_t>(DescPropAddr(desc, i - 1)));
+  }
+  eot::mem::store<uint32_t>(DescHandleAddr(desc, kGraphicsIndex), g_graphics_label);
+  eot::mem::store<uint32_t>(DescPropAddr(desc, kGraphicsIndex), kPropDefault);
+  eot::mem::store<uint32_t>(desc + kDescCount, kRetailCount + 1);
+  const uint16_t mask = eot::mem::load<uint16_t>(desc + kDescSelectableMask);
+  const uint16_t above = static_cast<uint16_t>((mask & ~((1u << kGraphicsIndex) - 1)) << 1);
+  const uint16_t below = static_cast<uint16_t>(mask & ((1u << kGraphicsIndex) - 1));
+  eot::mem::store<uint16_t>(desc + kDescSelectableMask, static_cast<uint16_t>(above | below | (1u << kGraphicsIndex)));
   eot::mem::store<uint32_t>(desc + kDescSelected, 0);
   if (r31.u32)
     eot::mem::store<uint32_t>(r31.u32 + kScreenCursorOff, 0);
+  EOT_INFO("[menu] options bar {:#x}: Video in slot {}, Graphics in slot {}", desc, kVideoIndex, kGraphicsIndex);
 }
 
 void eot_OptionsBar_NavRightBound6(PPCRegister &r29, PPCCRRegister &cr6, PPCXERRegister &xer) {
-  cr6.compare<uint32_t>(r29.u32, kGraphicsIndex, xer);
+  cr6.compare<uint32_t>(r29.u32, kLastIndex, xer);
 }
 
 REX_HOOK_RAW(eot_HUDOptionsScreen_HandleInputEvent) {
@@ -886,6 +894,12 @@ REX_HOOK_RAW(eot_HUDOptionsScreen_HandleInputEvent) {
     if (page) {
       OpenPage(ctx, base, *page);
       ConsumeEvent(event);
+      return;
+    }
+    if (cursor > kGraphicsIndex) {
+      eot::mem::store<uint32_t>(self + kScreenCursorOff, cursor - 1);
+      __imp__eot_HUDOptionsScreen_HandleInputEvent(ctx, base);
+      eot::mem::store<uint32_t>(self + kScreenCursorOff, cursor);
       return;
     }
   }
