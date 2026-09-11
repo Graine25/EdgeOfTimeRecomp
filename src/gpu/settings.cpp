@@ -43,16 +43,18 @@ REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video",
                       "guest size x this (0.25..4); the present scales to the window as before. "
                       "Used when eot_resolution is native.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
-                      "Internal render resolution: native (the guest's own 1120x632, scaled by "
-                      "eot_render_scale), 720p, 1080p, 1440p or 2160p (4K). The preset is a target "
-                      "height the scale is derived from; the present always fits the result to the "
-                      "window, so a 1440p internal image is blitted up to whatever the display is. "
-                      "Fidelity measurement (tools/score_dense.py) needs native, which is what the "
-                      "guest and the Xenia references render.")
-    .allowed({"native", "720p", "1080p", "1440p", "2160p"})
+REXCVAR_DEFINE_STRING(eot_resolution, "auto", "EdgeOfTime/Video",
+                      "Internal render resolution: auto (from the display the window is on: 1440p "
+                      "on anything 1440 rows or taller, 1080p on 1080, 720p below), native (the "
+                      "guest's own 1120x632, scaled by eot_render_scale), 720p, 1080p, 1440p or "
+                      "2160p (4K). The preset is a target height the scale is derived from; the "
+                      "present always fits the result to the window, so a 1440p internal image is "
+                      "blitted up to whatever the display is. Fidelity measurement "
+                      "(tools/score_dense.py) needs native, which is what the guest and the Xenia "
+                      "references render.")
+    .allowed({"auto", "native", "720p", "1080p", "1440p", "2160p"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
+REXCVAR_DEFINE_STRING(eot_aspect_ratio, "auto", "EdgeOfTime/Video",
                       "Aspect ratio the game builds its projection for: auto follows the window, "
                       "the rest force a ratio. Wider than 16:9 shows more to the sides rather than "
                       "stretching; the HUD is authored for 16:9 and is not corrected yet.")
@@ -216,10 +218,14 @@ bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
 
 namespace {
 
+u32 g_auto_render_height = 1080;
+
 f32 ComputeRenderScale() {
   const std::string preset = Settings::Resolution();
   u32 target_height = 0;
-  if (preset == "720p")
+  if (preset == "auto")
+    target_height = g_auto_render_height;
+  else if (preset == "720p")
     target_height = 720;
   else if (preset == "1080p")
     target_height = 1080;
@@ -234,6 +240,8 @@ f32 ComputeRenderScale() {
 }
 
 }
+
+void SetAutoRenderHeight(u32 height) { g_auto_render_height = height; }
 
 f32 RenderScaleFactor() {
   static const f32 s = ComputeRenderScale();

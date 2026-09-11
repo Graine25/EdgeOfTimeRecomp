@@ -71,9 +71,9 @@ struct Page {
 };
 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
-constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
-                                  {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
-                                  {"REEOT_VAL_2160P", "2160p"}};
+constexpr Choice kResolution[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_NATIVE", "native"},
+                                  {"REEOT_VAL_720P", "720p"},   {"REEOT_VAL_1080P", "1080p"},
+                                  {"REEOT_VAL_1440P", "1440p"}, {"REEOT_VAL_2160P", "2160p"}};
 constexpr Choice kAspect[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"},
                               {"REEOT_VAL_16_9", "16:9"}, {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};
 constexpr Choice kPreset[] = {{"REEOT_VAL_LOW", "low"}, {"REEOT_VAL_MEDIUM", "medium"}, {"REEOT_VAL_HIGH", "high"},
@@ -89,6 +89,8 @@ constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_B
 bool RenderScaleApplies() { return rex::cvar::GetFlagByName("eot_resolution") == "native"; }
 
 constexpr Setting kVideoSettings[] = {
+    {.label = "REEOT_OPT_FULLSCREEN", .description = "REEOT_DESC_FULLSCREEN", .cvar = "fullscreen",
+     .choices = kOnOff},
     {.label = "REEOT_OPT_RESOLUTION", .description = "REEOT_DESC_RESOLUTION", .cvar = "eot_resolution",
      .choices = kResolution, .restart = true},
     {.label = "REEOT_OPT_RENDER_SCALE", .description = "REEOT_DESC_RENDER_SCALE", .cvar = "eot_render_scale",

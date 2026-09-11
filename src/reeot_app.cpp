@@ -439,6 +439,8 @@ std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
 
 void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   window()->SetTitle("reeot v" REEOT_VERSION_STRING " " REXGLUE_BUILD_TITLE);
+  EOT_INFO("[window] {}x{}, {}", window()->GetActualPhysicalWidth(), window()->GetActualPhysicalHeight(),
+           window()->IsFullscreen() ? "fullscreen" : "windowed");
   drawer->AddDialog(new FpsOverlayDialog(drawer));
   rex::ui::RegisterBind("bind_fps_overlay", "F8", "Toggle the FPS overlay", [] {
     const bool shown = rex::cvar::Query<bool>("show_fps_overlay");
