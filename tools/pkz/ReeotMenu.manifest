@@ -1,6 +1,10 @@
 package 0x7ED ReeotMenu
 languages 1 2 5 3 4
-strings reeot_menu_strings.txt ReeotMenu
+strings generated/reeot_menu_strings.en.txt ReeotMenu lang=0x1
+strings generated/reeot_menu_strings.fr.txt ReeotMenu lang=0x2
+strings generated/reeot_menu_strings.es.txt ReeotMenu lang=0x4
+strings generated/reeot_menu_strings.it.txt ReeotMenu lang=0x8
+strings generated/reeot_menu_strings.de.txt ReeotMenu lang=0x10
 window Reeot_OptionsPanel type=0 prio=1 rect=0,0,1,1 wide=0,0,1,1
 windowgrid Reeot_OptionsRow 1 6 type=0 parent=Reeot_OptionsPanel prio=1 flags=0x1 rect=0.080,0.030,0.830,0.140 step=0,0.150
 texture Reeot_Menu_ScrollArrow_Tex from Common.pak Menu_ScrollArrowUp[Hi]
@@ -12,7 +16,8 @@ textstyle Reeot_Menu_Style_Body from Main.pak TCRWindow_Body
 window Reeot_OptionsInfo type=0 parent=Reeot_OptionsPanel prio=1 flags=0x1 rect=1.050,-0.0965,0.560,1.0965
 window Reeot_OptionsInfoBox type=1 parent=Reeot_OptionsInfo prio=1 flags=0x1 rect=0,0,1,1 texture=Reeot_Menu_PopUpBox_Tex
 window Reeot_OptionsInfoTitle type=4 parent=Reeot_OptionsInfo prio=2 flags=0x1 rect=0.060,0.010,0.880,0.110 style=Reeot_Menu_Style_Title textflags=0x30000 align=1,3
-window Reeot_OptionsInfoText type=4 parent=Reeot_OptionsInfo prio=2 flags=0x1 rect=0.060,0.150,0.880,0.600 style=Reeot_Menu_Style_Body textflags=0x30000 align=1,0
+window Reeot_OptionsInfoText type=4 parent=Reeot_OptionsInfo prio=2 flags=0x1 rect=0.060,0.150,0.880,0.560 style=Reeot_Menu_Style_Body textflags=0x30000 align=1,0
+window Reeot_OptionsInfoValue type=4 parent=Reeot_OptionsInfo prio=2 flags=0x1 rect=0.060,0.730,0.880,0.100 style=Reeot_Menu_Style_Title textflags=0x30000 align=1,1
 window Reeot_OptionsInfoNote type=4 parent=Reeot_OptionsInfo prio=2 flags=0x1 rect=0.060,0.860,0.880,0.100 style=Reeot_Menu_Style_Body string=REEOT_DESC_RESTART textflags=0x30000 align=1,1
 window Reeot_Menu_TextureHolder type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Menu_ScrollArrow_Tex
 window Reeot_Menu_TextureHolderBox type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Menu_PopUpBox_Tex

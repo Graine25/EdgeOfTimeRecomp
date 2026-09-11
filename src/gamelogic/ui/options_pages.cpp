@@ -280,6 +280,7 @@ struct Windows {
   uint32_t scroll_down = hud::kNoWindow;
   uint32_t info_title = hud::kNoWindow;
   uint32_t info_text = hud::kNoWindow;
+  uint32_t info_value = hud::kNoWindow;
   uint32_t info_note = hud::kNoWindow;
   uint32_t title = hud::kNoWindow;
   bool found = false;
@@ -579,6 +580,15 @@ void ShowRowKind(const PPCContext &ctx, uint8_t *base, uint32_t row, bool slider
 void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   SetStringHandle(ctx, base, g_windows.info_title, StringHandle(ctx, base, s.label));
   SetStringHandle(ctx, base, g_windows.info_text, StringHandle(ctx, base, s.description));
+  hud::Activate(ctx, base, g_windows.info_value, s.IsSlider());
+  if (s.IsSlider()) {
+    char now[32], lo[32], hi[32], line[96];
+    FormatStop(s, CurrentStop(s), now, sizeof(now));
+    FormatStop(s, 0, lo, sizeof(lo));
+    FormatStop(s, SliderStops(s) - 1, hi, sizeof(hi));
+    std::snprintf(line, sizeof(line), "%s   (%s - %s)", now, lo, hi);
+    SetLine(ctx, base, g_windows.info_value, line);
+  }
   hud::Activate(ctx, base, g_windows.info_note, s.restart);
 }
 
@@ -655,6 +665,7 @@ bool FindWindows(const PPCContext &ctx, uint8_t *base) {
   g_windows.scroll_down = hud::Find(ctx, base, NameCrc("Reeot_OptionsScrollDown"));
   g_windows.info_title = hud::Find(ctx, base, NameCrc("Reeot_OptionsInfoTitle"));
   g_windows.info_text = hud::Find(ctx, base, NameCrc("Reeot_OptionsInfoText"));
+  g_windows.info_value = hud::Find(ctx, base, NameCrc("Reeot_OptionsInfoValue"));
   g_windows.info_note = hud::Find(ctx, base, NameCrc("Reeot_OptionsInfoNote"));
   g_windows.title = hud::Find(ctx, base, tcr::kTitleTextCrc);
   for (uint32_t i = 0; i < kRows; ++i) {

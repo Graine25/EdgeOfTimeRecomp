@@ -52,6 +52,20 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
     COMMENT "Authoring ReeotUI.pkz from tools/pkz/ReeotUI.manifest"
     VERBATIM)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(REEOT_MENU_STRINGS_TOML "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_menu_strings.toml")
+set(REEOT_MENU_STRINGS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/generated")
+set(REEOT_MENU_STRINGS "")
+foreach(lang en fr es it de)
+    list(APPEND REEOT_MENU_STRINGS "${REEOT_MENU_STRINGS_DIR}/reeot_menu_strings.${lang}.txt")
+endforeach()
+add_custom_command(
+    OUTPUT ${REEOT_MENU_STRINGS}
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_strings.py"
+            "${REEOT_MENU_STRINGS_TOML}" "${REEOT_MENU_STRINGS_DIR}" reeot_menu_strings
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_strings.py" "${REEOT_MENU_STRINGS_TOML}"
+    COMMENT "Writing the menu strings per language from reeot_menu_strings.toml"
+    VERBATIM)
 set(REEOT_MENU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotMenu.pkz")
 add_custom_command(
     OUTPUT "${REEOT_MENU_PKZ_OUTPUT}"
@@ -60,7 +74,7 @@ add_custom_command(
             --paks "${REEOT_REFERENCE_PAKS}"
     DEPENDS pkztool
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotMenu.manifest"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_menu_strings.txt"
+            ${REEOT_MENU_STRINGS}
     COMMENT "Authoring ReeotMenu.pkz from tools/pkz/ReeotMenu.manifest"
     VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}")
