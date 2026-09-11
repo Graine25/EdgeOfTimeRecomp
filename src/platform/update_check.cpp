@@ -1,8 +1,11 @@
 #include "platform/update_check.h"
 
 #include <atomic>
+#include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -12,12 +15,16 @@
 #include <shlobj.h>
 
 #include <rex/cvar.h>
+#include <rex/runtime.h>
 
 #include "core/build_info.h"
 #include "core/logging.h"
+#include "platform/process.h"
 
 REXCVAR_DEFINE_BOOL(eot_update_check, true, "EdgeOfTime/Config",
                     "Notice when a newer reeot build is in the distribution folder (offline).");
+REXCVAR_DEFINE_BOOL(eot_update_apply, true, "EdgeOfTime/Config",
+                    "Swap in a newer build from the distribution folder at startup and relaunch.");
 REXCVAR_DEFINE_STRING(eot_update_dir, "", "EdgeOfTime/Config",
                       "Folder holding the reeot.exe to compare against; empty = Downloads/reeot-dis.");
 
@@ -125,6 +132,52 @@ void Run() {
            version.empty() ? "?" : version, stamp, REEOT_VERSION_STRING, REEOT_BUILD_TIMESTAMP);
 }
 
+std::vector<std::string> ProgramFiles(const fs::path &dir) {
+  std::vector<std::string> files;
+  std::ifstream in(dir / "program_files.txt");
+  std::string line;
+  while (std::getline(in, line)) {
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t'))
+      line.pop_back();
+    if (!line.empty())
+      files.push_back(line);
+  }
+  if (files.empty())
+    files = {"reeot.exe",          "rexruntimerd.dll", "reeot_GameLogic.dll",
+             "dxcompiler.dll",     "dxil.dll",         "gamecontrollerdb.txt"};
+  return files;
+}
+
+bool FilesDiffer(const fs::path &have, const fs::path &src) {
+  std::error_code ec;
+  if (!fs::exists(have, ec))
+    return true;
+  if (fs::file_size(have, ec) != fs::file_size(src, ec) || ec)
+    return true;
+  std::ifstream a(have, std::ios::binary), b(src, std::ios::binary);
+  if (!a || !b)
+    return true;
+  char ba[64 * 1024], bb[64 * 1024];
+  for (;;) {
+    a.read(ba, sizeof(ba));
+    b.read(bb, sizeof(bb));
+    if (a.gcount() != b.gcount() || std::memcmp(ba, bb, static_cast<size_t>(a.gcount())) != 0)
+      return true;
+    if (a.eof() && b.eof())
+      return false;
+    if (a.bad() || b.bad())
+      return true;
+  }
+}
+
+void ClearUpdateLeftovers(const fs::path &dir, const std::vector<std::string> &files) {
+  std::error_code ec;
+  for (const auto &f : files) {
+    fs::remove(dir / (f + ".old"), ec);
+    fs::remove(dir / (f + ".incoming"), ec);
+  }
+}
+
 }
 
 void BeginUpdateCheck() {
@@ -138,6 +191,90 @@ std::optional<AvailableUpdate> NewerBuildAvailable() {
     return std::nullopt;
   std::lock_guard lock(g_mutex);
   return g_update;
+}
+
+bool ApplyOfflineUpdate() {
+  const fs::path prog = ProgramDir();
+  const std::vector<std::string> files = ProgramFiles(prog);
+  ClearUpdateLeftovers(prog, files);
+  if (!REXCVAR_GET(eot_update_apply))
+    return false;
+
+  std::error_code ec;
+  const fs::path dir = DistFolder();
+  if (dir.empty())
+    return false;
+  const fs::path dist_exe = dir / "reeot.exe";
+  if (!fs::is_regular_file(dist_exe, ec))
+    return false;
+  if (fs::equivalent(dir, prog, ec))
+    return false;
+
+  const std::string stamp = ResourceString(ReadVersionResource(dist_exe), L"BuildStamp");
+  if (stamp.empty() || stamp <= std::string(REEOT_BUILD_TIMESTAMP))
+    return false;
+
+  std::vector<std::string> changed;
+  for (const auto &f : files) {
+    const fs::path src = dir / f;
+    if (fs::is_regular_file(src, ec) && FilesDiffer(prog / f, src))
+      changed.push_back(f);
+  }
+  if (changed.empty())
+    return false;
+
+  EOT_INFO("[update] build {} in {} is newer than this build {}; swapping {} file(s)", stamp,
+           dir.string(), REEOT_BUILD_TIMESTAMP, changed.size());
+
+  for (const auto &f : changed) {
+    fs::copy_file(dir / f, prog / (f + ".incoming"), fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+      EOT_ERROR("[update] could not stage {}: {}", f, ec.message());
+      for (const auto &g : changed)
+        fs::remove(prog / (g + ".incoming"), ec);
+      return false;
+    }
+  }
+
+  std::vector<std::string> swapped;
+  auto rollback = [&] {
+    for (auto it = swapped.rbegin(); it != swapped.rend(); ++it) {
+      fs::remove(prog / *it, ec);
+      fs::rename(prog / (*it + ".old"), prog / *it, ec);
+    }
+    for (const auto &g : changed)
+      fs::remove(prog / (g + ".incoming"), ec);
+  };
+  for (const auto &f : changed) {
+    const fs::path target = prog / f;
+    const bool had = fs::exists(target, ec);
+    if (had) {
+      fs::rename(target, prog / (f + ".old"), ec);
+      if (ec) {
+        EOT_ERROR("[update] could not move {} aside: {}; leaving the build as it was", f,
+                  ec.message());
+        rollback();
+        return false;
+      }
+    }
+    fs::rename(prog / (f + ".incoming"), target, ec);
+    if (ec) {
+      EOT_ERROR("[update] could not swap in {}: {}; leaving the build as it was", f, ec.message());
+      if (had)
+        fs::rename(prog / (f + ".old"), target, ec);
+      rollback();
+      return false;
+    }
+    if (had)
+      swapped.push_back(f);
+  }
+
+  EOT_INFO("[update] swapped to build {}; relaunching", stamp);
+  rex::FlushLogging();
+  if (RelaunchSelf())
+    return true;
+  EOT_WARN("[update] swapped the files but could not relaunch; the new build starts next launch");
+  return false;
 }
 
 }
