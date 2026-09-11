@@ -109,7 +109,6 @@ set(REEOT_SOURCES
     src/gpu/format.cpp
     src/gpu/constant_buffers.cpp
     src/gpu/textures.cpp
-    src/gpu/texture_replace.cpp
     src/gpu/surfaces.cpp
     src/gpu/vertex_layout.cpp
     src/gpu/draw.cpp
@@ -137,6 +136,7 @@ set(REEOT_SOURCES
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
     src/goliath/loading/reeot_package.cpp
+    src/goliath/loading/texture_overrides.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
