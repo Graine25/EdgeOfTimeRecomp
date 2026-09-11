@@ -1,20 +1,19 @@
 #pragma once
 
+#include <filesystem>
 #include <optional>
 #include <string>
 
 namespace eot::platform {
 
-struct AvailableUpdate {
+struct InstallUpdate {
   std::string stamp;
   std::string version;
   std::string location;
 };
 
-void BeginUpdateCheck();
+void UpdateInstalledCopy(const std::filesystem::path &install_root);
 
-std::optional<AvailableUpdate> NewerBuildAvailable();
-
-bool ApplyOfflineUpdate();
+std::optional<InstallUpdate> LastInstallUpdate();
 
 }

@@ -185,10 +185,7 @@ void ReeotApp::OnPostInitLogging() {
   if (!install_root_.empty())
     EOT_INFO("  profile: {} ({})", active_profile_, profile_root_.string());
 
-  if (eot::platform::ApplyOfflineUpdate()) {
-    rex::FlushLogging();
-    std::_Exit(0);
-  }
+  eot::platform::UpdateInstalledCopy(install_root_);
 
   if (!eot::platform::AcquireInstanceLock()) {
     eot::platform::ShowFatalError("reeot is already running", "Close the running copy before starting another.");
@@ -421,7 +418,6 @@ std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
 void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   window()->SetTitle("reeot v" REEOT_VERSION_STRING " " REXGLUE_BUILD_TITLE);
   drawer->AddDialog(new FpsOverlayDialog(drawer));
-  eot::platform::BeginUpdateCheck();
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 
