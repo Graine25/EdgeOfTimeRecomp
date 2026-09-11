@@ -6,6 +6,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "goliath/loading/texture_overrides.h"
 #include "goliath/ui/menu_handles.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgr_LoadMainPackage);
@@ -54,8 +55,9 @@ uint32_t RegisterPackage(const PPCContext &ctx, uint8_t *base, uint32_t id, cons
   const size_t len = std::strlen(name);
   for (size_t i = 0; i < len && i < kRecNameSize - 1; ++i)
     eot::mem::store<uint8_t>(record + kRecName + static_cast<uint32_t>(i), static_cast<uint8_t>(name[i]));
-  eot::mem::store<uint32_t>(record + kRecDepCount, 1);
-  eot::mem::store<uint16_t>(record + kRecDeps, static_cast<uint16_t>(dependency));
+  eot::mem::store<uint32_t>(record + kRecDepCount, dependency ? 1u : 0u);
+  if (dependency)
+    eot::mem::store<uint16_t>(record + kRecDeps, static_cast<uint16_t>(dependency));
   eot::mem::store<uint32_t>(record + kRecFlags, 0);
   eot::mem::store<uint32_t>(slot, record);
   return record;
@@ -101,6 +103,7 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
     EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", eot::ui::kReeotPackageName, flags,
              flags | 0x8);
   }
+  eot::loading::ApplyTextureOverrides(ctx, base);
 }
 
 REX_HOOK_RAW(eot_Stream_Open) {

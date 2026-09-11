@@ -1,6 +1,9 @@
 package 0x7EE ReeotUI
 languages 1 2 5 3 4
 strings reeot_ui_strings.txt
+texture Reeot_Font_TempusGothic_4x dds ../../res/textures/TempusGothic_4x.dds nomips
+font TempusGothic from Main.pak TempusGothic atlas=Reeot_Font_TempusGothic_4x
+window Reeot_TextureHolder type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Font_TempusGothic_4x
 compress true
 textstyle Reeot_Style_Body from Main.pak TCRWindow_Body
 window Reeot_GraphicsPanel type=0 prio=1 rect=0,0,1,1 wide=0,0,1,1

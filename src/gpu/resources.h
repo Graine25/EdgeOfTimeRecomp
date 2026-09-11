@@ -75,8 +75,6 @@ struct GuestTexture {
   bool uploaded = false;
   u64 uploadedUnlockSeq = 0;
   bool uploadFailed = false;
-  bool replaced = false;
-  u64 replacementHash = 0;
   bool resolveOwned = false;
   u32 resolvedMipMask = 0;
   u64 lastUseFrame = 0;
