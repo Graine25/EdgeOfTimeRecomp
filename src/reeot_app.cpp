@@ -45,7 +45,7 @@ REXCVAR_DEFINE_STRING(profile, "default", "EdgeOfTime/Config",
                       "location: the config, the saves, the cache.")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 #ifdef REEOT_BUILD_INSTALLER
-REXCVAR_DEFINE_BOOL(eot_repair, false, "EdgeOfTime/Config",
+REXCVAR_DEFINE_BOOL(repair, false, "EdgeOfTime/Config",
                     "Open the installer in repair mode on the recorded install at the next "
                     "start, to add the title update or DLC or to restore missing files.");
 REXCVAR_DEFINE_BOOL(eot_no_installer, false, "EdgeOfTime/Config",
@@ -244,8 +244,8 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
 
   bool repair_requested = false;
 #ifdef REEOT_BUILD_INSTALLER
-  repair_requested = REXCVAR_GET(eot_repair);
-  REXCVAR_SET(eot_repair, false);
+  repair_requested = REXCVAR_GET(repair);
+  REXCVAR_SET(repair, false);
 #endif
   std::optional<eot::installer::InstallConfig> existing;
   if (auto cfg = eot::installer::ReadInstallRegistry()) {
@@ -254,7 +254,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
     if (present && current && !repair_requested)
       return PathsForInstall(defaults, *cfg);
     if (repair_requested)
-      EOT_INFO("[install] eot_repair: opening the installer in repair mode on {}", cfg->install_root.string());
+      EOT_INFO("[install] --repair: opening the installer in repair mode on {}", cfg->install_root.string());
     else if (!present)
       EOT_WARN("[install] the record names {} but it holds no Default.xex; opening the installer",
                cfg->game_data_path().string());
