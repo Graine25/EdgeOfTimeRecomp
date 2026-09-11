@@ -171,7 +171,8 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/ui/pause_menu.cpp
         src/gamelogic/ui/options_graphics.cpp
-        src/gamelogic/ui/save_select.cpp)
+        src/gamelogic/ui/save_select.cpp
+        src/gamelogic/ui/button_prompts.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 endif()
@@ -200,7 +201,9 @@ endif()
 if(REEOT_D3D12)
     list(APPEND reeot_program_files dxcompiler.dll dxil.dll)
 endif()
-if(TARGET rex::TracyClient)
+if(TARGET TracyClient)
+    list(APPEND reeot_program_files "$<TARGET_FILE_NAME:TracyClient>")
+elseif(TARGET rex::TracyClient)
     list(APPEND reeot_program_files "$<TARGET_FILE_NAME:rex::TracyClient>")
 endif()
 set(reeot_program_files_cxx "")

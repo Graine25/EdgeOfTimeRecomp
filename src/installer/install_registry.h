@@ -12,6 +12,8 @@ constexpr const char *kInstallFolderName = "EdgeOfTimeRecompiled";
 
 std::filesystem::path InstallRootFor(const std::filesystem::path &picked);
 
+std::filesystem::path DefaultInstallRoot();
+
 struct InstallConfig {
   std::filesystem::path install_root;
   std::string disc_fingerprint;

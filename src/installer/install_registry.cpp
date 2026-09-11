@@ -1,5 +1,7 @@
 #include "installer/install_registry.h"
 
+#include <cstdlib>
+
 #include "core/build_info.h"
 #include "core/logging.h"
 
@@ -9,6 +11,14 @@ std::filesystem::path InstallRootFor(const std::filesystem::path &picked) {
   if (picked.filename() == kInstallFolderName)
     return picked;
   return picked / kInstallFolderName;
+}
+
+std::filesystem::path DefaultInstallRoot() {
+#if defined(_WIN32)
+  if (const wchar_t *local = _wgetenv(L"LOCALAPPDATA"); local && *local)
+    return std::filesystem::path(local) / L"Programs" / kInstallFolderName;
+#endif
+  return std::filesystem::path(kInstallFolderName);
 }
 
 }
