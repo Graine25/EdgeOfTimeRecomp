@@ -1,0 +1,86 @@
+# NAME<TAB>text: the menu strings, English for every language.
+REEOT_VIDEO	Video
+REEOT_GRAPHICS	Graphics
+REEOT_VIDEO_TITLE	VIDEO
+REEOT_GRAPHICS_TITLE	GRAPHICS
+REEOT_OPT_FULLSCREEN	Fullscreen
+REEOT_OPT_RESOLUTION	Resolution
+REEOT_OPT_ASPECT	Aspect Ratio
+REEOT_OPT_FPS_LIMIT	Frame Rate Limit
+REEOT_OPT_VSYNC	VSync
+REEOT_OPT_RENDER_SCALE	Render Scale
+REEOT_OPT_BRIGHTNESS	Brightness
+REEOT_OPT_CONTRAST	Contrast
+REEOT_OPT_SATURATION	Saturation
+REEOT_OPT_GAMMA	Gamma
+REEOT_OPT_PRESET	Quality Preset
+REEOT_OPT_MSAA	Anti-Aliasing
+REEOT_OPT_ANISOTROPY	Anisotropic Filtering
+REEOT_OPT_SHADOW_SIZE	Shadow Resolution
+REEOT_OPT_SHADOW_DISTANCE	Shadow Distance
+REEOT_OPT_UPSCALE	Upscale Filter
+REEOT_OPT_FOV	Field of View
+REEOT_OPT_BLOOM	Bloom
+REEOT_OPT_DOF	Depth of Field
+REEOT_OPT_MOTION_BLUR	Motion Blur
+REEOT_OPT_RADIAL_BLUR	Radial Blur
+REEOT_OPT_HEAT	Heat Effects
+REEOT_OPT_FILM_GRAIN	Film Grain
+REEOT_OPT_HALO	Halo
+REEOT_OPT_COLOR_GRADING	Colour Grading
+REEOT_VAL_ON	On
+REEOT_VAL_OFF	Off
+REEOT_VAL_AUTO	Auto
+REEOT_VAL_STRETCH	Stretch
+REEOT_VAL_NATIVE	Native
+REEOT_VAL_720P	720p
+REEOT_VAL_1080P	1080p
+REEOT_VAL_1440P	1440p
+REEOT_VAL_2160P	2160p
+REEOT_VAL_4_3	4:3
+REEOT_VAL_16_9	16:9
+REEOT_VAL_16_10	16:10
+REEOT_VAL_21_9	21:9
+REEOT_VAL_32_9	32:9
+REEOT_VAL_LOW	Low
+REEOT_VAL_MEDIUM	Medium
+REEOT_VAL_HIGH	High
+REEOT_VAL_CUSTOM	Custom
+REEOT_VAL_2X	2x
+REEOT_VAL_4X	4x
+REEOT_VAL_8X	8x
+REEOT_VAL_16X	16x
+REEOT_VAL_1024	1024
+REEOT_VAL_2048	2048
+REEOT_VAL_4096	4096
+REEOT_VAL_BILINEAR	Bilinear
+REEOT_VAL_BICUBIC	Bicubic
+REEOT_VAL_LANCZOS	Lanczos
+REEOT_DESC_FULLSCREEN	Fills the display, or runs in a window that can be moved and resized.
+REEOT_DESC_RESOLUTION	The resolution the game renders at in fullscreen. Native is the console's own 1120x632, scaled by Render Scale. In a window the game renders at the height the display suggests and the picture stretches to the window.
+REEOT_DESC_ASPECT	The shape the game builds its picture for in fullscreen. Wider than 16:9 shows more to the sides rather than stretching. In a window the picture follows the window.
+REEOT_DESC_FPS_LIMIT	The most frames per second the game will run at. The game runs one step per frame, so this paces everything, not just the display.
+REEOT_DESC_VSYNC	Waits for the display before showing a frame, which stops tearing and caps the rate at the display's.
+REEOT_DESC_RENDER_SCALE	How much larger or smaller than the console's own resolution to render, when Resolution is Native.
+REEOT_DESC_BRIGHTNESS	Lifts or lowers the whole picture. Applied at the end, on top of the game's own display curve.
+REEOT_DESC_CONTRAST	Stretches or flattens the picture around its middle grey.
+REEOT_DESC_SATURATION	How strong the colours are: 0% is greyscale, 100% is the game's own.
+REEOT_DESC_GAMMA	The curve between dark and light, before the console's own ramp.
+REEOT_DESC_PRESET	Sets Anti-Aliasing, Anisotropic Filtering, Shadow Resolution and the Upscale Filter together. Changing any of those by hand makes this Custom.
+REEOT_DESC_MSAA	Smooths the edges of geometry by drawing every scene pass with several samples per pixel. Costs memory and bandwidth in proportion.
+REEOT_DESC_ANISOTROPY	Keeps floors and walls sharp at grazing angles. Near free on a modern card.
+REEOT_DESC_SHADOW_SIZE	The size of each shadow map. Auto follows the render resolution; the fixed sizes trade sharpness for memory.
+REEOT_DESC_SHADOW_DISTANCE	How far shadows are cast, as a multiple of what the level asks for. Farther spreads the same map over more ground.
+REEOT_DESC_UPSCALE	The filter used to fit the rendered image to the window. Lanczos is the sharpest, bilinear the softest.
+REEOT_DESC_FOV	Widens or narrows the camera. 100% is the game's own.
+REEOT_DESC_BLOOM	The glow around bright light. Off keeps the game's tone curve.
+REEOT_DESC_DOF	Blurs what the camera is not focused on, including the shallow focus cutscenes use.
+REEOT_DESC_MOTION_BLUR	Streaks fast movement, of the camera and of what it sees.
+REEOT_DESC_RADIAL_BLUR	The speed streaks of free falls and dashes.
+REEOT_DESC_HEAT	Heat vision and the shimmer of hot air.
+REEOT_DESC_FILM_GRAIN	A fine grain over the whole picture.
+REEOT_DESC_HALO	Light bleeding from the brightest parts of the picture.
+REEOT_DESC_COLOR_GRADING	The game's own colour grade. Off shows the ungraded image.
+REEOT_DESC_RESTART	Takes effect after a restart.
+REEOT_RESTART_TITLE	Restart now?
+REEOT_RESTART_BODY	Some of these settings take effect after a restart. Restart the game now?

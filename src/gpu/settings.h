@@ -41,13 +41,13 @@ struct Settings {
   static std::string Resolution();
   static i32 FpsLimit();
   static std::string AspectRatio();
+  static std::string EffectiveAspectRatio();
+  static bool Fullscreen();
   static i32 HitchMs();
   static bool CommittedTextures();
   static bool Profiler();
   static i32 PerfFrames();
   static i32 DumpEvery();
-  static bool TextureReplace();
-  static bool DumpTextures();
   static i32 DiagFrame();
   static i32 RenderDocFrame();
   static std::string RenderDocDll();
@@ -59,6 +59,7 @@ struct Settings {
 constexpr u32 kGuestRenderWidth = 1120;
 constexpr u32 kGuestRenderHeight = 632;
 
+void SetAutoRenderHeight(u32 height);
 f32 RenderScaleFactor();
 u32 InternalRenderWidth();
 u32 InternalRenderHeight();

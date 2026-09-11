@@ -30,6 +30,7 @@
 #include "gpu/constant_buffers.h"
 #include "gpu/format.h"
 #include "gpu/quality.h"
+#include "platform/display.h"
 #include "gpu/settings.h"
 
 #if defined(EOT_D3D12)
@@ -840,6 +841,12 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   InitGPUProfiler(static_cast<plume::D3D12Device *>(s.device.get())->d3d,
                   static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
 #endif
+  {
+    const eot::platform::DisplaySize display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
+    SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
+    EOT_INFO("[gpu] display {}x{}, {}: a window renders at {}p", display.width, display.height,
+             Settings::Fullscreen() ? "fullscreen" : "windowed", eot::platform::AutoRenderHeight(display));
+  }
   ApplyQualityPresetAtBoot();
   {
     const i32 asked = Settings::Msaa();

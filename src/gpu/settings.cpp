@@ -1,6 +1,8 @@
 #include "gpu/settings.h"
 
+#include <atomic>
 #include <charconv>
+#include <string_view>
 #include <system_error>
 
 #include <rex/cvar.h>
@@ -22,9 +24,11 @@ REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug", "Start Tracy at boo
 REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "EdgeOfTime/Config", "Own allocation per surface");
 REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug", "Log frames slower than this")
     .range(0, 1000);
-REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale");
+REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video", "Internal render resolution")
-    .allowed({"native", "720p", "1080p", "1440p", "2160p"});
+    .allowed({"native", "720p", "1080p", "1440p", "2160p"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video", "Fullscreen aspect ratio")
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video", "Frame rate cap")
@@ -40,11 +44,13 @@ REXCVAR_DEFINE_BOOL(eot_heat_effects, true, "EdgeOfTime/Graphics", "Heat vision 
 REXCVAR_DEFINE_BOOL(eot_film_grain, true, "EdgeOfTime/Graphics", "Film grain overlay");
 REXCVAR_DEFINE_BOOL(eot_halo, true, "EdgeOfTime/Graphics", "Halo light bleed");
 REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics", "Scene color grading");
-REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics", "Field of view scale");
+REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics", "Field of view scale")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_shadow_cascades, 0, "EdgeOfTime/Graphics", "Shadow cascades per camera");
 REXCVAR_DEFINE_DOUBLE(eot_shadow_distance_scale, 1.0, "EdgeOfTime/Graphics", "Shadow distance multiplier");
 REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "EdgeOfTime/Debug", "Force the pak language id");
-REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics", "Shadow map resolution");
+REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics", "Shadow map resolution")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_anisotropy, 16, "EdgeOfTime/Graphics", "Anisotropic filtering level")
     .range(0, 16);
 REXCVAR_DEFINE_INT32(eot_msaa, 0, "EdgeOfTime/Graphics", "MSAA sample count")
@@ -73,8 +79,6 @@ REXCVAR_DEFINE_STRING(eot_rdc_dll,
 
 REXCVAR_DEFINE_STRING(eot_rdc_path, "D:/reeot_caps/tmp/reeot", "EdgeOfTime/Debug", "RenderDoc capture path");
 
-REXCVAR_DEFINE_BOOL(eot_texture_replace, true, "EdgeOfTime/Config", "Replace textures from folder");
-REXCVAR_DEFINE_BOOL(eot_dump_textures, false, "EdgeOfTime/Debug", "Dump every texture seen");
 REXCVAR_DEFINE_INT32(eot_dump_every, 0, "EdgeOfTime/Debug", "Save a frame every N")
     .range(0, 1000000);
 
@@ -101,8 +105,6 @@ bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures);
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
-bool Settings::TextureReplace() { return REXCVAR_GET(eot_texture_replace); }
-bool Settings::DumpTextures() { return REXCVAR_GET(eot_dump_textures); }
 i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
@@ -131,10 +133,23 @@ bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
 
 namespace {
 
+u32 g_auto_render_height = 1080;
+
+std::atomic<bool> g_fullscreen{true};
+struct FullscreenWatch {
+  FullscreenWatch() {
+    rex::cvar::RegisterChangeCallback("fullscreen", [](std::string_view, std::string_view value) {
+      g_fullscreen.store(value == "true" || value == "1", std::memory_order_relaxed);
+    });
+  }
+} g_fullscreen_watch;
+
 f32 ComputeRenderScale() {
   const std::string preset = Settings::Resolution();
   u32 target_height = 0;
-  if (preset == "720p")
+  if (!Settings::Fullscreen())
+    target_height = g_auto_render_height;
+  else if (preset == "720p")
     target_height = 720;
   else if (preset == "1080p")
     target_height = 1080;
@@ -149,6 +164,20 @@ f32 ComputeRenderScale() {
 }
 
 }
+
+void SetAutoRenderHeight(u32 height) { g_auto_render_height = height; }
+
+bool Settings::Fullscreen() {
+  static const bool initial = [] {
+    const bool on = rex::cvar::Query<bool>("fullscreen");
+    g_fullscreen.store(on, std::memory_order_relaxed);
+    return on;
+  }();
+  (void)initial;
+  return g_fullscreen.load(std::memory_order_relaxed);
+}
+
+std::string Settings::EffectiveAspectRatio() { return Fullscreen() ? AspectRatio() : std::string("auto"); }
 
 f32 RenderScaleFactor() {
   static const f32 s = ComputeRenderScale();

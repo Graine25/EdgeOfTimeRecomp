@@ -12,6 +12,7 @@
 #include <rex/filesystem.h>
 #include <rex/perf/counter.h>
 #include <rex/runtime.h>
+#include <rex/ui/keybinds.h>
 #include <rex/version.h>
 
 #if defined(_WIN32)
@@ -42,9 +43,25 @@
 REXCVAR_DEFINE_STRING(profile, "default", "EdgeOfTime/Config", "Active profile name")
     .lifecycle(rex::cvar::Lifecycle::kInitOnly);
 #ifdef REEOT_BUILD_INSTALLER
-REXCVAR_DEFINE_BOOL(eot_repair, false, "EdgeOfTime/Config", "Open installer in repair mode");
+REXCVAR_DEFINE_BOOL(repair, false, "EdgeOfTime/Config", "Open installer in repair mode");
 REXCVAR_DEFINE_BOOL(eot_no_installer, false, "EdgeOfTime/Config", "Never open the installer");
 #endif
+
+namespace {
+std::filesystem::path g_config_path;
+}
+
+REXCVAR_DEFINE_COMMAND(
+    eot_save_settings,
+    []() {
+      if (g_config_path.empty()) {
+        EOT_WARN("[settings] no profile config to save to");
+        return;
+      }
+      rex::cvar::SaveConfig(g_config_path);
+      EOT_INFO("[settings] saved to {}", g_config_path.string());
+    },
+    "EdgeOfTime/Config", "Save settings to profile");
 
 namespace {
 
@@ -154,6 +171,7 @@ void ReeotApp::UseInstallRoot(const fs::path &root, rex::PathConfig &paths) {
   paths.user_data_root = profile_root_;
   paths.cache_root = profile_root_ / "cache";
   paths.config_path = profile_root_ / "reeot.toml";
+  g_config_path = paths.config_path;
 }
 
 void ReeotApp::OnConfigurePaths(rex::PathConfig &paths) {
@@ -220,8 +238,8 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
 
   bool repair_requested = false;
 #ifdef REEOT_BUILD_INSTALLER
-  repair_requested = REXCVAR_GET(eot_repair);
-  REXCVAR_SET(eot_repair, false);
+  repair_requested = REXCVAR_GET(repair);
+  REXCVAR_SET(repair, false);
 #endif
   std::optional<eot::installer::InstallConfig> existing;
   if (auto cfg = eot::installer::ReadInstallRegistry()) {
@@ -230,7 +248,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
     if (present && current && !repair_requested)
       return PathsForInstall(defaults, *cfg);
     if (repair_requested)
-      EOT_INFO("[install] eot_repair: opening the installer in repair mode on {}", cfg->install_root.string());
+      EOT_INFO("[install] --repair: opening the installer in repair mode on {}", cfg->install_root.string());
     else if (!present)
       EOT_WARN("[install] the record names {} but it holds no Default.xex; opening the installer",
                cfg->game_data_path().string());
@@ -415,7 +433,13 @@ std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
 
 void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   window()->SetTitle("reeot v" REEOT_VERSION_STRING " " REXGLUE_BUILD_TITLE);
+  EOT_INFO("[window] {}x{}, {}", window()->GetActualPhysicalWidth(), window()->GetActualPhysicalHeight(),
+           window()->IsFullscreen() ? "fullscreen" : "windowed");
   drawer->AddDialog(new FpsOverlayDialog(drawer));
+  rex::ui::RegisterBind("bind_fps_overlay", "F8", "Toggle the FPS overlay", [] {
+    const bool shown = rex::cvar::Query<bool>("show_fps_overlay");
+    rex::cvar::SetFlagByName("show_fps_overlay", shown ? "false" : "true");
+  });
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 

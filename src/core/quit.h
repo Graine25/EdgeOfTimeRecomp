@@ -4,4 +4,6 @@ namespace eot {
 
 [[noreturn]] void QuitProcess(int code = 0);
 
+[[noreturn]] void RestartProcess();
+
 }

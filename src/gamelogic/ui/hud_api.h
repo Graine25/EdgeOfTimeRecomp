@@ -16,11 +16,13 @@ enum Slot : uint32_t {
   kWndGetFlags = 2,
   kWndAddFlags = 3,
   kWndRemoveFlags = 4,
+  kWndGetPos = 5,
   kWndSetPos = 6,
   kWndSetColors = 11,
   kTextWndSetText = 16,
   kTextWndSetString = 17,
   kWnd2DSetTexture = 23,
+  kWnd2DSetUVs = 24,
   kCreateWnd = 40,
   kDestroyWnd = 41,
   kWndGetChild = 43,
@@ -30,6 +32,7 @@ enum Slot : uint32_t {
   kIsActive = 58,
   kFindHUDWndFromCRC = 71,
   kTextWndSetStyle = 73,
+  kFindStringFromCRC = 86,
   kWndExists = 87,
   kCopyWnd = 90,
 };
@@ -45,7 +48,7 @@ inline uint32_t Entry(uint32_t slot) {
 }
 
 inline uint32_t CallAt(const PPCContext &ctx, uint8_t *base, uint32_t addr, uint32_t r3 = 0, uint32_t r4 = 0,
-                       uint32_t r5 = 0, uint32_t r6 = 0) {
+                       uint32_t r5 = 0, uint32_t r6 = 0, uint32_t r7 = 0, uint32_t r8 = 0) {
   PPCFunc *fn = addr ? rex::runtime::ResolveIndirectFunction(addr) : nullptr;
   if (!fn)
     return kNoWindow;
@@ -54,13 +57,15 @@ inline uint32_t CallAt(const PPCContext &ctx, uint8_t *base, uint32_t addr, uint
   call.r4.u32 = r4;
   call.r5.u32 = r5;
   call.r6.u32 = r6;
+  call.r7.u32 = r7;
+  call.r8.u32 = r8;
   fn(call, base);
   return call.r3.u32;
 }
 
 inline uint32_t Call(const PPCContext &ctx, uint8_t *base, uint32_t slot, uint32_t r3 = 0, uint32_t r4 = 0,
-                     uint32_t r5 = 0, uint32_t r6 = 0) {
-  return CallAt(ctx, base, Entry(slot), r3, r4, r5, r6);
+                     uint32_t r5 = 0, uint32_t r6 = 0, uint32_t r7 = 0, uint32_t r8 = 0) {
+  return CallAt(ctx, base, Entry(slot), r3, r4, r5, r6, r7, r8);
 }
 
 inline uint32_t Find(const PPCContext &ctx, uint8_t *base, uint32_t crc) {
@@ -79,6 +84,11 @@ inline void SetString(const PPCContext &ctx, uint8_t *base, uint32_t handle, uin
 
 inline uint32_t Flags(const PPCContext &ctx, uint8_t *base, uint32_t handle) {
   return handle == kNoWindow ? 0 : Call(ctx, base, kWndGetFlags, handle);
+}
+
+inline uint32_t FindString(const PPCContext &ctx, uint8_t *base, uint32_t nameCrc) {
+  const uint32_t handle = Call(ctx, base, kFindStringFromCRC, nameCrc);
+  return handle == kNoWindow ? 0 : handle;
 }
 
 }

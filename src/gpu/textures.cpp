@@ -22,7 +22,6 @@
 
 #include "gpu/settings.h"
 #include "gpu/format.h"
-#include "gpu/texture_replace.h"
 
 namespace eot::gpu {
 
@@ -82,8 +81,6 @@ u32 InfoDepth(const TextureInfo &info) { return info.depth + 1; }
 
 bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   HostTexture &host = t.host;
-  if (texrep::Active() && texrep::TryCreateReplacementImage(s, t, info))
-    return true;
   const TextureFormatMapping m = MapTextureFormat(info.format);
   if (!m.supported) {
     if (!t.uploadFailed) {
@@ -169,10 +166,6 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   HostTexture &host = t.host;
   if (!host.texture || host.isDepth)
     return;
-  if (t.replaced) {
-    texrep::UploadReplacement(s, t);
-    return;
-  }
   PerfScope perf_scope(s.perf.upload_ms);
   s.perf.uploads++;
   const TextureFormatMapping m = MapTextureFormat(info.format);
@@ -426,10 +419,8 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
   t->mipAddress = info.memory.mip_address;
   t->gammaSigned = f.sign_x == xe::TextureSign::kGamma;
   infos()[header_va] = info;
-  if (create_host_image) {
+  if (create_host_image)
     CreateHostImage(s, *t, info);
-    texrep::MaybeDumpTexture(*t, info);
-  }
   EOT_DEBUG("[textures] {:#x}: {}x{}x{} mips {}..{} fmt {} {} {} base {:#x} mip {:#x} -> host fmt {}",
             header_va, InfoWidth(info), InfoHeight(info), InfoDepth(info), info.mip_min_level,
             info.mip_max_level, static_cast<u32>(info.format), info.is_tiled ? "tiled" : "linear",
@@ -444,7 +435,7 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
     return kInvalidDescriptorIndex;
   const u64 seq = ResourceUnlockSeq(t.va);
   const bool stale = !t.uploaded || seq != t.uploadedUnlockSeq;
-  if (stale && (t.resolveOwned || (t.replaced && t.uploaded))) {
+  if (stale && t.resolveOwned) {
     u32 n;
     if (seq > t.uploadedUnlockSeq && DiagShouldLog(0x5E80 ^ t.va, &n))
       EOT_DEBUG("[textures] {:#x}: Unlock on a resolve-owned mirror ignored (seq {} -> {})", t.va,

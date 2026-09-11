@@ -12,6 +12,7 @@
 
 #include "core/logging.h"
 #include "embedded.h"
+#include "embedded_menu_package.h"
 #include "embedded_package.h"
 #include "goliath/ui/menu_handles.h"
 #include "installer/program_files.h"
@@ -90,13 +91,15 @@ void WriteAsset(const EmbeddedAsset &asset, const fs::path &path, size_t &writte
 
 void WritePortFiles(const fs::path &game) {
   size_t written = 0;
-  const EmbeddedAsset package = EmbeddedPortPackage();
-  const fs::path name = fs::path(std::string(package.name)).filename();
-  WriteAsset(package, game / "Data" / eot::ui::kReeotPackageFolder / name, written);
-  std::error_code stale_ec;
-  const fs::path stale = game / "Data" / name;
-  if (fs::is_regular_file(stale, stale_ec) && fs::remove(stale, stale_ec))
-    EOT_INFO("[install] removed the old {}", stale.string());
+  const EmbeddedAsset packages[] = {EmbeddedPortPackage(), EmbeddedMenuPackage()};
+  for (const EmbeddedAsset &package : packages) {
+    const fs::path name = fs::path(std::string(package.name)).filename();
+    WriteAsset(package, game / "Data" / eot::ui::kReeotPackageFolder / name, written);
+    std::error_code stale_ec;
+    const fs::path stale = game / "Data" / name;
+    if (fs::is_regular_file(stale, stale_ec) && fs::remove(stale, stale_ec))
+      EOT_INFO("[install] removed the old {}", stale.string());
+  }
   constexpr std::string_view kMetadata = "metadata";
   const fs::path metadata = game.parent_path() / std::string(kMetadata);
   for (const EmbeddedAsset &asset : EmbeddedGroup(kMetadata))

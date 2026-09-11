@@ -53,13 +53,31 @@ add_custom_command(
             "${REEOT_PKZ_DATA}/strings/ui.txt"
     COMMENT "Authoring ReeotUI.pkz from pkzlib/ReeotUI.manifest"
     VERBATIM)
-add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}")
+set(REEOT_MENU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotMenu.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_MENU_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${REEOT_PKZ_DATA}/ReeotMenu.manifest" "${REEOT_MENU_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${REEOT_PKZ_DATA}/ReeotMenu.manifest"
+            "${REEOT_PKZ_DATA}/strings/menu.txt"
+    COMMENT "Authoring ReeotMenu.pkz from pkzlib/ReeotMenu.manifest"
+    VERBATIM)
+add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
     ACCESSOR    EmbeddedPortPackage
     HEADER      "${REEOT_GEN_DIR}/embedded_package.h"
     SOURCES_VAR REEOT_EMBED_PACKAGE_SOURCE)
+reeot_embed_generated(
+    INPUT       "${REEOT_MENU_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotMenu.pkz"
+    ACCESSOR    EmbeddedMenuPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_menu_package.h"
+    SOURCES_VAR REEOT_EMBED_MENU_PACKAGE_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_MENU_PACKAGE_SOURCE})
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -87,6 +105,7 @@ set(REEOT_SOURCES
     src/platform/file_dialog.cpp
     src/platform/desktop_shortcut.cpp
     src/platform/process.cpp
+    src/platform/display.cpp
     src/platform/fatal_dialog.cpp
     src/platform/crash_handler.cpp
     src/ui/theme.cpp
@@ -107,7 +126,6 @@ set(REEOT_SOURCES
     src/gpu/imgui_overlay.cpp
     src/gpu/format.cpp
     src/gpu/textures.cpp
-    src/gpu/texture_replace.cpp
     src/gpu/surfaces.cpp
     src/gpu/vertex_layout.cpp
     src/gpu/draw.cpp
@@ -133,6 +151,7 @@ set(REEOT_SOURCES
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
     src/goliath/loading/reeot_package.cpp
+    src/goliath/loading/texture_overrides.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
@@ -169,7 +188,7 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/ui/pause_menu.cpp
-        src/gamelogic/ui/options_graphics.cpp
+        src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/save_select.cpp
         src/gamelogic/ui/button_prompts.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
@@ -235,8 +254,8 @@ target_compile_definitions(reeot PRIVATE
     $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>
     $<$<OR:$<BOOL:${REEOT_PROFILING}>,$<NOT:$<CONFIG:Release>>>:EOT_PROFILING>)
 
+target_include_directories(reeot PRIVATE "${REXSDK_DIR}/thirdparty/imgui")
 target_link_libraries(reeot PRIVATE
-    rex::ui
     plume
     reeot_shader_cache
     xxHash::xxhash

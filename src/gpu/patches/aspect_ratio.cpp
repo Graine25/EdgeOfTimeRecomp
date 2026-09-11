@@ -64,7 +64,7 @@ namespace eot::gpu {
 float ConfiguredAspectRatio() { return g_ratio.load(std::memory_order_relaxed); }
 
 void ApplyAspectRatio() {
-  const float ratio = PresetRatio(Settings::AspectRatio());
+  const float ratio = PresetRatio(Settings::EffectiveAspectRatio());
   if (!Plausible(ratio))
     return;
   g_ratio.store(ratio, std::memory_order_relaxed);
@@ -82,7 +82,7 @@ void ApplyAspectRatio() {
   if (corrections < 8) {
     ++corrections;
     EOT_INFO("[patch] aspect ratio {} = {:.4f} (class {}); guest held {:.4f}",
-             Settings::AspectRatio(), ratio, AspectClassOf(ratio),
+             Settings::EffectiveAspectRatio(), ratio, AspectClassOf(ratio),
              std::bit_cast<float>(live));
   }
 }

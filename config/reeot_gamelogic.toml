@@ -2260,6 +2260,16 @@ out_directory_path = "generated/gamelogic"
 0x882710F0 = { name = "eot_GameOptionsPopup_Prepare", size = 0x110 }
 0x88271200 = { name = "eot_GameOptionsPopup_OnShow", size = 0x118 }
 0x88271318 = { name = "eot_GameOptionsPopup_OnUpdate", size = 0x5B0 }
+0x882738B8 = { name = "eot_MultiValueControl_Create", size = 0x20C }
+0x88273AC8 = { name = "eot_MultiValueControl_SetState", size = 0xA0 }
+0x88273B68 = { name = "eot_MultiValueControl_Layout", size = 0x1A0 }
+0x88273D08 = { name = "eot_MultiValueControl_SetLabel", size = 0x60 }
+0x88294090 = { name = "eot_TextWnd_SetStringHandle", size = 0x60 }
+0x88272DA0 = { name = "eot_SliderControl_Create", size = 0x1F4 }
+0x88272F98 = { name = "eot_SliderControl_Show", size = 0x58 }
+0x88272FF0 = { name = "eot_SliderControl_SetState", size = 0x94 }
+0x88293820 = { name = "eot_Wnd_SetX", size = 0x74 }
+0x88293AC0 = { name = "eot_Wnd_SetColorBytes", size = 0xA4 }
 0x88280F98 = { name = "eot_WindowComponent_Init", size = 0x128 }
 0x882810C0 = { name = "eot_WindowComponent_ShowHide", size = 0xF0 }
 0x882811B0 = { name = "eot_WindowComponent_Teardown", size = 0x1A8 }
