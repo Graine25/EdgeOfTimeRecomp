@@ -44,9 +44,13 @@ void WatermarkOverlay::OnDraw(ImGuiIO &io) {
   constexpr ImU32 kNotice = IM_COL32(255, 216, 96, 232);
 
   std::vector<std::pair<std::string, ImU32>> lines;
-  if (const auto update = platform::NewerBuildAvailable())
-    lines.emplace_back(std::format("Update available: build {} in reeot-dis", update->stamp),
-                       kNotice);
+  if (const auto update = platform::NewerBuildAvailable()) {
+    const std::string what =
+        (!update->version.empty() && update->version != REEOT_VERSION_STRING)
+            ? std::format("reeot {}", update->version)
+            : std::format("build {}", update->stamp);
+    lines.emplace_back(std::format("Update available: {} in reeot-dis", what), kNotice);
+  }
 
   lines.emplace_back(std::string("reeot v" REEOT_VERSION_STRING " (" REEOT_GIT_COMMIT) +
                          (REEOT_GIT_DIRTY ? "*)" : ")"),

@@ -65,7 +65,7 @@ fs::path DistFolder() {
   return dir;
 }
 
-std::string ReadBuildStamp(const fs::path &exe) {
+std::vector<uint8_t> ReadVersionResource(const fs::path &exe) {
   DWORD unused = 0;
   const DWORD size = GetFileVersionInfoSizeW(exe.c_str(), &unused);
   if (!size)
@@ -73,10 +73,16 @@ std::string ReadBuildStamp(const fs::path &exe) {
   std::vector<uint8_t> data(size);
   if (!GetFileVersionInfoW(exe.c_str(), 0, size, data.data()))
     return {};
+  return data;
+}
+
+std::string ResourceString(const std::vector<uint8_t> &res, const wchar_t *key) {
+  if (res.empty())
+    return {};
   void *value = nullptr;
   UINT len = 0;
-  if (!VerQueryValueW(data.data(), L"\\StringFileInfo\\040904B0\\BuildStamp", &value, &len) ||
-      !value || len == 0)
+  const std::wstring path = std::wstring(L"\\StringFileInfo\\040904B0\\") + key;
+  if (!VerQueryValueW(res.data(), path.c_str(), &value, &len) || !value || len == 0)
     return {};
   return WideToUtf8(std::wstring(static_cast<const wchar_t *>(value), len - 1));
 }
@@ -98,7 +104,9 @@ void Run() {
   }();
   if (!self.empty() && fs::exists(self, ec) && fs::equivalent(self, exe, ec))
     return;
-  const std::string stamp = ReadBuildStamp(exe);
+  const std::vector<uint8_t> res = ReadVersionResource(exe);
+  const std::string stamp = ResourceString(res, L"BuildStamp");
+  const std::string version = ResourceString(res, L"ProductVersion");
   if (stamp.empty()) {
     EOT_DEBUG("[update] {} carries no build stamp; nothing to compare", exe.string());
     return;
@@ -110,11 +118,11 @@ void Run() {
   }
   {
     std::lock_guard lock(g_mutex);
-    g_update = AvailableUpdate{stamp, dir.string()};
+    g_update = AvailableUpdate{stamp, version, dir.string()};
   }
   g_has_update.store(true, std::memory_order_release);
-  EOT_INFO("[update] a newer reeot build ({}) is in {} (this build {})", stamp, dir.string(),
-           REEOT_BUILD_TIMESTAMP);
+  EOT_INFO("[update] a newer reeot build is in {}: v{} build {} (this v{} build {})", dir.string(),
+           version.empty() ? "?" : version, stamp, REEOT_VERSION_STRING, REEOT_BUILD_TIMESTAMP);
 }
 
 }
