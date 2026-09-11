@@ -5,7 +5,10 @@
 #
 
 cmake_minimum_required(VERSION 3.25)
-project(reeot VERSION 0.1.0 LANGUAGES C CXX)
+project(reeot VERSION 0.1 LANGUAGES C CXX)
+if(NOT DEFINED PROJECT_VERSION_PATCH OR PROJECT_VERSION_PATCH STREQUAL "")
+    set(PROJECT_VERSION_PATCH 0)
+endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -87,6 +90,8 @@ set(REEOT_SOURCES
     src/platform/fatal_dialog.cpp
     src/platform/crash_handler.cpp
     src/ui/theme.cpp
+    src/ui/watermark.cpp
+    src/platform/update_check.cpp
     src/installer/install_registry.cpp
     src/installer/self_install.cpp
     src/installer/dlc_publish.cpp
@@ -236,7 +241,7 @@ target_link_libraries(reeot PRIVATE
     libzstd_static)
 
 if(WIN32)
-    target_link_libraries(reeot PRIVATE winmm shell32 ole32 advapi32)
+    target_link_libraries(reeot PRIVATE winmm shell32 ole32 advapi32 version)
 endif()
 
 foreach(shader IN ITEMS copy_vs imgui_vs)

@@ -29,6 +29,8 @@
 #include "gpu/imgui_overlay.h"
 #include "goliath/input/pc_controls.h"
 #include "goliath/ui/overlays/fps.h"
+#include "ui/watermark.h"
+#include "platform/update_check.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "platform/crash_handler.h"
@@ -176,6 +178,12 @@ void ReeotApp::OnPostInitLogging() {
   EOT_INFO("  sdk:     rexglue-v" REXGLUE_VERSION_STRING " " REXGLUE_BUILD_PLATFORM " @" REXGLUE_BUILD_TIMESTAMP);
   if (!install_root_.empty())
     EOT_INFO("  profile: {} ({})", active_profile_, profile_root_.string());
+
+  eot::platform::UpdateInstalledCopy(install_root_);
+  if (const auto done = eot::platform::LastInstallUpdate())
+    eot::platform::ShowInfo("reeot updated", "reeot " + done->version + " is now installed in\n" +
+                                                 done->location +
+                                                 "\n\nYour installed copy is up to date.");
 
   if (!eot::platform::AcquireInstanceLock()) {
     eot::platform::ShowFatalError("reeot is already running", "Close the running copy before starting another.");
@@ -408,6 +416,7 @@ std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
 void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   window()->SetTitle("reeot v" REEOT_VERSION_STRING " " REXGLUE_BUILD_TITLE);
   drawer->AddDialog(new FpsOverlayDialog(drawer));
+  drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 
 void ReeotApp::OnConfigureFonts(ImFontAtlas *atlas) {
