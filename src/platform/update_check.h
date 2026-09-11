@@ -7,6 +7,7 @@ namespace eot::platform {
 
 struct AvailableUpdate {
   std::string stamp;
+  std::string version;
   std::string location;
 };
 
