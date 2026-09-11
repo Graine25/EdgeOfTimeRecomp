@@ -86,6 +86,8 @@ set(REEOT_SOURCES
     src/platform/fatal_dialog.cpp
     src/platform/crash_handler.cpp
     src/ui/theme.cpp
+    src/ui/watermark.cpp
+    src/platform/update_check.cpp
     src/installer/install_registry.cpp
     src/installer/self_install.cpp
     src/installer/dlc_publish.cpp
@@ -241,7 +243,7 @@ target_link_libraries(reeot PRIVATE
     libzstd_static)
 
 if(WIN32)
-    target_link_libraries(reeot PRIVATE winmm shell32 ole32 advapi32)
+    target_link_libraries(reeot PRIVATE winmm shell32 ole32 advapi32 version)
 endif()
 
 foreach(shader IN ITEMS copy_vs imgui_vs)

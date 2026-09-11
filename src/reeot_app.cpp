@@ -29,6 +29,8 @@
 #include "gpu/imgui_overlay.h"
 #include "goliath/input/pc_controls.h"
 #include "goliath/ui/overlays/fps.h"
+#include "ui/watermark.h"
+#include "platform/update_check.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "platform/crash_handler.h"
@@ -414,6 +416,8 @@ std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
 void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   window()->SetTitle("reeot v" REEOT_VERSION_STRING " " REXGLUE_BUILD_TITLE);
   drawer->AddDialog(new FpsOverlayDialog(drawer));
+  eot::platform::BeginUpdateCheck();
+  drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 
 void ReeotApp::OnConfigureFonts(ImFontAtlas *atlas) {
