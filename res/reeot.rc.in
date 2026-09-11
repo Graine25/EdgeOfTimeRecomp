@@ -22,6 +22,9 @@ BEGIN
       VALUE "OriginalFilename", "reeot.exe"
       VALUE "ProductName",     "reeot"
       VALUE "ProductVersion",  "@PROJECT_VERSION@"
+      // A sortable per-build stamp the offline update check reads from a
+      // distributed build to tell whether it is newer than this one.
+      VALUE "BuildStamp",      "@REEOT_BUILD_TIMESTAMP@"
     END
   END
   BLOCK "VarFileInfo"

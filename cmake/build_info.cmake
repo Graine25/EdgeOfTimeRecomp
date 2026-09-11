@@ -56,6 +56,7 @@ function(reeot_write_build_info out_header)
 
     set(REEOT_BUILD_COMPILER "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
     string(TIMESTAMP REEOT_BUILD_TIMESTAMP "%Y%m%d_%H%M")
+    set(REEOT_BUILD_TIMESTAMP "${REEOT_BUILD_TIMESTAMP}" PARENT_SCOPE)
 
     configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/build_info.h.in" "${out_header}" @ONLY)
 
