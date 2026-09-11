@@ -41,7 +41,8 @@ REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug",
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video",
                       "Internal render scale: EDRAM surfaces and resolve mirrors are allocated at "
                       "guest size x this (0.25..4); the present scales to the window as before. "
-                      "Used when eot_resolution is native.");
+                      "Used when eot_resolution is native.")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
                       "Internal render resolution: native (the guest's own 1120x632, scaled by "
                       "eot_render_scale), 720p, 1080p, 1440p or 2160p (4K). The preset is a target "
@@ -49,7 +50,8 @@ REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
                       "window, so a 1440p internal image is blitted up to whatever the display is. "
                       "Fidelity measurement (tools/score_dense.py) needs native, which is what the "
                       "guest and the Xenia references render.")
-    .allowed({"native", "720p", "1080p", "1440p", "2160p"});
+    .allowed({"native", "720p", "1080p", "1440p", "2160p"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
                       "Aspect ratio the game builds its projection for: auto follows the window, "
                       "the rest force a ratio. Wider than 16:9 shows more to the sides rather than "
@@ -86,7 +88,8 @@ REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics",
                     "The scene colour grade (3D LUT colorization). Off shows the ungraded image.");
 REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics",
                       "Field-of-view multiplier applied to every camera the game sets "
-                      "(1.0 = the game's own; 1.2 shows more to the sides). Culling follows.");
+                      "(1.0 = the game's own; 1.2 shows more to the sides). Culling follows.")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_shadow_cascades, 0, "EdgeOfTime/Graphics",
                      "Shadow map cascades per camera: 0 = as the level asks, 1..4 (the engine's "
                      "maximum) split the shadow distance into that many maps.");
@@ -101,7 +104,8 @@ REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "EdgeOfTime/Debug",
 REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
                      "Shadow map size per cascade in texels: 0 = follow the render resolution "
                      "(the console's 1024 scaled like the frame, 1750 at 1080p), or 1024 / 2048 / "
-                     "4096 fixed. Applies to shadow surfaces created after the change.");
+                     "4096 fixed. Applies to shadow surfaces created after the change.")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_anisotropy, 16, "EdgeOfTime/Graphics",
                      "Anisotropic filtering: 0 = as the game asks per texture (the console "
                      "asks for none), 1 = off, 2/4/8/16 = at least that level on every "

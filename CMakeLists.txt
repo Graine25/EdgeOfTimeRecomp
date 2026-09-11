@@ -52,13 +52,31 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
     COMMENT "Authoring ReeotUI.pkz from tools/pkz/ReeotUI.manifest"
     VERBATIM)
-add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}")
+set(REEOT_MENU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotMenu.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_MENU_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotMenu.manifest" "${REEOT_MENU_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotMenu.manifest"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_menu_strings.txt"
+    COMMENT "Authoring ReeotMenu.pkz from tools/pkz/ReeotMenu.manifest"
+    VERBATIM)
+add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
     ACCESSOR    EmbeddedPortPackage
     HEADER      "${REEOT_GEN_DIR}/embedded_package.h"
     SOURCES_VAR REEOT_EMBED_PACKAGE_SOURCE)
+reeot_embed_generated(
+    INPUT       "${REEOT_MENU_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotMenu.pkz"
+    ACCESSOR    EmbeddedMenuPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_menu_package.h"
+    SOURCES_VAR REEOT_EMBED_MENU_PACKAGE_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_MENU_PACKAGE_SOURCE})
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -175,7 +193,7 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/ui/pause_menu.cpp
-        src/gamelogic/ui/options_graphics.cpp
+        src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/save_select.cpp
         src/gamelogic/ui/button_prompts.cpp)
     target_include_directories(reeot_GameLogic PRIVATE

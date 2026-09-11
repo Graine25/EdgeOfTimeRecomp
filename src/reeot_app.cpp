@@ -12,6 +12,7 @@
 #include <rex/filesystem.h>
 #include <rex/perf/counter.h>
 #include <rex/runtime.h>
+#include <rex/ui/keybinds.h>
 #include <rex/version.h>
 
 #if defined(_WIN32)
@@ -51,6 +52,22 @@ REXCVAR_DEFINE_BOOL(eot_no_installer, false, "EdgeOfTime/Config",
                     "Never open the installer: with no recorded install and no game folder "
                     "given, quit with a message instead.");
 #endif
+
+namespace {
+std::filesystem::path g_config_path;
+}
+
+REXCVAR_DEFINE_COMMAND(
+    eot_save_settings,
+    []() {
+      if (g_config_path.empty()) {
+        EOT_WARN("[settings] no profile config to save to");
+        return;
+      }
+      rex::cvar::SaveConfig(g_config_path);
+      EOT_INFO("[settings] saved to {}", g_config_path.string());
+    },
+    "EdgeOfTime/Config", "Save the current settings to the profile's reeot.toml.");
 
 namespace {
 
@@ -160,6 +177,7 @@ void ReeotApp::UseInstallRoot(const fs::path &root, rex::PathConfig &paths) {
   paths.user_data_root = profile_root_;
   paths.cache_root = profile_root_ / "cache";
   paths.config_path = profile_root_ / "reeot.toml";
+  g_config_path = paths.config_path;
 }
 
 void ReeotApp::OnConfigurePaths(rex::PathConfig &paths) {
@@ -422,6 +440,10 @@ std::unique_ptr<rex::ui::ImmediateDrawer> ReeotApp::OnCreateImmediateDrawer() {
 void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   window()->SetTitle("reeot v" REEOT_VERSION_STRING " " REXGLUE_BUILD_TITLE);
   drawer->AddDialog(new FpsOverlayDialog(drawer));
+  rex::ui::RegisterBind("bind_fps_overlay", "F8", "Toggle the FPS overlay", [] {
+    const bool shown = rex::cvar::Query<bool>("show_fps_overlay");
+    rex::cvar::SetFlagByName("show_fps_overlay", shown ? "false" : "true");
+  });
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 

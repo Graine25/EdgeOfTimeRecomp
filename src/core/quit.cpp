@@ -14,6 +14,7 @@
 
 #include "core/logging.h"
 #include "gpu/device.h"
+#include "platform/process.h"
 
 namespace eot {
 
@@ -37,7 +38,9 @@ std::atomic<bool> g_quitting{false};
 
 }
 
-void QuitProcess(int code) {
+namespace {
+
+[[noreturn]] void EndAfterParking(int code, bool relaunch) {
   if (g_quitting.exchange(true, std::memory_order_acq_rel)) {
     for (;;)
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -52,10 +55,25 @@ void QuitProcess(int code) {
 
   g_phase.store("renderer", std::memory_order_relaxed);
   gpu::Video::BeginShutdown();
+  if (relaunch) {
+    g_phase.store("relaunch", std::memory_order_relaxed);
+    if (!platform::RelaunchSelf())
+      EOT_WARN("[quit] the restart could not start a new copy; quitting instead");
+  }
   g_phase.store("exit", std::memory_order_relaxed);
   EndProcess(code);
 }
 
 }
 
+void QuitProcess(int code) { EndAfterParking(code, false); }
+
+void RestartProcess() {
+  EOT_INFO("[quit] restarting");
+  EndAfterParking(0, true);
+}
+
+}
+
 extern "C" __declspec(dllexport) void eot_quit_process(int code) { eot::QuitProcess(code); }
+extern "C" __declspec(dllexport) void eot_restart_process() { eot::RestartProcess(); }
