@@ -70,6 +70,7 @@ bool Same(std::string_view a, std::string_view b) {
 }
 
 std::atomic<bool> g_applying{false};
+std::atomic<bool> g_booted{false};
 
 void Apply(Level level, std::string_view name) {
   g_applying = true;
@@ -96,7 +97,9 @@ struct Registrar {
     });
     for (const Gate &g : kGates) {
       rex::cvar::RegisterChangeCallback(g.name, [gate = &g](std::string_view, std::string_view value) {
-        if (g_applying || !rex::cvar::IsFinalized())
+        EOT_DEBUG("[quality] {} -> {} (applying {}, booted {}, preset {})", gate->name, value, g_applying.load(),
+                  g_booted.load(), REXCVAR_GET(eot_quality_preset));
+        if (g_applying || !g_booted)
           return;
         const Level level = Parse(REXCVAR_GET(eot_quality_preset));
         if (level == Level::kCustom || Same(value, Value(*gate, level)))
@@ -121,6 +124,7 @@ void ApplyQualityPresetAtBoot() {
   const Level level = Parse(preset);
   if (level != Level::kCustom)
     Apply(level, preset);
+  g_booted = true;
 }
 
 }

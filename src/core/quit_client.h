@@ -21,4 +21,16 @@ namespace eot {
   std::_Exit(code);
 }
 
+[[noreturn]] inline void RestartProcessFromModule() {
+#if defined(_WIN32)
+  if (HMODULE host = ::GetModuleHandleW(nullptr)) {
+    auto *restart = reinterpret_cast<void (*)()>(
+        reinterpret_cast<void *>(::GetProcAddress(host, "eot_restart_process")));
+    if (restart)
+      restart();
+  }
+#endif
+  QuitProcessFromModule(0);
+}
+
 }

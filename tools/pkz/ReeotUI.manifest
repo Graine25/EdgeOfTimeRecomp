@@ -6,8 +6,6 @@ font TempusGothic from Main.pak TempusGothic atlas=Reeot_Font_TempusGothic_4x
 window Reeot_TextureHolder type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Font_TempusGothic_4x
 compress true
 textstyle Reeot_Style_Body from Main.pak TCRWindow_Body
-window Reeot_GraphicsPanel type=0 prio=1 rect=0,0,1,1 wide=0,0,1,1
-window Reeot_GraphicsBody type=4 parent=Reeot_GraphicsPanel prio=1 flags=0x1 rect=0.026,0.062,0.949,0.938 wide=0.027,0.052,0.949,0.943 style=Reeot_Style_Body string=REEOT_GRAPHICS_BODY
 textstyle Reeot_Style_Choice from Main.pak TCRWindow_Choice
 window Reeot_LeaveWindow type=0 prio=1 rect=0,0,1,1 wide=0,0,1,1
 window Reeot_LeaveText type=4 parent=Reeot_LeaveWindow prio=1 flags=0x1 rect=0.027,0.062,0.948,0.723 style=Reeot_Style_Body string=REEOT_LEAVE_BODY
