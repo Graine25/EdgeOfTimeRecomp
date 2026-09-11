@@ -262,7 +262,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
   std::error_code ec;
   const bool repair = existing && fs::is_directory(existing->install_root, ec);
   const fs::path default_install_dir =
-      existing ? existing->install_root : eot::installer::InstallRootFor(eot::platform::ProgramDir());
+      existing ? existing->install_root : eot::installer::DefaultInstallRoot();
   installer_wizard_ = std::make_unique<eot::installer::InstallerWizard>(
       imgui_drawer(), immediate_drawer(), app_context(), default_install_dir, repair,
       existing ? &*existing : nullptr,
