@@ -204,6 +204,8 @@ constexpr uint32_t kCueDenied = 0x6C688CC5;
 namespace ctl {
 constexpr uint32_t kRoot = 0;
 constexpr uint32_t kLabel = 4;
+constexpr uint32_t kChoiceLeft = 8;
+constexpr uint32_t kChoiceRight = 12;
 constexpr uint32_t kChoiceValue = 16;
 constexpr uint32_t kChoiceHandles = 20;
 constexpr uint32_t kChoiceHandleSlots = 8;
@@ -239,7 +241,7 @@ constexpr uint32_t kCurrentSlotPtr = 0x883CA29C;
 constexpr uint32_t kSlotTable = 0x88401058;
 constexpr uint32_t kSlotSize = 28;
 constexpr uint32_t kTitleTextCrc = 0xAE495FEE;
-constexpr float kBox[4] = {0.10f, 0.20f, 0.50f, 0.60f};
+constexpr float kBox[4] = {0.06f, 0.20f, 0.50f, 0.60f};
 constexpr float kStartScale = 0.1f;
 }
 
@@ -249,6 +251,11 @@ constexpr uint32_t kTextWndGetXYScale = 67;
 
 constexpr float kTextBoxY = 0.03f;
 constexpr float kTextBoxH = 0.50f;
+constexpr float kValueX = 0.670f, kValueW = 0.170f;
+constexpr float kArrowW = 0.031f;
+constexpr float kArrowLeftX = kValueX - kArrowW - 0.008f;
+constexpr float kArrowRightX = kValueX + kValueW + 0.008f;
+constexpr float kArrowY = 0.07f, kArrowH = 0.42f;
 
 uint32_t g_config = 0;
 uint32_t g_restart_config = 0;
@@ -345,14 +352,26 @@ void ScaleText(const PPCContext &ctx, uint8_t *base, uint32_t window, float fact
     CallWithFloat(ctx, base, hud::Entry(kTextWndSetScale), window, style * factor);
 }
 
-void GiveTextRoom(const PPCContext &ctx, uint8_t *base, uint32_t window) {
+void SetRect(const PPCContext &ctx, uint8_t *base, uint32_t window, float x, float y, float w, float h) {
   if (window == hud::kNoWindow || !window)
     return;
   const uint32_t rect = g_block + kBlockColour;
   hud::Call(ctx, base, hud::kWndGetPos, window, rect);
-  eot::mem::store<uint32_t>(rect + 4, std::bit_cast<uint32_t>(kTextBoxY));
-  eot::mem::store<uint32_t>(rect + 12, std::bit_cast<uint32_t>(kTextBoxH));
+  const float wanted[4] = {x, y, w, h};
+  for (uint32_t i = 0; i < 4; ++i)
+    if (wanted[i] >= 0.0f)
+      eot::mem::store<uint32_t>(rect + i * 4, std::bit_cast<uint32_t>(wanted[i]));
   hud::Call(ctx, base, hud::kWndSetPos, window, rect);
+}
+
+void PlaceLabel(const PPCContext &ctx, uint8_t *base, uint32_t window) {
+  SetRect(ctx, base, window, -1.0f, kTextBoxY, -1.0f, kTextBoxH);
+}
+
+void PlaceValue(const PPCContext &ctx, uint8_t *base, uint32_t value, uint32_t left, uint32_t right) {
+  SetRect(ctx, base, value, kValueX, kTextBoxY, kValueW, kTextBoxH);
+  SetRect(ctx, base, left, kArrowLeftX, kArrowY, kArrowW, kArrowH);
+  SetRect(ctx, base, right, kArrowRightX, kArrowY, kArrowW, kArrowH);
 }
 
 void SetShade(const PPCContext &ctx, uint8_t *base, uint32_t window_ptr, const uint8_t rgba[4]) {
@@ -375,15 +394,18 @@ void SetStringHandle(const PPCContext &ctx, uint8_t *base, uint32_t window, uint
   __imp__eot_TextWnd_SetStringHandle(call, base);
 }
 
-void SetAscii(const PPCContext &ctx, uint8_t *base, uint32_t window, const char *line) {
+void SetLine(const PPCContext &ctx, uint8_t *base, uint32_t window, const char *line) {
   if (window == hud::kNoWindow || !window)
     return;
   const uint32_t text = g_block + kBlockText;
-  uint32_t i = 0;
-  for (; i < 63 && line[i]; ++i)
-    eot::mem::store<uint8_t>(text + i, static_cast<uint8_t>(line[i]));
-  eot::mem::store<uint8_t>(text + i, 0);
-  hud::Call(ctx, base, hud::kTextWndSetText, window, text);
+  uint32_t n = 0;
+  for (uint32_t i = 0; line[i] && n < 30; ++i) {
+    eot::mem::store<uint16_t>(text + n++ * 2, static_cast<uint16_t>(line[i]));
+    if (line[i] == '%')
+      eot::mem::store<uint16_t>(text + n++ * 2, static_cast<uint16_t>('%'));
+  }
+  eot::mem::store<uint16_t>(text + n * 2, 0);
+  hud::Call(ctx, base, hud::kTextWndSetString, window, text);
 }
 
 double Number(std::string_view text) {
@@ -430,8 +452,7 @@ void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, con
     __imp__eot_TextWnd_SetStringHandle(call, base);
     return;
   }
-  SetAscii(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue),
-           rex::cvar::GetFlagByName(s.cvar).c_str());
+  SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue), rex::cvar::GetFlagByName(s.cvar).c_str());
 }
 
 void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Setting &s, bool selected) {
@@ -515,7 +536,7 @@ void ShowSliderValue(const PPCContext &ctx, uint8_t *base, uint32_t control, con
   __imp__eot_Wnd_SetX(call, base);
   char line[32];
   FormatStop(s, stop, line, sizeof(line));
-  SetAscii(ctx, base, eot::mem::load<uint32_t>(control + ctl::kSliderValue), line);
+  SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kSliderValue), line);
 }
 
 void BindSliderRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Setting &s, bool selected) {
@@ -598,11 +619,11 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
     uint32_t root = eot::mem::load<uint32_t>(choice + ctl::kRoot);
     hud::Call(ctx, base, hud::kWndSetParent, root, g_windows.row[row]);
     hud::Call(ctx, base, hud::kWndAddFlags, root, hud::kFlagActive);
-    for (uint32_t off : {ctl::kLabel, ctl::kChoiceValue}) {
-      const uint32_t text = eot::mem::load<uint32_t>(choice + off);
-      GiveTextRoom(ctx, base, text);
-      ScaleText(ctx, base, text, kTextScale);
-    }
+    PlaceLabel(ctx, base, eot::mem::load<uint32_t>(choice + ctl::kLabel));
+    PlaceValue(ctx, base, eot::mem::load<uint32_t>(choice + ctl::kChoiceValue),
+               eot::mem::load<uint32_t>(choice + ctl::kChoiceLeft), eot::mem::load<uint32_t>(choice + ctl::kChoiceRight));
+    for (uint32_t off : {ctl::kLabel, ctl::kChoiceValue})
+      ScaleText(ctx, base, eot::mem::load<uint32_t>(choice + off), kTextScale);
 
     const uint32_t slider = SliderControl(row);
     for (uint32_t off = 0; off < ctl::kSliderSize; off += 4)
@@ -616,10 +637,10 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
     eot::mem::store<uint32_t>(slider + ctl::kSliderValue, value);
     hud::Call(ctx, base, hud::kWndSetParent, value, root);
     hud::Call(ctx, base, hud::kWndAddFlags, value, hud::kFlagActive);
-    for (uint32_t text : {eot::mem::load<uint32_t>(slider + ctl::kLabel), value}) {
-      GiveTextRoom(ctx, base, text);
+    PlaceLabel(ctx, base, eot::mem::load<uint32_t>(slider + ctl::kLabel));
+    PlaceValue(ctx, base, value, hud::kNoWindow, hud::kNoWindow);
+    for (uint32_t text : {eot::mem::load<uint32_t>(slider + ctl::kLabel), value})
       ScaleText(ctx, base, text, kTextScale);
-    }
   }
   g_built = true;
   EOT_INFO("[menu] {} settings rows built", kRows);
