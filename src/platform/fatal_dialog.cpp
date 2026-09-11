@@ -30,6 +30,11 @@ void ShowModal(std::string_view title, std::string_view body, bool warning) {
               MB_OK | (warning ? MB_ICONWARNING : MB_ICONERROR) | MB_TOPMOST | MB_SETFOREGROUND);
 }
 
+void ShowInfoModal(std::string_view title, std::string_view body) {
+  MessageBoxW(nullptr, Utf8ToWide(std::string(body)).c_str(), Utf8ToWide(std::string(title)).c_str(),
+              MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND);
+}
+
 #else
 
 void ShowModal(std::string_view title, std::string_view body, bool warning) {
@@ -37,6 +42,12 @@ void ShowModal(std::string_view title, std::string_view body, bool warning) {
   const std::string b(body);
   SDL_ShowSimpleMessageBox(warning ? SDL_MESSAGEBOX_WARNING : SDL_MESSAGEBOX_ERROR, t.c_str(), b.c_str(),
                            nullptr);
+}
+
+void ShowInfoModal(std::string_view title, std::string_view body) {
+  const std::string t(title);
+  const std::string b(body);
+  SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, t.c_str(), b.c_str(), nullptr);
 }
 
 #endif
@@ -83,6 +94,11 @@ void ShowFatalError(std::string_view title, std::string_view body) {
 void ShowWarning(std::string_view title, std::string_view body) {
   EOT_WARN("{} - {}", title, body);
   ShowModal(title, body, true);
+}
+
+void ShowInfo(std::string_view title, std::string_view body) {
+  EOT_INFO("{} - {}", title, body);
+  ShowInfoModal(title, body);
 }
 
 bool ShowFatalErrorWithAction(std::string_view title, std::string_view body, std::string_view action,
