@@ -15,4 +15,6 @@ void BeginUpdateCheck();
 
 std::optional<AvailableUpdate> NewerBuildAvailable();
 
+bool ApplyOfflineUpdate();
+
 }
