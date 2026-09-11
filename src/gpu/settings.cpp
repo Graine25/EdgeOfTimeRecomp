@@ -1,6 +1,8 @@
 #include "gpu/settings.h"
 
+#include <atomic>
 #include <charconv>
+#include <string_view>
 #include <system_error>
 
 #include <rex/cvar.h>
@@ -43,21 +45,25 @@ REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video",
                       "guest size x this (0.25..4); the present scales to the window as before. "
                       "Used when eot_resolution is native.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_STRING(eot_resolution, "auto", "EdgeOfTime/Video",
-                      "Internal render resolution: auto (from the display the window is on: 1440p "
-                      "on anything 1440 rows or taller, 1080p on 1080, 720p below), native (the "
-                      "guest's own 1120x632, scaled by eot_render_scale), 720p, 1080p, 1440p or "
-                      "2160p (4K). The preset is a target height the scale is derived from; the "
-                      "present always fits the result to the window, so a 1440p internal image is "
-                      "blitted up to whatever the display is. Fidelity measurement "
+REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
+                      "Internal render resolution in fullscreen: native (the guest's own 1120x632, "
+                      "scaled by eot_render_scale), 720p, 1080p, 1440p or 2160p (4K). The preset "
+                      "is a target height the scale is derived from; the present always fits the "
+                      "result to the window, so a 1440p internal image is blitted up to whatever "
+                      "the display is. In a window the preset is not used: the render height "
+                      "follows the display the window is on (1440p from 1440 rows up, 1080p on "
+                      "1080, 720p below) and the picture stretches to the window. The installer "
+                      "picks the preset the display suggests. Fidelity measurement "
                       "(tools/score_dense.py) needs native, which is what the guest and the Xenia "
                       "references render.")
-    .allowed({"auto", "native", "720p", "1080p", "1440p", "2160p"})
+    .allowed({"native", "720p", "1080p", "1440p", "2160p"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_STRING(eot_aspect_ratio, "auto", "EdgeOfTime/Video",
-                      "Aspect ratio the game builds its projection for: auto follows the window, "
-                      "the rest force a ratio. Wider than 16:9 shows more to the sides rather than "
-                      "stretching; the HUD is authored for 16:9 and is not corrected yet.")
+REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
+                      "Aspect ratio the game builds its projection for in fullscreen: auto follows "
+                      "the window, the rest force a ratio. Wider than 16:9 shows more to the sides "
+                      "rather than stretching; the HUD is authored for 16:9 and is not corrected "
+                      "yet. In a window the picture always follows the window. The installer picks "
+                      "the ratio nearest the display's.")
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
                      "Ceiling on presented frames per second (0 = unlimited; 30/60/90/120 are the "
@@ -220,10 +226,19 @@ namespace {
 
 u32 g_auto_render_height = 1080;
 
+std::atomic<bool> g_fullscreen{true};
+struct FullscreenWatch {
+  FullscreenWatch() {
+    rex::cvar::RegisterChangeCallback("fullscreen", [](std::string_view, std::string_view value) {
+      g_fullscreen.store(value == "true" || value == "1", std::memory_order_relaxed);
+    });
+  }
+} g_fullscreen_watch;
+
 f32 ComputeRenderScale() {
   const std::string preset = Settings::Resolution();
   u32 target_height = 0;
-  if (preset == "auto")
+  if (!Settings::Fullscreen())
     target_height = g_auto_render_height;
   else if (preset == "720p")
     target_height = 720;
@@ -242,6 +257,18 @@ f32 ComputeRenderScale() {
 }
 
 void SetAutoRenderHeight(u32 height) { g_auto_render_height = height; }
+
+bool Settings::Fullscreen() {
+  static const bool initial = [] {
+    const bool on = rex::cvar::Query<bool>("fullscreen");
+    g_fullscreen.store(on, std::memory_order_relaxed);
+    return on;
+  }();
+  (void)initial;
+  return g_fullscreen.load(std::memory_order_relaxed);
+}
+
+std::string Settings::EffectiveAspectRatio() { return Fullscreen() ? AspectRatio() : std::string("auto"); }
 
 f32 RenderScaleFactor() {
   static const f32 s = ComputeRenderScale();
