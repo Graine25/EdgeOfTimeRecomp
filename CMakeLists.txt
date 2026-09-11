@@ -176,7 +176,8 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/ui/pause_menu.cpp
         src/gamelogic/ui/options_graphics.cpp
-        src/gamelogic/ui/save_select.cpp)
+        src/gamelogic/ui/save_select.cpp
+        src/gamelogic/ui/button_prompts.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 endif()

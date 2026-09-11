@@ -11,3 +11,4 @@ REEOT_LEAVE_TITLE	Leave the game?
 REEOT_LEAVE_BODY	You will return to the desktop.
 REEOT_YES	Yes
 REEOT_NO	No
+REEOT_PROMPT_EXIT_GAME	\MENUBACK\ Exit Game

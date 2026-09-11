@@ -5,7 +5,8 @@
 namespace eot::ui {
 
 inline constexpr uint32_t kReeotPackageId = 0x7EE;
-inline constexpr const char *kReeotPackageName = "L:/ReeotUI.pak";
+inline constexpr const char *kReeotPackageName = "L:/custom/ReeotUI.pak";
+inline constexpr const char *kReeotPackageFolder = "custom";
 inline constexpr uint32_t kReeotPackageDependency = 2;
 inline constexpr uint32_t kReeotHandleBase = kReeotPackageId << 20;
 
