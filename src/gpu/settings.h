@@ -41,6 +41,8 @@ struct Settings {
   static std::string Resolution();
   static i32 FpsLimit();
   static std::string AspectRatio();
+  static std::string EffectiveAspectRatio();
+  static bool Fullscreen();
   static i32 HitchMs();
   static bool CommittedTextures();
   static bool Profiler();

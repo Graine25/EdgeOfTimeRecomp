@@ -45,8 +45,6 @@ constexpr const char *kRepairNotice =
     "Existing install found. Pick the disc image and the title update again; files already there are kept.";
 constexpr const char *kSpaceHint = "(~6 GB required)";
 
-constexpr const char *kSuggestedResolution = "auto";
-constexpr const char *kSuggestedAspect = "auto";
 constexpr const char *kSuggestedVsync = "false";
 
 struct SettingRow {
@@ -60,10 +58,10 @@ const SettingRow kSettingRows[] = {
     {"Display mode", "fullscreen", {{"Windowed", "false"}, {"Fullscreen", "true"}}},
     {"Resolution",
      "eot_resolution",
-     {{"Auto", "auto"}, {"720p", "720p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}},
+     {{"720p", "720p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}},
     {"Aspect ratio",
      "eot_aspect_ratio",
-     {{"Auto", "auto"}, {"4:3", "4:3"}, {"16:10", "16:10"}, {"16:9", "16:9"}, {"21:9", "21:9"}, {"32:9", "32:9"}}},
+     {{"4:3", "4:3"}, {"16:10", "16:10"}, {"16:9", "16:9"}, {"21:9", "21:9"}, {"32:9", "32:9"}}},
     {"Frame rate limit",
      "eot_fps_limit",
      {{"30 fps", "30"}, {"60 fps", "60"}, {"120 fps", "120"}, {"Unlimited", "0"}}},
@@ -249,11 +247,12 @@ void InstallerWizard::SuggestDefaults() {
       rex::cvar::SetFlagByName(cvar, value);
   };
   const eot::platform::DisplaySize display = eot::platform::DisplayFor(nullptr);
-  EOT_INFO("[install] primary display {}x{}: suggesting the {} preset", display.width, display.height,
+  EOT_INFO("[install] primary display {}x{}: suggesting {}, {}, the {} preset", display.width, display.height,
+           eot::platform::AutoResolutionPreset(display), eot::platform::AutoAspectPreset(display),
            eot::platform::AutoQualityPreset(display));
   suggest("eot_quality_preset", eot::platform::AutoQualityPreset(display));
-  suggest("eot_resolution", kSuggestedResolution);
-  suggest("eot_aspect_ratio", kSuggestedAspect);
+  suggest("eot_resolution", eot::platform::AutoResolutionPreset(display));
+  suggest("eot_aspect_ratio", eot::platform::AutoAspectPreset(display));
   if (!rex::cvar::HasNonDefaultValue("eot_vsync"))
     rex::cvar::SetFlagByName("eot_vsync", kSuggestedVsync);
 }

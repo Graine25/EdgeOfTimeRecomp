@@ -60,6 +60,7 @@ struct Setting {
   bool numeric = false;
   bool restart = false;
   bool (*enabled)() = nullptr;
+  const char *disabled_text = nullptr;
 
   bool IsSlider() const { return choices.empty(); }
 };
@@ -71,11 +72,11 @@ struct Page {
 };
 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
-constexpr Choice kResolution[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_NATIVE", "native"},
-                                  {"REEOT_VAL_720P", "720p"},   {"REEOT_VAL_1080P", "1080p"},
-                                  {"REEOT_VAL_1440P", "1440p"}, {"REEOT_VAL_2160P", "2160p"}};
-constexpr Choice kAspect[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"},
-                              {"REEOT_VAL_16_9", "16:9"}, {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};
+constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
+                                  {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
+                                  {"REEOT_VAL_2160P", "2160p"}};
+constexpr Choice kAspect[] = {{"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"}, {"REEOT_VAL_16_9", "16:9"},
+                              {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};
 constexpr Choice kPreset[] = {{"REEOT_VAL_LOW", "low"}, {"REEOT_VAL_MEDIUM", "medium"}, {"REEOT_VAL_HIGH", "high"},
                               {"REEOT_VAL_CUSTOM", "custom"}};
 constexpr Choice kMsaa[] = {{"REEOT_VAL_OFF", "0"}, {"REEOT_VAL_2X", "2"}, {"REEOT_VAL_4X", "4"}, {"REEOT_VAL_8X", "8"}};
@@ -86,17 +87,21 @@ constexpr Choice kShadowSize[] = {{"REEOT_VAL_AUTO", "0"},     {"REEOT_VAL_1024"
 constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_BICUBIC", "bicubic"},
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
 
-bool RenderScaleApplies() { return rex::cvar::GetFlagByName("eot_resolution") == "native"; }
+bool RenderScaleApplies() {
+  return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "native";
+}
+
+bool FullscreenOn() { return rex::cvar::Query<bool>("fullscreen"); }
 
 constexpr Setting kVideoSettings[] = {
     {.label = "REEOT_OPT_FULLSCREEN", .description = "REEOT_DESC_FULLSCREEN", .cvar = "fullscreen",
      .choices = kOnOff},
     {.label = "REEOT_OPT_RESOLUTION", .description = "REEOT_DESC_RESOLUTION", .cvar = "eot_resolution",
-     .choices = kResolution, .restart = true},
+     .choices = kResolution, .restart = true, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
     {.label = "REEOT_OPT_RENDER_SCALE", .description = "REEOT_DESC_RENDER_SCALE", .cvar = "eot_render_scale",
      .slider = {0.5, 2.0, 0.25, Format::kPercent}, .numeric = true, .restart = true, .enabled = RenderScaleApplies},
     {.label = "REEOT_OPT_ASPECT", .description = "REEOT_DESC_ASPECT", .cvar = "eot_aspect_ratio",
-     .choices = kAspect},
+     .choices = kAspect, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
     {.label = "REEOT_OPT_FPS_LIMIT", .description = "REEOT_DESC_FPS_LIMIT", .cvar = "eot_fps_limit",
      .slider = {30.0, 240.0, 10.0, Format::kFrameRate}, .numeric = true},
     {.label = "REEOT_OPT_VSYNC", .description = "REEOT_DESC_VSYNC", .cvar = "eot_vsync", .choices = kOnOff},
@@ -449,10 +454,13 @@ int NearestChoice(const Setting &s) {
 
 void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, const Setting &s) {
   const int index = CurrentChoice(s);
-  if (index >= 0) {
+  const char *text = !Enabled(s) && s.disabled_text ? s.disabled_text
+                     : index >= 0                    ? s.choices[static_cast<size_t>(index)].text
+                                                    : nullptr;
+  if (text) {
     PPCContext call = ctx;
     call.r3.u32 = control + ctl::kChoiceValue;
-    call.r4.u32 = StringHandle(ctx, base, s.choices[static_cast<size_t>(index)].text);
+    call.r4.u32 = StringHandle(ctx, base, text);
     __imp__eot_TextWnd_SetStringHandle(call, base);
     return;
   }

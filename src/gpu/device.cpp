@@ -845,8 +845,8 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   {
     const eot::platform::DisplaySize display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
     SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
-    EOT_INFO("[gpu] display {}x{}: auto resolution is {}p", display.width, display.height,
-             eot::platform::AutoRenderHeight(display));
+    EOT_INFO("[gpu] display {}x{}, {}: a window renders at {}p", display.width, display.height,
+             Settings::Fullscreen() ? "fullscreen" : "windowed", eot::platform::AutoRenderHeight(display));
   }
   ApplyQualityPresetAtBoot();
   {
