@@ -186,6 +186,10 @@ void ReeotApp::OnPostInitLogging() {
     EOT_INFO("  profile: {} ({})", active_profile_, profile_root_.string());
 
   eot::platform::UpdateInstalledCopy(install_root_);
+  if (const auto done = eot::platform::LastInstallUpdate())
+    eot::platform::ShowInfo("reeot updated", "reeot " + done->version + " is now installed in\n" +
+                                                 done->location +
+                                                 "\n\nYour installed copy is up to date.");
 
   if (!eot::platform::AcquireInstanceLock()) {
     eot::platform::ShowFatalError("reeot is already running", "Close the running copy before starting another.");
