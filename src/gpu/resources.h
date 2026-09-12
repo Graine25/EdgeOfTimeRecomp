@@ -131,6 +131,17 @@ struct GuestSurface {
   u64 serial = 1;
   u32 resolveOrdinal = 0;
   u64 resolveOrdinalFrame = ~0ull;
+  struct RedirectPrediction {
+    std::weak_ptr<GuestTexture> mirror;
+    const void *texture = nullptr;
+    i32 x = 0, y = 0;
+  };
+  static constexpr u32 kRedirectPasses = 8;
+  RedirectPrediction redirectPredictions[kRedirectPasses];
+  u32 redirectPasses = 0;
+  u64 redirectPassFrame = ~0ull;
+  std::shared_ptr<GuestTexture> redirectMirror;
+  i32 redirectX = 0, redirectY = 0;
   u32 regretMask = 0;
   u64 regretResetFrame = 0;
   u64 handoffFrame = ~0ull;

@@ -133,6 +133,12 @@ struct SharedConstants {
 };
 static_assert(sizeof(SharedConstants) == 59 * 16);
 
+struct HostTextureTransition {
+  HostTexture *host = nullptr;
+  plume::RenderTextureLayout layout = plume::RenderTextureLayout::UNKNOWN;
+};
+constexpr u32 kMaxPendingTransitions = 24;
+
 struct VideoState {
   std::unique_ptr<plume::RenderInterface> render_iface;
   std::unique_ptr<plume::RenderDevice> device;
@@ -183,6 +189,9 @@ struct VideoState {
 
   bool command_list_open = false;
   bool command_list_submitted[kNumFrames] = {};
+  HostTextureTransition pending_transitions[kMaxPendingTransitions];
+  u32 pending_transition_count = 0;
+  bool defer_shader_read_transitions = false;
 
   u64 presented_frames = 0;
   u64 guest_frames = 0;
@@ -363,11 +372,6 @@ u32 BindTextureSRVLocked(VideoState &s, HostTexture &host);
 u32 BindTextureSRVSwizzledLocked(VideoState &s, HostTexture &host, u32 swizzle);
 void ReleaseTextureSRVLocked(VideoState &s, HostTexture &host);
 void DrainDescriptorSlotsLocked(VideoState &s, u32 slot);
-
-struct HostTextureTransition {
-  HostTexture *host = nullptr;
-  plume::RenderTextureLayout layout = plume::RenderTextureLayout::UNKNOWN;
-};
 
 void TransitionLocked(VideoState &s, HostTexture &host, plume::RenderTextureLayout layout);
 void TransitionManyLocked(VideoState &s, const HostTextureTransition *transitions, u32 count);

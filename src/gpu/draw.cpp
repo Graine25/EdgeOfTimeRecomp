@@ -64,6 +64,8 @@ struct Targets {
   u32 width = 0;
   u32 height = 0;
   float scale = 1.0f;
+  i32 offsetX = 0;
+  i32 offsetY = 0;
 };
 
 struct ViewportInfo {
@@ -198,6 +200,11 @@ bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
       if (samples > 1 && t.depth->singleDirty && !SurfacePropagateDepthSingle(s, *t.depth))
         return false;
       t.depthImage = &t.depth->host;
+      if (!t.colorCount && t.depth->redirectMirror && t.depth->redirectMirror->host.valid()) {
+        t.depthImage = &t.depth->redirectMirror->host;
+        t.offsetX = t.depth->redirectX;
+        t.offsetY = t.depth->redirectY;
+      }
     } else {
       t.depthImage = SurfaceDepthSingle(s, *t.depth, c.depthTest || c.stencil || c.depthWrite);
       if (!t.depthImage)
@@ -214,8 +221,11 @@ bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
 
 bool BindImages(VideoState &s, HostTexture *const colors[4], u32 color_count, HostTexture *depth,
                 bool init_clear) {
-  HostTextureTransition transitions[5];
+  HostTextureTransition transitions[kMaxPendingTransitions + 5];
   u32 transition_count = 0;
+  for (u32 i = 0; i < s.pending_transition_count; ++i)
+    transitions[transition_count++] = s.pending_transitions[i];
+  s.pending_transition_count = 0;
   for (u32 i = 0; i < color_count; ++i)
     transitions[transition_count++] = {colors[i], plume::RenderTextureLayout::COLOR_WRITE};
   if (depth)
@@ -366,6 +376,14 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
   sc = plume::RenderRect(ScalePxBy(sc.left, S), ScalePxBy(sc.top, S),
                          std::max(ScalePxBy(sc.right, S), ScalePxBy(sc.left, S) + 1),
                          std::max(ScalePxBy(sc.bottom, S), ScalePxBy(sc.top, S) + 1));
+  if (t.offsetX || t.offsetY) {
+    v.vp.x += static_cast<float>(t.offsetX);
+    v.vp.y += static_cast<float>(t.offsetY);
+    sc.left += t.offsetX;
+    sc.right += t.offsetX;
+    sc.top += t.offsetY;
+    sc.bottom += t.offsetY;
+  }
   v.scissor = sc;
   return v;
 }
@@ -1267,6 +1285,11 @@ struct SamplerBindings {
 void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
                              SharedConstants &sc) {
   const u32 sampler_policy = static_cast<u32>(Settings::Anisotropy());
+  struct DeferGuard {
+    VideoState &s;
+    explicit DeferGuard(VideoState &state) : s(state) { s.defer_shader_read_transitions = true; }
+    ~DeferGuard() { s.defer_shader_read_transitions = false; }
+  } defer_guard(s);
   for (u32 i = 0; i < 16; ++i) {
     sc.texture2DIndices[i] = kNullTexture2DDescriptorIndex;
     sc.texture3DIndices[i] = kNullTexture3DDescriptorIndex;
@@ -1322,7 +1345,8 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
                    gt->host.isDepth ? "depth" : "colour");
         continue;
       }
-      sampler = ResolveSamplerSlotLocked(DecodeSamplerFromFetch(fc));
+      sampler = ResolveSamplerSlotLocked(DecodeSamplerFromFetch(
+          fc, !gt->resolveOwned && !gt->host.isDepth && gt->host.mipLevels > 1));
       cs.texVa = tex_va;
       std::memcpy(cs.fc, fc, sizeof(fc));
       cs.generation = s.texture_generation.load(std::memory_order_relaxed);
@@ -1756,7 +1780,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     static u32 k = 0;
     const u32 vte = dev.U32(dev::kVteControl);
     GpuTimingDiagMark(s, s.command_list, std::format("draw {}", k));
-    EOT_INFO("[diag] draw {} prim {} {}{} smp={}{}{} n={} pso={} key={:016x} mode={:#x} dc={:#x} srm={:#x} srmbf={:#x} rt0={:#x} {}x{} fmt{} rtexp{} ds={:#x} vs={:016x} ps={:016x} "
+    EOT_INFO("[diag] draw {} prim {} {}{} smp={}{}{}{} n={} pso={} key={:016x} mode={:#x} dc={:#x} srm={:#x} srmbf={:#x} rt0={:#x} {}x{} fmt{} rtexp{} ds={:#x} vs={:016x} ps={:016x} "
              "vp=({:.0f},{:.0f} {:.0f}x{:.0f} z{:.2f}-{:.2f}) vte={:#x} xs={:.1f} ys={:.1f} zs={:.3f} "
              "zo={:.3f} scis=({},{},{},{}) cull={} z={}{} func{} blend={} mask={:#x} spec={:#x} "
              "streams={:#x} stride0={} tex0={:#x} posScale=({:.3f},{:.3f},{:.3f}) "
@@ -1764,6 +1788,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
              k++, prim, geom.indexed ? "idx" : "vtx", geom.rectList ? " rect" : "", targets.samples,
              cls.additive ? " add" : "",
              targets.depth && targets.depthImage == &targets.depth->single ? " dtwin" : "",
+             targets.offsetX || targets.offsetY ? " atlas" : "",
              geom.indexed ? index_count : geom.vertexCount, static_cast<const void *>(pipeline),
              HashPipelineState(st), dev.U32(dev::kModeControl), dev.U32(dev::kDepthControl),
              dev.U32(dev::kStencilRefMask), dev.U32(dev::kStencilRefMaskBF),
@@ -1826,7 +1851,8 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   GpuTimingCountDraw(s);
   auto *cmd = s.command_list;
   const bool dynamic_state_invalid = s.bound_pipeline == nullptr;
-  const bool pipeline_changed = s.bound_pipeline != pipeline;
+  const bool pipeline_changed = s.bound_pipeline != pipeline &&
+                                !(Settings::DiagNoPso() && targets.samples > 1 && s.bound_pipeline);
   if (pipeline_changed) {
     cmd->setPipeline(pipeline);
     s.perf.pipeline_bind_calls++;
@@ -1858,7 +1884,8 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     s.perf.scissor_bind_calls++;
   }
   const UploadAlloc *roots[2] = {&vs_consts, &ps_consts};
-  for (u32 r = 0; r < 2; ++r) {
+  const bool keep_roots = Settings::DiagNoConst() && targets.samples > 1 && s.bound_root_buffer[0];
+  for (u32 r = 0; r < 2 && !keep_roots; ++r) {
     if (s.bound_root_buffer[r] == roots[r]->buffer && s.bound_root_offset[r] == roots[r]->offset)
       continue;
     cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(roots[r]->buffer, roots[r]->offset), r);
@@ -1948,6 +1975,15 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   (void)prim;
   DrainHostDebugMessages(s, "draw");
 }
+}
+void FlushPendingTransitions(VideoState &s) {
+  if (!s.pending_transition_count)
+    return;
+  const u32 n = s.pending_transition_count;
+  s.pending_transition_count = 0;
+  TransitionManyLocked(s, s.pending_transitions, n);
+}
+namespace {
 
 }
 
@@ -2124,6 +2160,13 @@ void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, floa
     }
   }
   const bool clear_depth = (flags & 0x10) != 0, clear_stencil = (flags & 0x20) != 0;
+  if (Settings::DiagRectClear() && whole && !targets.colorCount && targets.depth &&
+      targets.width == 1024 && targets.height == 1024) {
+    rect = plume::RenderRect(0, 0, static_cast<i32>(targets.depth->host.width),
+                             static_cast<i32>(targets.depth->host.height));
+    rects = &rect;
+    rect_count = 1;
+  }
   auto *cmd = s.command_list;
   if (GpuTimingDiagActive(s)) {
     GpuTimingDiagMark(s, cmd, std::format("clear flags {:#x}", flags));
@@ -2161,12 +2204,30 @@ void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, floa
   }
   if (targets.depth && (flags & 0x30)) {
     GuestSurface &surf = *targets.depth;
-    const bool both = SurfaceHasSingle(surf);
-    clear_image(surf, surf.host);
-    if (both)
-      clear_image(surf, surf.single);
-    NoteSurfaceClearedDepth(surf, z, static_cast<u8>(stencil & 0xFF), whole && clear_depth && clear_stencil,
-                            both);
+    if (whole && !targets.colorCount && clear_depth)
+      SurfaceRedirectBegin(s, surf);
+    if (surf.redirectMirror && surf.redirectMirror->host.valid()) {
+      HostTexture &image = surf.redirectMirror->host;
+      plume::RenderRect region(surf.redirectX, surf.redirectY,
+                               surf.redirectX + static_cast<i32>(surf.host.width),
+                               surf.redirectY + static_cast<i32>(surf.host.height));
+      if (!whole)
+        region = plume::RenderRect(rect.left + surf.redirectX, rect.top + surf.redirectY,
+                                   rect.right + surf.redirectX, rect.bottom + surf.redirectY);
+      if (BindImages(s, nullptr, 0, &image, true)) {
+        cmd->clearDepthStencil(clear_depth, clear_stencil, z, stencil & 0xFF, &region, 1);
+        surf.perfClears++;
+      }
+      NoteSurfaceClearedDepth(surf, z, static_cast<u8>(stencil & 0xFF),
+                              whole && clear_depth && clear_stencil, false);
+    } else {
+      const bool both = SurfaceHasSingle(surf);
+      clear_image(surf, surf.host);
+      if (both)
+        clear_image(surf, surf.single);
+      NoteSurfaceClearedDepth(surf, z, static_cast<u8>(stencil & 0xFF),
+                              whole && clear_depth && clear_stencil, both);
+    }
   }
   s.bound_draw_targets_valid = false;
   DrainHostDebugMessages(s, "clear");

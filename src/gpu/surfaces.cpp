@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstring>
 #include <format>
 #include "gpu/surfaces.h"
 
@@ -400,7 +401,7 @@ plume::RenderFramebuffer *ImageFramebuffer(VideoState &s, HostTexture &image) {
 }
 
 bool HelperBlit(VideoState &s, HostTexture &src, HostTexture &dst, plume::RenderPipeline *pso,
-                u32 second_descriptor = 0) {
+                u32 second_descriptor = 0, const float *src_rect = nullptr) {
   if (!pso || !src.valid() || !dst.valid())
     return false;
   plume::RenderFramebuffer *fb = ImageFramebuffer(s, dst);
@@ -424,6 +425,8 @@ bool HelperBlit(VideoState &s, HostTexture &src, HostTexture &dst, plume::Render
   pc.resourceDescriptorIndex2 = second_descriptor;
   pc.param0 = 1.0f;
   pc.param1 = 0.0f;
+  if (src_rect)
+    std::memcpy(pc.rect, src_rect, sizeof(pc.rect));
   cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
                                 sizeof(pc));
   cmd->drawInstanced(3, 1, 0, 0);
@@ -585,6 +588,46 @@ void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src
     LogTransfer(s, surf, "hand content to mirror");
   }
   s.perf.resolve_transfers++;
+}
+
+void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf) {
+  if (surf.redirectPassFrame != s.guest_frames) {
+    surf.redirectPassFrame = s.guest_frames;
+    surf.redirectPasses = 0;
+  }
+  const u32 pass = surf.redirectPasses++;
+  surf.redirectMirror.reset();
+  if (!Settings::ShadowAtlasDirect() || pass >= GuestSurface::kRedirectPasses || !surf.isDepth ||
+      surf.host.sampleCount != 1 || !surf.host.valid())
+    return;
+  const GuestSurface::RedirectPrediction &p = surf.redirectPredictions[pass];
+  std::shared_ptr<GuestTexture> m = p.mirror.lock();
+  if (!m || !m->host.valid() || m->host.texture.get() != p.texture || !m->host.isDepth ||
+      !m->host.renderable || m->host.format != surf.host.format || m->host.sampleCount != 1 ||
+      m->host.mipLevels != 1 || m->host.arraySize != 1 || p.x < 0 || p.y < 0 ||
+      p.x + surf.host.width > m->host.width || p.y + surf.host.height > m->host.height)
+    return;
+  surf.redirectMirror = std::move(m);
+  surf.redirectX = p.x;
+  surf.redirectY = p.y;
+  LogTransfer(s, surf, "redirect pass to atlas");
+}
+
+bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf) {
+  std::shared_ptr<GuestTexture> m = std::move(surf.redirectMirror);
+  surf.redirectMirror.reset();
+  if (!m || !m->host.valid() || !surf.host.valid())
+    return true;
+  GpuTimingMark(s, s.command_list, kGpuCatResolveDepth);
+  LogTransfer(s, surf, "redirect: copy region back");
+  const float rect[4] = {
+      static_cast<float>(surf.redirectX) / static_cast<float>(m->host.width),
+      static_cast<float>(surf.redirectY) / static_cast<float>(m->host.height),
+      static_cast<float>(surf.redirectX + surf.host.width) / static_cast<float>(m->host.width),
+      static_cast<float>(surf.redirectY + surf.host.height) / static_cast<float>(m->host.height)};
+  surf.perfTransfers++;
+  s.perf.surface_transfers++;
+  return HelperBlit(s, m->host, surf.host, GetDepthCopyPipeline(s, surf.host.format), 0, rect);
 }
 
 bool SurfaceTakeBack(VideoState &s, GuestSurface &surf) {

@@ -81,6 +81,7 @@ u32 ResolveStoreSwizzle(u32 fetch3) {
 }
 
 void ClearSource(VideoState &s, GuestSurface &surf, u32 clear_color_va, float clear_z) {
+  surf.redirectMirror.reset();
   float rgba[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   if (!surf.isDepth && clear_color_va) {
     for (u32 i = 0; i < 4; ++i)
@@ -130,6 +131,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   EOT_CPU_ZONE("ResolveGuest");
   PerfScope perf_scope(s.perf.resolve_ms);
   s.perf.resolves++;
+  FlushPendingTransitions(s);
   GpuTimingMark(s, s.command_list, kGpuCatResolve);
 
   const u32 source = flags & 7;
@@ -195,6 +197,23 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   x1 = std::min(static_cast<i32>(surf->width), x1);
   y1 = std::min(static_cast<i32>(surf->height), y1);
   const i32 rw = x1 - x0, rh = y1 - y0;
+
+  const bool whole_src = x0 == 0 && y0 == 0 && rw == static_cast<i32>(surf->width) &&
+                         rh == static_cast<i32>(surf->height);
+  bool redirect_hit = false;
+  if (depth_source && surf->redirectMirror) {
+    const i32 hx = ScalePxBy(dx, surf->scale), hy = ScalePxBy(dy, surf->scale);
+    if (dest == surf->redirectMirror.get() && whole_src && dest_level == 0 &&
+        hx == surf->redirectX && hy == surf->redirectY) {
+      redirect_hit = true;
+      src_host = &surf->redirectMirror->host;
+    } else if (!SurfaceRedirectEnd(s, *surf)) {
+      return;
+    }
+  }
+  const bool src_is_region = redirect_hit;
+  const i32 src_origin_x = src_is_region ? surf->redirectX : 0;
+  const i32 src_origin_y = src_is_region ? surf->redirectY : 0;
 
   if (dest && rw > 0 && rh > 0 && dest_level < dest->host.mipLevels) {
     const i32 copy_exp = Signed6(flags >> 26);
@@ -267,7 +286,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       target.resolvedOwnSerial = target.contentSerial;
       target.resolvedLevel = level;
       std::memcpy(target.resolvedRect, rect_now, sizeof(rect_now));
-      if (s.guest_frames - surf->regretResetFrame >= 1024) {
+      if (s.guest_frames - surf->regretResetFrame >= 128) {
         surf->regretResetFrame = s.guest_frames;
         surf->regretMask = 0;
       }
@@ -283,7 +302,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                 hy1 = ScalePxBy(vy + vh, k);
       if (hx1 <= hx0 || hy1 <= hy0)
         return true;
-      const i32 sx0h = ScalePxBy(sx0, k), sy0h = ScalePxBy(sy0, k);
+      const i32 sx0h = ScalePxBy(sx0, k) + src_origin_x, sy0h = ScalePxBy(sy0, k) + src_origin_y;
       const i32 mip_w_host = static_cast<i32>(std::max(1u, target.host.width >> level));
       const i32 mip_h_host = static_cast<i32>(std::max(1u, target.host.height >> level));
       const bool copy_fits = sx0h + (hx1 - hx0) <= static_cast<i32>(src_host->width) &&
@@ -431,12 +450,19 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       pc.param0 = scale;
       pc.param1 = 0.0f;
       const GuestSurface &src_surf = alias_src ? *alias_src : *surf;
-      const float rx = static_cast<float>(src_surf.width) / static_cast<float>(surf->width);
-      const float ry = static_cast<float>(src_surf.height) / static_cast<float>(surf->height);
-      pc.rect[0] = static_cast<float>(sx0) * rx / static_cast<float>(src_surf.allocWidth);
-      pc.rect[1] = static_cast<float>(sy0) * ry / static_cast<float>(src_surf.allocHeight);
-      pc.rect[2] = static_cast<float>(sx0 + vw) * rx / static_cast<float>(src_surf.allocWidth);
-      pc.rect[3] = static_cast<float>(sy0 + vh) * ry / static_cast<float>(src_surf.allocHeight);
+      if (src_is_region) {
+        pc.rect[0] = static_cast<float>(sx0h) / static_cast<float>(src_host->width);
+        pc.rect[1] = static_cast<float>(sy0h) / static_cast<float>(src_host->height);
+        pc.rect[2] = static_cast<float>(sx0h + (hx1 - hx0)) / static_cast<float>(src_host->width);
+        pc.rect[3] = static_cast<float>(sy0h + (hy1 - hy0)) / static_cast<float>(src_host->height);
+      } else {
+        const float rx = static_cast<float>(src_surf.width) / static_cast<float>(surf->width);
+        const float ry = static_cast<float>(src_surf.height) / static_cast<float>(surf->height);
+        pc.rect[0] = static_cast<float>(sx0) * rx / static_cast<float>(src_surf.allocWidth);
+        pc.rect[1] = static_cast<float>(sy0) * ry / static_cast<float>(src_surf.allocHeight);
+        pc.rect[2] = static_cast<float>(sx0 + vw) * rx / static_cast<float>(src_surf.allocWidth);
+        pc.rect[3] = static_cast<float>(sy0 + vh) * ry / static_cast<float>(src_surf.allocHeight);
+      }
       bind_scope.stop();
       cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
                                     kCopyPushConstantByteOffset, sizeof(pc));
@@ -454,8 +480,36 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     const i32 vy = std::clamp(dy, 0, static_cast<i32>(mip_h));
     const i32 vw = std::min(rw, static_cast<i32>(mip_w) - vx);
     const i32 vh = std::min(rh, static_cast<i32>(mip_h) - vy);
-    if (vw > 0 && vh > 0)
+    if (vw > 0 && vh > 0 && redirect_hit) {
+      dest->contentSerial++;
+      dest->resolvedSurfaceUid = surf->uid;
+      dest->resolvedSurfaceSerial = surf->serial;
+      dest->resolvedOwnSerial = dest->contentSerial;
+      dest->resolvedLevel = dest_level;
+      const i32 rect_now[6] = {vx, vy, vw, vh, x0, y0};
+      std::memcpy(dest->resolvedRect, rect_now, sizeof(rect_now));
+      dest->host.needsClear = false;
+      s.perf.resolve_noops++;
+      mark(*dest, dest_level);
+    } else if (vw > 0 && vh > 0) {
       blit(*dest, dest_level, vx, vy, vw, vh, x0, y0);
+    }
+    if (depth_source && whole_src && dest_level == 0 && vw == rw && vh == rh &&
+        surf->host.sampleCount == 1 && dest_ref && dest->host.isDepth && dest->host.renderable &&
+        dest->host.sampleCount == 1 && dest->host.mipLevels == 1 && dest->host.arraySize == 1 &&
+        dest->host.format == surf->host.format && surf->redirectPassFrame == s.guest_frames &&
+        surf->redirectPasses >= 1 && surf->redirectPasses <= GuestSurface::kRedirectPasses &&
+        (dest->host.width > surf->host.width || dest->host.height > surf->host.height)) {
+      const i32 hx = ScalePxBy(vx, surf->scale), hy = ScalePxBy(vy, surf->scale);
+      if (hx >= 0 && hy >= 0 && hx + surf->host.width <= dest->host.width &&
+          hy + surf->host.height <= dest->host.height) {
+        GuestSurface::RedirectPrediction &p = surf->redirectPredictions[surf->redirectPasses - 1];
+        p.mirror = dest_ref;
+        p.texture = dest->host.texture.get();
+        p.x = hx;
+        p.y = hy;
+      }
+    }
 
     if (dest_level == 0 && vw > 0 && vh > 0) {
       s.perf.alias_scanned += static_cast<u32>(s.textures.size());

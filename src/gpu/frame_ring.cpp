@@ -231,6 +231,11 @@ void EvictHostTexturePool(VideoState &s) {
 void TransitionLocked(VideoState &s, HostTexture &host, plume::RenderTextureLayout layout) {
   if (!host.texture || host.layout == layout || !s.command_list_open)
     return;
+  if (s.defer_shader_read_transitions && layout == plume::RenderTextureLayout::SHADER_READ &&
+      s.pending_transition_count < kMaxPendingTransitions) {
+    s.pending_transitions[s.pending_transition_count++] = {&host, layout};
+    return;
+  }
   const HostTextureTransition transition{&host, layout};
   TransitionManyLocked(s, &transition, 1);
 }

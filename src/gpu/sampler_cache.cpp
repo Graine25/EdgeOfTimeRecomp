@@ -89,7 +89,7 @@ plume::RenderTextureAddressMode ConvertClamp(xe::ClampMode mode) {
 
 }
 
-plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6]) {
+plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6], bool mipmapped_upload) {
   xe::xe_gpu_texture_fetch_t fetch;
   std::memcpy(&fetch, fc, sizeof(fetch));
 
@@ -127,7 +127,7 @@ plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6]) {
   const i32 forced = Settings::Anisotropy();
   if (forced == 1)
     aniso = 0;
-  else if (forced > 1 && !mag_point && !min_point)
+  else if (forced > 1 && !mag_point && !min_point && mipmapped_upload)
     aniso = std::max<u32>(aniso, std::min<u32>(static_cast<u32>(forced), 16u));
   const bool aniso_on = aniso > 1 && !mag_point && !min_point;
   d.anisotropyEnabled = aniso_on;
