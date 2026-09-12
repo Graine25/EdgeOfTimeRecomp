@@ -718,10 +718,13 @@ BufferPool &index_pool() {
 }
 
 plume::RenderBuffer *PoolResidentBuffer(VideoState &s, const BufferPool &pool,
-                                        plume::RenderBuffer *upload, u64 offset, u64 bytes) {
+                                        plume::RenderBuffer *upload, u64 offset, u64 bytes,
+                                        u64 *capacity = nullptr) {
   for (const auto &ch : pool.chunks) {
     if (ch.buffer.get() != upload)
       continue;
+    if (capacity)
+      *capacity = ch.capacity;
     if (ch.vram && offset + bytes <= ch.vramValidUpTo) {
       s.perf.geometry_vram_binds++;
       return ch.vram.get();
@@ -1777,6 +1780,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   }
   s.vs_float_constants_stale = false;
   s.ps_float_constants_stale = false;
+  lap(s.perf.const_float_ms);
   ViewportInfo vp = ComputeViewport(dev, targets);
   if (Settings::DiagScissor() && targets.samples > 1)
     vp.scissor = plume::RenderRect(0, 0, 1, 1);
@@ -1967,21 +1971,31 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   }
   const UploadAlloc *roots[2] = {&vs_consts, &ps_consts};
   const bool keep_roots = Settings::DiagNoConst() && targets.samples > 1 && s.bound_root_buffer[0];
+  auto bind_root_cbv = [&](u32 r, const UploadAlloc &alloc) {
+#if defined(EOT_D3D12)
+    if (alloc.gpuVa && s.root_cbv_index[r] != ~0u) {
+      static_cast<plume::D3D12CommandList *>(cmd)->d3d->SetGraphicsRootConstantBufferView(
+          s.root_cbv_index[r], alloc.gpuVa);
+      return;
+    }
+#endif
+    cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(alloc.buffer, alloc.offset), r);
+  };
   for (u32 r = 0; r < 2 && !keep_roots; ++r) {
     if (s.bound_root_buffer[r] == roots[r]->buffer && s.bound_root_offset[r] == roots[r]->offset)
       continue;
-    cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(roots[r]->buffer, roots[r]->offset), r);
+    bind_root_cbv(r, *roots[r]);
     s.bound_root_buffer[r] = roots[r]->buffer;
     s.bound_root_offset[r] = roots[r]->offset;
   }
   if (shared_changed) {
-    cmd->setGraphicsRootDescriptor(
-        plume::RenderBufferReference(shared_alloc.buffer, shared_alloc.offset), 2);
+    bind_root_cbv(2, shared_alloc);
     s.bound_root_buffer[2] = shared_alloc.buffer;
     s.bound_root_offset[2] = shared_alloc.offset;
     s.last_shared = sc;
     s.shared_bound = true;
   }
+  lap(s.perf.rec_state_ms);
   auto bind_vertex_views = [&](u32 first, const plume::RenderVertexBufferView *want_views,
                                u32 count, const plume::RenderInputSlot *want_slots) {
     s.perf.vertex_bind_requests++;
@@ -2019,6 +2033,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     plume::RenderInputSlot zs(kSyntheticVertexSlot, 0);
     bind_vertex_views(kSyntheticVertexSlot, &zv, 1, &zs);
   }
+  lap(s.perf.rec_bind_ms);
   auto bind_index_view = [&](const plume::RenderIndexBufferView &want) {
     s.perf.index_bind_requests++;
     auto &have = s.bound_index_stream;
@@ -2040,17 +2055,18 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     cmd->drawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else if (geom.cached) {
     const u32 elem = geom.cached->is32 ? 4 : 2;
+    u64 capacity = 0;
+    plume::RenderBuffer *chunk = PoolResidentBuffer(s, index_pool(), geom.cached->buffer,
+                                                    geom.cached->offset, u64(index_count) * elem,
+                                                    &capacity);
+    const u64 view_bytes = capacity ? capacity : geom.cached->offset + u64(index_count) * elem;
     plume::RenderIndexBufferView ib(
-        plume::RenderBufferReference(PoolResidentBuffer(s, index_pool(), geom.cached->buffer,
-                                                        geom.cached->offset,
-                                                        u64(index_count) * elem),
-                                     geom.cached->offset),
-        index_count * elem,
+        plume::RenderBufferReference(chunk, 0), static_cast<u32>(std::min<u64>(view_bytes, 0xFFFFFFFFu)),
         geom.cached->is32 ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
     bind_index_view(ib);
     cmd->drawIndexedInstanced(
-        Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count, 1, 0,
-        host_base_vertex, 0);
+        Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count, 1,
+        static_cast<u32>(geom.cached->offset / elem), host_base_vertex, 0);
   } else if (geom.indexed) {
     plume::RenderIndexBufferView ib(plume::RenderBufferReference(index_alloc.buffer, index_alloc.offset),
                                     index_count * 4, plume::RenderFormat::R32_UINT);

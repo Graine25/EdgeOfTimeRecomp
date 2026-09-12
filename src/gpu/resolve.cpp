@@ -512,12 +512,22 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     }
 
     if (dest_level == 0 && vw > 0 && vh > 0) {
-      s.perf.alias_scanned += static_cast<u32>(s.textures.size());
       PerfScope alias_scope(s.perf.alias_scan_ms);
+      const u64 gen = (s.texture_generation.load(std::memory_order_relaxed) << 20) ^
+                      s.mirror_generation;
+      if (s.resolve_alias_candidates_generation != gen) {
+        s.resolve_alias_candidates_generation = gen;
+        s.resolve_alias_candidates.clear();
+        for (auto &[va, tex] : s.textures) {
+          if (tex && tex->host.texture && tex->host.renderable)
+            s.resolve_alias_candidates.push_back(tex.get());
+        }
+      }
+      s.perf.alias_scanned += static_cast<u32>(s.resolve_alias_candidates.size());
       const u64 visit_token = ++s.resolve_alias_token;
-      for (auto &[alias_va, alias] : s.textures) {
-        GuestTexture *t = alias.get();
-        if (!t || t == dest || !t->host.texture || !t->host.renderable ||
+      for (GuestTexture *t : s.resolve_alias_candidates) {
+        const u32 alias_va = t->va;
+        if (t == dest || !t->host.texture || !t->host.renderable ||
             t->host.isDepth != depth_source)
           continue;
         if (t->uploaded && !t->resolveOwned)
