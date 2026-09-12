@@ -507,7 +507,7 @@ void LogPerfLocked(VideoState &s) {
     return;
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin) upload {:.2f} ({}) link "
+           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
            "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
@@ -515,10 +515,11 @@ void LogPerfLocked(VideoState &s) {
            p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
            p.setup_ms / n,
            p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
-           p.vertex_copy_ms / n, p.const_ms / n,
-           p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
-           p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames,
-           p.surface_transfers / p.frames, p.upload_ms / n,
+           p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
+           p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
+           p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames,
+           p.surface_transfers / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
+           p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
            p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,

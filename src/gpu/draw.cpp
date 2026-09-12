@@ -716,10 +716,13 @@ BufferPool &index_pool() {
 }
 
 plume::RenderBuffer *PoolResidentBuffer(VideoState &s, const BufferPool &pool,
-                                        plume::RenderBuffer *upload, u64 offset, u64 bytes) {
+                                        plume::RenderBuffer *upload, u64 offset, u64 bytes,
+                                        u64 *capacity = nullptr) {
   for (const auto &ch : pool.chunks) {
     if (ch.buffer.get() != upload)
       continue;
+    if (capacity)
+      *capacity = ch.capacity;
     if (ch.vram && offset + bytes <= ch.vramValidUpTo) {
       s.perf.geometry_vram_binds++;
       return ch.vram.get();
@@ -1448,34 +1451,75 @@ bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {
   return true;
 }
 
-void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
-                 FloatConstantDirty constants, const u8 *device_image = nullptr) {
-  auto &s = state();
-  std::lock_guard lock(s.mutex);
-  s.vs_float_constants_stale |= constants.vs;
-  s.ps_float_constants_stale |= constants.ps;
-  if (!s.ready)
-    return;
-  EOT_CPU_ZONE("ExecuteDraw");
-  PerfScope perf_scope(s.perf.draw_ms);
-  s.perf.draws++;
+struct DrawPacket {
+  u32 device_va = 0;
+  u32 prim = 0;
+  bool indexed = false;
+  bool rectList = false;
+  plume::RenderPrimitiveTopology topology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  u32 vertexCount = 0;
+  GuestShader *vs = nullptr;
+  GuestShader *ps = nullptr;
+  u32 vs_va = 0, ps_va = 0;
+  const InputLayout *layout = nullptr;
+  u32 colorVa[4] = {};
+  u32 colorWords[4][5] = {};
+  u32 colorCount = 0;
+  u32 depthVa = 0;
+  u32 depthWords[5] = {};
+  bool hasCached = false;
+  CachedIndexRange cached;
+  UploadAlloc index_alloc;
+  u32 index_count = 0;
+  i32 host_base_vertex = 0;
+  u32 max_slot = 0;
+  u32 strides[16] = {};
+  plume::RenderVertexBufferView views[16];
+  plume::RenderInputSlot slots[16];
+  UploadAlloc zero;
+  UploadAlloc vs_consts, ps_consts;
+  alignas(16) u8 window[kDeviceSnapshotBytes];
+};
+
+constexpr u32 kFloatFilesEnd = dev::kPsFloatConstants + 256u * 16u;
+static_assert(kFloatFilesEnd == dev::kVsBoolConstants);
+
+bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
+                 const u8 *device_image, DrawPacket &pk) {
   u64 lap_t0 = PerfNow();
   auto lap = [&](f64 &acc) {
     const u64 t1 = PerfNow();
     acc += static_cast<f64>(t1 - lap_t0) * PerfMsPerTick();
     lap_t0 = t1;
   };
+  pk.device_va = device_va;
+  pk.prim = prim;
+  pk.indexed = geom.indexed;
+  pk.rectList = geom.rectList;
+  pk.topology = geom.topology;
+  pk.vertexCount = geom.vertexCount;
+  pk.hasCached = false;
+  pk.index_alloc = UploadAlloc{};
+  pk.index_count = 0;
+  pk.host_base_vertex = 0;
+  pk.zero = UploadAlloc{};
   DeviceView dev = Device(device_va);
+  const u8 *regs = nullptr;
   if (device_image) {
     dev.snapshot = device_image;
     dev.snapshotSize = kDeviceSnapshotBytes;
+    regs = device_image;
   } else if (const u8 *live = mem::at<u8>(device_va)) {
     dev.snapshot = live;
     dev.snapshotSize = dev::kDeviceSize;
+    regs = live;
   }
-  BeginCommandList(s);
-  if (!s.command_list_open)
-    return;
+  if (!regs) {
+    Dropped("device unreadable", 0x6000);
+    return false;
+  }
+  std::memcpy(pk.window, regs, dev::kVsFloatConstants);
+  std::memcpy(pk.window + kFloatFilesEnd, regs + kFloatFilesEnd, kDeviceSnapshotBytes - kFloatFilesEnd);
 
   const u32 vs_va = dev.U32(dev::kVertexShader);
   const u32 ps_va = dev.U32(dev::kPixelShader);
@@ -1494,11 +1538,11 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
                dev.U32(dev::kRenderTarget0), dev.U32(dev::kVertexDeclaration),
                dev.U32(dev::kStreamObject0), s.guest_frames);
     Dropped(vs_va ? "vertex shader object unreadable" : "no vertex shader bound", 0x6001);
-    return;
+    return false;
   }
   if (ps_va && !ps) {
     Dropped("pixel shader object unreadable", 0x6013);
-    return;
+    return false;
   }
   if (!vs->entry || (ps && !ps->entry)) {
     trace::Bump(trace::Counter::ShaderMiss);
@@ -1506,36 +1550,35 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     if (ps)
       ResolveHostShader(s, *ps, 0);
     Dropped("shader cache miss", 0x6002);
-    return;
+    return false;
   }
+  pk.vs = vs;
+  pk.ps = ps;
+  pk.vs_va = vs_va;
+  pk.ps_va = ps_va;
 
-  Targets targets;
-  if (!ResolveTargets(s, dev, targets)) {
+  pk.colorCount = 0;
+  for (u32 i = 0; i < 4; ++i) {
+    const u32 va = dev.U32(dev::kRenderTarget0 + 4 * i);
+    if (!va || !ReadSurfaceHeaderWords(va, pk.colorWords[i]))
+      break;
+    pk.colorVa[i] = va;
+    pk.colorCount = i + 1;
+  }
+  pk.depthVa = dev.U32(dev::kDepthSurface);
+  if (pk.depthVa && !ReadSurfaceHeaderWords(pk.depthVa, pk.depthWords))
+    pk.depthVa = 0;
+  if (!pk.colorCount && !pk.depthVa) {
     Dropped("no render target or depth surface bound", 0x6003);
-    return;
+    return false;
   }
 
   const InputLayout *layout = GetInputLayout(s, *vs, dev.U32(dev::kVertexDeclaration));
   if (!layout) {
     Dropped("no input layout for the bound declaration", 0x6004);
-    return;
+    return false;
   }
-  const DrawClass cls = ClassifyDraw(dev, targets, ps != nullptr, geom.rectList);
-  if (cls.nullPs && !cls.depthWrite && !cls.stencil) {
-    if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()))
-      EOT_INFO("[diag] skip prim {} n={} dc={:#x} rt0={:#x} ds={:#x} vs={:016x}: no pixel shader, no "
-               "depth or stencil write",
-               prim, geom.indexed ? static_cast<u32>(geom.indices.size()) : geom.vertexCount,
-               dev.U32(dev::kDepthControl), targets.colorCount ? targets.color[0]->va : 0,
-               targets.depth ? targets.depth->va : 0, vs->hash);
-    s.perf.draws--;
-    s.perf.draws_skipped++;
-    return;
-  }
-  if (!SelectTargetImages(s, targets, cls)) {
-    Dropped("surface image unavailable", 0x6016);
-    return;
-  }
+  pk.layout = layout;
   lap(s.perf.setup_ms);
   StreamInfo streams[16];
   for (u32 S = 0; S < 16; ++S) {
@@ -1548,13 +1591,13 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
       streams[0].sizeBytes = geom.vertexCount * geom.stream0OverrideStride;
       if (!streams[0].data || !streams[0].stride) {
         Dropped("BeginVertices data unreadable", 0x6015);
-        return;
+        return false;
       }
       continue;
     }
     if (!ReadStream(dev, S, streams[S])) {
       Dropped("stream source unreadable", 0x6005);
-      return;
+      return false;
     }
     if (layout->streamExtent[S] > streams[S].stride) {
       u32 n;
@@ -1562,6 +1605,233 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
         EOT_WARN("[draw] stream {} stride {} smaller than the declaration extent {}", S,
                  streams[S].stride, layout->streamExtent[S]);
     }
+  }
+  for (u32 S = 0; S < 16; ++S)
+    pk.strides[S] = streams[S].stride;
+
+  u32 lo = 0, hi = 0;
+  RectExpansion rect;
+  if (geom.rectList) {
+    std::vector<u32> guest_vertices;
+    if (geom.indexed) {
+      guest_vertices = geom.indices;
+      for (auto &v : guest_vertices)
+        v = static_cast<u32>(static_cast<i32>(v) + geom.baseVertex);
+    } else {
+      guest_vertices.resize(geom.vertexCount);
+      for (u32 i = 0; i < geom.vertexCount; ++i)
+        guest_vertices[i] = geom.startVertex + i;
+    }
+    if (!ExpandRectList(*layout, streams, layout->streamMask, guest_vertices, rect) ||
+        rect.indices.empty()) {
+      Dropped("rect list expansion failed", 0x6009);
+      return false;
+    }
+    if (!UploadBytes(rect.indices.data(), rect.indices.size() * 4, 4, &pk.index_alloc)) {
+      Dropped("upload ring exhausted (indices)", 0x600A);
+      return false;
+    }
+    pk.index_count = static_cast<u32>(rect.indices.size());
+  } else if (geom.cached) {
+    pk.hasCached = true;
+    pk.cached = *geom.cached;
+    lo = static_cast<u32>(static_cast<i32>(geom.cached->lo) + geom.baseVertex);
+    hi = static_cast<u32>(static_cast<i32>(geom.cached->hi) + geom.baseVertex);
+    pk.index_count = geom.cached->count;
+    pk.host_base_vertex = geom.baseVertex - static_cast<i32>(lo);
+  } else if (geom.indexed) {
+    if (geom.indices.empty()) {
+      Dropped("empty index list", 0x600B);
+      return false;
+    }
+    lo = 0xFFFFFFFFu;
+    hi = 0;
+    for (u32 v : geom.indices) {
+      const u32 gv = static_cast<u32>(static_cast<i32>(v) + geom.baseVertex);
+      lo = std::min(lo, gv);
+      hi = std::max(hi, gv);
+    }
+    if (!UploadBytes(geom.indices.data(), geom.indices.size() * 4, 4, &pk.index_alloc)) {
+      Dropped("upload ring exhausted (indices)", 0x600A);
+      return false;
+    }
+    pk.index_count = static_cast<u32>(geom.indices.size());
+    s.perf.index_bytes += u64(pk.index_count) * 4;
+    pk.host_base_vertex = geom.baseVertex - static_cast<i32>(lo);
+  } else {
+    lo = geom.startVertex;
+    hi = geom.startVertex + geom.vertexCount - 1;
+  }
+
+  u32 max_slot = 0;
+  for (u32 S = 0; S < 16; ++S)
+    if (layout->streamMask & (1u << S))
+      max_slot = S;
+  pk.max_slot = max_slot;
+  const u32 prefix_mask = (1u << (max_slot + 1)) - 1;
+  const bool need_zero = layout->needsSyntheticSlot || layout->streamMask != prefix_mask;
+  if (need_zero && !UploadZeroBuffer(s, &pk.zero)) {
+    Dropped("upload ring exhausted (zero buffer)", 0x600C);
+    return false;
+  }
+  for (u32 S = 0; S <= max_slot; ++S) {
+    pk.slots[S] = plume::RenderInputSlot(S, streams[S].stride);
+    if (!(layout->streamMask & (1u << S))) {
+      pk.views[S] = plume::RenderVertexBufferView(
+          plume::RenderBufferReference(pk.zero.buffer, pk.zero.offset), 4096);
+      pk.slots[S] = plume::RenderInputSlot(S, 0);
+      continue;
+    }
+    const StreamInfo &st_info = streams[S];
+    UploadAlloc va;
+    if (geom.rectList) {
+      if (!UploadBytes(rect.vertices[S].data(), rect.vertices[S].size(), 16, &va)) {
+        Dropped("upload ring exhausted (vertices)", 0x600D);
+        return false;
+      }
+      pk.views[S] = plume::RenderVertexBufferView(
+          plume::RenderBufferReference(va.buffer, va.offset), static_cast<u32>(va.size));
+      continue;
+    }
+    const u64 first = u64(lo) * st_info.stride;
+    u64 bytes = (u64(hi) - lo + 1) * st_info.stride;
+    if (st_info.sizeBytes && first + bytes > st_info.sizeBytes) {
+      if (first >= st_info.sizeBytes) {
+        Dropped("vertex range outside the stream", 0x600E);
+        return false;
+      }
+      bytes = st_info.sizeBytes - first;
+    }
+    if (bytes > 64ull * 1024 * 1024) {
+      Dropped("vertex range implausibly large", 0x600F);
+      return false;
+    }
+    if (const VertexMirror *mirror = GetVertexMirror(s, st_info, first, bytes)) {
+      pk.views[S] = plume::RenderVertexBufferView(
+          plume::RenderBufferReference(
+              PoolResidentBuffer(s, vertex_mirrors().pool, mirror->buffer, mirror->offset, bytes),
+              mirror->offset),
+          static_cast<u32>(bytes));
+      continue;
+    }
+    if (!UploadAllocate(bytes, 16, &va)) {
+      Dropped("upload ring exhausted (vertices)", 0x600D);
+      return false;
+    }
+    {
+      PerfScope copy_scope(s.perf.vertex_copy_ms);
+      CopyVertexBytes(va.cpu, st_info.data + first, static_cast<u32>(bytes));
+    }
+    s.perf.vertex_bytes += bytes;
+    pk.views[S] = plume::RenderVertexBufferView(plume::RenderBufferReference(va.buffer, va.offset),
+                                                static_cast<u32>(bytes));
+  }
+  lap(s.perf.stream_ms);
+
+  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs,
+                       s.vs_float_constants_stale, &pk.vs_consts) ||
+      !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
+                       s.ps_float_constants_stale, &pk.ps_consts)) {
+    Dropped("constant upload failed", 0x6010);
+    return false;
+  }
+  s.vs_float_constants_stale = false;
+  s.ps_float_constants_stale = false;
+  lap(s.perf.const_float_ms);
+
+  if (geom.rectList && streams[0].data && streams[0].stride >= 8 && Settings::DiagFrame() > 0 &&
+      s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
+    std::string verts;
+    const u32 n_show = std::min<u32>(geom.vertexCount, 12u);
+    for (u32 v = 0; v < n_show; ++v) {
+      const u8 *p = streams[0].data + u64(v) * streams[0].stride;
+      float f[4] = {0, 0, 0, 0};
+      const u32 words = std::min<u32>(4u, streams[0].stride / 4u);
+      for (u32 c = 0; c < words; ++c) {
+        u32 raw;
+        std::memcpy(&raw, p + 4 * c, 4);
+        raw = (raw >> 24) | ((raw >> 8) & 0xFF00u) | ((raw << 8) & 0xFF0000u) | (raw << 24);
+        std::memcpy(&f[c], &raw, 4);
+      }
+      verts += std::format(" [{:.3f} {:.3f} {:.3f} {:.3f}]", f[0], f[1], f[2], f[3]);
+    }
+    EOT_INFO("[diag]   rect verts (next draw){}", verts);
+  }
+  return true;
+}
+
+bool ResolveTargetsFromPacket(VideoState &s, const DrawPacket &pk, DeviceView dev, Targets &t) {
+  t = Targets{};
+  for (u32 i = 0; i < pk.colorCount; ++i) {
+    GuestSurface *surf = GetGuestSurfaceWords(s, pk.colorVa[i], pk.colorWords[i]);
+    if (!surf || !surf->host.valid())
+      break;
+    const u32 packet = dev.U32(i == 0 ? dev::kColor0Info : dev::kColor1Info + 4 * (i - 1));
+    const u32 bias = (packet >> 20) & 0x3F;
+    surf->colorExpBias = bias & 0x20 ? static_cast<i32>(bias) - 64 : static_cast<i32>(bias);
+    t.color[i] = surf;
+    t.colorImage[i] = &surf->host;
+    t.colorCount = i + 1;
+  }
+  if (pk.depthVa)
+    t.depth = GetGuestSurfaceWords(s, pk.depthVa, pk.depthWords);
+  if (t.depth && !t.depth->host.valid())
+    t.depth = nullptr;
+  if (t.depth)
+    t.depthImage = &t.depth->host;
+  if (t.colorCount) {
+    t.width = t.color[0]->width;
+    t.height = t.color[0]->height;
+  } else if (t.depth) {
+    t.width = t.depth->width;
+    t.height = t.depth->height;
+  }
+  if (t.colorCount)
+    t.scale = t.color[0]->scale;
+  else if (t.depth)
+    t.scale = t.depth->scale;
+  t.samples = t.colorCount ? t.color[0]->host.sampleCount
+                           : (t.depth ? t.depth->host.sampleCount : 1u);
+  return t.colorCount || t.depth;
+}
+
+void ReplayDraw(VideoState &s, const DrawPacket &pk) {
+  u64 lap_t0 = PerfNow();
+  auto lap = [&](f64 &acc) {
+    const u64 t1 = PerfNow();
+    acc += static_cast<f64>(t1 - lap_t0) * PerfMsPerTick();
+    lap_t0 = t1;
+  };
+  DeviceView dev = Device(pk.device_va);
+  dev.snapshot = pk.window;
+  dev.snapshotSize = kDeviceSnapshotBytes;
+  GuestShader *vs = pk.vs;
+  GuestShader *ps = pk.ps;
+  const InputLayout *layout = pk.layout;
+  BeginCommandList(s);
+  if (!s.command_list_open)
+    return;
+
+  Targets targets;
+  if (!ResolveTargetsFromPacket(s, pk, dev, targets)) {
+    Dropped("no render target or depth surface bound", 0x6003);
+    return;
+  }
+  const DrawClass cls = ClassifyDraw(dev, targets, ps != nullptr, pk.rectList);
+  if (cls.nullPs && !cls.depthWrite && !cls.stencil) {
+    if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()))
+      EOT_INFO("[diag] skip prim {} n={} dc={:#x} rt0={:#x} ds={:#x} vs={:016x}: no pixel shader, no "
+               "depth or stencil write",
+               pk.prim, pk.indexed ? pk.index_count : pk.vertexCount, dev.U32(dev::kDepthControl),
+               targets.colorCount ? targets.color[0]->va : 0, targets.depth ? targets.depth->va : 0,
+               vs->hash);
+    s.perf.draws--;
+    s.perf.draws_skipped++;
+    return;
+  }
+  if (!SelectTargetImages(s, targets, cls)) {
+    Dropped("surface image unavailable", 0x6016);
+    return;
   }
 
   PipelineState st;
@@ -1608,16 +1878,16 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   st.layoutKey = layout->key;
   st.spec = spec;
   for (u32 S = 0; S < 16; ++S)
-    st.strides[S] = streams[S].stride;
-  st.topology = geom.topology;
-  if (geom.rectList)
+    st.strides[S] = pk.strides[S];
+  st.topology = pk.topology;
+  if (pk.rectList)
     st.cull = plume::RenderCullMode::NONE;
   CanonicalizePipelineState(st,
                             (vs->entry ? vs->entry->specConstantsMask : 0u) |
                                 (ps && ps->entry ? ps->entry->specConstantsMask : 0u),
                             layout->streamMask);
-  s.current_vs_va = vs_va;
-  s.current_ps_va = ps_va;
+  s.current_vs_va = pk.vs_va;
+  s.current_ps_va = pk.ps_va;
   {
     static const char *const kOrigins[2][3] = {{"stream/none", "stream/stream", "stream/bundle"},
                                                {"bundle/none", "bundle/stream", "bundle/bundle"}};
@@ -1642,139 +1912,6 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     return;
   }
 
-  UploadAlloc index_alloc;
-  u32 index_count = 0;
-  i32 host_base_vertex = 0;
-  u32 lo = 0, hi = 0;
-  RectExpansion rect;
-  if (geom.rectList) {
-    std::vector<u32> guest_vertices;
-    if (geom.indexed) {
-      guest_vertices = geom.indices;
-      for (auto &v : guest_vertices)
-        v = static_cast<u32>(static_cast<i32>(v) + geom.baseVertex);
-    } else {
-      guest_vertices.resize(geom.vertexCount);
-      for (u32 i = 0; i < geom.vertexCount; ++i)
-        guest_vertices[i] = geom.startVertex + i;
-    }
-    if (!ExpandRectList(*layout, streams, layout->streamMask, guest_vertices, rect) ||
-        rect.indices.empty()) {
-      Dropped("rect list expansion failed", 0x6009);
-      return;
-    }
-    if (!UploadBytes(rect.indices.data(), rect.indices.size() * 4, 4, &index_alloc)) {
-      Dropped("upload ring exhausted (indices)", 0x600A);
-      return;
-    }
-    index_count = static_cast<u32>(rect.indices.size());
-  } else if (geom.cached) {
-    lo = static_cast<u32>(static_cast<i32>(geom.cached->lo) + geom.baseVertex);
-    hi = static_cast<u32>(static_cast<i32>(geom.cached->hi) + geom.baseVertex);
-    index_count = geom.cached->count;
-    host_base_vertex = geom.baseVertex - static_cast<i32>(lo);
-  } else if (geom.indexed) {
-    if (geom.indices.empty()) {
-      Dropped("empty index list", 0x600B);
-      return;
-    }
-    lo = 0xFFFFFFFFu;
-    hi = 0;
-    for (u32 v : geom.indices) {
-      const u32 gv = static_cast<u32>(static_cast<i32>(v) + geom.baseVertex);
-      lo = std::min(lo, gv);
-      hi = std::max(hi, gv);
-    }
-    if (!UploadBytes(geom.indices.data(), geom.indices.size() * 4, 4, &index_alloc)) {
-      Dropped("upload ring exhausted (indices)", 0x600A);
-      return;
-    }
-    index_count = static_cast<u32>(geom.indices.size());
-    s.perf.index_bytes += u64(index_count) * 4;
-    host_base_vertex = geom.baseVertex - static_cast<i32>(lo);
-  } else {
-    lo = geom.startVertex;
-    hi = geom.startVertex + geom.vertexCount - 1;
-  }
-
-  plume::RenderVertexBufferView views[16];
-  plume::RenderInputSlot slots[16];
-  u32 max_slot = 0;
-  for (u32 S = 0; S < 16; ++S)
-    if (layout->streamMask & (1u << S))
-      max_slot = S;
-  UploadAlloc zero;
-  const u32 prefix_mask = (1u << (max_slot + 1)) - 1;
-  const bool need_zero = layout->needsSyntheticSlot || layout->streamMask != prefix_mask;
-  if (need_zero && !UploadZeroBuffer(s, &zero)) {
-    Dropped("upload ring exhausted (zero buffer)", 0x600C);
-    return;
-  }
-  for (u32 S = 0; S <= max_slot; ++S) {
-    slots[S] = plume::RenderInputSlot(S, streams[S].stride);
-    if (!(layout->streamMask & (1u << S))) {
-      views[S] = plume::RenderVertexBufferView(plume::RenderBufferReference(zero.buffer, zero.offset),
-                                               4096);
-      slots[S] = plume::RenderInputSlot(S, 0);
-      continue;
-    }
-    const StreamInfo &st_info = streams[S];
-    UploadAlloc va;
-    if (geom.rectList) {
-      if (!UploadBytes(rect.vertices[S].data(), rect.vertices[S].size(), 16, &va)) {
-        Dropped("upload ring exhausted (vertices)", 0x600D);
-        return;
-      }
-      views[S] = plume::RenderVertexBufferView(plume::RenderBufferReference(va.buffer, va.offset),
-                                               static_cast<u32>(va.size));
-      continue;
-    }
-    const u64 first = u64(lo) * st_info.stride;
-    u64 bytes = (u64(hi) - lo + 1) * st_info.stride;
-    if (st_info.sizeBytes && first + bytes > st_info.sizeBytes) {
-      if (first >= st_info.sizeBytes) {
-        Dropped("vertex range outside the stream", 0x600E);
-        return;
-      }
-      bytes = st_info.sizeBytes - first;
-    }
-    if (bytes > 64ull * 1024 * 1024) {
-      Dropped("vertex range implausibly large", 0x600F);
-      return;
-    }
-    if (const VertexMirror *mirror = GetVertexMirror(s, st_info, first, bytes)) {
-      views[S] = plume::RenderVertexBufferView(
-          plume::RenderBufferReference(
-              PoolResidentBuffer(s, vertex_mirrors().pool, mirror->buffer, mirror->offset, bytes),
-              mirror->offset),
-          static_cast<u32>(bytes));
-      continue;
-    }
-    if (!UploadAllocate(bytes, 16, &va)) {
-      Dropped("upload ring exhausted (vertices)", 0x600D);
-      return;
-    }
-    {
-      PerfScope copy_scope(s.perf.vertex_copy_ms);
-      CopyVertexBytes(va.cpu, st_info.data + first, static_cast<u32>(bytes));
-    }
-    s.perf.vertex_bytes += bytes;
-    views[S] = plume::RenderVertexBufferView(plume::RenderBufferReference(va.buffer, va.offset),
-                                             static_cast<u32>(bytes));
-  }
-
-  lap(s.perf.stream_ms);
-
-  UploadAlloc vs_consts, ps_consts, shared_alloc;
-  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs,
-                       s.vs_float_constants_stale, &vs_consts) ||
-      !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
-                       s.ps_float_constants_stale, &ps_consts)) {
-    Dropped("constant upload failed", 0x6010);
-    return;
-  }
-  s.vs_float_constants_stale = false;
-  s.ps_float_constants_stale = false;
   ViewportInfo vp = ComputeViewport(dev, targets);
   if (Settings::DiagScissor() && targets.samples > 1)
     vp.scissor = plume::RenderRect(0, 0, 1, 1);
@@ -1811,6 +1948,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   sc.alphaThreshold = dev.F32(dev::kAlphaRef);
   std::memcpy(sc.posScale, vp.posScale, sizeof(sc.posScale));
   std::memcpy(sc.posOffset, vp.posOffset, sizeof(sc.posOffset));
+  UploadAlloc shared_alloc;
   const bool shared_changed =
       !s.shared_bound || std::memcmp(&s.last_shared, &sc, sizeof(sc)) != 0;
   if (shared_changed) {
@@ -1831,11 +1969,11 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
              "zo={:.3f} scis=({},{},{},{}) cull={} z={}{} func{} blend={} mask={:#x} spec={:#x} "
              "streams={:#x} stride0={} tex0={:#x} posScale=({:.3f},{:.3f},{:.3f}) "
              "posOff=({:.3f},{:.3f},{:.3f})",
-             k++, prim, geom.indexed ? "idx" : "vtx", geom.rectList ? " rect" : "", targets.samples,
+             k++, pk.prim, pk.indexed ? "idx" : "vtx", pk.rectList ? " rect" : "", targets.samples,
              cls.additive ? " add" : "",
              targets.depth && targets.depthImage == &targets.depth->single ? " dtwin" : "",
              targets.offsetX || targets.offsetY ? " atlas" : "",
-             geom.indexed ? index_count : geom.vertexCount, static_cast<const void *>(pipeline),
+             pk.indexed ? pk.index_count : pk.vertexCount, static_cast<const void *>(pipeline),
              HashPipelineState(st), dev.U32(dev::kModeControl), dev.U32(dev::kDepthControl),
              dev.U32(dev::kStencilRefMask), dev.U32(dev::kStencilRefMaskBF),
              targets.colorCount ? targets.color[0]->va : 0, targets.width, targets.height,
@@ -1848,26 +1986,9 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
              vp.scissor.bottom, static_cast<u32>(st.cull), st.depthEnable ? "on" : "off",
              st.depthWrite ? "w" : "", static_cast<u32>(st.depthFunc),
              st.blend[0].blendEnabled, st.blend[0].renderTargetWriteMask, spec,
-             layout->streamMask, streams[0].stride, dev.U32(dev::kTextureObject0),
+             layout->streamMask, pk.strides[0], dev.U32(dev::kTextureObject0),
              vp.posScale[0], vp.posScale[1], vp.posScale[2], vp.posOffset[0], vp.posOffset[1],
              vp.posOffset[2]);
-    if (geom.rectList && streams[0].data && streams[0].stride >= 8) {
-      std::string verts;
-      const u32 n_show = std::min<u32>(geom.vertexCount, 12u);
-      for (u32 v = 0; v < n_show; ++v) {
-        const u8 *p = streams[0].data + u64(v) * streams[0].stride;
-        float f[4] = {0, 0, 0, 0};
-        const u32 words = std::min<u32>(4u, streams[0].stride / 4u);
-        for (u32 c = 0; c < words; ++c) {
-          u32 raw;
-          std::memcpy(&raw, p + 4 * c, 4);
-          raw = (raw >> 24) | ((raw >> 8) & 0xFF00u) | ((raw << 8) & 0xFF0000u) | (raw << 24);
-          std::memcpy(&f[c], &raw, 4);
-        }
-        verts += std::format(" [{:.3f} {:.3f} {:.3f} {:.3f}]", f[0], f[1], f[2], f[3]);
-      }
-      EOT_INFO("[diag]   rect verts{}", verts);
-    }
     for (u32 slot = 0; slot < 16; ++slot) {
       const u32 tex_va = dev.U32(dev::kTextureObject0 + 4 * slot);
       if (!tex_va)
@@ -1963,23 +2084,33 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     last_sc = vp.scissor;
     s.perf.scissor_bind_calls++;
   }
-  const UploadAlloc *roots[2] = {&vs_consts, &ps_consts};
+  const UploadAlloc *roots[2] = {&pk.vs_consts, &pk.ps_consts};
   const bool keep_roots = Settings::DiagNoConst() && targets.samples > 1 && s.bound_root_buffer[0];
+  auto bind_root_cbv = [&](u32 r, const UploadAlloc &alloc) {
+#if defined(EOT_D3D12)
+    if (alloc.gpuVa && s.root_cbv_index[r] != ~0u) {
+      static_cast<plume::D3D12CommandList *>(cmd)->d3d->SetGraphicsRootConstantBufferView(
+          s.root_cbv_index[r], alloc.gpuVa);
+      return;
+    }
+#endif
+    cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(alloc.buffer, alloc.offset), r);
+  };
   for (u32 r = 0; r < 2 && !keep_roots; ++r) {
     if (s.bound_root_buffer[r] == roots[r]->buffer && s.bound_root_offset[r] == roots[r]->offset)
       continue;
-    cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(roots[r]->buffer, roots[r]->offset), r);
+    bind_root_cbv(r, *roots[r]);
     s.bound_root_buffer[r] = roots[r]->buffer;
     s.bound_root_offset[r] = roots[r]->offset;
   }
   if (shared_changed) {
-    cmd->setGraphicsRootDescriptor(
-        plume::RenderBufferReference(shared_alloc.buffer, shared_alloc.offset), 2);
+    bind_root_cbv(2, shared_alloc);
     s.bound_root_buffer[2] = shared_alloc.buffer;
     s.bound_root_offset[2] = shared_alloc.offset;
     s.last_shared = sc;
     s.shared_bound = true;
   }
+  lap(s.perf.rec_state_ms);
   auto bind_vertex_views = [&](u32 first, const plume::RenderVertexBufferView *want_views,
                                u32 count, const plume::RenderInputSlot *want_slots) {
     s.perf.vertex_bind_requests++;
@@ -2011,12 +2142,14 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
       have.valid = true;
     }
   };
-  bind_vertex_views(0, views, max_slot + 1, slots);
+  bind_vertex_views(0, pk.views, pk.max_slot + 1, pk.slots);
   if (layout->needsSyntheticSlot) {
-    plume::RenderVertexBufferView zv(plume::RenderBufferReference(zero.buffer, zero.offset), 4096);
+    plume::RenderVertexBufferView zv(plume::RenderBufferReference(pk.zero.buffer, pk.zero.offset),
+                                     4096);
     plume::RenderInputSlot zs(kSyntheticVertexSlot, 0);
     bind_vertex_views(kSyntheticVertexSlot, &zv, 1, &zs);
   }
+  lap(s.perf.rec_bind_ms);
   auto bind_index_view = [&](const plume::RenderIndexBufferView &want) {
     s.perf.index_bind_requests++;
     auto &have = s.bound_index_stream;
@@ -2031,36 +2164,64 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     have.format = want.format;
     have.valid = true;
   };
-  if (geom.rectList) {
-    plume::RenderIndexBufferView ib(plume::RenderBufferReference(index_alloc.buffer, index_alloc.offset),
-                                    index_count * 4, plume::RenderFormat::R32_UINT);
+  const u32 index_count = pk.index_count;
+  if (pk.rectList) {
+    plume::RenderIndexBufferView ib(
+        plume::RenderBufferReference(pk.index_alloc.buffer, pk.index_alloc.offset), index_count * 4,
+        plume::RenderFormat::R32_UINT);
     bind_index_view(ib);
     cmd->drawIndexedInstanced(index_count, 1, 0, 0, 0);
-  } else if (geom.cached) {
-    const u32 elem = geom.cached->is32 ? 4 : 2;
+  } else if (pk.hasCached) {
+    const u32 elem = pk.cached.is32 ? 4 : 2;
+    u64 capacity = 0;
+    plume::RenderBuffer *chunk = PoolResidentBuffer(s, index_pool(), pk.cached.buffer,
+                                                    pk.cached.offset, u64(index_count) * elem,
+                                                    &capacity);
+    const u64 view_bytes = capacity ? capacity : pk.cached.offset + u64(index_count) * elem;
     plume::RenderIndexBufferView ib(
-        plume::RenderBufferReference(PoolResidentBuffer(s, index_pool(), geom.cached->buffer,
-                                                        geom.cached->offset,
-                                                        u64(index_count) * elem),
-                                     geom.cached->offset),
-        index_count * elem,
-        geom.cached->is32 ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
+        plume::RenderBufferReference(chunk, 0), static_cast<u32>(std::min<u64>(view_bytes, 0xFFFFFFFFu)),
+        pk.cached.is32 ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
     bind_index_view(ib);
     cmd->drawIndexedInstanced(
-        Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count, 1, 0,
-        host_base_vertex, 0);
-  } else if (geom.indexed) {
-    plume::RenderIndexBufferView ib(plume::RenderBufferReference(index_alloc.buffer, index_alloc.offset),
-                                    index_count * 4, plume::RenderFormat::R32_UINT);
+        Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count, 1,
+        static_cast<u32>(pk.cached.offset / elem), pk.host_base_vertex, 0);
+  } else if (pk.indexed) {
+    plume::RenderIndexBufferView ib(
+        plume::RenderBufferReference(pk.index_alloc.buffer, pk.index_alloc.offset), index_count * 4,
+        plume::RenderFormat::R32_UINT);
     bind_index_view(ib);
     const u32 issue = Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count;
-    cmd->drawIndexedInstanced(issue, 1, 0, host_base_vertex, 0);
+    cmd->drawIndexedInstanced(issue, 1, 0, pk.host_base_vertex, 0);
   } else {
-    cmd->drawInstanced(geom.vertexCount, 1, 0, 0);
+    cmd->drawInstanced(pk.vertexCount, 1, 0, 0);
   }
   lap(s.perf.record_ms);
-  (void)prim;
   DrainHostDebugMessages(s, "draw");
+}
+
+void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
+                 FloatConstantDirty constants, const u8 *device_image = nullptr) {
+  auto &s = state();
+  std::lock_guard lock(s.mutex);
+  s.vs_float_constants_stale |= constants.vs;
+  s.ps_float_constants_stale |= constants.ps;
+  if (!s.ready)
+    return;
+  EOT_CPU_ZONE("ExecuteDraw");
+  PerfScope perf_scope(s.perf.draw_ms);
+  s.perf.draws++;
+  if (Settings::DiagSkipDraw()) {
+    s.vs_float_constants_stale = false;
+    s.ps_float_constants_stale = false;
+    return;
+  }
+  BeginCommandList(s);
+  if (!s.command_list_open)
+    return;
+  static thread_local DrawPacket packet;
+  if (!CaptureDraw(s, device_va, prim, geom, device_image, packet))
+    return;
+  ReplayDraw(s, packet);
 }
 }
 void FlushGeometryStaging(VideoState &s) {

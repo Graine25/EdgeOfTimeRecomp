@@ -37,7 +37,7 @@ using rex::graphics::TextureInfo;
 struct UnlockTable {
   std::mutex mutex;
   std::unordered_map<u32, u64> seq;
-  u64 global = 0;
+  std::atomic<u64> global{0};
 };
 
 UnlockTable &unlocks() {
@@ -348,7 +348,9 @@ void NotifyResourceUnlocked(u32 resource_va) {
   auto &u = unlocks();
   {
     std::lock_guard lock(u.mutex);
-    u.seq[resource_va] = ++u.global;
+    const u64 next = u.global.load(std::memory_order_relaxed) + 1;
+    u.seq[resource_va] = next;
+    u.global.store(next, std::memory_order_release);
   }
   auto &s = state();
   std::unique_lock lock(s.mutex, std::try_to_lock);
@@ -363,9 +365,24 @@ void NotifyResourceUnlocked(u32 resource_va) {
 
 u64 ResourceUnlockSeq(u32 resource_va) {
   auto &u = unlocks();
-  std::lock_guard lock(u.mutex);
-  auto it = u.seq.find(resource_va);
-  return it == u.seq.end() ? 0 : it->second;
+  struct Cached {
+    u32 va = 0;
+    u64 seq = 0;
+    u64 global = ~0ull;
+  };
+  static thread_local Cached cache[8];
+  const u64 global = u.global.load(std::memory_order_acquire);
+  Cached &c = cache[(resource_va >> 5) & 7];
+  if (c.va == resource_va && c.global == global)
+    return c.seq;
+  u64 seq = 0;
+  {
+    std::lock_guard lock(u.mutex);
+    auto it = u.seq.find(resource_va);
+    seq = it == u.seq.end() ? 0 : it->second;
+  }
+  c = {resource_va, seq, global};
+  return seq;
 }
 
 GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_image) {
@@ -530,6 +547,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       const bool replacing_host = t.host.texture != nullptr;
       ParkHostTexture(s, t.host);
       t.bindingGeneration++;
+      s.mirror_generation++;
       const bool is_depth = depth_source;
       t.host = HostTexture{};
       plume::RenderTextureDesc desc;

@@ -410,13 +410,21 @@ bool DiagShouldLog(u64 site, u32 *n_out) {
     return false;
   using Clock = std::chrono::steady_clock;
   struct DiagState {
+    u64 site = 0;
     u32 count = 0;
     Clock::time_point last_log{};
   };
   static std::mutex m;
-  static std::unordered_map<u64, DiagState> states;
+  static DiagState states[4096];
   std::lock_guard lock(m);
-  DiagState &st = states[site];
+  u64 h = site * 0x9E3779B97F4A7C15ull;
+  h ^= h >> 29;
+  DiagState &st = states[h & 4095];
+  if (st.site != site) {
+    st.site = site;
+    st.count = 0;
+    st.last_log = Clock::time_point{};
+  }
   const u32 n = st.count++;
   *n_out = n;
   const auto now = Clock::now();
@@ -634,6 +642,16 @@ bool BuildPipelineLayout(VideoState &s) {
     EOT_ERROR("createPipelineLayout failed");
     return false;
   }
+#if defined(EOT_D3D12)
+  {
+    const auto *layout = static_cast<const plume::D3D12PipelineLayout *>(s.pipeline_layout.get());
+    for (u32 r = 0; r < 3 && r < layout->rootDescriptorRootIndicesAndTypes.size(); ++r) {
+      const auto &[index, type] = layout->rootDescriptorRootIndicesAndTypes[r];
+      if (type == plume::RenderRootDescriptorType::CONSTANT_BUFFER)
+        s.root_cbv_index[r] = index;
+    }
+  }
+#endif
   return true;
 }
 
