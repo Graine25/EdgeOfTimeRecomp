@@ -14,6 +14,7 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
 
 u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t,
                               u32 swizzle = kIdentityFetchSwizzle);
+u32 SamplingSwizzle(const GuestTexture &t, u32 fetch_swizzle);
 
 bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, float scale = 0.0f);
 

@@ -38,31 +38,31 @@ float4 BoxDownsample(Texture2D<float4> tex, float2 uv, uint2 size, uint ratio)
     return acc / (float)(taps * taps);
 }
 
-float4 LanczosUpsample(Texture2D<float4> tex, float2 uv, uint2 size)
+float4 LanczosUpsample(Texture2D<float4> tex, SamplerState linear_sampler, float2 uv, float2 size)
 {
-    const float2 p = uv * float2(size) - 0.5;
+    const float2 p = uv * size - 0.5;
     const float2 f = frac(p);
-    const int2 base = int2(floor(p));
-    const int2 last = int2(size) - 1;
-    float wx[4], wy[4];
-    float sx = 0.0, sy = 0.0;
-    [unroll] for (int i = 0; i < 4; ++i)
-    {
-        wx[i] = Lanczos2(f.x - float(i - 1));
-        wy[i] = Lanczos2(f.y - float(i - 1));
-        sx += wx[i];
-        sy += wy[i];
-    }
+    const float2 base = floor(p);
+    const float2 w0 = float2(Lanczos2(f.x + 1.0), Lanczos2(f.y + 1.0));
+    const float2 w1 = float2(Lanczos2(f.x), Lanczos2(f.y));
+    const float2 w2 = float2(Lanczos2(1.0 - f.x), Lanczos2(1.0 - f.y));
+    const float2 w3 = float2(Lanczos2(2.0 - f.x), Lanczos2(2.0 - f.y));
+    const float2 w12 = w1 + w2;
+    const float2 t0 = (base - 0.5) / size;
+    const float2 t12 = (base + 0.5 + w2 / w12) / size;
+    const float2 t3 = (base + 2.5) / size;
     float4 acc = 0.0;
-    [unroll] for (int j = 0; j < 4; ++j)
-    {
-        [unroll] for (int k = 0; k < 4; ++k)
-        {
-            const int2 c = clamp(base + int2(k - 1, j - 1), int2(0, 0), last);
-            acc += tex.Load(int3(c, 0)) * (wx[k] * wy[j]);
-        }
-    }
-    return acc / (sx * sy);
+    acc += tex.SampleLevel(linear_sampler, float2(t0.x, t0.y), 0) * (w0.x * w0.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t12.x, t0.y), 0) * (w12.x * w0.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t3.x, t0.y), 0) * (w3.x * w0.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t0.x, t12.y), 0) * (w0.x * w12.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t12.x, t12.y), 0) * (w12.x * w12.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t3.x, t12.y), 0) * (w3.x * w12.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t0.x, t3.y), 0) * (w0.x * w3.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t12.x, t3.y), 0) * (w12.x * w3.y);
+    acc += tex.SampleLevel(linear_sampler, float2(t3.x, t3.y), 0) * (w3.x * w3.y);
+    const float2 sum = w0 + w12 + w3;
+    return acc / (sum.x * sum.y);
 }
 
 float4 CatmullRomUpsample(Texture2D<float4> tex, SamplerState linear_sampler, float2 uv, float2 size)
@@ -103,7 +103,7 @@ float4 main(in float4 position : SV_Position, in float2 texCoord : TEXCOORD) : S
     }
     else if (mode == 2u)
     {
-        s = LanczosUpsample(tex, uv, uint2(w, h));
+        s = LanczosUpsample(tex, g_SamplerDescriptorHeap[0u], uv, float2(w, h));
     }
     else if (mode == 3u)
     {

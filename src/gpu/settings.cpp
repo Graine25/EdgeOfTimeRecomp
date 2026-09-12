@@ -70,10 +70,22 @@ REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
                      "the display's own refresh rate. The guest runs one frame per present, so this "
                      "paces the whole game, not just the display.")
     .range(0, 1000);
-REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "EdgeOfTime/Config",
-                    "Perform same-format, 1:1, no-reorder resolves as texture copies instead of "
-                    "full-screen sampling draws. Measured neutral on the GPU and slower to record "
-                    "on D3D12/AMD (2026-09-03); off until re-tested on Vulkan.");
+REXCVAR_DEFINE_BOOL(eot_resolve_copy, true, "EdgeOfTime/Config",
+                    "Perform same-format, no-reorder resolves as texture copies instead of "
+                    "full-screen sampling draws.");
+REXCVAR_DEFINE_BOOL(eot_stencil_twin, true, "EdgeOfTime/Config",
+                    "Derive a multisampled depth surface's single-sample twin with its stencil "
+                    "plane too (a pixel shader writing SV_StencilRef; D3D12), so the passes that "
+                    "mark and test stencil without writing depth -- the deferred light volumes -- "
+                    "draw single-sample.");
+REXCVAR_DEFINE_BOOL(eot_resolve_transfer, true, "EdgeOfTime/Config",
+                    "A whole-surface resolve hands the surface's single-sample image to the "
+                    "destination texture instead of copying it (the surface copies it back "
+                    "only if drawn over before its next clear).");
+REXCVAR_DEFINE_BOOL(eot_resolve_hw, true, "EdgeOfTime/Config",
+                    "Resolve a multisampled scene surface into its single-sample twin with the "
+                    "hardware resolve (ResolveSubresource) instead of a shader that reads every "
+                    "sample.");
 REXCVAR_DEFINE_BOOL(eot_const_range, true, "EdgeOfTime/Config",
                     "Upload only the prefix of each 4 KB float constant file the bound shader "
                     "can address (from its constant table) instead of the whole file.");
@@ -151,6 +163,9 @@ REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame whose draws are logged in detail and whose resolve "
                      "sources are dumped as logs/f<N>_r<K>.ppm (0 = off).")
     .range(0, 100000000);
+REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug",
+                    "Log the eot_diag_frame detail for the frame after the first frame of the "
+                    "run with 400 or more draws, whatever its index.");
 
 REXCVAR_DEFINE_INT32(eot_rdc_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame to capture with the in-process RenderDoc API "
@@ -187,6 +202,9 @@ bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
 bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
 bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
 bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
+bool Settings::ResolveHardware() { return REXCVAR_GET(eot_resolve_hw); }
+bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
+bool Settings::StencilTwin() { return REXCVAR_GET(eot_stencil_twin); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
@@ -196,7 +214,15 @@ bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures);
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
-i32 Settings::DiagFrame() { return REXCVAR_GET(eot_diag_frame); }
+namespace {
+std::atomic<i32> g_diag_frame_armed{0};
+}
+i32 Settings::DiagFrame() {
+  const i32 armed = g_diag_frame_armed.load(std::memory_order_relaxed);
+  return armed > 0 ? armed : REXCVAR_GET(eot_diag_frame);
+}
+bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
+void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }

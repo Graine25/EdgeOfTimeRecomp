@@ -1,4 +1,7 @@
 #include <plume_render_interface.h>
+#if defined(EOT_D3D12)
+#include <plume_d3d12.h>
+#endif
 
 #include "core/logging.h"
 #include "gpu/device.h"
@@ -79,12 +82,50 @@ u32 PublishView(VideoState &s, HostTexture &host, plume::RenderTextureView *view
 
 }
 
+u32 BindStencilSRVLocked(VideoState &s, HostTexture &host) {
+  if (!host.texture || !host.isDepth || !s.texture_descriptor_set)
+    return kInvalidDescriptorIndex;
+  if (host.stencilDescriptorIndex != kInvalidDescriptorIndex)
+    return host.stencilDescriptorIndex;
+#if defined(EOT_D3D12)
+  if (host.format != plume::RenderFormat::D32_FLOAT_S8_UINT)
+    return kInvalidDescriptorIndex;
+  const u32 slot = AllocateDescriptorSlot(s);
+  if (slot == kInvalidDescriptorIndex) {
+    EOT_ERROR("bindless texture heap full at {} slots", kBindlessTextureCount);
+    return kInvalidDescriptorIndex;
+  }
+  D3D12_SHADER_RESOURCE_VIEW_DESC desc = {};
+  desc.Format = DXGI_FORMAT_X32_TYPELESS_G8X24_UINT;
+  desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+  if (host.sampleCount > 1) {
+    desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
+  } else {
+    desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    desc.Texture2D.MipLevels = 1;
+    desc.Texture2D.PlaneSlice = 1;
+  }
+  auto *set = static_cast<plume::D3D12DescriptorSet *>(s.texture_descriptor_set.get());
+  auto *texture = static_cast<plume::D3D12Texture *>(host.texture.get());
+  set->setSRV(slot, texture->d3d, &desc);
+  s.perf.host_views++;
+  host.stencilDescriptorIndex = slot;
+  return slot;
+#else
+  return kInvalidDescriptorIndex;
+#endif
+}
+
 void ReleaseTextureSRVLocked(VideoState &s, HostTexture &host) {
   const u32 null_index = NullIndexFor(host);
   s.texture_generation.fetch_add(1, std::memory_order_relaxed);
   if (host.descriptorIndex != kInvalidDescriptorIndex) {
     s.descriptor_graveyard[s.recording_slot()].push_back({host.descriptorIndex, null_index});
     host.descriptorIndex = kInvalidDescriptorIndex;
+  }
+  if (host.stencilDescriptorIndex != kInvalidDescriptorIndex) {
+    s.descriptor_graveyard[s.recording_slot()].push_back({host.stencilDescriptorIndex, null_index});
+    host.stencilDescriptorIndex = kInvalidDescriptorIndex;
   }
   for (auto &[swizzle, srv] : host.swizzledSrvs) {
     if (srv.descriptorIndex != kInvalidDescriptorIndex)
