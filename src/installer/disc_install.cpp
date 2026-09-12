@@ -161,17 +161,21 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
   return std::thread([sources, game_data_dest, repair, &progress]() {
     auto finish = [&]() { progress.complete.store(true); };
 
-    auto disc = OpenDiscImage(sources.disc);
-    if (!disc) {
-      Fail(progress, "Failed to open the disc image.");
-      finish();
-      return;
-    }
-    Entry *root = disc->ResolvePath("");
-    if (!root) {
-      Fail(progress, "The disc image has no root directory.");
-      finish();
-      return;
+    std::unique_ptr<rex::filesystem::DiscImageDevice> disc;
+    Entry *root = nullptr;
+    if (!sources.disc.empty()) {
+      disc = OpenDiscImage(sources.disc);
+      if (!disc) {
+        Fail(progress, "Failed to open the disc image.");
+        finish();
+        return;
+      }
+      root = disc->ResolvePath("");
+      if (!root) {
+        Fail(progress, "The disc image has no root directory.");
+        finish();
+        return;
+      }
     }
 
     struct PlanItem {
@@ -203,7 +207,8 @@ std::thread Installer::RunAsync(const InstallSources &sources, const fs::path &g
     };
 
     std::vector<std::pair<std::string, Entry *>> disc_files;
-    CollectFiles(root, "", disc_files);
+    if (root)
+      CollectFiles(root, "", disc_files);
     for (auto &[rel, entry] : disc_files) {
       if (rel.rfind("$SystemUpdate/", 0) == 0 || rel.rfind("$SystemUpdate\\", 0) == 0)
         continue;

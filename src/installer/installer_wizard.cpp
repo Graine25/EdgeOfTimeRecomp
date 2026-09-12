@@ -40,7 +40,8 @@ ImFont *g_path_font = nullptr;
 constexpr const char *kTitleMain = "reeot - Installer";
 constexpr const char *kTitleRepair = "reeot - Repair";
 constexpr const char *kRepairNotice =
-    "Existing install found. Pick the disc image and the title update again; files already there are kept.";
+    "Existing install found. Continue keeps it as it is and adds any packages listed; Repair takes the disc "
+    "image and the title update again and copies back only what is missing.";
 constexpr const char *kSpaceHint = "(~6 GB required)";
 
 constexpr const char *kSuggestedVsync = "false";
@@ -228,6 +229,7 @@ InstallerWizard::InstallerWizard(rex::ui::ImGuiDrawer *drawer, rex::ui::Immediat
     EOT_ERROR("[install] {}", MissingProgramFilesLine());
   SuggestDefaults();
   Prefill();
+  music_.Start();
 }
 
 std::string InstallerWizard::MissingProgramFilesLine() const {
@@ -316,6 +318,7 @@ void InstallerWizard::Finish(bool completed) {
   if (finished_)
     return;
   finished_ = true;
+  music_.Stop();
 
   InstallConfig cfg;
   cfg.install_root = std::filesystem::absolute(install_dir_);
@@ -382,6 +385,18 @@ bool InstallerWizard::InputsReady() const {
   return true;
 }
 
+bool InstallerWizard::CanContinue() const {
+  if (!repair_ || !missing_program_files_.empty() || install_dir_.empty())
+    return false;
+  std::error_code ec;
+  if (!std::filesystem::is_directory(install_dir_, ec))
+    return false;
+  for (const auto &d : dlc_)
+    if (!d.valid)
+      return false;
+  return true;
+}
+
 void InstallerWizard::PickDisc() {
   const platform::FileFilter kFilters[] = {
       {L"Xbox 360 disc image", L"*.iso"},
@@ -423,7 +438,20 @@ void InstallerWizard::PickInstallDir() {
   install_status_.clear();
 }
 
-void InstallerWizard::StartInstall() {
+void InstallerWizard::ContinueRepair() {
+  bool packages = false;
+  for (const auto &d : dlc_)
+    packages = packages || d.valid;
+  if (!packages) {
+    RecordSettings();
+    EOT_INFO("[install] repair: continuing with the install as it is");
+    Finish(true);
+    return;
+  }
+  StartInstall(false);
+}
+
+void InstallerWizard::StartInstall(bool disc_and_update) {
   progress_.files_done.store(0);
   progress_.files_total.store(0);
   progress_.bytes_done.store(0);
@@ -445,8 +473,10 @@ void InstallerWizard::StartInstall() {
   EOT_INFO("[install]   game data  -> '{}'", abs_game.string());
 
   InstallSources sources;
-  sources.disc = disc_path_;
-  sources.update = update_path_;
+  if (disc_and_update) {
+    sources.disc = disc_path_;
+    sources.update = update_path_;
+  }
   for (const auto &d : dlc_)
     sources.dlc.push_back(d.path);
 
@@ -460,7 +490,9 @@ void InstallerWizard::StartInstall() {
   }
 }
 
-void InstallerWizard::OnDraw(ImGuiIO &) {
+void InstallerWizard::OnDraw(ImGuiIO &io) {
+  music_.Update(io.DeltaTime);
+  shown_seconds_ += io.DeltaTime;
   if (unattended_ && page_ == Page::Main && !finished_) {
     if (InputsReady()) {
       StartInstall();
@@ -492,6 +524,14 @@ void InstallerWizard::OnDraw(ImGuiIO &) {
   }
 
   auto *vp = ImGui::GetMainViewport();
+  constexpr float kFadeInSeconds = 2.0f;
+  if (shown_seconds_ < kFadeInSeconds) {
+    const float t = shown_seconds_ / kFadeInSeconds;
+    const float alpha = (1.0f - t) * (1.0f - t);
+    ImGui::GetForegroundDrawList()->AddRectFilled(
+        vp->Pos, ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y),
+        IM_COL32(0, 0, 0, static_cast<int>(alpha * 255.0f)));
+  }
   ImGui::SetNextWindowPos(vp->WorkPos);
   ImGui::SetNextWindowSize(vp->WorkSize);
   ImGui::SetNextWindowBgAlpha(0.0f);
@@ -676,8 +716,18 @@ void InstallerWizard::DrawFooter() {
 
   if (ImGui::Button("Exit", kButton))
     Finish(false);
+  constexpr float kGap = 8.0f;
+  const int forward = repair_ ? 2 : 1;
   ImGui::SameLine();
-  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - kButtonWidth);
+  ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - forward * kButtonWidth -
+                       (forward - 1) * kGap);
+  if (repair_) {
+    ImGui::BeginDisabled(!CanContinue());
+    if (ImGui::Button("Continue", kButton))
+      ContinueRepair();
+    ImGui::EndDisabled();
+    ImGui::SameLine(0, kGap);
+  }
   ImGui::BeginDisabled(!InputsReady());
   if (ImGui::Button(repair_ ? "Repair" : "Install", kButton))
     StartInstall();

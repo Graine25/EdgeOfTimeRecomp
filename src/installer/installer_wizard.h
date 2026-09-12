@@ -14,6 +14,7 @@
 #include <rex/ui/windowed_app_context.h>
 
 #include "installer/disc_install.h"
+#include "installer/installer_music.h"
 #include "installer/install_registry.h"
 
 struct ImFontAtlas;
@@ -69,7 +70,9 @@ private:
   void ValidateDisc();
   void ValidateUpdate();
   bool InputsReady() const;
-  void StartInstall();
+  bool CanContinue() const;
+  void ContinueRepair();
+  void StartInstall(bool disc_and_update = true);
   void Finish(bool completed);
 
   rex::ui::WindowedAppContext &app_context_;
@@ -110,6 +113,9 @@ private:
 
   InstallProgress progress_;
   std::thread install_thread_;
+
+  Music music_;
+  float shown_seconds_ = 0.0f;
   std::string done_message_;
   bool done_success_ = false;
 };

@@ -197,6 +197,11 @@ void ReeotApp::OnPostInitLogging() {
   if (!install_root_.empty())
     EOT_INFO("  profile: {} ({})", active_profile_, profile_root_.string());
 
+#ifdef REEOT_BUILD_INSTALLER
+  repair_requested_ = REXCVAR_GET(repair);
+  REXCVAR_SET(repair, false);
+#endif
+
   eot::platform::UpdateInstalledCopy(install_root_);
   if (const auto done = eot::platform::LastInstallUpdate())
     eot::platform::ShowInfo("reeot updated", "reeot " + done->version + " is now installed in\n" +
@@ -236,11 +241,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
   if (const std::string named = REXCVAR_GET(game_data_root); !named.empty())
     EOT_WARN("[install] {} holds no Default.xex; looking for an install instead", named);
 
-  bool repair_requested = false;
-#ifdef REEOT_BUILD_INSTALLER
-  repair_requested = REXCVAR_GET(repair);
-  REXCVAR_SET(repair, false);
-#endif
+  const bool repair_requested = repair_requested_;
   std::optional<eot::installer::InstallConfig> existing;
   if (auto cfg = eot::installer::ReadInstallRegistry()) {
     const bool present = eot::installer::InstallIsPresent(*cfg);

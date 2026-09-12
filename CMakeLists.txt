@@ -205,6 +205,7 @@ target_include_directories(reeot PRIVATE
 if(REEOT_BUILD_INSTALLER)
     target_sources(reeot PRIVATE
         src/installer/disc_install.cpp
+        src/installer/installer_music.cpp
         src/installer/installer_wizard.cpp)
 endif()
 
