@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <format>
 #include <mutex>
 #include <string>
-#include <vector>
 
 #include <rex/graphics/pipeline/texture/util.h>
 #include <rex/graphics/xenos.h>
@@ -93,8 +93,10 @@ void ClearSource(VideoState &s, GuestSurface &surf, u32 clear_color_va, float cl
   plume::RenderFramebuffer *fb = GetFramebuffer(s, colors, surf.isDepth ? 0 : 1, depth);
   if (!fb)
     return;
-  s.command_list->setFramebuffer(fb);
+  if (s.bound_framebuffer != fb)
+    s.command_list->setFramebuffer(fb);
   s.bound_framebuffer = fb;
+  s.bound_draw_targets_valid = false;
   if (surf.isDepth) {
     s.command_list->clearDepthStencil(true, true, clear_z, 0, nullptr, 0);
   } else {
@@ -105,6 +107,8 @@ void ClearSource(VideoState &s, GuestSurface &surf, u32 clear_color_va, float cl
     }
     s.command_list->clearColor(0, c, nullptr, 0);
   }
+  surf.host.needsClear = false;
+  surf.perfClears++;
 }
 
 }
@@ -135,6 +139,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       EOT_WARN("[resolve] source {} has no bound surface (flags {:#x})", source, flags);
     return;
   }
+  surf->perfResolves++;
 
   HostTexture *src_host = &surf->host;
   GuestSurface *alias_src = nullptr;
@@ -206,11 +211,17 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
       target.resolvedMipMask |= 1u << level;
       target.lastUseFrame = s.guest_frames;
-      if (target.lastResolvedFrame && target.lastSampledFrame < target.lastResolvedFrame)
+      if (target.lastResolvedFrame && target.lastSampledFrame < target.lastResolvedFrame) {
         s.perf.dead_resolves++;
+        target.perfDeadResolves++;
+      }
       target.lastResolvedFrame = s.guest_frames;
+      target.perfResolves++;
     };
     static const bool copies = Settings::ResolveCopy();
+    plume::RenderViewport last_resolve_vp;
+    plume::RenderRect last_resolve_sc;
+    bool resolve_dynamic_valid = false;
     auto blit = [&](GuestTexture &target, u32 level, i32 vx, i32 vy, i32 vw, i32 vh, i32 sx0,
                     i32 sy0) -> bool {
       const i32 mip_w = static_cast<i32>(std::max(1u, target.width >> level));
@@ -229,8 +240,10 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         if (covers_image)
           target.host.needsClear = false;
         auto *cmd = s.command_list;
-        TransitionLocked(s, *src_host, plume::RenderTextureLayout::COPY_SOURCE);
-        TransitionLocked(s, target.host, plume::RenderTextureLayout::COPY_DEST);
+        const HostTextureTransition transitions[] = {
+            {src_host, plume::RenderTextureLayout::COPY_SOURCE},
+            {&target.host, plume::RenderTextureLayout::COPY_DEST}};
+        TransitionManyLocked(s, transitions, 2);
         const plume::RenderBox box(sx0, sy0, sx0 + vw, sy0 + vh);
         cmd->copyTextureRegion(
             plume::RenderTextureCopyLocation::Subresource(target.host.texture.get(), level, 0),
@@ -266,16 +279,21 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         return false;
       auto *cmd = s.command_list;
       PerfScope bind_scope(s.perf.resolve_bind_ms);
-      TransitionLocked(s, *src_host, plume::RenderTextureLayout::SHADER_READ);
-      TransitionLocked(s, target.host,
-                       depth_source ? plume::RenderTextureLayout::DEPTH_WRITE
-                                    : plume::RenderTextureLayout::COLOR_WRITE);
+      const HostTextureTransition transitions[] = {
+          {src_host, plume::RenderTextureLayout::SHADER_READ},
+          {&target.host, depth_source ? plume::RenderTextureLayout::DEPTH_WRITE
+                                      : plume::RenderTextureLayout::COLOR_WRITE}};
+      TransitionManyLocked(s, transitions, 2);
       if (target.host.needsClear) {
         for (u32 m = 0; m < target.host.mipLevels; ++m) {
           plume::RenderFramebuffer *mfb = m == level ? fb : GetMipFramebuffer(s, target, m);
           if (!mfb)
             continue;
-          cmd->setFramebuffer(mfb);
+          if (s.bound_framebuffer != mfb) {
+            cmd->setFramebuffer(mfb);
+            s.bound_framebuffer = mfb;
+          }
+          s.bound_draw_targets_valid = false;
           if (target.host.isDepth)
             cmd->clearDepthStencil(true, true, 0.0f, 0, nullptr, 0);
           else
@@ -284,8 +302,11 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         target.host.needsClear = false;
       }
       GpuTimingMark(s, cmd, depth_source ? kGpuCatResolveDepth : kGpuCatResolve);
-      cmd->setFramebuffer(fb);
-      s.bound_framebuffer = fb;
+      if (s.bound_framebuffer != fb) {
+        cmd->setFramebuffer(fb);
+        s.bound_framebuffer = fb;
+      }
+      s.bound_draw_targets_valid = false;
       const plume::RenderFormat color_fmt = target.host.viewFormat != plume::RenderFormat::UNKNOWN
                                                 ? target.host.viewFormat
                                                 : target.host.format;
@@ -296,14 +317,25 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                          : GetBlitPipeline(s, color_fmt);
       if (!pso)
         return false;
-      cmd->setPipeline(pso);
-      s.bound_pipeline = pso;
+      if (s.bound_pipeline != pso) {
+        cmd->setPipeline(pso);
+        s.bound_pipeline = pso;
+      }
       plume::RenderViewport vp(static_cast<float>(hx0), static_cast<float>(hy0),
                                static_cast<float>(hx1 - hx0), static_cast<float>(hy1 - hy0), 0.0f,
                                1.0f);
       plume::RenderRect sc(hx0, hy0, hx1, hy1);
-      cmd->setViewports(&vp, 1);
-      cmd->setScissors(&sc, 1);
+      if (!resolve_dynamic_valid ||
+          std::memcmp(&last_resolve_vp, &vp, sizeof(last_resolve_vp)) != 0) {
+        cmd->setViewports(&vp, 1);
+        last_resolve_vp = vp;
+      }
+      if (!resolve_dynamic_valid ||
+          std::memcmp(&last_resolve_sc, &sc, sizeof(last_resolve_sc)) != 0) {
+        cmd->setScissors(&sc, 1);
+        last_resolve_sc = sc;
+      }
+      resolve_dynamic_valid = true;
       CopyPushConstants pc;
       pc.resourceDescriptorIndex = BindTextureSRVLocked(s, *src_host);
       pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(target.fetch[3]);
@@ -339,7 +371,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     if (dest_level == 0 && vw > 0 && vh > 0) {
       s.perf.alias_scanned += static_cast<u32>(s.textures.size());
       PerfScope alias_scope(s.perf.alias_scan_ms);
-      std::vector<const GuestTexture *> visited;
+      const u64 visit_token = ++s.resolve_alias_token;
       for (auto &[alias_va, alias] : s.textures) {
         GuestTexture *t = alias.get();
         if (!t || t == dest || !t->host.texture || !t->host.renderable ||
@@ -347,9 +379,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
           continue;
         if (t->uploaded && !t->resolveOwned)
           continue;
-        if (std::find(visited.begin(), visited.end(), t) != visited.end())
+        if (t->aliasVisitToken == visit_token)
           continue;
-        visited.push_back(t);
+        t->aliasVisitToken = visit_token;
         i32 tx, ty;
         if (!LocateAlias(*dest, *t, tx, ty))
           continue;

@@ -191,13 +191,29 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
                                            PsoSource source, u16 template_index) {
   auto &c = cache();
   const u64 key = HashPipelineState(st);
+  struct HotPipeline {
+    u64 key = 0;
+    plume::RenderPipeline *pipeline = nullptr;
+  };
+  static thread_local HotPipeline hot[256];
+  HotPipeline *hot_entry = nullptr;
+  if (!worker) {
+    hot_entry = &hot[key & 255];
+    if (hot_entry->pipeline && hot_entry->key == key) {
+      s.perf.pipeline_hot_hits++;
+      return hot_entry->pipeline;
+    }
+  }
   {
     std::shared_lock lock(c.mutex);
     auto it = c.map.find(key);
     if (it != c.map.end()) {
       if (!worker)
         it->second.used = true;
-      return it->second.pipeline.get();
+      plume::RenderPipeline *pipeline = it->second.pipeline.get();
+      if (hot_entry && pipeline)
+        *hot_entry = {key, pipeline};
+      return pipeline;
     }
   }
   std::unique_ptr<PerfScope> perf_scope;
@@ -264,8 +280,12 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
     return nullptr;
   }
   auto it = c.map.find(key);
-  if (it != c.map.end())
-    return it->second.pipeline.get();
+  if (it != c.map.end()) {
+    plume::RenderPipeline *pipeline = it->second.pipeline.get();
+    if (hot_entry && pipeline)
+      *hot_entry = {key, pipeline};
+    return pipeline;
+  }
   auto *raw = pso.get();
   if (!worker) {
     PsoSource known;
@@ -291,6 +311,8 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
       CaptureLocked(s, st);
   }
   c.map.emplace(key, Entry{std::move(pso), source, template_index, !worker});
+  if (hot_entry)
+    *hot_entry = {key, raw};
   return raw;
 }
 

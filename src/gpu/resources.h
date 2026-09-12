@@ -72,6 +72,8 @@ struct GuestTexture {
 
   HostTexture host;
 
+  u64 bindingGeneration = 1;
+
   bool uploaded = false;
   u64 uploadedUnlockSeq = 0;
   bool uploadFailed = false;
@@ -80,6 +82,10 @@ struct GuestTexture {
   u64 lastUseFrame = 0;
   u64 lastSampledFrame = 0;
   u64 lastResolvedFrame = 0;
+  u64 aliasVisitToken = 0;
+  u64 perfSamples = 0;
+  u64 perfResolves = 0;
+  u64 perfDeadResolves = 0;
 };
 
 struct GuestSurface {
@@ -104,6 +110,9 @@ struct GuestSurface {
   HostTexture host;
   bool drawn = false;
   u64 lastUseFrame = 0;
+  u64 perfDraws = 0;
+  u64 perfClears = 0;
+  u64 perfResolves = 0;
 };
 
 struct VertexInput {
@@ -122,6 +131,7 @@ struct GuestShader {
   bool createdByGuestCall = false;
   std::vector<VertexInput> inputs;
   bool usesFloatConstants = true;
+  u32 textureFetchMask = 0xFFFFu;
   u32 floatConstantRegs = 256;
   u32 lastSpecMask = ~0u;
   plume::RenderShader *lastHost = nullptr;

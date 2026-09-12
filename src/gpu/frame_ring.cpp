@@ -1,5 +1,7 @@
 #include <plume_render_interface.h>
 
+#include <algorithm>
+
 #include "core/logging.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
@@ -59,6 +61,10 @@ void BeginCommandList(VideoState &s) {
 #endif
   s.bound_framebuffer = nullptr;
   s.bound_pipeline = nullptr;
+  s.bound_draw_targets_valid = false;
+  for (auto &stream : s.bound_vertex_streams)
+    stream.valid = false;
+  s.bound_index_stream.valid = false;
   for (u32 i = 0; i < 3; ++i) {
     s.bound_root_buffer[i] = nullptr;
     s.bound_root_offset[i] = 0;
@@ -75,6 +81,10 @@ void SubmitOpenListLocked(VideoState &s) {
   s.command_list_open = false;
   s.bound_framebuffer = nullptr;
   s.bound_pipeline = nullptr;
+  s.bound_draw_targets_valid = false;
+  for (auto &stream : s.bound_vertex_streams)
+    stream.valid = false;
+  s.bound_index_stream.valid = false;
   for (u32 i = 0; i < 3; ++i) {
     s.bound_root_buffer[i] = nullptr;
     s.bound_root_offset[i] = 0;
@@ -221,13 +231,38 @@ void EvictHostTexturePool(VideoState &s) {
 void TransitionLocked(VideoState &s, HostTexture &host, plume::RenderTextureLayout layout) {
   if (!host.texture || host.layout == layout || !s.command_list_open)
     return;
-  plume::RenderTextureBarrier b(host.texture.get(), layout);
-  plume::RenderBarrierStages stages = plume::RenderBarrierStage::GRAPHICS;
-  if (layout == plume::RenderTextureLayout::COPY_SOURCE ||
-      layout == plume::RenderTextureLayout::COPY_DEST)
-    stages = plume::RenderBarrierStage::COPY;
-  s.command_list->barriers(stages, &b, 1);
-  host.layout = layout;
+  const HostTextureTransition transition{&host, layout};
+  TransitionManyLocked(s, &transition, 1);
+}
+
+void TransitionManyLocked(VideoState &s, const HostTextureTransition *transitions, u32 count) {
+  if (!transitions || !count || !s.command_list_open)
+    return;
+  constexpr u32 kBatch = 8;
+  for (u32 first = 0; first < count; first += kBatch) {
+    plume::RenderTextureBarrier barriers[kBatch];
+    u32 barrier_count = 0;
+    plume::RenderBarrierStages stages = plume::RenderBarrierStage::NONE;
+    const u32 end = std::min(first + kBatch, count);
+    for (u32 i = first; i < end; ++i) {
+      HostTexture *host = transitions[i].host;
+      const plume::RenderTextureLayout layout = transitions[i].layout;
+      if (!host || !host->texture || host->layout == layout)
+        continue;
+      barriers[barrier_count++] = plume::RenderTextureBarrier(host->texture.get(), layout);
+      if (layout == plume::RenderTextureLayout::COPY_SOURCE ||
+          layout == plume::RenderTextureLayout::COPY_DEST)
+        stages |= plume::RenderBarrierStage::COPY;
+      else
+        stages |= plume::RenderBarrierStage::GRAPHICS;
+      host->layout = layout;
+    }
+    if (!barrier_count)
+      continue;
+    s.command_list->barriers(stages, barriers, barrier_count);
+    s.perf.texture_barrier_calls++;
+    s.perf.texture_barrier_resources += barrier_count;
+  }
 }
 
 }
