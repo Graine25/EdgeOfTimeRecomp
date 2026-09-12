@@ -71,10 +71,12 @@ const char *FormatName(u32 host_format) {
 
 }
 
-u32 GpuTargetCategory(bool full_frame, bool has_depth, u32 color_count, u32 color0_host_format) {
+u32 GpuTargetCategory(bool full_frame, bool has_depth, u32 color_count, u32 color0_host_format,
+                      u32 samples, bool additive) {
   if (color_count == 0)
     return kGpuCatShadow;
-  return 0x100u | (full_frame ? 0x80u : 0u) | (has_depth ? 0x40u : 0u) | (color0_host_format & 0x3Fu);
+  return 0x1000u | (full_frame && additive ? 0x2000u : 0u) | (full_frame ? 0x800u : 0u) |
+         (has_depth ? 0x400u : 0u) | (samples > 1 ? 0x200u : 0u) | (color0_host_format & 0x1FFu);
 }
 
 std::string GpuCategoryName(u32 cat) {
@@ -93,14 +95,17 @@ std::string GpuCategoryName(u32 cat) {
     return "resolve-hw";
   case kGpuCatResolveDepth:
     return "resolve-depth";
+  case kGpuCatBroadcast:
+    return "broadcast";
   default:
     break;
   }
-  const bool full = cat & 0x80u, depth = cat & 0x40u;
-  const u32 fmt = cat & 0x3Fu;
+  const bool full = cat & 0x800u, depth = cat & 0x400u, ms = cat & 0x200u, add = cat & 0x2000u;
+  const u32 fmt = cat & 0x1FFu;
   const char *name = FormatName(fmt);
-  return std::format("{} {}{}", full ? "full" : "small", name ? std::string(name) : std::format("fmt{}", fmt),
-                     depth ? "+z" : "");
+  return std::format("{} {}{}{}{}", full ? "full" : "small",
+                     name ? std::string(name) : std::format("fmt{}", fmt), depth ? "+z" : "",
+                     add ? "+add" : "", full && !ms ? "@1x" : "");
 }
 
 void GpuTimingFrameBegin(VideoState &s, plume::RenderCommandList *cmd, u32 slot) {

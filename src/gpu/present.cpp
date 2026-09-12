@@ -448,6 +448,17 @@ void LogPerfLocked(VideoState &s) {
                    (p.fence_ms - q.fence_ms) - (g_pace_ms - q.pace_ms));
     }
   }
+  if (Settings::DiagScene()) {
+    static bool armed = false;
+    const u32 draws_this_frame =
+        p.draws >= s.perf_prev_frame.draws ? p.draws - s.perf_prev_frame.draws : p.draws;
+    if (!armed && draws_this_frame >= 400) {
+      armed = true;
+      Settings::ArmDiagFrame(static_cast<i32>(s.guest_frames + 2));
+      EOT_INFO("[diag] scene reached at guest frame {}: logging the draws of frame {}", s.guest_frames,
+               s.guest_frames + 2);
+    }
+  }
   CollectRenderWorkLocked(s, every > 0);
   EvictStaleGuestSurfaces(s);
   {
@@ -491,17 +502,19 @@ void LogPerfLocked(VideoState &s) {
   if (every <= 0 || static_cast<i32>(p.frames) < every)
     return;
   const f64 n = static_cast<f64>(p.frames);
-  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws; "
-           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} dead) upload {:.2f} ({}) link "
+  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws, {} noop; "
+           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} dead, {} twin) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} "
            "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
            "idx {} const {} | gpu {}",
-           p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.setup_ms / n,
+           p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
+           p.setup_ms / n,
            p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
            p.vertex_copy_ms / n, p.const_ms / n,
            p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
-           p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.dead_resolves / p.frames, p.upload_ms / n,
+           p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.dead_resolves / p.frames,
+           p.surface_transfers / p.frames, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
            p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
@@ -653,7 +666,8 @@ void Video::Present(u32 front_buffer_texture_va) {
     u32 src_index = kInvalidDescriptorIndex;
     if (front) {
       TransitionLocked(s, front->host, plume::RenderTextureLayout::SHADER_READ);
-      src_index = BindTextureSRVSwizzledLocked(s, front->host, (front->fetch[3] >> 1) & 0xFFF);
+      src_index = BindTextureSRVSwizzledLocked(s, front->host,
+                                               SamplingSwizzle(*front, front->fetch[3] >> 1));
       front->lastUseFrame = s.guest_frames;
       GpuTimingMark(s, cmd, kGpuCatPresent);
     }
@@ -686,7 +700,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
       const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
       DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index,
-                            (front->fetch[3] >> 1) & 0xFFF);
+                            SamplingSwizzle(*front, front->fetch[3] >> 1));
       cmd->setFramebuffer(s.swap_framebuffers[image].get());
     }
     if (src_index != kInvalidDescriptorIndex) {

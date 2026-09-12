@@ -37,6 +37,9 @@ struct Settings {
   static double Gamma();
   static bool ConstRange();
   static bool ResolveCopy();
+  static bool ResolveHardware();
+  static bool ResolveTransfer();
+  static bool StencilTwin();
   static f64 RenderScale();
   static std::string Resolution();
   static i32 FpsLimit();
@@ -49,6 +52,8 @@ struct Settings {
   static i32 PerfFrames();
   static i32 DumpEvery();
   static i32 DiagFrame();
+  static bool DiagScene();
+  static void ArmDiagFrame(i32 frame);
   static i32 RenderDocFrame();
   static std::string RenderDocDll();
   static std::string RenderDocPath();

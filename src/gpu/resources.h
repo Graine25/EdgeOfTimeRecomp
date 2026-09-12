@@ -29,6 +29,7 @@ struct HostTexture {
   plume::RenderTextureDesc desc;
   std::unique_ptr<plume::RenderTextureView> srv;
   u32 descriptorIndex = kInvalidDescriptorIndex;
+  u32 stencilDescriptorIndex = kInvalidDescriptorIndex;
   struct SwizzledSrv {
     std::unique_ptr<plume::RenderTextureView> view;
     u32 descriptorIndex = kInvalidDescriptorIndex;
@@ -54,6 +55,8 @@ struct HostTexture {
   bool valid() const { return texture != nullptr; }
 };
 
+struct GuestSurface;
+
 struct GuestTexture {
   u32 va = 0;
   u32 fetch[6] = {};
@@ -78,6 +81,9 @@ struct GuestTexture {
   u64 uploadedUnlockSeq = 0;
   bool uploadFailed = false;
   bool resolveOwned = false;
+  bool storeSwapRB = false;
+  u64 contentSerial = 0;
+  GuestSurface *borrower = nullptr;
   u32 resolvedMipMask = 0;
   u64 lastUseFrame = 0;
   u64 lastSampledFrame = 0;
@@ -108,11 +114,26 @@ struct GuestSurface {
   u32 allocHeight = 0;
 
   HostTexture host;
+  HostTexture single;
+  bool contentInSingle = false;
+  bool imagesAgree = true;
+  bool resolvedSinceDraw = false;
+  enum class Content : u8 { Undefined, Cleared, Drawn, Borrowed };
+  Content content = Content::Undefined;
+  std::weak_ptr<GuestTexture> borrowed;
+  u64 borrowedSerial = 0;
+  float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  float clearDepth = 0.0f;
+  u8 clearStencil = 0;
+  u64 writeSerial = 1;
+  u64 singleSerial = 0;
+  bool singleDirty = false;
   bool drawn = false;
   u64 lastUseFrame = 0;
   u64 perfDraws = 0;
   u64 perfClears = 0;
   u64 perfResolves = 0;
+  u64 perfTransfers = 0;
 };
 
 struct VertexInput {

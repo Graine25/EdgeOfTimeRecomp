@@ -81,33 +81,37 @@ u32 ResolveStoreSwizzle(u32 fetch3) {
 }
 
 void ClearSource(VideoState &s, GuestSurface &surf, u32 clear_color_va, float clear_z) {
-  HostTexture *colors[4] = {};
-  HostTexture *depth = nullptr;
-  if (surf.isDepth) {
-    depth = &surf.host;
-    TransitionLocked(s, surf.host, plume::RenderTextureLayout::DEPTH_WRITE);
-  } else {
-    colors[0] = &surf.host;
-    TransitionLocked(s, surf.host, plume::RenderTextureLayout::COLOR_WRITE);
+  float rgba[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  if (!surf.isDepth && clear_color_va) {
+    for (u32 i = 0; i < 4; ++i)
+      rgba[i] = mem::f32at(clear_color_va + 4 * i);
   }
-  plume::RenderFramebuffer *fb = GetFramebuffer(s, colors, surf.isDepth ? 0 : 1, depth);
-  if (!fb)
-    return;
-  if (s.bound_framebuffer != fb)
-    s.command_list->setFramebuffer(fb);
-  s.bound_framebuffer = fb;
-  s.bound_draw_targets_valid = false;
-  if (surf.isDepth) {
-    s.command_list->clearDepthStencil(true, true, clear_z, 0, nullptr, 0);
-  } else {
-    plume::RenderColor c(0, 0, 0, 0);
-    if (clear_color_va) {
-      c = plume::RenderColor(mem::f32at(clear_color_va), mem::f32at(clear_color_va + 4),
-                             mem::f32at(clear_color_va + 8), mem::f32at(clear_color_va + 12));
-    }
-    s.command_list->clearColor(0, c, nullptr, 0);
-  }
-  surf.host.needsClear = false;
+  auto clear_image = [&](HostTexture &image) {
+    HostTexture *colors[4] = {surf.isDepth ? nullptr : &image, nullptr, nullptr, nullptr};
+    plume::RenderFramebuffer *fb =
+        GetFramebuffer(s, colors, surf.isDepth ? 0u : 1u, surf.isDepth ? &image : nullptr);
+    if (!fb)
+      return;
+    TransitionLocked(s, image,
+                     surf.isDepth ? plume::RenderTextureLayout::DEPTH_WRITE
+                                  : plume::RenderTextureLayout::COLOR_WRITE);
+    if (s.bound_framebuffer != fb)
+      s.command_list->setFramebuffer(fb);
+    s.bound_framebuffer = fb;
+    s.bound_draw_targets_valid = false;
+    if (surf.isDepth)
+      s.command_list->clearDepthStencil(true, true, clear_z, 0, nullptr, 0);
+    else
+      s.command_list->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2], rgba[3]), nullptr, 0);
+    image.needsClear = false;
+  };
+  clear_image(surf.host);
+  if (SurfaceHasSingle(surf))
+    clear_image(surf.single);
+  if (surf.isDepth)
+    NoteSurfaceClearedDepth(surf, clear_z, 0, true, SurfaceHasSingle(surf));
+  else
+    NoteSurfaceClearedColor(surf, surf.host, rgba, true, true);
   surf.perfClears++;
 }
 
@@ -141,19 +145,26 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   }
   surf->perfResolves++;
 
-  HostTexture *src_host = &surf->host;
+  if (!depth_source && surf->content == GuestSurface::Content::Borrowed)
+    SurfaceTakeBack(s, *surf);
+  HostTexture *src_host = depth_source ? &surf->host : &SurfaceContentImage(*surf);
   GuestSurface *alias_src = nullptr;
   {
     PerfScope msaa_scope(s.perf.msaa_scan_ms);
     alias_src = FindMultisampleAliasSource(s, *surf);
   }
   if (alias_src) {
-    src_host = &alias_src->host;
+    src_host = depth_source ? &alias_src->host : &SurfaceContentImage(*alias_src);
     u32 n;
     if (DiagShouldLog(0x7400 ^ src_va, &n) && n == 0)
       EOT_DEBUG("[resolve] {:#x}: {}x{} {}x-msaa alias -> sampling {}x{} 1x surface {:#x}", src_va,
                surf->width, surf->height, surf->msaaSamples, alias_src->width, alias_src->height,
                alias_src->va);
+  }
+  if (src_host->sampleCount > 1) {
+    GuestSurface &src_surf = alias_src ? *alias_src : *surf;
+    if (HostTexture *single = SurfaceColorSingle(s, src_surf))
+      src_host = single;
   }
 
   GuestTexture *dest = nullptr;
@@ -205,6 +216,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
                   dest->height, dest->tiled ? "tiled" : "linear");
       }
     }
+    std::shared_ptr<GuestTexture> dest_ref;
+    if (auto it = s.textures.find(dest_texture_va); it != s.textures.end())
+      dest_ref = it->second;
     auto mark = [&](GuestTexture &target, u32 level) {
       target.resolveOwned = true;
       target.uploaded = true;
@@ -233,22 +247,58 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
       const bool covers_image = whole && target.host.mipLevels == 1;
       const bool ms_src = src_host->sampleCount > 1;
-      if (copies && !ms_src && surf->scale == 1.0f && src_host == &surf->host && same_format &&
-          surf->allocWidth == surf->width && surf->allocHeight == surf->height &&
-          scale == 1.0f && !reorder && (!depth_source || whole) &&
-          (covers_image || !target.host.needsClear)) {
+      TextureReleaseBorrower(s, target);
+      target.contentSerial++;
+      const float k = surf->scale;
+      const i32 hx0 = ScalePxBy(vx, k), hy0 = ScalePxBy(vy, k), hx1 = ScalePxBy(vx + vw, k),
+                hy1 = ScalePxBy(vy + vh, k);
+      if (hx1 <= hx0 || hy1 <= hy0)
+        return true;
+      const i32 sx0h = ScalePxBy(sx0, k), sy0h = ScalePxBy(sy0, k);
+      const i32 mip_w_host = static_cast<i32>(std::max(1u, target.host.width >> level));
+      const i32 mip_h_host = static_cast<i32>(std::max(1u, target.host.height >> level));
+      const bool copy_fits = sx0h + (hx1 - hx0) <= static_cast<i32>(src_host->width) &&
+                             sy0h + (hy1 - hy0) <= static_cast<i32>(src_host->height) &&
+                             hx1 <= mip_w_host && hy1 <= mip_h_host;
+      const bool whole_host = whole && src_host->width == static_cast<u32>(mip_w_host) &&
+                              src_host->height == static_cast<u32>(mip_h_host);
+      const bool own_image = src_host == &surf->single || src_host == &surf->host;
+      if (Settings::ResolveTransfer() && &target == dest && dest_ref && !depth_source &&
+          !ms_src && !alias_src && own_image && same_format && scale == 1.0f && level == 0 &&
+          whole_host && covers_image && target.host.viewFormat == plume::RenderFormat::UNKNOWN &&
+          target.host.arraySize == 1 && target.host.depth == 1 && target.host.sampleCount == 1 &&
+          target.host.desc.flags == src_host->desc.flags &&
+          target.host.desc.dimension == src_host->desc.dimension &&
+          target.host.desc.committed == src_host->desc.committed) {
+        if (target.storeSwapRB != reorder) {
+          target.storeSwapRB = reorder;
+          target.bindingGeneration++;
+        }
+        target.host.needsClear = false;
+        SurfaceTransferToMirror(s, *surf, *src_host, target, dest_ref);
+        src_host = &target.host;
+        mark(target, level);
+        return true;
+      }
+      if (copies && !ms_src && !alias_src && same_format && scale == 1.0f && copy_fits &&
+          (!depth_source || whole_host) && (covers_image || !target.host.needsClear) &&
+          (!reorder || covers_image)) {
         if (covers_image)
           target.host.needsClear = false;
+        if (target.storeSwapRB != reorder) {
+          target.storeSwapRB = reorder;
+          target.bindingGeneration++;
+        }
         auto *cmd = s.command_list;
         const HostTextureTransition transitions[] = {
             {src_host, plume::RenderTextureLayout::COPY_SOURCE},
             {&target.host, plume::RenderTextureLayout::COPY_DEST}};
         TransitionManyLocked(s, transitions, 2);
-        const plume::RenderBox box(sx0, sy0, sx0 + vw, sy0 + vh);
+        const plume::RenderBox box(sx0h, sy0h, sx0h + (hx1 - hx0), sy0h + (hy1 - hy0));
         cmd->copyTextureRegion(
             plume::RenderTextureCopyLocation::Subresource(target.host.texture.get(), level, 0),
             plume::RenderTextureCopyLocation::Subresource(src_host->texture.get(), 0, 0),
-            static_cast<u32>(vx), static_cast<u32>(vy), 0, whole ? nullptr : &box);
+            static_cast<u32>(hx0), static_cast<u32>(hy0), 0, whole_host ? nullptr : &box);
         s.perf.resolve_copies++;
         mark(target, level);
         return true;
@@ -257,18 +307,14 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         u32 n;
         const u32 key = 0x7500 ^ (static_cast<u32>(src_host->format) << 8) ^
                         static_cast<u32>(target.host.format) ^ (reorder ? 0x40000 : 0) ^
-                        (src_host != &surf->host ? 0x80000 : 0) ^ (depth_source ? 0x100000 : 0);
+                        (alias_src ? 0x80000 : 0) ^ (depth_source ? 0x100000 : 0) ^
+                        (ms_src ? 0x200000 : 0);
         if (copies && DiagShouldLog(key, &n) && n == 0)
-          EOT_DEBUG("[resolve] blit kept: host fmt {} -> {}{}{}{}", static_cast<u32>(src_host->format),
+          EOT_DEBUG("[resolve] blit kept: host fmt {} -> {}{}{}{}{}", static_cast<u32>(src_host->format),
                    static_cast<u32>(target.host.format), reorder ? " reorder" : "",
-                   src_host != &surf->host ? " msaa-alias" : "",
-                   depth_source && !whole ? " depth-subrect" : "");
+                   alias_src ? " msaa-alias" : "", depth_source && !whole ? " depth-subrect" : "",
+                   ms_src ? " multisampled-source" : "");
       }
-      const float k = surf->scale;
-      const i32 hx0 = ScalePxBy(vx, k), hy0 = ScalePxBy(vy, k), hx1 = ScalePxBy(vx + vw, k),
-                hy1 = ScalePxBy(vy + vh, k);
-      if (hx1 <= hx0 || hy1 <= hy0)
-        return true;
       plume::RenderFramebuffer *fb = nullptr;
       {
         EOT_CPU_ZONE("resolve framebuffer");
@@ -302,6 +348,10 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         target.host.needsClear = false;
       }
       GpuTimingMark(s, cmd, depth_source ? kGpuCatResolveDepth : kGpuCatResolve);
+      if (target.storeSwapRB) {
+        target.storeSwapRB = false;
+        target.bindingGeneration++;
+      }
       if (s.bound_framebuffer != fb) {
         cmd->setFramebuffer(fb);
         s.bound_framebuffer = fb;

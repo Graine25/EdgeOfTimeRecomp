@@ -20,6 +20,7 @@
 #include "gpu/gpu_timing.h"
 
 #include "gpu/settings.h"
+#include "gpu/surfaces.h"
 #include "gpu/format.h"
 
 namespace eot::gpu {
@@ -161,6 +162,9 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
 }
 
 void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
+  t.storeSwapRB = false;
+  TextureReleaseBorrower(s, t);
+  t.contentSerial++;
   EOT_CPU_ZONE("texture upload");
   HostTexture &host = t.host;
   if (!host.texture || host.isDepth)
@@ -326,8 +330,10 @@ void EvictStaleGuestTextures(VideoState &s) {
       ++it;
       continue;
     }
-    if (slot.use_count() == 1)
+    if (slot.use_count() == 1) {
+      TextureReleaseBorrower(s, *slot);
       ParkHostTexture(s, slot->host);
+    }
     infos().erase(it->first);
     it = s.textures.erase(it);
     s.perf.textures_evicted++;
@@ -404,8 +410,10 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
                header_va, slot->width, slot->height, static_cast<u32>(slot->format),
                slot->baseAddress, InfoWidth(info), InfoHeight(info),
                static_cast<u32>(info.format), info.memory.base_address, n + 1);
-    if (slot.use_count() == 1)
+    if (slot.use_count() == 1) {
+      TextureReleaseBorrower(s, *slot);
       ParkHostTexture(s, slot->host);
+    }
     s.texture_generation.fetch_add(1, std::memory_order_relaxed);
     slot.reset();
   }
@@ -446,9 +454,26 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
   return slot.get();
 }
 
+u32 SamplingSwizzle(const GuestTexture &t, u32 fetch_swizzle) {
+  fetch_swizzle &= 0xFFF;
+  if (!t.storeSwapRB)
+    return fetch_swizzle;
+  u32 out = 0;
+  for (u32 c = 0; c < 4; ++c) {
+    u32 sel = (fetch_swizzle >> (3 * c)) & 7;
+    if (sel == 0)
+      sel = 2;
+    else if (sel == 2)
+      sel = 0;
+    out |= sel << (3 * c);
+  }
+  return out;
+}
+
 u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
   if (!t.host.texture)
     return kInvalidDescriptorIndex;
+  swizzle = SamplingSwizzle(t, swizzle);
   const u64 seq = ResourceUnlockSeq(t.va);
   const bool stale = !t.uploaded || seq != t.uploadedUnlockSeq;
   if (stale && t.resolveOwned) {

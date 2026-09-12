@@ -70,6 +70,9 @@ struct PerfCounters {
   f64 pace_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
   u32 resolve_copies = 0;
+  u32 draws_skipped = 0;
+  u32 surface_transfers = 0;
+  u32 resolve_transfers = 0;
   u32 host_textures = 0, host_views = 0, host_framebuffers = 0, host_parked = 0;
   u32 host_tex_surface = 0, host_tex_mirror = 0, host_tex_guest = 0;
   u32 host_tex_recycled = 0;
@@ -159,12 +162,15 @@ struct VideoState {
   std::unique_ptr<plume::RenderShader> copy_vs;
   std::unique_ptr<plume::RenderShader> blit_ps;
   std::unique_ptr<plume::RenderShader> copy_depth_ps;
-  std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> blit_pipelines;
-  std::unordered_map<plume::RenderFormat, std::unique_ptr<plume::RenderPipeline>> depth_copy_pipelines;
+  std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> blit_pipelines;
+  std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> depth_copy_pipelines;
   u32 host_msaa_samples = 1;
   std::unique_ptr<plume::RenderShader> resolve_msaa_color_ps[3];
   std::unique_ptr<plume::RenderShader> resolve_msaa_depth_ps[3];
   std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> resolve_msaa_pipelines;
+  std::unique_ptr<plume::RenderShader> derive_depth_stencil_ps[3];
+  std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> derive_depth_stencil_pipelines;
+  bool stencil_ref_supported = false;
 
   std::string backend_info;
 
@@ -327,10 +333,15 @@ CreateHostGraphicsPipeline(plume::RenderDevice *device,
 bool BuildPipelineLayout(VideoState &s);
 bool BuildHelperPipelines(VideoState &s);
 bool BuildSwapFramebuffers(VideoState &s);
-plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format);
+plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format,
+                                       u32 samples = 1);
 plume::RenderPipeline *GetResolveMsaaPipeline(VideoState &s, plume::RenderFormat dst_format,
                                               u32 src_samples, bool depth);
-plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format);
+plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format,
+                                            u32 samples = 1);
+plume::RenderPipeline *GetDeriveDepthStencilPipeline(VideoState &s, plume::RenderFormat ds_format,
+                                                     u32 src_samples);
+u32 BindStencilSRVLocked(VideoState &s, HostTexture &host);
 
 void BeginCommandList(VideoState &s);
 void SubmitOpenListLocked(VideoState &s);
