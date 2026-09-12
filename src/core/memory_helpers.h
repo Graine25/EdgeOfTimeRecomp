@@ -41,6 +41,29 @@ template <typename T> inline bool store(u32 va, T value) {
 inline u32 u32at(u32 va) { return load<u32>(va); }
 inline f32 f32at(u32 va) { return load<f32>(va); }
 
+inline bool readable(u32 va, u32 bytes) {
+  auto *kernel = REX_KERNEL_STATE();
+  auto *memory = kernel ? kernel->memory() : nullptr;
+  if (!memory || va < 0x1000 || bytes == 0 || va + bytes < va)
+    return false;
+  u32 cursor = va;
+  const u32 end = va + bytes;
+  while (cursor < end) {
+    auto *heap = memory->LookupHeap(cursor);
+    rex::memory::HeapAllocationInfo info{};
+    if (!heap || !heap->QueryRegionInfo(cursor, &info))
+      return false;
+    if (!(info.state & rex::memory::kMemoryAllocationCommit) ||
+        info.protect == rex::memory::kMemoryProtectNoAccess)
+      return false;
+    const u32 region_end = info.base_address + info.region_size;
+    if (region_end <= cursor)
+      return false;
+    cursor = region_end;
+  }
+  return true;
+}
+
 inline const char *str(u32 va) {
   auto *p = at<const char>(va);
   return p ? p : "";
