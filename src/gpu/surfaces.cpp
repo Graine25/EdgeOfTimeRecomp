@@ -34,15 +34,12 @@ bool IsDepthFormatWord(u32 format_word) {
          f == static_cast<u32>(xe::TextureFormat::k_24_8_FLOAT);
 }
 
-bool DecodeHeader(u32 va, GuestSurface &out) {
-  const u8 *h = mem::at<u8>(va);
-  if (!h)
-    return false;
-  const u32 surface_info = rex::memory::load_and_swap<u32>(h + obj::kSurfaceInfo);
-  const u32 info = rex::memory::load_and_swap<u32>(h + obj::kSurfaceColorInfo);
-  const u32 hi = rex::memory::load_and_swap<u32>(h + obj::kSurfaceHiControl);
-  const u32 size_bits = rex::memory::load_and_swap<u32>(h + obj::kSurfaceSize);
-  const u32 format_word = rex::memory::load_and_swap<u32>(h + obj::kSurfaceFormat);
+bool DecodeHeaderWords(u32 va, const u32 words[5], GuestSurface &out) {
+  const u32 surface_info = words[0];
+  const u32 info = words[1];
+  const u32 hi = words[2];
+  const u32 size_bits = words[3];
+  const u32 format_word = words[4];
   const u32 width = (size_bits >> 18) + 1;
   const u32 height = ((size_bits >> 3) & 0x7FFF) + 1;
   if (width == 0 || height == 0 || width > 8192 || height > 8192)
@@ -234,27 +231,47 @@ constexpr u32 kHeaderWordOffsets[5] = {obj::kSurfaceInfo, obj::kSurfaceColorInfo
                                        obj::kSurfaceFormat};
 }
 
+bool ReadSurfaceHeaderWords(u32 surface_va, u32 words[5]) {
+  const u8 *header = surface_va ? mem::at<u8>(surface_va) : nullptr;
+  if (!header)
+    return false;
+  for (u32 i = 0; i < 5; ++i)
+    words[i] = rex::memory::load_and_swap<u32>(header + kHeaderWordOffsets[i]);
+  return true;
+}
+
 GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
   if (!surface_va)
     return nullptr;
-  SurfaceLookupEntry &lookup = g_surface_lookup[(surface_va >> 4) & 15];
   u32 words[5] = {};
-  const u8 *header = mem::at<u8>(surface_va);
-  if (header) {
-    for (u32 i = 0; i < 5; ++i)
-      words[i] = rex::memory::load_and_swap<u32>(header + kHeaderWordOffsets[i]);
-    if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
-        std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
-      lookup.surf->va = surface_va;
-      if (lookup.frame != s.guest_frames) {
-        lookup.frame = s.guest_frames;
-        TrackSurfaceDescriptor(s, surface_va, lookup.key);
-      }
-      return lookup.surf;
+  if (!ReadSurfaceHeaderWords(surface_va, words)) {
+    ForgetSurfaceDescriptor(s, surface_va);
+    u32 n;
+    if (DiagShouldLog(0x5C00 ^ surface_va, &n))
+      EOT_WARN("[surfaces] {:#x}: unreadable or absurd header", surface_va);
+    return nullptr;
+  }
+  return GetGuestSurfaceWords(s, surface_va, words);
+}
+
+GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 words_in[5]) {
+  if (!surface_va)
+    return nullptr;
+  SurfaceLookupEntry &lookup = g_surface_lookup[(surface_va >> 4) & 15];
+  u32 words[5];
+  std::memcpy(words, words_in, sizeof(words));
+  const bool header = true;
+  if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
+      std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
+    lookup.surf->va = surface_va;
+    if (lookup.frame != s.guest_frames) {
+      lookup.frame = s.guest_frames;
+      TrackSurfaceDescriptor(s, surface_va, lookup.key);
     }
+    return lookup.surf;
   }
   GuestSurface decoded;
-  if (!DecodeHeader(surface_va, decoded)) {
+  if (!DecodeHeaderWords(surface_va, words, decoded)) {
     ForgetSurfaceDescriptor(s, surface_va);
     u32 n;
     if (DiagShouldLog(0x5C00 ^ surface_va, &n))
