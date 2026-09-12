@@ -843,10 +843,11 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
                   static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
 #endif
   {
-    const eot::platform::DisplaySize display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
+    const eot::platform::Display display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
     SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
-    EOT_INFO("[gpu] display {}x{}, {}: a window renders at {}p", display.width, display.height,
-             Settings::Fullscreen() ? "fullscreen" : "windowed", eot::platform::AutoRenderHeight(display));
+    EOT_INFO("[gpu] display {}x{} at {} Hz, {}: a window renders at {}p", display.width, display.height,
+             display.refresh_hz, Settings::Fullscreen() ? "fullscreen" : "windowed",
+             eot::platform::AutoRenderHeight(display));
   }
   ApplyQualityPresetAtBoot();
   {
