@@ -68,6 +68,7 @@ private:
 #endif
 
   std::string active_profile_ = "default";
+  bool repair_requested_ = false;
   std::filesystem::path install_root_;
   std::filesystem::path profile_root_;
 
