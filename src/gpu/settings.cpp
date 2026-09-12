@@ -66,9 +66,9 @@ REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
                       "the ratio nearest the display's.")
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
-                     "Ceiling on presented frames per second (0 = unlimited; 30/60/90/120 are the "
-                     "menu presets). The guest runs one frame per present, so this paces the whole "
-                     "game, not just the display.")
+                     "Ceiling on presented frames per second (0 = unlimited). The installer suggests "
+                     "the display's own refresh rate. The guest runs one frame per present, so this "
+                     "paces the whole game, not just the display.")
     .range(0, 1000);
 REXCVAR_DEFINE_BOOL(eot_resolve_copy, false, "EdgeOfTime/Config",
                     "Perform same-format, 1:1, no-reorder resolves as texture copies instead of "

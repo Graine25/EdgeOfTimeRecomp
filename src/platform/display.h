@@ -4,18 +4,21 @@
 
 namespace eot::platform {
 
-struct DisplaySize {
+struct Display {
   uint32_t width = 0;
   uint32_t height = 0;
+  uint32_t refresh_hz = 0;
 };
 
-DisplaySize DisplayFor(void *native_window);
+Display DisplayFor(void *native_window);
 
-uint32_t AutoRenderHeight(const DisplaySize &display);
-const char *AutoResolutionPreset(const DisplaySize &display);
+uint32_t AutoRenderHeight(const Display &display);
+const char *AutoResolutionPreset(const Display &display);
 
-const char *AutoAspectPreset(const DisplaySize &display);
+const char *AutoAspectPreset(const Display &display);
 
-const char *AutoQualityPreset(const DisplaySize &display);
+const char *AutoQualityPreset(const Display &display);
+
+uint32_t AutoFrameRateLimit(const Display &display);
 
 }

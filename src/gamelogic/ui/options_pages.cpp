@@ -514,8 +514,7 @@ int CurrentStop(const Setting &s) {
   return std::clamp(stop, 0, last_numbered);
 }
 
-void FormatStop(const Setting &s, int stop, char *out, size_t size) {
-  const double value = StopValue(s, stop);
+void FormatNumber(const Setting &s, double value, char *out, size_t size) {
   switch (s.slider.format) {
   case Format::kPercent:
     std::snprintf(out, size, "%d%%", static_cast<int>(std::lround(value * 100.0)));
@@ -524,7 +523,7 @@ void FormatStop(const Setting &s, int stop, char *out, size_t size) {
     std::snprintf(out, size, "%+d%%", static_cast<int>(std::lround(value * 100.0)));
     break;
   case Format::kFrameRate:
-    if (IsUnlimitedStop(s, stop))
+    if (value <= 0.0)
       std::snprintf(out, size, "Unlimited");
     else
       std::snprintf(out, size, "%d", static_cast<int>(std::lround(value)));
@@ -533,6 +532,10 @@ void FormatStop(const Setting &s, int stop, char *out, size_t size) {
     std::snprintf(out, size, "%g", value);
     break;
   }
+}
+
+void FormatCurrent(const Setting &s, char *out, size_t size) {
+  FormatNumber(s, Number(rex::cvar::GetFlagByName(s.cvar)), out, size);
 }
 
 void ShowSliderValue(const PPCContext &ctx, uint8_t *base, uint32_t control, const Setting &s) {
@@ -587,7 +590,7 @@ void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   hud::Activate(ctx, base, g_windows.info_value, s.IsSlider());
   if (s.IsSlider()) {
     char now[32];
-    FormatStop(s, CurrentStop(s), now, sizeof(now));
+    FormatCurrent(s, now, sizeof(now));
     SetLine(ctx, base, g_windows.info_value, now);
   }
   hud::Activate(ctx, base, g_windows.info_note, s.restart);
