@@ -6,6 +6,8 @@
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
+#include "gpu/hooks/fast_guest.h"
+#include "gpu/settings.h"
 #include "gpu/trace.h"
 
 using namespace eot::gpu;
@@ -16,8 +18,67 @@ REX_EXTERN(__imp__D3DDevice_ClearF);
 REX_EXTERN(__imp__D3DDevice_Resolve);
 REX_EXTERN(__imp__D3DDevice_BeginVertices);
 REX_EXTERN(__imp__D3DDevice_BeginIndexedVertices);
+REX_EXTERN(__imp__sub_8223A738);
+REX_EXTERN(__imp__sub_82232178);
 
 namespace {
+
+using namespace eot::gpu::fastguest;
+
+void FastDrawFlush(PPCContext &ctx, u8 *base, u32 device) {
+  u8 *dev = Guest(base, device);
+  const u64 p0 = Ld64(dev), p1 = Ld64(dev + 8), p2 = Ld64(dev + 16), p3 = Ld64(dev + 24),
+            p4 = Ld64(dev + 32);
+  if (p0)
+    St64(dev, 0);
+  if (p1)
+    St64(dev + 8, 0);
+  if (p2) {
+    if (p2 & 0x1E0000ull) {
+      ctx.r3.u64 = device;
+      ctx.r4.u64 = p2;
+      __imp__sub_8223A738(ctx, base);
+    }
+    St64(dev + 16, 0);
+  }
+  if (p3)
+    St64(dev + 24, 0);
+  if (p4) {
+    if ((p4 & 0xC000000000000000ull) && (dev[11072] & 0xC0)) {
+      ctx.r3.u64 = device;
+      __imp__sub_82232178(ctx, base);
+    }
+    St64(dev + 32, 0);
+  }
+}
+
+constexpr DeviceCompare::Range kDrawSkip[] = {{40, 64}, {11064, 11072}, {13600, 13624}};
+
+template <typename Original>
+void DrawFlush(PPCContext &ctx, u8 *base, u32 device, const char *what, Original original) {
+  static const bool fast = (Settings::FastSetters() & 16) != 0;
+  static const bool verify = Settings::FastSettersVerify();
+  if (fast && device) {
+    if (verify) {
+      u8 *dev = Guest(base, device);
+      DeviceCompare cmp;
+      cmp.Snapshot(dev, cmp.before);
+      const PPCContext saved = ctx;
+      FastDrawFlush(ctx, base, device);
+      cmp.Snapshot(dev, cmp.after_fast);
+      cmp.Restore(dev);
+      ctx = saved;
+      original();
+      cmp.Snapshot(dev, cmp.after_orig);
+      cmp.Report(what, kDrawSkip, 3);
+    } else {
+      FastDrawFlush(ctx, base, device);
+    }
+    return;
+  }
+  PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
+  original();
+}
 
 FloatConstantDirty PendingFloatConstants(u32 device_va) {
   if (!device_va)
@@ -41,10 +102,8 @@ extern "C" REX_FUNC(D3DDevice_DrawVertices) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32, start = ctx.r5.u32, count = ctx.r6.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
-  {
-    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
-    __imp__D3DDevice_DrawVertices(ctx, base);
-  }
+  DrawFlush(ctx, base, device, "DrawVertices",
+            [&] { __imp__D3DDevice_DrawVertices(ctx, base); });
   EOT_TRACE_CALL("DrawVertices prim={} start={} count={}", prim, start, count);
   trace::Bump(trace::Counter::DrawVertices);
   DrawGuestPrimitives(device, prim, start, count, constants);
@@ -56,10 +115,8 @@ extern "C" REX_FUNC(D3DDevice_DrawIndexedVertices) {
   const i32 base_vertex = ctx.r5.s32;
   const u32 start_index = ctx.r6.u32, count = ctx.r7.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
-  {
-    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
-    __imp__D3DDevice_DrawIndexedVertices(ctx, base);
-  }
+  DrawFlush(ctx, base, device, "DrawIndexedVertices",
+            [&] { __imp__D3DDevice_DrawIndexedVertices(ctx, base); });
   EOT_TRACE_CALL("DrawIndexedVertices prim={} base={} start={} count={}", prim, base_vertex,
                  start_index, count);
   trace::Bump(trace::Counter::DrawIndexed);
