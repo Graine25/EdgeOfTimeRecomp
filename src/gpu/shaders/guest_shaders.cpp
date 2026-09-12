@@ -1,5 +1,6 @@
 #include "gpu/shaders/guest_shaders.h"
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -164,6 +165,62 @@ u32 FloatConstantRegisters(const u8 *bytes, u32 size, u32 table_off, bool is_pix
   return std::max(end, 16u);
 }
 
+u32 TextureFetchMask(const u8 *physical, u32 physical_size, const ShaderRecord *shader) {
+  constexpr u32 kAllSlots = 0xFFFFu;
+  constexpr u32 kInstructionBytes = 12;
+  if (!physical || !shader)
+    return kAllSlots;
+  const u32 code_offset = shader->physicalOffset;
+  const u32 code_size = shader->size;
+  if (code_size < kInstructionBytes || code_offset > physical_size ||
+      code_size > physical_size - code_offset)
+    return kAllSlots;
+
+  const u8 *code = physical + code_offset;
+  u32 control_end = code_size;
+  u32 mask = 0;
+  bool found_clause = false;
+  for (u32 control_offset = 0; control_offset + kInstructionBytes <= control_end;
+       control_offset += kInstructionBytes) {
+    const u32 w0 = rex::memory::load_and_swap<u32>(code + control_offset);
+    const u32 w1 = rex::memory::load_and_swap<u32>(code + control_offset + 4);
+    const u32 w2 = rex::memory::load_and_swap<u32>(code + control_offset + 8);
+    const u64 controls[2] = {
+        u64(w0) | (u64(w1 & 0xFFFFu) << 32),
+        u64(w1 >> 16) | (u64(w2) << 16),
+    };
+    for (u64 control : controls) {
+      const u32 opcode = static_cast<u32>((control >> 44) & 0xFu);
+      const bool exec = (opcode >= 1 && opcode <= 6) || opcode == 13 || opcode == 14;
+      if (!exec)
+        continue;
+      found_clause = true;
+      const u32 address = static_cast<u32>(control & 0xFFFu);
+      const u32 count = static_cast<u32>((control >> 12) & 7u);
+      u32 sequence = static_cast<u32>((control >> 16) & 0xFFFu);
+      if (address && address * kInstructionBytes < control_end)
+        control_end = address * kInstructionBytes;
+      if (address > code_size / kInstructionBytes ||
+          count > code_size / kInstructionBytes - address)
+        return kAllSlots;
+      for (u32 i = 0; i < count; ++i, sequence >>= 2) {
+        if (!(sequence & 1u))
+          continue;
+        const u32 fetch = rex::memory::load_and_swap<u32>(
+            code + (address + i) * kInstructionBytes);
+        const u32 fetch_opcode = fetch & 0x1Fu;
+        if (fetch_opcode != 1u && fetch_opcode != 19u)
+          continue;
+        const u32 slot = (fetch >> 20) & 0x1Fu;
+        if (slot >= 16)
+          return kAllSlots;
+        mask |= 1u << slot;
+      }
+    }
+  }
+  return found_clause && control_end < code_size ? mask : kAllSlots;
+}
+
 GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
   if (!object_va)
     return nullptr;
@@ -216,11 +273,16 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
     sh->usesFloatConstants = sh->entry->usesFloatConstants != 0;
   sh->floatConstantRegs =
       FloatConstantRegisters(virtual_bytes, virtual_size, header->constantTableOffset, is_pixel);
+  const u32 shader_off = header->shaderOffset;
+  const ShaderRecord *shader_record =
+      shader_off <= virtual_size && sizeof(ShaderRecord) <= virtual_size - shader_off
+          ? reinterpret_cast<const ShaderRecord *>(virtual_bytes + shader_off)
+          : nullptr;
+  sh->textureFetchMask = TextureFetchMask(physical_bytes, physical_size, shader_record);
 
   if (!is_pixel) {
-    const u32 shader_off = header->shaderOffset;
-    auto *rec = mem::at<VertexShaderRecord>(container_va + shader_off);
-    if (rec && shader_off + sizeof(ShaderRecord) < virtual_size) {
+    auto *rec = reinterpret_cast<const VertexShaderRecord *>(shader_record);
+    if (rec) {
       const u32 first = rec->field18;
       const u32 count = rec->vertexElementCount;
       if (count <= 32) {
@@ -244,10 +306,10 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
     }
   }
 
-  EOT_DEBUG("[shaders] {} {:#x} hash {:016x} {} inputs={} spec={:#x} regs={}",
+  EOT_DEBUG("[shaders] {} {:#x} hash {:016x} {} inputs={} spec={:#x} regs={} texmask={:#06x}",
             is_pixel ? "ps" : "vs", object_va, hash, sh->entry ? "hit" : "MISS",
             sh->inputs.size(), sh->entry ? sh->entry->specConstantsMask : 0,
-            sh->floatConstantRegs);
+            sh->floatConstantRegs, sh->textureFetchMask);
   slot = std::move(sh);
   return slot.get();
 }

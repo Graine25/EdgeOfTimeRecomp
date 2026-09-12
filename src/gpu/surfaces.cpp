@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstring>
 #include <format>
 #include "gpu/surfaces.h"
 
@@ -7,11 +8,18 @@
 #include <rex/graphics/xenos.h>
 #include <rex/memory/utils.h>
 
+#if defined(EOT_D3D12)
+#include <plume_d3d12.h>
+#endif
+
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "gpu/backend.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/format.h"
+#include "gpu/gpu_profiling.h"
+#include "gpu/gpu_timing.h"
 #include "gpu/settings.h"
 
 namespace eot::gpu {
@@ -82,19 +90,16 @@ static void HostAllocationSize(const GuestSurface &surf, u32 &w, u32 &h) {
   h = (h + 63u) / 64u * 64u;
 }
 
-bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
-  HostTexture &host = surf.host;
+bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u32 samples,
+                        const char *tag) {
+  host = HostTexture{};
   host.format = SurfaceHostFormat(surf);
-  HostAllocationSize(surf, surf.allocWidth, surf.allocHeight);
-  surf.scale = surf.isDepth && surf.width == 1024 && surf.height == 1024
-                   ? ShadowMapTargetScale()
-                   : RenderScaleFactor();
   host.width = ScaleDimBy(surf.allocWidth, surf.scale);
   host.height = ScaleDimBy(surf.allocHeight, surf.scale);
   host.depth = 1;
   host.mipLevels = 1;
   host.arraySize = 1;
-  host.sampleCount = HostSampleCountFor(s, surf);
+  host.sampleCount = samples;
   host.isDepth = surf.isDepth;
   host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
 
@@ -115,8 +120,27 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
     clear = plume::RenderClearValue::Color(plume::RenderColor(0, 0, 0, 0), host.format);
     desc.optimizedClearValue = &clear;
   }
-  CreateOrRecycleHostTexture(s, host, desc, surf.isDepth ? "surface-ds" : "surface-rt");
+  CreateOrRecycleHostTexture(s, host, desc, tag);
+  host.renderable = host.texture != nullptr;
   return host.texture != nullptr;
+}
+
+bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
+  HostAllocationSize(surf, surf.allocWidth, surf.allocHeight);
+  surf.scale = surf.isDepth && surf.width == 1024 && surf.height == 1024
+                   ? ShadowMapTargetScale()
+                   : RenderScaleFactor();
+  surf.single = HostTexture{};
+  surf.contentInSingle = false;
+  surf.content = GuestSurface::Content::Undefined;
+  surf.writeSerial = 1;
+  surf.singleSerial = 0;
+  static u64 next_uid = 1;
+  surf.uid = next_uid++;
+  surf.serial++;
+  surf.resolveOrdinal = 0;
+  return CreateSurfaceImage(s, surf, surf.host, HostSampleCountFor(s, surf),
+                            surf.isDepth ? "surface-ds" : "surface-rt");
 }
 
 }
@@ -262,7 +286,7 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     return remember(slot.get());
   }
   if (slot) {
-    ParkHostTexture(s, slot->host);
+    ParkSurfaceImages(s, *slot);
     s.surface_generation++;
   }
   auto surf = std::make_unique<GuestSurface>();
@@ -312,7 +336,7 @@ void EvictStaleGuestSurfaces(VideoState &s) {
     const auto surface = s.surfaces.find(it->first);
     if (surface != s.surfaces.end()) {
       if (surface->second)
-        ParkHostTexture(s, surface->second->host);
+        ParkSurfaceImages(s, *surface->second);
       s.surfaces.erase(surface);
       s.surface_generation++;
     }
@@ -355,6 +379,486 @@ plume::RenderFramebuffer *GetFramebuffer(VideoState &s, HostTexture *const color
     entry.attachments[entry.attachmentCount++] = ds;
   s.framebuffers.emplace(key, std::move(entry));
   return raw;
+}
+
+namespace {
+
+void BindHelperFramebuffer(VideoState &s, plume::RenderFramebuffer *fb) {
+  s.command_list->setFramebuffer(fb);
+  s.bound_framebuffer = fb;
+  s.bound_draw_targets_valid = false;
+}
+
+void HelperPassDone(VideoState &s) {
+  s.bound_pipeline = nullptr;
+  s.bound_framebuffer = nullptr;
+  s.bound_draw_targets_valid = false;
+}
+
+plume::RenderFramebuffer *ImageFramebuffer(VideoState &s, HostTexture &image) {
+  HostTexture *colors[4] = {image.isDepth ? nullptr : &image, nullptr, nullptr, nullptr};
+  return GetFramebuffer(s, colors, image.isDepth ? 0u : 1u, image.isDepth ? &image : nullptr);
+}
+
+bool HelperBlit(VideoState &s, HostTexture &src, HostTexture &dst, plume::RenderPipeline *pso,
+                u32 second_descriptor = 0, const float *src_rect = nullptr) {
+  if (!pso || !src.valid() || !dst.valid())
+    return false;
+  plume::RenderFramebuffer *fb = ImageFramebuffer(s, dst);
+  if (!fb)
+    return false;
+  auto *cmd = s.command_list;
+  const HostTextureTransition transitions[] = {
+      {&src, plume::RenderTextureLayout::SHADER_READ},
+      {&dst, dst.isDepth ? plume::RenderTextureLayout::DEPTH_WRITE
+                         : plume::RenderTextureLayout::COLOR_WRITE}};
+  TransitionManyLocked(s, transitions, 2);
+  BindHelperFramebuffer(s, fb);
+  cmd->setPipeline(pso);
+  const plume::RenderViewport vp(0.0f, 0.0f, static_cast<float>(dst.width),
+                                 static_cast<float>(dst.height), 0.0f, 1.0f);
+  const plume::RenderRect sc(0, 0, static_cast<i32>(dst.width), static_cast<i32>(dst.height));
+  cmd->setViewports(&vp, 1);
+  cmd->setScissors(&sc, 1);
+  CopyPushConstants pc;
+  pc.resourceDescriptorIndex = BindTextureSRVLocked(s, src);
+  pc.resourceDescriptorIndex2 = second_descriptor;
+  pc.param0 = 1.0f;
+  pc.param1 = 0.0f;
+  if (src_rect)
+    std::memcpy(pc.rect, src_rect, sizeof(pc.rect));
+  cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
+                                sizeof(pc));
+  cmd->drawInstanced(3, 1, 0, 0);
+  dst.needsClear = false;
+  HelperPassDone(s);
+  return true;
+}
+
+bool ClearImageToRemembered(VideoState &s, GuestSurface &surf, HostTexture &image) {
+  plume::RenderFramebuffer *fb = ImageFramebuffer(s, image);
+  if (!fb)
+    return false;
+  TransitionLocked(s, image,
+                   image.isDepth ? plume::RenderTextureLayout::DEPTH_WRITE
+                                 : plume::RenderTextureLayout::COLOR_WRITE);
+  BindHelperFramebuffer(s, fb);
+  if (image.isDepth) {
+    s.command_list->clearDepthStencil(true, true, surf.clearDepth, surf.clearStencil, nullptr, 0);
+  } else {
+    s.command_list->clearColor(0,
+                               plume::RenderColor(surf.clearColor[0], surf.clearColor[1],
+                                                  surf.clearColor[2], surf.clearColor[3]),
+                               nullptr, 0);
+  }
+  image.needsClear = false;
+  HelperPassDone(s);
+  return true;
+}
+
+void LogTransfer(VideoState &s, const GuestSurface &surf, const char *what) {
+  if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
+    GpuTimingDiagMark(s, s.command_list, std::format("{} {:#x}", what, surf.va));
+    EOT_INFO("[diag] {} {:#x} ({} t{} {}x{}, content {} in {}, agree {})", what, surf.va,
+             surf.isDepth ? "depth" : "colour", surf.baseTile, surf.width, surf.height,
+             static_cast<u32>(surf.content), surf.contentInSingle ? "single" : "host",
+             surf.imagesAgree);
+  }
+}
+
+void NoteHandoffRegret(const VideoState &s, GuestSurface &surf) {
+  if (surf.handoffFrame == s.guest_frames && surf.handoffOrdinal < 32)
+    surf.regretMask |= 1u << surf.handoffOrdinal;
+}
+
+bool ResolveHostToSingle(VideoState &s, GuestSurface &surf) {
+  auto *cmd = s.command_list;
+  GpuTimingMark(s, cmd, kGpuCatResolveHw);
+  LogTransfer(s, surf, "resolve host->single");
+  NoteHandoffRegret(s, surf);
+  surf.perfTransfers++;
+  s.perf.surface_transfers++;
+  surf.resolvedSinceDraw = true;
+  if (Settings::ResolveHardware()) {
+    const HostTextureTransition transitions[] = {
+        {&surf.host, plume::RenderTextureLayout::RESOLVE_SOURCE},
+        {&surf.single, plume::RenderTextureLayout::RESOLVE_DEST}};
+    TransitionManyLocked(s, transitions, 2);
+    {
+      EOT_GPU_ZONE("resolve twin (hw)");
+      cmd->resolveTexture(surf.single.texture.get(), surf.host.texture.get());
+    }
+    surf.single.needsClear = false;
+    return true;
+  }
+  EOT_GPU_ZONE("resolve twin");
+  return HelperBlit(s, surf.host, surf.single,
+                    GetResolveMsaaPipeline(s, surf.single.format, surf.host.sampleCount, false));
+}
+
+bool BroadcastSingleToHost(VideoState &s, GuestSurface &surf) {
+  GpuTimingMark(s, s.command_list, kGpuCatBroadcast);
+  LogTransfer(s, surf, "broadcast single->host");
+  surf.perfTransfers++;
+  s.perf.surface_transfers++;
+  EOT_GPU_ZONE("broadcast twin");
+  return HelperBlit(s, surf.single, surf.host,
+                    GetBlitPipeline(s, surf.host.format, surf.host.sampleCount));
+}
+
+bool DeriveDepthSingle(VideoState &s, GuestSurface &surf) {
+  GpuTimingMark(s, s.command_list, kGpuCatResolveDepth);
+  LogTransfer(s, surf, surf.content == GuestSurface::Content::Cleared ? "clear depth twin"
+                                                                        : "derive depth twin");
+  surf.perfTransfers++;
+  s.perf.surface_transfers++;
+  if (surf.content == GuestSurface::Content::Cleared)
+    return ClearImageToRemembered(s, surf, surf.single);
+  if (Settings::StencilTwin() && s.stencil_ref_supported) {
+    plume::RenderPipeline *pso =
+        GetDeriveDepthStencilPipeline(s, surf.single.format, surf.host.sampleCount);
+    const u32 stencil_index = pso ? BindStencilSRVLocked(s, surf.host) : kInvalidDescriptorIndex;
+    if (pso && stencil_index != kInvalidDescriptorIndex) {
+      EOT_GPU_ZONE("derive depth+stencil twin");
+      return HelperBlit(s, surf.host, surf.single, pso, stencil_index);
+    }
+  }
+  EOT_GPU_ZONE("derive depth twin");
+  return HelperBlit(s, surf.host, surf.single,
+                    GetResolveMsaaPipeline(s, surf.single.format, surf.host.sampleCount, true));
+}
+
+bool EnsureSurfaceSingle(VideoState &s, GuestSurface &surf) {
+  if (surf.single.valid())
+    return true;
+  if (!CreateSurfaceImage(s, surf, surf.single, 1, surf.isDepth ? "surface-ds-1x" : "surface-rt-1x"))
+    return false;
+  EOT_DEBUG("[surfaces] {:#x}: single-sample twin {}x{} for the {}x image", surf.va,
+            surf.single.width, surf.single.height, surf.host.sampleCount);
+  if (surf.content == GuestSurface::Content::Cleared) {
+    if (!ClearImageToRemembered(s, surf, surf.single))
+      return false;
+    if (surf.isDepth)
+      surf.singleSerial = surf.writeSerial;
+  }
+  if (!surf.isDepth)
+    surf.imagesAgree = surf.content != GuestSurface::Content::Drawn;
+  return true;
+}
+
+}
+
+HostTexture &SurfaceContentImage(GuestSurface &surf) {
+  return surf.contentInSingle && surf.single.valid() ? surf.single : surf.host;
+}
+
+namespace {
+
+void DropBorrow(GuestSurface &surf) {
+  if (auto lender = surf.borrowed.lock()) {
+    if (lender->borrower == &surf)
+      lender->borrower = nullptr;
+  }
+  surf.borrowed.reset();
+}
+
+}
+
+void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src,
+                             GuestTexture &target, const std::shared_ptr<GuestTexture> &target_ref) {
+  const bool from_single = &src == &surf.single;
+  const bool host_keeps = from_single && surf.host.sampleCount > 1 &&
+                          (!surf.contentInSingle || surf.imagesAgree);
+  TextureReleaseBorrower(s, target);
+  std::swap(target.host, src);
+  target.bindingGeneration++;
+  target.contentSerial++;
+  src.needsClear = true;
+  surf.contentInSingle = false;
+  surf.imagesAgree = false;
+  surf.handoffFrame = s.guest_frames;
+  DropBorrow(surf);
+  if (host_keeps) {
+    LogTransfer(s, surf, "hand twin to mirror");
+  } else {
+    surf.content = GuestSurface::Content::Borrowed;
+    surf.borrowed = target_ref;
+    surf.borrowedSerial = target.contentSerial;
+    target.borrower = &surf;
+    LogTransfer(s, surf, "hand content to mirror");
+  }
+  s.perf.resolve_transfers++;
+}
+
+void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf) {
+  if (surf.redirectPassFrame != s.guest_frames) {
+    surf.redirectPassFrame = s.guest_frames;
+    surf.redirectPasses = 0;
+  }
+  const u32 pass = surf.redirectPasses++;
+  surf.redirectMirror.reset();
+  if (!Settings::ShadowAtlasDirect() || pass >= GuestSurface::kRedirectPasses || !surf.isDepth ||
+      surf.host.sampleCount != 1 || !surf.host.valid())
+    return;
+  const GuestSurface::RedirectPrediction &p = surf.redirectPredictions[pass];
+  std::shared_ptr<GuestTexture> m = p.mirror.lock();
+  if (!m || !m->host.valid() || m->host.texture.get() != p.texture || !m->host.isDepth ||
+      !m->host.renderable || m->host.format != surf.host.format || m->host.sampleCount != 1 ||
+      m->host.mipLevels != 1 || m->host.arraySize != 1 || p.x < 0 || p.y < 0 ||
+      p.x + surf.host.width > m->host.width || p.y + surf.host.height > m->host.height)
+    return;
+  surf.redirectMirror = std::move(m);
+  surf.redirectX = p.x;
+  surf.redirectY = p.y;
+  LogTransfer(s, surf, "redirect pass to atlas");
+}
+
+bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf) {
+  std::shared_ptr<GuestTexture> m = std::move(surf.redirectMirror);
+  surf.redirectMirror.reset();
+  if (!m || !m->host.valid() || !surf.host.valid())
+    return true;
+  GpuTimingMark(s, s.command_list, kGpuCatResolveDepth);
+  LogTransfer(s, surf, "redirect: copy region back");
+  const float rect[4] = {
+      static_cast<float>(surf.redirectX) / static_cast<float>(m->host.width),
+      static_cast<float>(surf.redirectY) / static_cast<float>(m->host.height),
+      static_cast<float>(surf.redirectX + surf.host.width) / static_cast<float>(m->host.width),
+      static_cast<float>(surf.redirectY + surf.host.height) / static_cast<float>(m->host.height)};
+  surf.perfTransfers++;
+  s.perf.surface_transfers++;
+  return HelperBlit(s, m->host, surf.host, GetDepthCopyPipeline(s, surf.host.format), 0, rect);
+}
+
+bool SurfaceTakeBack(VideoState &s, GuestSurface &surf) {
+  if (surf.content != GuestSurface::Content::Borrowed)
+    return true;
+  std::shared_ptr<GuestTexture> lender = surf.borrowed.lock();
+  const bool have = lender && lender->borrower == &surf &&
+                    lender->contentSerial == surf.borrowedSerial && lender->host.valid();
+  DropBorrow(surf);
+  HostTexture &dst = surf.host.sampleCount > 1 ? surf.single : surf.host;
+  if (!have || (surf.host.sampleCount > 1 && !EnsureSurfaceSingle(s, surf)) ||
+      lender->host.width != dst.width || lender->host.height != dst.height ||
+      lender->host.format != dst.format) {
+    surf.content = GuestSurface::Content::Undefined;
+    surf.serial++;
+    surf.host.needsClear = true;
+    if (surf.single.valid())
+      surf.single.needsClear = true;
+    LogTransfer(s, surf, "take back: content lost");
+    u32 n;
+    if (DiagShouldLog(0x7600 ^ surf.va, &n))
+      EOT_DEBUG("[surfaces] {:#x}: borrowed content gone before the surface was drawn again", surf.va);
+    return false;
+  }
+  GpuTimingMark(s, s.command_list, kGpuCatResolve);
+  LogTransfer(s, surf, "take back from mirror");
+  NoteHandoffRegret(s, surf);
+  const HostTextureTransition transitions[] = {
+      {&lender->host, plume::RenderTextureLayout::COPY_SOURCE},
+      {&dst, plume::RenderTextureLayout::COPY_DEST}};
+  TransitionManyLocked(s, transitions, 2);
+  {
+    EOT_GPU_ZONE("take back twin");
+    s.command_list->copyTextureRegion(
+        plume::RenderTextureCopyLocation::Subresource(dst.texture.get(), 0, 0),
+        plume::RenderTextureCopyLocation::Subresource(lender->host.texture.get(), 0, 0), 0, 0, 0,
+        nullptr);
+  }
+  dst.needsClear = false;
+  surf.content = GuestSurface::Content::Drawn;
+  surf.contentInSingle = &dst == &surf.single;
+  surf.imagesAgree = false;
+  surf.perfTransfers++;
+  s.perf.surface_transfers++;
+  return true;
+}
+
+void TextureReleaseBorrower(VideoState &s, GuestTexture &t) {
+  GuestSurface *surf = t.borrower;
+  if (!surf)
+    return;
+  if (surf->content == GuestSurface::Content::Borrowed && surf->borrowed.lock().get() == &t)
+    SurfaceTakeBack(s, *surf);
+  t.borrower = nullptr;
+}
+
+HostTexture *SurfaceImageForDraw(VideoState &s, GuestSurface &surf, u32 samples,
+                                 bool writes_color) {
+  if (!surf.host.valid())
+    return nullptr;
+  const bool want_single = samples == 1 && surf.host.sampleCount > 1;
+  if (!writes_color) {
+    if (!want_single)
+      return &surf.host;
+    return EnsureSurfaceSingle(s, surf) ? &surf.single : nullptr;
+  }
+  if (surf.content == GuestSurface::Content::Borrowed)
+    SurfaceTakeBack(s, surf);
+  if (!want_single) {
+    if (surf.contentInSingle && surf.single.valid() && !surf.imagesAgree &&
+        surf.content == GuestSurface::Content::Drawn) {
+      if (!BroadcastSingleToHost(s, surf))
+        return nullptr;
+      surf.imagesAgree = true;
+    }
+    surf.contentInSingle = false;
+    return &surf.host;
+  }
+  if (!EnsureSurfaceSingle(s, surf))
+    return nullptr;
+  if (!surf.contentInSingle && !surf.imagesAgree && surf.content == GuestSurface::Content::Drawn) {
+    if (!ResolveHostToSingle(s, surf))
+      return nullptr;
+    surf.imagesAgree = true;
+  }
+  surf.contentInSingle = true;
+  return &surf.single;
+}
+
+HostTexture *SurfaceDepthSingle(VideoState &s, GuestSurface &surf, bool refresh) {
+  if (!surf.host.valid() || !surf.isDepth)
+    return nullptr;
+  if (surf.host.sampleCount == 1)
+    return &surf.host;
+  if (!EnsureSurfaceSingle(s, surf))
+    return nullptr;
+  if (refresh && surf.singleSerial != surf.writeSerial) {
+    if (surf.content != GuestSurface::Content::Undefined && !DeriveDepthSingle(s, surf))
+      return nullptr;
+    surf.singleSerial = surf.writeSerial;
+  }
+  return &surf.single;
+}
+
+HostTexture *SurfaceContentPeek(VideoState &s, GuestSurface &surf) {
+  if (!surf.isDepth && surf.content == GuestSurface::Content::Borrowed) {
+    std::shared_ptr<GuestTexture> lender = surf.borrowed.lock();
+    if (lender && lender->borrower == &surf && lender->contentSerial == surf.borrowedSerial &&
+        lender->host.valid())
+      return &lender->host;
+  }
+  return SurfaceColorSingle(s, surf);
+}
+
+HostTexture *SurfaceColorSingle(VideoState &s, GuestSurface &surf) {
+  if (surf.isDepth)
+    return SurfaceDepthSingle(s, surf, true);
+  if (!surf.host.valid())
+    return nullptr;
+  if (surf.content == GuestSurface::Content::Borrowed)
+    SurfaceTakeBack(s, surf);
+  if (surf.host.sampleCount == 1)
+    return &surf.host;
+  if (surf.contentInSingle && surf.single.valid())
+    return &surf.single;
+  if (!EnsureSurfaceSingle(s, surf))
+    return nullptr;
+  if (!surf.imagesAgree && surf.content == GuestSurface::Content::Drawn) {
+    if (!ResolveHostToSingle(s, surf))
+      return nullptr;
+    surf.imagesAgree = true;
+  }
+  return &surf.single;
+}
+
+void NoteSurfaceDrawn(GuestSurface &surf, const HostTexture &image, bool writes_depth_stencil,
+                      bool writes_depth) {
+  surf.drawn = true;
+  const bool twin = &image == &surf.single;
+  if (surf.isDepth) {
+    if (!writes_depth_stencil)
+      return;
+    if (writes_depth)
+      surf.serial++;
+    if (twin) {
+      if (writes_depth)
+        surf.singleDirty = true;
+      return;
+    }
+    surf.content = GuestSurface::Content::Drawn;
+    surf.writeSerial++;
+    return;
+  }
+  surf.content = GuestSurface::Content::Drawn;
+  surf.contentInSingle = twin;
+  surf.imagesAgree = false;
+  surf.serial++;
+  if (!twin)
+    surf.resolvedSinceDraw = false;
+}
+
+void NoteSurfaceClearedColor(GuestSurface &surf, const HostTexture &image, const float rgba[4],
+                             bool whole, bool both) {
+  surf.drawn = true;
+  surf.serial++;
+  if (whole) {
+    surf.resolveOrdinal = 0;
+    DropBorrow(surf);
+    surf.content = GuestSurface::Content::Cleared;
+    surf.resolvedSinceDraw = false;
+    for (u32 i = 0; i < 4; ++i)
+      surf.clearColor[i] = rgba[i];
+    surf.contentInSingle = false;
+    surf.imagesAgree = true;
+    return;
+  }
+  DropBorrow(surf);
+  surf.content = GuestSurface::Content::Drawn;
+  if (!both)
+    surf.contentInSingle = &image == &surf.single;
+  surf.imagesAgree = both;
+  if (&image == &surf.host && !both)
+    surf.resolvedSinceDraw = false;
+}
+
+void NoteSurfaceClearedDepth(GuestSurface &surf, float depth, u8 stencil, bool whole, bool both) {
+  surf.drawn = true;
+  surf.writeSerial++;
+  surf.serial++;
+  if (both)
+    surf.singleDirty = false;
+  if (whole) {
+    surf.resolveOrdinal = 0;
+    surf.content = GuestSurface::Content::Cleared;
+    surf.clearDepth = depth;
+    surf.clearStencil = stencil;
+  } else {
+    surf.content = GuestSurface::Content::Drawn;
+  }
+  if (both && surf.single.valid())
+    surf.singleSerial = surf.writeSerial;
+}
+
+bool SurfacePropagateDepthSingle(VideoState &s, GuestSurface &surf) {
+  if (!surf.isDepth || !surf.singleDirty || !surf.single.valid())
+    return true;
+  GpuTimingMark(s, s.command_list, kGpuCatBroadcast);
+  LogTransfer(s, surf, "propagate depth single->host");
+  surf.perfTransfers++;
+  s.perf.surface_transfers++;
+  EOT_GPU_ZONE("propagate depth twin");
+  if (!HelperBlit(s, surf.single, surf.host,
+                  GetDepthCopyPipeline(s, surf.host.format, surf.host.sampleCount)))
+    return false;
+  surf.singleDirty = false;
+  surf.writeSerial++;
+  surf.singleSerial = surf.writeSerial;
+  return true;
+}
+
+void ParkSurfaceImages(VideoState &s, GuestSurface &surf) {
+  DropBorrow(surf);
+  ParkHostTexture(s, surf.host);
+  if (surf.single.valid())
+    ParkHostTexture(s, surf.single);
+  surf.single = HostTexture{};
+  surf.singleDirty = false;
+  surf.contentInSingle = false;
+  surf.imagesAgree = true;
+  surf.resolvedSinceDraw = false;
+  surf.content = GuestSurface::Content::Undefined;
 }
 
 }

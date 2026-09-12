@@ -42,6 +42,9 @@
 #include "shaders/resolve_msaa_depth_2x_ps.hlsl.dxil.h"
 #include "shaders/resolve_msaa_depth_4x_ps.hlsl.dxil.h"
 #include "shaders/resolve_msaa_depth_8x_ps.hlsl.dxil.h"
+#include "shaders/derive_depth_stencil_2x_ps.hlsl.dxil.h"
+#include "shaders/derive_depth_stencil_4x_ps.hlsl.dxil.h"
+#include "shaders/derive_depth_stencil_8x_ps.hlsl.dxil.h"
 #else
 #include "shaders/blit_ps.hlsl.spirv.h"
 #include "shaders/copy_depth_ps.hlsl.spirv.h"
@@ -661,7 +664,64 @@ bool BuildHelperPipelines(VideoState &s) {
       return false;
     }
   }
+#if defined(EOT_D3D12)
+  {
+    D3D12_FEATURE_DATA_D3D12_OPTIONS options = {};
+    auto *device = static_cast<plume::D3D12Device *>(s.device.get())->d3d;
+    s.stencil_ref_supported =
+        SUCCEEDED(device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options))) &&
+        options.PSSpecifiedStencilRefSupported;
+    if (s.stencil_ref_supported) {
+      s.derive_depth_stencil_ps[0] = s.device->createShader(EOT_SHADER_BLOB(derive_depth_stencil_2x_ps),
+                                                            "main", kHostShaderFormat);
+      s.derive_depth_stencil_ps[1] = s.device->createShader(EOT_SHADER_BLOB(derive_depth_stencil_4x_ps),
+                                                            "main", kHostShaderFormat);
+      s.derive_depth_stencil_ps[2] = s.device->createShader(EOT_SHADER_BLOB(derive_depth_stencil_8x_ps),
+                                                            "main", kHostShaderFormat);
+      for (u32 i = 0; i < 3; ++i)
+        s.stencil_ref_supported = s.stencil_ref_supported && s.derive_depth_stencil_ps[i] != nullptr;
+    }
+    EOT_INFO("[gpu] pixel shader stencil reference: {}", s.stencil_ref_supported ? "supported" : "not supported");
+  }
+#endif
   return GetBlitPipeline(s, plume::RenderFormat::B8G8R8A8_UNORM) != nullptr;
+}
+
+plume::RenderPipeline *GetDeriveDepthStencilPipeline(VideoState &s, plume::RenderFormat ds_format,
+                                                     u32 src_samples) {
+  const int tier = src_samples == 2 ? 0 : src_samples == 4 ? 1 : src_samples == 8 ? 2 : -1;
+  if (tier < 0 || !s.stencil_ref_supported || !s.derive_depth_stencil_ps[tier])
+    return nullptr;
+  const u64 key = (static_cast<u64>(ds_format) << 8) | static_cast<u64>(tier);
+  auto it = s.derive_depth_stencil_pipelines.find(key);
+  if (it != s.derive_depth_stencil_pipelines.end())
+    return it->second.get();
+  plume::RenderGraphicsPipelineDesc desc;
+  desc.pipelineLayout = s.pipeline_layout.get();
+  desc.vertexShader = s.copy_vs.get();
+  desc.pixelShader = s.derive_depth_stencil_ps[tier].get();
+  desc.primitiveTopology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+  desc.cullMode = plume::RenderCullMode::NONE;
+  desc.depthFunction = plume::RenderComparisonFunction::ALWAYS;
+  desc.depthEnabled = true;
+  desc.depthWriteEnabled = true;
+  desc.stencilEnabled = true;
+  desc.stencilReadMask = 0xFF;
+  desc.stencilWriteMask = 0xFF;
+  desc.stencilReference = 0;
+  desc.stencilFrontFace.compareFunction = plume::RenderComparisonFunction::ALWAYS;
+  desc.stencilFrontFace.passOp = plume::RenderStencilOp::REPLACE;
+  desc.stencilFrontFace.failOp = plume::RenderStencilOp::REPLACE;
+  desc.stencilFrontFace.depthFailOp = plume::RenderStencilOp::REPLACE;
+  desc.stencilBackFace = desc.stencilFrontFace;
+  desc.renderTargetCount = 0;
+  desc.depthTargetFormat = ds_format;
+  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "derive-depth-stencil");
+  if (!pso)
+    return nullptr;
+  auto *raw = pso.get();
+  s.derive_depth_stencil_pipelines.emplace(key, std::move(pso));
+  return raw;
 }
 
 plume::RenderPipeline *GetResolveMsaaPipeline(VideoState &s, plume::RenderFormat dst_format,
@@ -703,8 +763,10 @@ plume::RenderPipeline *GetResolveMsaaPipeline(VideoState &s, plume::RenderFormat
   return raw;
 }
 
-plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format) {
-  auto it = s.blit_pipelines.find(rt_format);
+plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_format, u32 samples) {
+  samples = std::max(samples, 1u);
+  const u64 key = static_cast<u64>(rt_format) | (static_cast<u64>(samples) << 32);
+  auto it = s.blit_pipelines.find(key);
   if (it != s.blit_pipelines.end())
     return it->second.get();
   plume::RenderGraphicsPipelineDesc desc;
@@ -720,16 +782,20 @@ plume::RenderPipeline *GetBlitPipeline(VideoState &s, plume::RenderFormat rt_for
   desc.renderTargetFormat[0] = rt_format;
   desc.renderTargetBlend[0] = plume::RenderBlendDesc::Copy();
   desc.depthTargetFormat = plume::RenderFormat::UNKNOWN;
-  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "blit");
+  desc.multisampling.sampleCount = static_cast<plume::RenderSampleCounts>(samples);
+  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, samples > 1 ? "blit-broadcast" : "blit");
   if (!pso)
     return nullptr;
   auto *raw = pso.get();
-  s.blit_pipelines.emplace(rt_format, std::move(pso));
+  s.blit_pipelines.emplace(key, std::move(pso));
   return raw;
 }
 
-plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format) {
-  auto it = s.depth_copy_pipelines.find(ds_format);
+plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat ds_format,
+                                            u32 samples) {
+  samples = std::max(samples, 1u);
+  const u64 key = static_cast<u64>(ds_format) | (static_cast<u64>(samples) << 32);
+  auto it = s.depth_copy_pipelines.find(key);
   if (it != s.depth_copy_pipelines.end())
     return it->second.get();
   plume::RenderGraphicsPipelineDesc desc;
@@ -743,11 +809,13 @@ plume::RenderPipeline *GetDepthCopyPipeline(VideoState &s, plume::RenderFormat d
   desc.cullMode = plume::RenderCullMode::NONE;
   desc.renderTargetCount = 0;
   desc.depthTargetFormat = ds_format;
-  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "copy-depth");
+  desc.multisampling.sampleCount = static_cast<plume::RenderSampleCounts>(samples);
+  auto pso = CreateHostGraphicsPipeline(s.device.get(), desc,
+                                        samples > 1 ? "copy-depth-broadcast" : "copy-depth");
   if (!pso)
     return nullptr;
   auto *raw = pso.get();
-  s.depth_copy_pipelines.emplace(ds_format, std::move(pso));
+  s.depth_copy_pipelines.emplace(key, std::move(pso));
   return raw;
 }
 

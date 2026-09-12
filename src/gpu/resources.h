@@ -29,6 +29,7 @@ struct HostTexture {
   plume::RenderTextureDesc desc;
   std::unique_ptr<plume::RenderTextureView> srv;
   u32 descriptorIndex = kInvalidDescriptorIndex;
+  u32 stencilDescriptorIndex = kInvalidDescriptorIndex;
   struct SwizzledSrv {
     std::unique_ptr<plume::RenderTextureView> view;
     u32 descriptorIndex = kInvalidDescriptorIndex;
@@ -54,6 +55,8 @@ struct HostTexture {
   bool valid() const { return texture != nullptr; }
 };
 
+struct GuestSurface;
+
 struct GuestTexture {
   u32 va = 0;
   u32 fetch[6] = {};
@@ -72,14 +75,28 @@ struct GuestTexture {
 
   HostTexture host;
 
+  u64 bindingGeneration = 1;
+
   bool uploaded = false;
   u64 uploadedUnlockSeq = 0;
   bool uploadFailed = false;
   bool resolveOwned = false;
+  bool storeSwapRB = false;
+  u64 contentSerial = 0;
+  GuestSurface *borrower = nullptr;
+  u64 resolvedSurfaceUid = 0;
+  u64 resolvedSurfaceSerial = 0;
+  u64 resolvedOwnSerial = 0;
+  u32 resolvedLevel = 0;
+  i32 resolvedRect[6] = {0, 0, 0, 0, 0, 0};
   u32 resolvedMipMask = 0;
   u64 lastUseFrame = 0;
   u64 lastSampledFrame = 0;
   u64 lastResolvedFrame = 0;
+  u64 aliasVisitToken = 0;
+  u64 perfSamples = 0;
+  u64 perfResolves = 0;
+  u64 perfDeadResolves = 0;
 };
 
 struct GuestSurface {
@@ -102,8 +119,45 @@ struct GuestSurface {
   u32 allocHeight = 0;
 
   HostTexture host;
+  HostTexture single;
+  bool contentInSingle = false;
+  bool imagesAgree = true;
+  bool resolvedSinceDraw = false;
+  enum class Content : u8 { Undefined, Cleared, Drawn, Borrowed };
+  Content content = Content::Undefined;
+  std::weak_ptr<GuestTexture> borrowed;
+  u64 borrowedSerial = 0;
+  u64 uid = 0;
+  u64 serial = 1;
+  u32 resolveOrdinal = 0;
+  u64 resolveOrdinalFrame = ~0ull;
+  struct RedirectPrediction {
+    std::weak_ptr<GuestTexture> mirror;
+    const void *texture = nullptr;
+    i32 x = 0, y = 0;
+  };
+  static constexpr u32 kRedirectPasses = 8;
+  RedirectPrediction redirectPredictions[kRedirectPasses];
+  u32 redirectPasses = 0;
+  u64 redirectPassFrame = ~0ull;
+  std::shared_ptr<GuestTexture> redirectMirror;
+  i32 redirectX = 0, redirectY = 0;
+  u32 regretMask = 0;
+  u64 regretResetFrame = 0;
+  u64 handoffFrame = ~0ull;
+  u32 handoffOrdinal = 0;
+  float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  float clearDepth = 0.0f;
+  u8 clearStencil = 0;
+  u64 writeSerial = 1;
+  u64 singleSerial = 0;
+  bool singleDirty = false;
   bool drawn = false;
   u64 lastUseFrame = 0;
+  u64 perfDraws = 0;
+  u64 perfClears = 0;
+  u64 perfResolves = 0;
+  u64 perfTransfers = 0;
 };
 
 struct VertexInput {
@@ -122,6 +176,7 @@ struct GuestShader {
   bool createdByGuestCall = false;
   std::vector<VertexInput> inputs;
   bool usesFloatConstants = true;
+  u32 textureFetchMask = 0xFFFFu;
   u32 floatConstantRegs = 256;
   u32 lastSpecMask = ~0u;
   plume::RenderShader *lastHost = nullptr;

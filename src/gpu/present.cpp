@@ -23,6 +23,7 @@
 #include "gpu/constant_buffers.h"
 #include "core/profiling.h"
 #include "gpu/device.h"
+#include "gpu/draw.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/imgui_overlay.h"
 #include "gpu/patches/aspect_ratio.h"
@@ -241,6 +242,169 @@ u32 EnsureGammaLutLocked(VideoState &s) {
 
 f64 g_pace_ms = 0.0;
 
+void CollectRenderWorkLocked(VideoState &s, bool record) {
+  if (!record) {
+    s.surface_work_window.clear();
+    s.texture_work_window.clear();
+    s.render_area_window.clear();
+  }
+
+  std::vector<u64> active_surface_keys;
+  for (auto &[key, owned] : s.surfaces) {
+    GuestSurface &surface = *owned;
+    const u64 events = surface.perfDraws + surface.perfClears + surface.perfResolves;
+    if (record && events) {
+      active_surface_keys.push_back(key);
+      auto &stats = s.surface_work_window[key];
+      stats.isDepth = surface.isDepth;
+      stats.format = surface.isDepth ? surface.depthFormat : surface.colorFormat;
+      stats.baseTile = surface.baseTile;
+      if (!stats.minWidth) {
+        stats.minWidth = stats.maxWidth = surface.width;
+        stats.minHeight = stats.maxHeight = surface.height;
+      } else {
+        stats.minWidth = std::min(stats.minWidth, surface.width);
+        stats.maxWidth = std::max(stats.maxWidth, surface.width);
+        stats.minHeight = std::min(stats.minHeight, surface.height);
+        stats.maxHeight = std::max(stats.maxHeight, surface.height);
+      }
+      stats.allocWidth = surface.allocWidth;
+      stats.allocHeight = surface.allocHeight;
+      stats.hostWidth = surface.host.width;
+      stats.hostHeight = surface.host.height;
+      stats.samples = surface.host.sampleCount;
+      stats.draws += surface.perfDraws;
+      stats.clears += surface.perfClears;
+      stats.resolves += surface.perfResolves;
+    }
+    surface.perfDraws = 0;
+    surface.perfClears = 0;
+    surface.perfResolves = 0;
+  }
+  if (!active_surface_keys.empty()) {
+    std::sort(active_surface_keys.begin(), active_surface_keys.end());
+    u64 signature = 1469598103934665603ull;
+    for (u64 key : active_surface_keys) {
+      signature ^= key;
+      signature *= 1099511628211ull;
+    }
+    s.render_area_window[signature]++;
+  }
+
+  for (auto &[header_va, shared] : s.textures) {
+    GuestTexture &texture = *shared;
+    const u64 events = texture.perfSamples + texture.perfResolves + texture.perfDeadResolves;
+    if (record && events) {
+      u64 key = 1469598103934665603ull;
+      const u64 identity[] = {texture.va, texture.width, texture.height,
+                              static_cast<u32>(texture.format)};
+      for (u64 value : identity) {
+        key ^= value;
+        key *= 1099511628211ull;
+      }
+      auto &stats = s.texture_work_window[key];
+      stats.va = texture.va;
+      stats.width = texture.width;
+      stats.height = texture.height;
+      stats.hostWidth = texture.host.width;
+      stats.hostHeight = texture.host.height;
+      stats.format = static_cast<u32>(texture.format);
+      stats.samples += texture.perfSamples;
+      stats.resolves += texture.perfResolves;
+      stats.deadResolves += texture.perfDeadResolves;
+    }
+    texture.perfSamples = 0;
+    texture.perfResolves = 0;
+    texture.perfDeadResolves = 0;
+  }
+}
+
+void LogRenderAreaLocked(VideoState &s, u64 frames) {
+  struct SurfaceWork {
+    u64 key;
+    const VideoState::SurfaceWorkStats *stats;
+    u64 rank;
+  };
+  std::vector<SurfaceWork> surfaces;
+  for (auto &[key, stats] : s.surface_work_window) {
+    const u64 pixels = u64(std::max(stats.hostWidth, 1u)) * std::max(stats.hostHeight, 1u) *
+                       std::max(stats.samples, 1u);
+    const u64 draw_equivalent = stats.draws + stats.clears * 4 + stats.resolves * 4;
+    surfaces.push_back({key, &stats, pixels * draw_equivalent});
+  }
+  std::sort(surfaces.begin(), surfaces.end(), [](const SurfaceWork &a, const SurfaceWork &b) {
+    return a.rank > b.rank;
+  });
+
+  if (!surfaces.empty()) {
+    std::vector<std::pair<u64, u64>> areas(s.render_area_window.begin(),
+                                           s.render_area_window.end());
+    std::sort(areas.begin(), areas.end(), [](const auto &a, const auto &b) {
+      return a.second > b.second;
+    });
+    std::string area_details;
+    for (size_t i = 0; i < std::min<size_t>(areas.size(), 3); ++i) {
+      if (i)
+        area_details += ", ";
+      area_details += std::format("{:016x} {:.0f}%", areas[i].first,
+                                  100.0 * areas[i].second / frames);
+    }
+    std::string details;
+    const f64 n = static_cast<f64>(frames);
+    const size_t count = std::min<size_t>(surfaces.size(), 6);
+    for (size_t i = 0; i < count; ++i) {
+      const auto &stats = *surfaces[i].stats;
+      if (i)
+        details += " | ";
+      const std::string dimensions =
+          stats.minWidth == stats.maxWidth && stats.minHeight == stats.maxHeight
+              ? std::format("{}x{}", stats.minWidth, stats.minHeight)
+              : std::format("{}-{}x{}-{}", stats.minWidth, stats.maxWidth, stats.minHeight,
+                            stats.maxHeight);
+      details += std::format(
+          "{}{}:t{} {} alloc {}x{} host {}x{}@{}x d{:.1f} r{:.2f} c{:.2f}",
+          stats.isDepth ? 'z' : 'c', stats.format, stats.baseTile, dimensions,
+          stats.allocWidth, stats.allocHeight, stats.hostWidth, stats.hostHeight, stats.samples,
+          stats.draws / n, stats.resolves / n, stats.clears / n);
+    }
+    EOT_INFO("[render-area] {} target signatures (top: {}) | {} targets | {}", areas.size(),
+             area_details, surfaces.size(), details);
+  }
+
+  std::vector<const VideoState::TextureWorkStats *> textures;
+  for (auto &[key, stats] : s.texture_work_window) {
+    if (stats.resolves)
+      textures.push_back(&stats);
+  }
+  std::sort(textures.begin(), textures.end(), [](const auto *a, const auto *b) {
+    const u64 a_pixels = u64(std::max(a->hostWidth, 1u)) * std::max(a->hostHeight, 1u);
+    const u64 b_pixels = u64(std::max(b->hostWidth, 1u)) * std::max(b->hostHeight, 1u);
+    return a_pixels * a->resolves > b_pixels * b->resolves;
+  });
+  if (!textures.empty()) {
+    std::string details;
+    const f64 n = static_cast<f64>(frames);
+    const size_t count = std::min<size_t>(textures.size(), 6);
+    for (size_t i = 0; i < count; ++i) {
+      const auto &texture = *textures[i];
+      if (i)
+        details += " | ";
+      const f64 dead_percent = texture.resolves
+                                   ? 100.0 * texture.deadResolves / texture.resolves
+                                   : 0.0;
+      details += std::format("{:#x} {}x{} host {}x{} f{} r{:.2f}/f dead{:.0f}% sample{:.1f}/f",
+                             texture.va, texture.width, texture.height, texture.hostWidth,
+                             texture.hostHeight, texture.format, texture.resolves / n,
+                             dead_percent, texture.samples / n);
+    }
+    EOT_INFO("[resolve-work] {} active destinations | {}", textures.size(), details);
+  }
+
+  s.surface_work_window.clear();
+  s.texture_work_window.clear();
+  s.render_area_window.clear();
+}
+
 void LogPerfLocked(VideoState &s) {
   const i32 every = Settings::PerfFrames();
   PerfCounters &p = s.perf;
@@ -285,6 +449,21 @@ void LogPerfLocked(VideoState &s) {
                    (p.fence_ms - q.fence_ms) - (g_pace_ms - q.pace_ms));
     }
   }
+  if (Settings::DiagScene()) {
+    static u32 armed = 0;
+    static u64 next_arm = 0;
+    const u32 draws_this_frame =
+        p.draws >= s.perf_prev_frame.draws ? p.draws - s.perf_prev_frame.draws : p.draws;
+    if (armed < 3 && draws_this_frame >= 400 && s.guest_frames >= next_arm &&
+        s.guest_frames >= static_cast<u64>(std::max(0, Settings::DiagSceneFrom()))) {
+      armed++;
+      next_arm = s.guest_frames + 400;
+      Settings::ArmDiagFrame(static_cast<i32>(s.guest_frames + 2));
+      EOT_INFO("[diag] scene reached at guest frame {}: logging the draws of frame {} ({} of 3)",
+               s.guest_frames, s.guest_frames + 2, armed);
+    }
+  }
+  CollectRenderWorkLocked(s, every > 0);
   EvictStaleGuestSurfaces(s);
   {
     const PerfCounters &prev = s.perf_prev_frame;
@@ -327,21 +506,41 @@ void LogPerfLocked(VideoState &s) {
   if (every <= 0 || static_cast<i32>(p.frames) < every)
     return;
   const f64 n = static_cast<f64>(p.frames);
-  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws; "
-           "setup {:.2f} psolk {:.2f} streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} dead) upload {:.2f} ({}) link "
-           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} vtxcache hit {} miss {} "
+  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws, {} noop; "
+           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin) upload {:.2f} ({}) link "
+           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
+           "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
            "idx {} const {} | gpu {}",
-           p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.setup_ms / n,
-           p.pso_lookup_ms / n, p.stream_ms / n, p.vertex_copy_ms / n, p.const_ms / n,
-           p.bind_ms / n, p.const_file_hits / p.frames, p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.dead_resolves / p.frames, p.upload_ms / n,
+           p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
+           p.setup_ms / n,
+           p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
+           p.vertex_copy_ms / n, p.const_ms / n,
+           p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
+           p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames,
+           p.surface_transfers / p.frames, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
-           p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
+           p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
+           p.geometry_vram_binds / p.frames, p.geometry_staging_binds / p.frames,
+           static_cast<f64>(p.vertex_bind_calls) / n,
+           static_cast<f64>(p.vertex_bind_requests) / n,
+           static_cast<f64>(p.index_bind_calls) / n,
+           static_cast<f64>(p.index_bind_requests) / n,
+           static_cast<f64>(p.framebuffer_cache_hits) / n,
+           static_cast<f64>(p.texture_bind_hits) / n,
+           static_cast<f64>(p.texture_bind_requests) / n,
+           static_cast<f64>(p.pipeline_bind_calls) / n,
+           static_cast<f64>(p.viewport_bind_calls) / n,
+           static_cast<f64>(p.scissor_bind_calls) / n,
+           static_cast<f64>(p.stencil_ref_calls) / n,
+           static_cast<f64>(p.texture_barrier_calls) / n,
+           static_cast<f64>(p.texture_barrier_resources) / n,
            p.acquire_ms / n, p.submit_ms / n, p.fence_ms / n, g_pace_ms / n,
            p.vertex_bytes / p.frames / 1024,
            p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024,
            GpuTimingSummary(p));
+  LogRenderAreaLocked(s, p.frames);
   p = PerfCounters{};
   p.last_present = now;
   g_pace_ms = 0.0;
@@ -466,13 +665,15 @@ void Video::Present(u32 front_buffer_texture_va) {
 
     auto *cmd = s.command_list;
     GpuTimingMark(s, cmd, kGpuCatPresent);
+    GpuTimingDiagMark(s, cmd, "present");
     plume::RenderTexture *back = s.swap_chain->getTexture(image);
     plume::RenderTextureBarrier to_rt(back, plume::RenderTextureLayout::COLOR_WRITE);
     cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_rt, 1);
     u32 src_index = kInvalidDescriptorIndex;
     if (front) {
       TransitionLocked(s, front->host, plume::RenderTextureLayout::SHADER_READ);
-      src_index = BindTextureSRVSwizzledLocked(s, front->host, (front->fetch[3] >> 1) & 0xFFF);
+      src_index = BindTextureSRVSwizzledLocked(s, front->host,
+                                               SamplingSwizzle(*front, front->fetch[3] >> 1));
       front->lastUseFrame = s.guest_frames;
       GpuTimingMark(s, cmd, kGpuCatPresent);
     }
@@ -505,7 +706,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
       const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
       DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index,
-                            (front->fetch[3] >> 1) & 0xFFF);
+                            SamplingSwizzle(*front, front->fetch[3] >> 1));
       cmd->setFramebuffer(s.swap_framebuffers[image].get());
     }
     if (src_index != kInvalidDescriptorIndex) {
@@ -556,6 +757,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     plume::RenderTextureBarrier to_present(back, plume::RenderTextureLayout::PRESENT);
     cmd->barriers(plume::RenderBarrierStage::NONE, &to_present, 1);
 
+    FlushGeometryStaging(s);
     GpuTimingFrameEnd(cmd);
     s.command_lists[cur]->end();
     s.command_list_open = false;
