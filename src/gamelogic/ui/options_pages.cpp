@@ -408,12 +408,12 @@ void SetLine(const PPCContext &ctx, uint8_t *base, uint32_t window, const char *
     return;
   const uint32_t text = g_block + kBlockText;
   uint32_t n = 0;
-  for (uint32_t i = 0; line[i] && n < 30; ++i) {
-    eot::mem::store<uint16_t>(text + n++ * 2, static_cast<uint16_t>(line[i]));
+  for (uint32_t i = 0; line[i] && n < 62; ++i) {
+    eot::mem::store<uint8_t>(text + n++, static_cast<uint8_t>(line[i]));
     if (line[i] == '%')
-      eot::mem::store<uint16_t>(text + n++ * 2, static_cast<uint16_t>('%'));
+      eot::mem::store<uint8_t>(text + n++, static_cast<uint8_t>('%'));
   }
-  eot::mem::store<uint16_t>(text + n * 2, 0);
+  eot::mem::store<uint8_t>(text + n, 0);
   hud::Call(ctx, base, hud::kTextWndSetString, window, text);
 }
 
