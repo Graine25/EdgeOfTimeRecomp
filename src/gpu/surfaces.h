@@ -9,6 +9,8 @@ namespace eot::gpu {
 struct VideoState;
 
 GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va);
+bool ReadSurfaceHeaderWords(u32 surface_va, u32 words[5]);
+GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 words[5]);
 
 void EvictStaleGuestSurfaces(VideoState &s);
 
