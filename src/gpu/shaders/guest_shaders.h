@@ -23,6 +23,7 @@ u32 GuestShaderCacheCount();
 
 GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel);
 GuestShader *FindGuestShader(VideoState &s, u32 object_va);
+void DrainShaderGraveyardLocked(VideoState &s);
 
 const ShaderCacheEntry *FindShaderCacheEntry(u64 hash);
 u64 CanonicalShaderHash(u64 hash);

@@ -131,8 +131,17 @@ bool GuestShadersInit() {
 u32 GuestShaderCacheCount() { return static_cast<u32>(g_shaderCacheEntryCount); }
 
 GuestShader *FindGuestShader(VideoState &s, u32 object_va) {
+  std::lock_guard lock(s.shaders_mutex);
   auto it = s.shaders.find(object_va);
   return it == s.shaders.end() ? nullptr : it->second.get();
+}
+
+void DrainShaderGraveyardLocked(VideoState &s) {
+  std::vector<std::unique_ptr<GuestShader>> dead;
+  {
+    std::lock_guard lock(s.shaders_mutex);
+    dead.swap(s.shader_graveyard);
+  }
 }
 
 u32 FloatConstantRegisters(const u8 *bytes, u32 size, u32 table_off, bool is_pixel) {
@@ -259,9 +268,12 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
   const u64 hash = XXH3_64bits_digest(xs);
   XXH3_freeState(xs);
 
-  auto &slot = s.shaders[object_va];
-  if (slot && slot->hash == hash)
-    return slot.get();
+  {
+    std::lock_guard lock(s.shaders_mutex);
+    auto it = s.shaders.find(object_va);
+    if (it != s.shaders.end() && it->second && it->second->hash == hash)
+      return it->second.get();
+  }
   auto sh = std::make_unique<GuestShader>();
   sh->va = object_va;
   sh->hash = hash;
@@ -310,6 +322,12 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
             is_pixel ? "ps" : "vs", object_va, hash, sh->entry ? "hit" : "MISS",
             sh->inputs.size(), sh->entry ? sh->entry->specConstantsMask : 0,
             sh->floatConstantRegs, sh->textureFetchMask);
+  std::lock_guard lock(s.shaders_mutex);
+  auto &slot = s.shaders[object_va];
+  if (slot && slot->hash == hash)
+    return slot.get();
+  if (slot)
+    s.shader_graveyard.push_back(std::move(slot));
   slot = std::move(sh);
   return slot.get();
 }

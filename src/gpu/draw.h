@@ -2,7 +2,15 @@
 
 #include <rex/types.h>
 
+#include "gpu/render_packets.h"
+
 namespace eot::gpu {
+
+struct VideoState;
+
+void ReplayDrawLocked(VideoState &s, const DrawPacket &pk);
+void ReplayClearLocked(VideoState &s, const ClearPacket &pk);
+void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk);
 
 struct FloatConstantDirty {
   bool vs = true;
@@ -20,7 +28,6 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 primitive_type, i32 base_vert
                                 u32 start_index, u32 index_count,
                                 FloatConstantDirty constants);
 
-struct VideoState;
 void FlushPendingTransitions(VideoState &s);
 void FlushGeometryStaging(VideoState &s);
 void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, float z, u32 stencil);

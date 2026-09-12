@@ -15,6 +15,7 @@
 #include "gpu/device.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/gpu_profiling.h"
+#include "gpu/render_thread.h"
 
 #include "gpu/draw.h"
 #include "gpu/format.h"
@@ -80,12 +81,12 @@ u32 ResolveStoreSwizzle(u32 fetch3) {
   return (sw & 7) == 2 ? (0x80000000u | kSwapRedBlue) : 0u;
 }
 
-void ClearSource(VideoState &s, GuestSurface &surf, u32 clear_color_va, float clear_z) {
+void ClearSource(VideoState &s, GuestSurface &surf, const float *clear_rgba, float clear_z) {
   surf.redirectMirror.reset();
   float rgba[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-  if (!surf.isDepth && clear_color_va) {
+  if (!surf.isDepth && clear_rgba) {
     for (u32 i = 0; i < 4; ++i)
-      rgba[i] = mem::f32at(clear_color_va + 4 * i);
+      rgba[i] = clear_rgba[i];
   }
   auto clear_image = [&](HostTexture &image) {
     HostTexture *colors[4] = {surf.isDepth ? nullptr : &image, nullptr, nullptr, nullptr};
@@ -116,15 +117,74 @@ void ClearSource(VideoState &s, GuestSurface &surf, u32 clear_color_va, float cl
   surf.perfClears++;
 }
 
+bool CaptureResolve(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va,
+                    u32 dest_point_va, u32 dest_level, u32 clear_color_va, float clear_z,
+                    ResolvePacket &pk) {
+  pk = ResolvePacket{};
+  pk.device_va = device_va;
+  pk.flags = flags;
+  pk.destVa = dest_texture_va;
+  pk.destLevel = dest_level;
+  pk.clearZ = clear_z;
+  const DeviceView dev = Device(device_va);
+  const u32 source = flags & 7;
+  const bool depth_source = source == 4;
+  pk.srcVa = depth_source ? dev.U32(dev::kDepthSurface)
+                          : dev.U32(dev::kRenderTarget0 + 4 * (source & 3));
+  if (pk.srcVa && !ReadSurfaceHeaderWords(pk.srcVa, pk.srcWords))
+    pk.srcVa = 0;
+  if (src_rect_va) {
+    pk.hasRect = true;
+    for (u32 i = 0; i < 4; ++i)
+      pk.rect[i] = mem::load<i32>(src_rect_va + 4 * i);
+  }
+  if (dest_point_va) {
+    pk.hasPoint = true;
+    pk.point[0] = mem::load<i32>(dest_point_va);
+    pk.point[1] = mem::load<i32>(dest_point_va + 4);
+  }
+  if (clear_color_va) {
+    pk.hasColor = true;
+    for (u32 i = 0; i < 4; ++i)
+      pk.rgba[i] = mem::f32at(clear_color_va + 4 * i);
+  }
+  if ((flags & 0x200) && !depth_source) {
+    pk.dsVa = dev.U32(dev::kDepthSurface);
+    if (pk.dsVa && !ReadSurfaceHeaderWords(pk.dsVa, pk.dsWords))
+      pk.dsVa = 0;
+  }
+  return true;
+}
+
 }
 
 void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va,
                   u32 dest_point_va, u32 dest_level, u32 clear_color_va, float clear_z) {
   auto &s = state();
-  std::lock_guard lock(s.mutex);
   if (!s.ready)
     return;
-  DeviceView dev = Device(device_va);
+  if (RenderThreadActive()) {
+    RenderEnqueue enqueue;
+    RenderCommand &c = enqueue.cmd();
+    c.type = RenderCommandType::Resolve;
+    if (CaptureResolve(device_va, flags, src_rect_va, dest_texture_va, dest_point_va, dest_level,
+                       clear_color_va, clear_z, c.resolve))
+      enqueue.commit();
+    return;
+  }
+  ResolvePacket pk;
+  if (!CaptureResolve(device_va, flags, src_rect_va, dest_texture_va, dest_point_va, dest_level,
+                      clear_color_va, clear_z, pk))
+    return;
+  std::lock_guard video_lock(s.mutex);
+  ReplayResolveLocked(s, pk);
+}
+
+void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
+  if (!s.ready)
+    return;
+  const u32 flags = pk.flags, dest_texture_va = pk.destVa, dest_level = pk.destLevel;
+  const float clear_z = pk.clearZ;
   BeginCommandList(s);
   if (!s.command_list_open)
     return;
@@ -136,9 +196,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
 
   const u32 source = flags & 7;
   const bool depth_source = source == 4;
-  const u32 src_va = depth_source ? dev.U32(dev::kDepthSurface)
-                                  : dev.U32(dev::kRenderTarget0 + 4 * (source & 3));
-  GuestSurface *surf = src_va ? GetGuestSurface(s, src_va) : nullptr;
+  const u32 src_va = pk.srcVa;
+  GuestSurface *surf = src_va ? GetGuestSurfaceWords(s, src_va, pk.srcWords) : nullptr;
   if (!surf || !surf->host.valid()) {
     u32 n;
     if (DiagShouldLog(0x7001, &n))
@@ -181,16 +240,16 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   }
 
   i32 x0 = 0, y0 = 0, x1 = static_cast<i32>(surf->width), y1 = static_cast<i32>(surf->height);
-  if (src_rect_va) {
-    x0 = mem::load<i32>(src_rect_va);
-    y0 = mem::load<i32>(src_rect_va + 4);
-    x1 = mem::load<i32>(src_rect_va + 8);
-    y1 = mem::load<i32>(src_rect_va + 12);
+  if (pk.hasRect) {
+    x0 = pk.rect[0];
+    y0 = pk.rect[1];
+    x1 = pk.rect[2];
+    y1 = pk.rect[3];
   }
   i32 dx = 0, dy = 0;
-  if (dest_point_va) {
-    dx = mem::load<i32>(dest_point_va);
-    dy = mem::load<i32>(dest_point_va + 4);
+  if (pk.hasPoint) {
+    dx = pk.point[0];
+    dy = pk.point[1];
   }
   x0 = std::max(0, x0);
   y0 = std::max(0, y0);
@@ -573,13 +632,12 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       return;
   }
   if (flags & 0x100)
-    ClearSource(s, *surf, clear_color_va, clear_z);
+    ClearSource(s, *surf, pk.hasColor ? pk.rgba : nullptr, clear_z);
   if ((flags & 0x200) && depth_source)
-    ClearSource(s, *surf, 0, clear_z);
+    ClearSource(s, *surf, nullptr, clear_z);
   else if (flags & 0x200) {
-    const u32 ds_va = dev.U32(dev::kDepthSurface);
-    if (GuestSurface *ds = ds_va ? GetGuestSurface(s, ds_va) : nullptr)
-      ClearSource(s, *ds, 0, clear_z);
+    if (GuestSurface *ds = pk.dsVa ? GetGuestSurfaceWords(s, pk.dsVa, pk.dsWords) : nullptr)
+      ClearSource(s, *ds, nullptr, clear_z);
   }
   s.bound_framebuffer = nullptr;
   DrainHostDebugMessages(s, "resolve");

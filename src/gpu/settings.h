@@ -41,6 +41,7 @@ struct Settings {
   static bool ResolveTransfer();
   static bool ShadowAtlasDirect();
   static bool GeometryVram();
+  static bool RenderThread();
   static bool StencilTwin();
   static f64 RenderScale();
   static std::string Resolution();
@@ -62,6 +63,7 @@ struct Settings {
   static bool DiagNoPso();
   static bool DiagExtraPso();
   static bool DiagNoVtx();
+  static bool DiagSkipDraw();
   static bool DiagNoConst();
   static void ArmDiagFrame(i32 frame);
   static i32 RenderDocFrame();

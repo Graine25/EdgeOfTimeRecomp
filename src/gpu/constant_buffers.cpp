@@ -1,7 +1,9 @@
 #include "gpu/constant_buffers.h"
 
+#include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #include "core/logging.h"
@@ -70,12 +72,14 @@ bool UploadRingInit() {
   return true;
 }
 
-static u64 g_ring_epoch = 0;
-u64 UploadRingEpoch() { return g_ring_epoch; }
+static std::mutex g_ring_mutex;
+static std::atomic<u64> g_ring_epoch{0};
+u64 UploadRingEpoch() { return g_ring_epoch.load(std::memory_order_acquire); }
 
 void UploadRingResetFrame(u32 slot) {
+  std::lock_guard lock(g_ring_mutex);
   auto &r = ring();
-  ++g_ring_epoch;
+  g_ring_epoch.fetch_add(1, std::memory_order_acq_rel);
   auto &chunks = r.chunks[slot];
   for (size_t i = 0; i < chunks.size(); ++i)
     chunks[i].used = 0;
@@ -92,28 +96,32 @@ bool UploadAllocate(u64 size, u64 alignment, UploadAlloc *out) {
     return false;
   auto &s = state();
   auto &r = ring();
-  auto &chunks = r.chunks[s.recording_slot()];
   if (alignment == 0)
     alignment = 1;
-  for (auto &c : chunks) {
-    const u64 start = (c.used + alignment - 1) / alignment * alignment;
-    if (start + size <= c.capacity) {
-      out->buffer = c.buffer.get();
-      out->offset = start;
-      out->cpu = c.cpu + start;
-      out->size = size;
-      out->gpuVa = c.gpuVa ? c.gpuVa + start : 0;
-      c.used = start + size;
-      r.frame_bytes[s.recording_slot()] += size;
-      return true;
+  std::lock_guard lock(g_ring_mutex);
+  const u32 slot = s.recording_slot();
+  auto &chunks = r.chunks[slot];
+  for (u32 attempt = 0; attempt < 2; ++attempt) {
+    for (auto &c : chunks) {
+      const u64 start = (c.used + alignment - 1) / alignment * alignment;
+      if (start + size <= c.capacity) {
+        out->buffer = c.buffer.get();
+        out->offset = start;
+        out->cpu = c.cpu + start;
+        out->size = size;
+        out->gpuVa = c.gpuVa ? c.gpuVa + start : 0;
+        c.used = start + size;
+        r.frame_bytes[slot] += size;
+        return true;
+      }
     }
+    Chunk c;
+    const u64 want = size + alignment > kChunkSize ? size + alignment : kChunkSize;
+    if (!MakeChunk(c, want))
+      return false;
+    chunks.push_back(std::move(c));
   }
-  Chunk c;
-  const u64 want = size + alignment > kChunkSize ? size + alignment : kChunkSize;
-  if (!MakeChunk(c, want))
-    return false;
-  chunks.push_back(std::move(c));
-  return UploadAllocate(size, alignment, out);
+  return false;
 }
 
 bool UploadBytes(const void *src, u64 size, u64 alignment, UploadAlloc *out) {
