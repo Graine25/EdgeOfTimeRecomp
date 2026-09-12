@@ -222,12 +222,10 @@ constexpr uint32_t kChoiceSize = 56;
 constexpr uint32_t kSliderKnob = 20;
 constexpr uint32_t kSliderKnobMin = 24;
 constexpr uint32_t kSliderKnobMax = 28;
-constexpr uint32_t kSliderValue = 36;
-constexpr uint32_t kSliderSize = 48;
+constexpr uint32_t kSliderSize = 40;
 constexpr uint32_t kStateIdle = 0;
 constexpr uint32_t kStateSelected = 1;
 constexpr uint32_t kStateDisabled = 2;
-constexpr uint32_t kValueTemplateCrc = 0xA0C1D9BC;
 }
 
 constexpr uint8_t kShadeIdle[4] = {135, 135, 135, 255};
@@ -546,9 +544,6 @@ void ShowSliderValue(const PPCContext &ctx, uint8_t *base, uint32_t control, con
   call.r3.u32 = control + ctl::kSliderKnob;
   call.f1.f64 = lo + (hi - lo) * t;
   __imp__eot_Wnd_SetX(call, base);
-  char line[32];
-  FormatStop(s, stop, line, sizeof(line));
-  SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kSliderValue), line);
 }
 
 void BindSliderRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Setting &s, bool selected) {
@@ -563,7 +558,6 @@ void BindSliderRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Set
   call.r3.u32 = control;
   call.r4.u32 = on && selected ? 1 : 0;
   __imp__eot_SliderControl_SetState(call, base);
-  SetShade(ctx, base, control + ctl::kSliderValue, !on ? kShadeDisabled : selected ? kShadeSelected : kShadeIdle);
   if (!on)
     for (uint32_t off = ctl::kRoot; off <= ctl::kSliderKnob; off += 4)
       SetShade(ctx, base, control + off, kShadeDisabled);
@@ -592,12 +586,9 @@ void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   SetStringHandle(ctx, base, g_windows.info_text, StringHandle(ctx, base, s.description));
   hud::Activate(ctx, base, g_windows.info_value, s.IsSlider());
   if (s.IsSlider()) {
-    char now[32], lo[32], hi[32], line[96];
+    char now[32];
     FormatStop(s, CurrentStop(s), now, sizeof(now));
-    FormatStop(s, 0, lo, sizeof(lo));
-    FormatStop(s, SliderStops(s) - 1, hi, sizeof(hi));
-    std::snprintf(line, sizeof(line), "%s   (%s - %s)", now, lo, hi);
-    SetLine(ctx, base, g_windows.info_value, line);
+    SetLine(ctx, base, g_windows.info_value, now);
   }
   hud::Activate(ctx, base, g_windows.info_note, s.restart);
 }
@@ -628,7 +619,6 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
   const uint32_t handles = g_block + kBlockHandles;
   eot::mem::store<uint32_t>(handles, 0xFFFFFFFFu);
   eot::mem::store<uint32_t>(handles + 4, 0xFFFFFFFFu);
-  const uint32_t value_template = hud::Find(ctx, base, ctl::kValueTemplateCrc);
   for (uint32_t row = 0; row < kRows; ++row) {
     const uint32_t choice = ChoiceControl(row);
     for (uint32_t off = 0; off < ctl::kChoiceSize; off += 4)
@@ -654,14 +644,8 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
     __imp__eot_SliderControl_Create(call, base);
     root = eot::mem::load<uint32_t>(slider + ctl::kRoot);
     hud::Call(ctx, base, hud::kWndSetParent, root, g_windows.row[row]);
-    const uint32_t value = hud::Call(ctx, base, hud::kCopyWnd, value_template);
-    eot::mem::store<uint32_t>(slider + ctl::kSliderValue, value);
-    hud::Call(ctx, base, hud::kWndSetParent, value, root);
-    hud::Call(ctx, base, hud::kWndAddFlags, value, hud::kFlagActive);
     PlaceLabel(ctx, base, eot::mem::load<uint32_t>(slider + ctl::kLabel));
-    PlaceValue(ctx, base, value, hud::kNoWindow, hud::kNoWindow);
-    for (uint32_t text : {eot::mem::load<uint32_t>(slider + ctl::kLabel), value})
-      ScaleText(ctx, base, text, kTextScale);
+    ScaleText(ctx, base, eot::mem::load<uint32_t>(slider + ctl::kLabel), kTextScale);
   }
   g_built = true;
   EOT_INFO("[menu] {} settings rows built", kRows);
