@@ -73,6 +73,7 @@ struct PerfCounters {
   u32 draws_skipped = 0;
   u32 surface_transfers = 0;
   u32 resolve_transfers = 0;
+  u32 resolve_noops = 0;
   u32 host_textures = 0, host_views = 0, host_framebuffers = 0, host_parked = 0;
   u32 host_tex_surface = 0, host_tex_mirror = 0, host_tex_guest = 0;
   u32 host_tex_recycled = 0;

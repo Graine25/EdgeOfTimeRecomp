@@ -449,14 +449,16 @@ void LogPerfLocked(VideoState &s) {
     }
   }
   if (Settings::DiagScene()) {
-    static bool armed = false;
+    static u32 armed = 0;
+    static u64 next_arm = 0;
     const u32 draws_this_frame =
         p.draws >= s.perf_prev_frame.draws ? p.draws - s.perf_prev_frame.draws : p.draws;
-    if (!armed && draws_this_frame >= 400) {
-      armed = true;
+    if (armed < 3 && draws_this_frame >= 400 && s.guest_frames >= next_arm) {
+      armed++;
+      next_arm = s.guest_frames + 400;
       Settings::ArmDiagFrame(static_cast<i32>(s.guest_frames + 2));
-      EOT_INFO("[diag] scene reached at guest frame {}: logging the draws of frame {}", s.guest_frames,
-               s.guest_frames + 2);
+      EOT_INFO("[diag] scene reached at guest frame {}: logging the draws of frame {} ({} of 3)",
+               s.guest_frames, s.guest_frames + 2, armed);
     }
   }
   CollectRenderWorkLocked(s, every > 0);
@@ -503,7 +505,7 @@ void LogPerfLocked(VideoState &s) {
     return;
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} dead, {} twin) upload {:.2f} ({}) link "
+           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} "
            "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
@@ -513,7 +515,7 @@ void LogPerfLocked(VideoState &s) {
            p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
            p.vertex_copy_ms / n, p.const_ms / n,
            p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
-           p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.dead_resolves / p.frames,
+           p.record_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames,
            p.surface_transfers / p.frames, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
@@ -660,6 +662,7 @@ void Video::Present(u32 front_buffer_texture_va) {
 
     auto *cmd = s.command_list;
     GpuTimingMark(s, cmd, kGpuCatPresent);
+    GpuTimingDiagMark(s, cmd, "present");
     plume::RenderTexture *back = s.swap_chain->getTexture(image);
     plume::RenderTextureBarrier to_rt(back, plume::RenderTextureLayout::COLOR_WRITE);
     cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_rt, 1);

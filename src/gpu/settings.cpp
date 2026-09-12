@@ -166,6 +166,10 @@ REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug",
 REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug",
                     "Log the eot_diag_frame detail for the frame after the first frame of the "
                     "run with 400 or more draws, whatever its index.");
+REXCVAR_DEFINE_BOOL(eot_diag_scissor, false, "EdgeOfTime/Debug",
+                    "Experiment: scissor every multisampled draw to one pixel (per-draw GPU cost only).");
+REXCVAR_DEFINE_BOOL(eot_diag_dump, false, "EdgeOfTime/Debug",
+                    "Dump every resolve source of the diagnostic frame as a PPM (submits and stalls per dump).");
 
 REXCVAR_DEFINE_INT32(eot_rdc_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame to capture with the in-process RenderDoc API "
@@ -222,6 +226,8 @@ i32 Settings::DiagFrame() {
   return armed > 0 ? armed : REXCVAR_GET(eot_diag_frame);
 }
 bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
+bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
+bool Settings::DiagScissor() { return REXCVAR_GET(eot_diag_scissor); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
