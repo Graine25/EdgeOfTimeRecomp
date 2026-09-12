@@ -54,6 +54,7 @@ struct PerfCounters {
   f64 const_float_ms = 0, rec_state_ms = 0, rec_bind_ms = 0;
   f64 guest_d3d_ms = 0;
   u32 guest_d3d_calls = 0;
+  f64 capture_ms = 0, present_wait_ms = 0, worker_idle_ms = 0;
   u32 index_cache_hits = 0, index_cache_misses = 0;
   u32 index_cache_evictions = 0;
   u32 vertex_cache_hits = 0, vertex_cache_misses = 0;
@@ -69,6 +70,8 @@ struct PerfCounters {
   u32 stencil_ref_calls = 0;
   u32 texture_barrier_calls = 0, texture_barrier_resources = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
+  f64 present_blit_ms = 0, present_house_ms = 0;
+  f64 replay_targets_ms = 0;
   f64 pace_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
   u32 resolve_copies = 0;
@@ -93,6 +96,19 @@ struct PerfCounters {
 
 inline u64 PerfNow() { return __rdtsc(); }
 f64 PerfMsPerTick();
+struct PerfScopeSampled {
+  f64 &acc;
+  u64 t0 = 0;
+  PerfScopeSampled(f64 &a, u32 &calls) : acc(a) {
+    if ((++calls & 15u) == 0)
+      t0 = PerfNow();
+  }
+  ~PerfScopeSampled() {
+    if (t0)
+      acc += 16.0 * static_cast<f64>(PerfNow() - t0) * PerfMsPerTick();
+  }
+};
+
 struct PerfScope {
   f64 &acc;
   u64 t0;
@@ -184,7 +200,7 @@ struct VideoState {
   std::string backend_info;
 
   std::mutex mutex;
-  bool ready = false;
+  std::atomic<bool> ready{false};
   std::atomic<bool> shutting_down{false};
   bool quiesced = false;
   std::atomic<bool> resize_requested{false};
@@ -253,6 +269,9 @@ struct VideoState {
   std::unordered_map<u32, SurfaceHeaderBinding> surface_key_by_va;
   std::unordered_map<u64, u64> orphaned_surface_frame;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
+  std::mutex shaders_mutex;
+  std::vector<std::unique_ptr<GuestShader>> shader_graveyard;
+  std::atomic<u64> shader_generation{1};
 
   struct CachedFramebuffer {
     std::unique_ptr<plume::RenderFramebuffer> fb;
@@ -301,6 +320,7 @@ struct VideoState {
   u32 last_front_buffer_va = 0;
 
   std::atomic<bool> pending_up_armed{false};
+  std::mutex guest_mutex;
   u32 current_vs_va = 0, current_ps_va = 0;
   const char *current_origin = "";
   u64 surface_generation = 0;
@@ -366,6 +386,7 @@ void ParkTexture(VideoState &s, std::unique_ptr<plume::RenderTexture> t);
 void ParkView(VideoState &s, std::unique_ptr<plume::RenderTextureView> v);
 void ParkFramebuffer(VideoState &s, std::unique_ptr<plume::RenderFramebuffer> f);
 void ParkBuffer(VideoState &s, std::unique_ptr<plume::RenderBuffer> b);
+void PresentLocked(VideoState &s, u32 front_buffer_texture_va);
 bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
                                 const plume::RenderTextureDesc &desc, const char *tag);
 void EvictHostTexturePool(VideoState &s);

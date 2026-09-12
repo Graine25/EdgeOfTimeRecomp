@@ -430,10 +430,7 @@ u32 PredictModelLoad(u32 model_va) {
     return 0;
   std::vector<Slot> slots;
   ModelDiag diag;
-  {
-    std::lock_guard lock(s.mutex);
-    SnapshotModel(s, model_va, slots, diag);
-  }
+  SnapshotModel(s, model_va, slots, diag);
   u32 no_template = 0;
   const u32 queued = EnqueueSlots(slots, true, &no_template);
   auto &p = predictor();
@@ -460,7 +457,6 @@ u32 PredictMaterialLoad(u32 material_va) {
   std::vector<Slot> slots;
   WalkDiag diag;
   {
-    std::lock_guard lock(s.mutex);
     Guest mat(material_va);
     if (mat)
       WalkMaterial(s, mat, nullptr, slots, diag);
@@ -485,7 +481,6 @@ void PredictorNoteShaderBundle(u32 bundle_va) {
     return;
   const u32 ps = b.U32(0), decl = b.U32(4), vs = b.U32(8);
   auto &s = state();
-  std::lock_guard lock(s.mutex);
   GuestShader *gvs = vs ? FindGuestShader(s, vs) : nullptr;
   if (!gvs && vs)
     gvs = RegisterGuestShader(s, vs, false);
@@ -518,7 +513,6 @@ void PredictorNoteShaderBundle(u32 bundle_va) {
     if (ps)
       p.nodeObjects.emplace(ps, std::make_pair(bundle_va, kBundleTechnique));
   }
-  s.mutex.unlock();
   u32 no_template = 0;
   const u32 queued = EnqueueSlots(slots, true, &no_template);
   {
@@ -528,7 +522,6 @@ void PredictorNoteShaderBundle(u32 bundle_va) {
     p.stats.noTemplate += no_template;
     WritePairsLocked(p, slots);
   }
-  s.mutex.lock();
 }
 
 void PredictorNoteShadowBias(float offset, float slope) {

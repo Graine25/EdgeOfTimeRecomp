@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <bit>
 
 #include <rex/types.h>
@@ -169,24 +170,37 @@ enum class DeclUsage : u8 {
   Sample = 13,
 };
 
+constexpr u32 kDevicePageShift = 5;
+inline std::atomic<u32> g_device_block_misses{0};
+
 struct DeviceView {
   u32 va = 0;
   const u8 *snapshot = nullptr;
   u32 snapshotSize = 0;
+  const bool *pages = nullptr;
+  const u8 *Resolve(u32 off, u32 bytes) const {
+    if (!snapshot || off + bytes > snapshotSize)
+      return nullptr;
+    if (pages && !(pages[off >> kDevicePageShift] && pages[(off + bytes - 1) >> kDevicePageShift])) {
+      g_device_block_misses.fetch_add(1, std::memory_order_relaxed);
+      return nullptr;
+    }
+    return snapshot + off;
+  }
   u32 U32(u32 off) const {
-    if (snapshot && off + 4 <= snapshotSize)
-      return static_cast<u32>(*reinterpret_cast<const be_u32 *>(snapshot + off));
+    if (const u8 *p = Resolve(off, 4))
+      return static_cast<u32>(*reinterpret_cast<const be_u32 *>(p));
     return mem::load<u32>(va + off);
   }
   f32 F32(u32 off) const { return std::bit_cast<f32>(U32(off)); }
   u8 U8(u32 off) const {
-    if (snapshot && off < snapshotSize)
-      return snapshot[off];
+    if (const u8 *p = Resolve(off, 1))
+      return *p;
     return mem::load<u8>(va + off);
   }
   const u8 *Bytes(u32 off, u32 bytes) const {
-    if (snapshot && off + bytes <= snapshotSize)
-      return snapshot + off;
+    if (const u8 *p = Resolve(off, bytes))
+      return p;
     return mem::at<u8>(va + off);
   }
   explicit operator bool() const { return va != 0; }

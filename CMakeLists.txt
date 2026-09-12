@@ -51,6 +51,8 @@ add_custom_command(
     DEPENDS pkztool
             "${REEOT_PKZ_DATA}/ReeotUI.manifest"
             "${REEOT_PKZ_DATA}/strings/ui.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SteelworksBook_texture_0.dds"
     COMMENT "Authoring ReeotUI.pkz from pkzlib/ReeotUI.manifest"
     VERBATIM)
 set(REEOT_MENU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotMenu.pkz")
@@ -128,6 +130,7 @@ set(REEOT_SOURCES
     src/gpu/surfaces.cpp
     src/gpu/vertex_layout.cpp
     src/gpu/draw.cpp
+    src/gpu/render_thread.cpp
     src/gpu/resolve.cpp
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp

@@ -39,6 +39,9 @@ REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video", "Frame rate cap")
 REXCVAR_DEFINE_BOOL(eot_resolve_copy, true, "EdgeOfTime/Config", "Resolve with texture copies");
 REXCVAR_DEFINE_BOOL(eot_stencil_twin, true, "EdgeOfTime/Config", "Copy stencil to twin");
 REXCVAR_DEFINE_BOOL(eot_geometry_vram, true, "EdgeOfTime/Config", "Keep geometry caches in VRAM");
+REXCVAR_DEFINE_BOOL(eot_render_thread, true, "EdgeOfTime/Config", "Render on its own thread");
+REXCVAR_DEFINE_INT32(eot_fast_setters, 31, "EdgeOfTime/Config", "Fast setter hook bits");
+REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug", "Check fast setters match");
 REXCVAR_DEFINE_BOOL(eot_shadow_atlas_direct, true, "EdgeOfTime/Config", "Draw shadows into atlas");
 REXCVAR_DEFINE_BOOL(eot_resolve_transfer, true, "EdgeOfTime/Config", "Hand off resolved images");
 REXCVAR_DEFINE_BOOL(eot_resolve_hw, true, "EdgeOfTime/Config", "Hardware MSAA resolves");
@@ -81,6 +84,7 @@ REXCVAR_DEFINE_INT32(eot_diag_scene_from, 0, "EdgeOfTime/Debug", "First frame fo
     .range(0, 100000000);
 REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug", "Detail log the first scene");
 REXCVAR_DEFINE_BOOL(eot_diag_scissor, false, "EdgeOfTime/Debug", "Test: one pixel draws");
+REXCVAR_DEFINE_BOOL(eot_diag_skipdraw, false, "EdgeOfTime/Debug", "Test: record no draws");
 REXCVAR_DEFINE_BOOL(eot_diag_novtx, false, "EdgeOfTime/Debug", "Test: three indices only");
 REXCVAR_DEFINE_BOOL(eot_diag_extrapso, false, "EdgeOfTime/Debug", "Test: extra pipeline switch");
 REXCVAR_DEFINE_BOOL(eot_diag_nopso, false, "EdgeOfTime/Debug", "Test: keep bound pipeline");
@@ -118,6 +122,9 @@ bool Settings::ResolveHardware() { return REXCVAR_GET(eot_resolve_hw); }
 bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
 bool Settings::ShadowAtlasDirect() { return REXCVAR_GET(eot_shadow_atlas_direct); }
 bool Settings::GeometryVram() { return REXCVAR_GET(eot_geometry_vram); }
+bool Settings::RenderThread() { return REXCVAR_GET(eot_render_thread); }
+i32 Settings::FastSetters() { return REXCVAR_GET(eot_fast_setters); }
+bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
 bool Settings::StencilTwin() { return REXCVAR_GET(eot_stencil_twin); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
@@ -143,6 +150,7 @@ bool Settings::DiagRectClear() { return REXCVAR_GET(eot_diag_rectclear); }
 bool Settings::DiagNoPso() { return REXCVAR_GET(eot_diag_nopso); }
 bool Settings::DiagExtraPso() { return REXCVAR_GET(eot_diag_extrapso); }
 bool Settings::DiagNoVtx() { return REXCVAR_GET(eot_diag_novtx); }
+bool Settings::DiagSkipDraw() { return REXCVAR_GET(eot_diag_skipdraw); }
 bool Settings::DiagNoConst() { return REXCVAR_GET(eot_diag_noconst); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }

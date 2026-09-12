@@ -21,6 +21,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
 plume::RenderFramebuffer *GetMipFramebuffer(VideoState &s, GuestTexture &t, u32 mip);
 
 void NotifyResourceUnlocked(u32 resource_va);
+void NotifyResourceUnlockedLocked(VideoState &s, u32 resource_va);
 u64 ResourceUnlockSeq(u32 resource_va);
 
 }

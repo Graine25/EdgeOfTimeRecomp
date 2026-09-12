@@ -1,4 +1,5 @@
 #include "gpu/textures.h"
+#include "gpu/render_thread.h"
 
 #include <algorithm>
 #include <cstring>
@@ -353,14 +354,22 @@ void NotifyResourceUnlocked(u32 resource_va) {
     u.global.store(next, std::memory_order_release);
   }
   auto &s = state();
+  if (RenderThreadActive()) {
+    RenderThreadUnlock(resource_va);
+    return;
+  }
   std::unique_lock lock(s.mutex, std::try_to_lock);
   if (lock.owns_lock()) {
-    const auto texture = s.textures.find(resource_va);
-    if (texture != s.textures.end() && texture->second)
-      texture->second->bindingGeneration++;
+    NotifyResourceUnlockedLocked(s, resource_va);
   } else {
     s.texture_generation.fetch_add(1, std::memory_order_relaxed);
   }
+}
+
+void NotifyResourceUnlockedLocked(VideoState &s, u32 resource_va) {
+  const auto texture = s.textures.find(resource_va);
+  if (texture != s.textures.end() && texture->second)
+    texture->second->bindingGeneration++;
 }
 
 u64 ResourceUnlockSeq(u32 resource_va) {
