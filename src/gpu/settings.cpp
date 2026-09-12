@@ -84,9 +84,10 @@ REXCVAR_DEFINE_BOOL(eot_geometry_vram, true, "EdgeOfTime/Config",
 REXCVAR_DEFINE_BOOL(eot_render_thread, true, "EdgeOfTime/Config",
                     "Record and submit the host frame on a render thread; the game thread "
                     "captures each draw and waits only at the frame's present.");
-REXCVAR_DEFINE_INT32(eot_fast_setters, 7, "EdgeOfTime/Config",
-                     "Bits: 1 SetTexture, 2 SetStreamSource, 4 SetIndices done in the hook "
-                     "instead of by the recompiled XDK function (the same device stores).");
+REXCVAR_DEFINE_INT32(eot_fast_setters, 31, "EdgeOfTime/Config",
+                     "Bits: 1 SetTexture, 2 SetStreamSource, 4 SetIndices, 8 SetVertexShader and "
+                     "SetPixelShader, 16 the draws' pending-state flush, done in the hook instead "
+                     "of by the recompiled XDK function (the same device stores, no PM4).");
 REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug",
                     "Run both the hook's setter and the XDK's on every call and log any "
                     "difference in what they wrote.");

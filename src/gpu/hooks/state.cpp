@@ -8,6 +8,7 @@
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
+#include "gpu/hooks/fast_guest.h"
 #include "gpu/settings.h"
 #include "gpu/trace.h"
 
@@ -16,43 +17,98 @@ using namespace eot::gpu;
 
 namespace {
 
-constexpr u32 kDevReleaseStamp = 11036;  // 0x2B1C
-constexpr u32 kDevReleaseMask = 11040;   // 0x2B20
+using namespace eot::gpu::fastguest;
+
 constexpr u32 kDevSamplerMinMip = 12332;
 constexpr u32 kDevSamplerMaxMip = 12358;
 constexpr u32 kDevDeclStride = 12240;
-constexpr u32 kDevPendingGroup2 = 16;    // u64: vertex declaration dirty bit 0x80000
+constexpr u32 kDevShaderFlags = 11070;   // 0x2B3E: bit 7 cleared by SetVertexShader
+constexpr u32 kDevPendingGroup0 = 0;
+constexpr u32 kDevPendingGroup1 = 8;
+constexpr u32 kDevPendingGroup2 = 16;
 constexpr u32 kDevPendingGroup3 = 24;
-constexpr u32 kObjReleaseStamp = 8;
+constexpr u32 kDevPendingGroup4 = 32;
+constexpr u32 kDevConstantArea = 1152;
 constexpr u32 kTexFetch = 28;
 constexpr u32 kVbAddress = 24, kVbSize = 28;
+constexpr u32 kPsLiteralTable = 60;
+constexpr u32 kVsRecord = 872;
 
-inline u8 *Guest(u8 *base, u32 va) { return base + va + (va >= 0xE0000000u ? 0x1000u : 0u); }
-inline const u8 *Guest(const u8 *base, u32 va) {
-  return base + va + (va >= 0xE0000000u ? 0x1000u : 0u);
-}
-
-inline u32 Ld32(const u8 *p) { return rex::memory::load_and_swap<u32>(p); }
-inline u64 Ld64(const u8 *p) { return rex::memory::load_and_swap<u64>(p); }
-inline void St32(u8 *p, u32 v) {
-  v = __builtin_bswap32(v);
-  std::memcpy(p, &v, 4);
-}
-inline void St64(u8 *p, u64 v) {
-  v = __builtin_bswap64(v);
-  std::memcpy(p, &v, 8);
-}
-
-inline bool NeedsRing(const u8 *base, const u8 *dev, u32 old) {
-  if (!old || Ld32(dev + kDevReleaseStamp) != 0)
-    return false;
-  return (Ld32(dev + kDevReleaseMask) & Ld32(Guest(base, old))) != 0;
-}
-inline void StampReplaced(u8 *base, const u8 *dev, u32 old) {
-  if (!old)
+void ApplyLiteralTable(u8 *dev, const u8 *table, u32 pending_group) {
+  St64(dev + pending_group, Ld64(dev + pending_group) & ~Ld64(table));
+  if (Ld64(table + 8) != 0)
+    St64(dev + kDevPendingGroup4, Ld64(dev + kDevPendingGroup4) | (1ull << 56));
+  const u32 size = Ld32(table + 16);
+  const u8 *p = table + 20;
+  const u8 *end = p + size;
+  while (p < end) {
+    const u16 count = Ld16(p + 2);
+    p += 4;
+    if (count == 0)
+      break;
+    p += 4;
+  }
+  if (p >= end)
     return;
-  if (const u32 stamp = Ld32(dev + kDevReleaseStamp))
-    St32(Guest(base, old) + kObjReleaseStamp, stamp);
+  while (p < end) {
+    const u16 off = Ld16(p), count = Ld16(p + 2);
+    p += 4;
+    if (count == 0)
+      break;
+    std::memcpy(dev + kDevConstantArea + off, p, count * 4u);
+    p += count * 4u;
+  }
+  while (p < end) {
+    const u16 off = Ld16(p);
+    u32 count = Ld16(p + 2);
+    p += 4;
+    if (count == 0)
+      return;
+    u8 *dst = dev + kDevConstantArea + off;
+    do {
+      const u32 mask = Ld32(p), value = Ld32(p + 4);
+      St32(dst, (Ld32(dst) & mask) | value);
+      dst += 4;
+      p += 8;
+      count = (count + 65536u - 2u) & 0xFFFFu;
+    } while (count != 0);
+  }
+}
+
+bool FastSetPixelShader(u8 *base, u32 device, u32 shader) {
+  u8 *dev = Guest(base, device);
+  const u32 old = Ld32(dev + dev::kPixelShader);
+  if (NeedsRing(base, dev, old))
+    return false;
+  StampReplaced(base, dev, old);
+  St32(dev + dev::kPixelShader, shader);
+  St64(dev + kDevPendingGroup2, Ld64(dev + kDevPendingGroup2) | 0x120000ull);
+  if (!shader)
+    return true;
+  const u8 *obj = Guest(base, shader);
+  const u32 table = Ld32(obj + kPsLiteralTable);
+  if (table)
+    ApplyLiteralTable(dev, obj + 40 + table, kDevPendingGroup1);
+  return true;
+}
+
+bool FastSetVertexShader(u8 *base, u32 device, u32 shader) {
+  u8 *dev = Guest(base, device);
+  const u32 old = Ld32(dev + dev::kVertexShader);
+  if (NeedsRing(base, dev, old))
+    return false;
+  if (shader)
+    St64(dev + kDevPendingGroup2, Ld64(dev + kDevPendingGroup2) | 0x80000ull);
+  StampReplaced(base, dev, old);
+  dev[kDevShaderFlags] &= 0x7F;
+  St32(dev + dev::kVertexShader, shader);
+  if (!shader || shader + kVsRecord == 0)
+    return true;
+  const u8 *rec = Guest(base, shader + kVsRecord);
+  const u32 table = Ld32(rec + 20);
+  if (table)
+    ApplyLiteralTable(dev, rec + table, kDevPendingGroup0);
+  return true;
 }
 
 bool FastSetTexture(u8 *base, u32 device, u32 sampler, u32 texture, u64 mask) {
@@ -280,8 +336,28 @@ extern "C" REX_FUNC(D3DDevice_SetTexture) {
 
 extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
   FlushPendingUpDraw();
-  const u32 shader = ctx.r4.u32;
-  {
+  const u32 device = ctx.r3.u32, shader = ctx.r4.u32;
+  static const bool fast = (Settings::FastSetters() & 8) != 0;
+  static const bool verify = Settings::FastSettersVerify();
+  bool done = false;
+  if (fast && device) {
+    if (verify) {
+      u8 *dev = Guest(base, device);
+      DeviceCompare cmp;
+      cmp.Snapshot(dev, cmp.before);
+      if (FastSetVertexShader(base, device, shader)) {
+        cmp.Snapshot(dev, cmp.after_fast);
+        cmp.Restore(dev);
+        __imp__D3DDevice_SetVertexShader(ctx, base);
+        cmp.Snapshot(dev, cmp.after_orig);
+        cmp.Report("SetVertexShader", nullptr, 0);
+        done = true;
+      }
+    } else {
+      done = FastSetVertexShader(base, device, shader);
+    }
+  }
+  if (!done) {
     PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetVertexShader(ctx, base);
   }
@@ -291,8 +367,28 @@ extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
 
 extern "C" REX_FUNC(D3DDevice_SetPixelShader) {
   FlushPendingUpDraw();
-  const u32 shader = ctx.r4.u32;
-  {
+  const u32 device = ctx.r3.u32, shader = ctx.r4.u32;
+  static const bool fast = (Settings::FastSetters() & 8) != 0;
+  static const bool verify = Settings::FastSettersVerify();
+  bool done = false;
+  if (fast && device) {
+    if (verify) {
+      u8 *dev = Guest(base, device);
+      DeviceCompare cmp;
+      cmp.Snapshot(dev, cmp.before);
+      if (FastSetPixelShader(base, device, shader)) {
+        cmp.Snapshot(dev, cmp.after_fast);
+        cmp.Restore(dev);
+        __imp__D3DDevice_SetPixelShader(ctx, base);
+        cmp.Snapshot(dev, cmp.after_orig);
+        cmp.Report("SetPixelShader", nullptr, 0);
+        done = true;
+      }
+    } else {
+      done = FastSetPixelShader(base, device, shader);
+    }
+  }
+  if (!done) {
     PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetPixelShader(ctx, base);
   }
