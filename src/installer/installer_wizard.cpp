@@ -231,6 +231,7 @@ InstallerWizard::InstallerWizard(rex::ui::ImGuiDrawer *drawer, rex::ui::Immediat
     EOT_ERROR("[install] {}", MissingProgramFilesLine());
   SuggestDefaults();
   Prefill();
+  music_.Start();
 }
 
 std::string InstallerWizard::MissingProgramFilesLine() const {
@@ -319,6 +320,7 @@ void InstallerWizard::Finish(bool completed) {
   if (finished_)
     return;
   finished_ = true;
+  music_.Stop();
 
   InstallConfig cfg;
   cfg.install_root = std::filesystem::absolute(install_dir_);
@@ -490,7 +492,9 @@ void InstallerWizard::StartInstall(bool disc_and_update) {
   }
 }
 
-void InstallerWizard::OnDraw(ImGuiIO &) {
+void InstallerWizard::OnDraw(ImGuiIO &io) {
+  music_.Update(io.DeltaTime);
+  shown_seconds_ += io.DeltaTime;
   if (unattended_ && page_ == Page::Main && !finished_) {
     if (InputsReady()) {
       StartInstall();
@@ -522,6 +526,14 @@ void InstallerWizard::OnDraw(ImGuiIO &) {
   }
 
   auto *vp = ImGui::GetMainViewport();
+  constexpr float kFadeInSeconds = 2.0f;
+  if (shown_seconds_ < kFadeInSeconds) {
+    const float t = shown_seconds_ / kFadeInSeconds;
+    const float alpha = (1.0f - t) * (1.0f - t);
+    ImGui::GetForegroundDrawList()->AddRectFilled(
+        vp->Pos, ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y),
+        IM_COL32(0, 0, 0, static_cast<int>(alpha * 255.0f)));
+  }
   ImGui::SetNextWindowPos(vp->WorkPos);
   ImGui::SetNextWindowSize(vp->WorkSize);
   ImGui::SetNextWindowBgAlpha(0.0f);

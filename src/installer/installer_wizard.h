@@ -14,6 +14,7 @@
 #include <rex/ui/windowed_app_context.h>
 
 #include "installer/disc_install.h"
+#include "installer/installer_music.h"
 #include "installer/install_registry.h"
 
 struct ImFontAtlas;
@@ -112,6 +113,9 @@ private:
 
   InstallProgress progress_;
   std::thread install_thread_;
+
+  Music music_;
+  float shown_seconds_ = 0.0f;
   std::string done_message_;
   bool done_success_ = false;
 };
