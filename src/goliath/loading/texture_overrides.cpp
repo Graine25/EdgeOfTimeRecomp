@@ -44,6 +44,7 @@ constexpr Override Make(const char *retail, const char *replacement, const char 
 
 constexpr Override kOverrides[] = {
     Make("TempusGothic_texture_0", "Reeot_Font_TempusGothic_4x", "TempusGothic"),
+    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_4x", "SansaCon"),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");

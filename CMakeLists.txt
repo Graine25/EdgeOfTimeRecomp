@@ -50,6 +50,8 @@ add_custom_command(
     DEPENDS pkztool
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotUI.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SteelworksBook_texture_0.dds"
     COMMENT "Authoring ReeotUI.pkz from tools/pkz/ReeotUI.manifest"
     VERBATIM)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
