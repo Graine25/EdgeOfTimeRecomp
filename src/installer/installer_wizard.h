@@ -69,7 +69,9 @@ private:
   void ValidateDisc();
   void ValidateUpdate();
   bool InputsReady() const;
-  void StartInstall();
+  bool CanContinue() const;
+  void ContinueRepair();
+  void StartInstall(bool disc_and_update = true);
   void Finish(bool completed);
 
   rex::ui::WindowedAppContext &app_context_;
