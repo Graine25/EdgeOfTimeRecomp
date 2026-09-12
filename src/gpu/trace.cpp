@@ -19,6 +19,8 @@ struct State {
   std::atomic<u32> counters[static_cast<u32>(Counter::Count)] = {};
   std::atomic<i32> frames_left{-1};
   std::atomic<u64> frames_seen{0};
+  std::atomic<bool> trace_on{false};
+  std::atomic<bool> summary_on{false};
 };
 
 State &st() {
@@ -26,11 +28,23 @@ State &st() {
   return s;
 }
 
+void Refresh(State &s) {
+  const i64 seen = static_cast<i64>(s.frames_seen.load(std::memory_order_relaxed));
+  s.trace_on.store(s.frames_left.load(std::memory_order_relaxed) > 0 &&
+                       seen >= Settings::TraceStartFrame(),
+                   std::memory_order_relaxed);
+  const i32 summary_frames = Settings::SummaryFrames();
+  s.summary_on.store(summary_frames > 0 && seen < static_cast<i64>(summary_frames),
+                     std::memory_order_relaxed);
+}
+
 void InitOnce(State &s) {
   i32 expected = -1;
-  if (s.frames_left.load(std::memory_order_relaxed) == expected)
+  if (s.frames_left.load(std::memory_order_relaxed) == expected) {
     s.frames_left.compare_exchange_strong(expected, Settings::TraceFrames(),
                                           std::memory_order_relaxed);
+    Refresh(s);
+  }
 }
 
 const char *CounterName(Counter c) {
@@ -75,10 +89,7 @@ const char *CounterName(Counter c) {
 bool Enabled() {
   auto &s = st();
   InitOnce(s);
-  if (s.frames_left.load(std::memory_order_relaxed) <= 0)
-    return false;
-  return static_cast<i64>(s.frames_seen.load(std::memory_order_relaxed)) >=
-         Settings::TraceStartFrame();
+  return s.trace_on.load(std::memory_order_relaxed);
 }
 
 void Line(std::string_view text) {
@@ -90,9 +101,7 @@ void Line(std::string_view text) {
 
 void Bump(Counter c) {
   auto &s = st();
-  const i32 summary_frames = Settings::SummaryFrames();
-  if (summary_frames <= 0 ||
-      s.frames_seen.load(std::memory_order_relaxed) >= static_cast<u64>(summary_frames))
+  if (!s.summary_on.load(std::memory_order_relaxed))
     return;
   s.counters[static_cast<u32>(c)].fetch_add(1, std::memory_order_relaxed);
 }
@@ -111,6 +120,7 @@ void EndFrame(u64 frame_index) {
     s.frames_left.fetch_sub(1, std::memory_order_relaxed);
   }
   s.lines.clear();
+  Refresh(s);
   const bool emit_summary = static_cast<i64>(frames_seen) <= Settings::SummaryFrames();
   std::string summary;
   for (u32 i = 0; i < static_cast<u32>(Counter::Count); ++i) {

@@ -1,5 +1,8 @@
+#include <cstring>
+
 #include <rex/hook.h>
 
+#include "core/memory_helpers.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
@@ -19,10 +22,15 @@ namespace {
 FloatConstantDirty PendingFloatConstants(u32 device_va) {
   if (!device_va)
     return {};
-  const DeviceView dev = Device(device_va);
+  const u8 *pending = eot::mem::at<u8>(device_va + eot::gpu::dev::kPendingMask);
+  if (!pending)
+    return {};
   auto group_dirty = [&](u32 group) {
-    const u32 off = eot::gpu::dev::kPendingMask + group * 8;
-    return dev.U32(off) != 0 || dev.U32(off + 4) != 0;
+    const u8 *q = pending + group * 8;
+    u32 lo, hi;
+    std::memcpy(&lo, q, 4);
+    std::memcpy(&hi, q + 4, 4);
+    return lo != 0 || hi != 0;
   };
   return {group_dirty(0), group_dirty(1)};
 }
@@ -34,8 +42,7 @@ extern "C" REX_FUNC(D3DDevice_DrawVertices) {
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32, start = ctx.r5.u32, count = ctx.r6.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_DrawVertices(ctx, base);
   }
   EOT_TRACE_CALL("DrawVertices prim={} start={} count={}", prim, start, count);
@@ -50,8 +57,7 @@ extern "C" REX_FUNC(D3DDevice_DrawIndexedVertices) {
   const u32 start_index = ctx.r6.u32, count = ctx.r7.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_DrawIndexedVertices(ctx, base);
   }
   EOT_TRACE_CALL("DrawIndexedVertices prim={} base={} start={} count={}", prim, base_vertex,
@@ -66,8 +72,7 @@ extern "C" REX_FUNC(D3DDevice_ClearF) {
   const float z = static_cast<float>(ctx.f1.f64);
   const u32 stencil = ctx.r7.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_ClearF(ctx, base);
   }
   EOT_TRACE_CALL("ClearF flags={:#x} rect={:#x} color={:#x} z={} stencil={}", flags, rect, color,
@@ -83,8 +88,7 @@ extern "C" REX_FUNC(D3DDevice_Resolve) {
   const u32 r10 = ctx.r10.u32;
   const float clear_z = static_cast<float>(ctx.f1.f64);
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_Resolve(ctx, base);
   }
   EOT_TRACE_CALL("Resolve flags={:#x} src={} rect={:#x} dest={:#x} point={:#x} level={} "
@@ -100,8 +104,7 @@ extern "C" REX_FUNC(D3DDevice_BeginVertices) {
   const u32 device = ctx.r3.u32, prim = ctx.r4.u32, count = ctx.r5.u32, stride = ctx.r6.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_BeginVertices(ctx, base);
   }
   const u32 data = ctx.r3.u32;
@@ -116,8 +119,7 @@ extern "C" REX_FUNC(D3DDevice_BeginIndexedVertices) {
   const u32 prim = ctx.r4.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_BeginIndexedVertices(ctx, base);
   }
   if (constants.vs || constants.ps) {

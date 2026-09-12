@@ -693,8 +693,8 @@ u64 SampleHostBytes(const u8 *p, u32 bytes) {
     h *= 1099511628211ull;
   };
   const u32 span = bytes >= 16 ? bytes - 16 : 0;
-  for (u32 k = 0; k < 8; ++k) {
-    const u32 base = static_cast<u32>((u64(span) * k / 7) & ~3ull);
+  for (u32 k = 0; k < 2; ++k) {
+    const u32 base = static_cast<u32>((u64(span) * k) & ~3ull);
     for (u32 i = 0; i < 16 && base + i + 4 <= bytes; i += 4)
       mix(base + i);
   }
@@ -707,11 +707,16 @@ struct BufferPool {
   std::vector<IndexCacheChunk> chunks;
   u64 totalBytes = 0;
   std::vector<std::unique_ptr<plume::RenderBuffer>> retired;
+  std::atomic<bool> hasRetired{false};
+  std::atomic<u64> flushEpoch{1};
 };
 void PoolDrainRetired(VideoState &s, BufferPool &pool) {
+  if (!pool.hasRetired.load(std::memory_order_acquire))
+    return;
   std::vector<std::unique_ptr<plume::RenderBuffer>> retired;
   {
     std::lock_guard lock(pool.mutex);
+    pool.hasRetired.store(false, std::memory_order_relaxed);
     if (pool.retired.empty())
       return;
     retired.swap(pool.retired);
@@ -737,6 +742,7 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
       if (ch.vram)
         pool.retired.push_back(std::move(ch.vram));
     }
+    pool.hasRetired.store(true, std::memory_order_release);
     pool.chunks.clear();
     pool.totalBytes = 0;
     *reset = true;
@@ -825,6 +831,7 @@ void PoolFlushToVram(VideoState &s, BufferPool &pool, plume::RenderBufferFlags f
     cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1, nullptr, 0);
     (void)flags;
     ch.vramValidUpTo = ch.sealed;
+    pool.flushEpoch.fetch_add(1, std::memory_order_release);
   }
 }
 bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, u64 *offset,
@@ -865,6 +872,7 @@ bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, 
       pool.retired.push_back(std::move(victim->buffer));
       if (victim->vram)
         pool.retired.push_back(std::move(victim->vram));
+      pool.hasRetired.store(true, std::memory_order_release);
     }
     pool.chunks.erase(victim);
     pool.totalBytes -= std::min(pool.totalBytes, released);
@@ -929,6 +937,8 @@ struct VertexMirror {
   u64 offset = 0;
   u32 size = 0;
   u64 lastUseFrame = 0;
+  mutable plume::RenderBuffer *resident = nullptr;
+  mutable u64 residentEpoch = 0;
 };
 struct VertexMirrorCache {
   std::unordered_map<VertexMirrorKey, VertexMirror, VertexMirrorKeyHash> map;
@@ -1016,9 +1026,12 @@ const CachedIndexRange *GetCachedIndexRange(VideoState &s, u32 ib_va, u32 prim, 
                                             u32 count) {
   if (!ib_va || !count || prim == kPrimRectList)
     return nullptr;
-  const u32 common = mem::load<u32>(ib_va + obj::kCommon);
-  const u32 data_va = mem::load<u32>(ib_va + obj::kBufferFetch0);
-  const u32 size = mem::load<u32>(ib_va + obj::kBufferFetch1);
+  const u8 *ib = mem::at<u8>(ib_va);
+  if (!ib)
+    return nullptr;
+  const u32 common = rex::memory::load_and_swap<u32>(ib + obj::kCommon);
+  const u32 data_va = rex::memory::load_and_swap<u32>(ib + obj::kBufferFetch0);
+  const u32 size = rex::memory::load_and_swap<u32>(ib + obj::kBufferFetch1);
   if (!data_va)
     return nullptr;
   const bool is32 = (common & obj::kIndexBuffer32BitBit) != 0;
@@ -1041,8 +1054,10 @@ const CachedIndexRange *GetCachedIndexRange(VideoState &s, u32 ib_va, u32 prim, 
   auto &c = index_cache();
   auto it = c.map.find(key);
   if (it != c.map.end()) {
-    it->second.lastUseFrame = s.guest_frames;
-    TouchIndexCacheBuffer(it->second.buffer, s.guest_frames);
+    if (it->second.lastUseFrame != s.guest_frames) {
+      it->second.lastUseFrame = s.guest_frames;
+      TouchIndexCacheBuffer(it->second.buffer, s.guest_frames);
+    }
     s.perf.index_cache_hits++;
     return &it->second;
   }
@@ -1538,8 +1553,7 @@ bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {
   return true;
 }
 
-constexpr u32 kFloatFilesEnd = dev::kPsFloatConstants + 256u * 16u;
-static_assert(kFloatFilesEnd == dev::kVsBoolConstants);
+static_assert(dev::kPsFloatConstants + 256u * 16u == dev::kVsBoolConstants);
 
 bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
                  const u8 *device_image, DrawPacket &pk) {
@@ -1575,17 +1589,35 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("device unreadable", 0x6000);
     return false;
   }
-  std::memcpy(pk.window, regs, dev::kVsFloatConstants);
-  std::memcpy(pk.window + kFloatFilesEnd, regs + kFloatFilesEnd, kDeviceSnapshotBytes - kFloatFilesEnd);
+  pk.window.Capture(regs);
 
   const u32 vs_va = dev.U32(dev::kVertexShader);
   const u32 ps_va = dev.U32(dev::kPixelShader);
-  GuestShader *vs = FindGuestShader(s, vs_va);
-  if (!vs && vs_va)
-    vs = RegisterGuestShader(s, vs_va, false);
-  GuestShader *ps = FindGuestShader(s, ps_va);
-  if (!ps && ps_va)
-    ps = RegisterGuestShader(s, ps_va, true);
+  struct ShaderLookupCache {
+    u64 generation = 0;
+    u32 vs_va = 0, ps_va = 0;
+    GuestShader *vs = nullptr, *ps = nullptr;
+  };
+  static thread_local ShaderLookupCache slc;
+  const u64 shader_gen = s.shader_generation.load(std::memory_order_acquire);
+  if (slc.generation != shader_gen)
+    slc = ShaderLookupCache{shader_gen};
+  GuestShader *vs = slc.vs_va == vs_va && slc.vs ? slc.vs : nullptr;
+  if (!vs) {
+    vs = FindGuestShader(s, vs_va);
+    if (!vs && vs_va)
+      vs = RegisterGuestShader(s, vs_va, false);
+    slc.vs_va = vs_va;
+    slc.vs = vs;
+  }
+  GuestShader *ps = slc.ps_va == ps_va && slc.ps ? slc.ps : nullptr;
+  if (!ps) {
+    ps = FindGuestShader(s, ps_va);
+    if (!ps && ps_va)
+      ps = RegisterGuestShader(s, ps_va, true);
+    slc.ps_va = ps_va;
+    slc.ps = ps;
+  }
   if (!vs) {
     u32 n;
     if (DiagShouldLog(0x6021, &n))
@@ -1760,10 +1792,15 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
       return false;
     }
     if (const VertexMirror *mirror = GetVertexMirror(s, st_info, first, bytes)) {
+      auto &pool = vertex_mirrors().pool;
+      const u64 epoch = pool.flushEpoch.load(std::memory_order_acquire);
+      if (mirror->residentEpoch != epoch || !mirror->resident) {
+        mirror->resident =
+            PoolResidentBuffer(s, pool, mirror->buffer, mirror->offset, bytes);
+        mirror->residentEpoch = epoch;
+      }
       pk.views[S] = plume::RenderVertexBufferView(
-          plume::RenderBufferReference(
-              PoolResidentBuffer(s, vertex_mirrors().pool, mirror->buffer, mirror->offset, bytes),
-              mirror->offset),
+          plume::RenderBufferReference(mirror->resident, mirror->offset),
           static_cast<u32>(bytes));
       continue;
     }
@@ -1821,8 +1858,9 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     lap_t0 = t1;
   };
   DeviceView dev = Device(pk.device_va);
-  dev.snapshot = pk.window;
+  dev.snapshot = pk.window.image;
   dev.snapshotSize = kDeviceSnapshotBytes;
+  dev.pages = DeviceWindow::PageTable();
   GuestShader *vs = pk.vs;
   GuestShader *ps = pk.ps;
   const InputLayout *layout = pk.layout;
@@ -1851,59 +1889,175 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     Dropped("surface image unavailable", 0x6016);
     return;
   }
+  lap(s.perf.replay_targets_ms);
+
+  struct ReplayMemo {
+    bool valid = false;
+    GuestShader *vs = nullptr, *ps = nullptr;
+    const InputLayout *layout = nullptr;
+    const HostTexture *images[5] = {};
+    u32 colorCount = 0, samples = 0;
+    i32 offsetX = 0, offsetY = 0;
+    plume::RenderPrimitiveTopology topology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
+    bool rectList = false;
+    u32 strides[16] = {};
+    u8 state[DeviceWindow::kBlocks[2].size];
+    u8 consts[DeviceWindow::kBlocks[1].size];
+    PipelineState st;
+    u32 spec = 0;
+    bool a2c = false;
+    plume::RenderPipeline *pipeline = nullptr;
+    ViewportInfo vp;
+    SharedConstants fixed;
+  };
+  static ReplayMemo memo;
+  const u8 *state_block = pk.window.image + DeviceWindow::kBlocks[2].base;
+  const u8 *consts_block = pk.window.image + DeviceWindow::kBlocks[1].base;
+  bool memo_hit = memo.valid && memo.vs == vs && memo.ps == ps && memo.layout == layout &&
+                  memo.colorCount == targets.colorCount && memo.samples == targets.samples &&
+                  memo.offsetX == targets.offsetX && memo.offsetY == targets.offsetY &&
+                  memo.topology == pk.topology && memo.rectList == pk.rectList &&
+                  memo.images[4] == targets.depthImage &&
+                  std::memcmp(memo.strides, pk.strides, sizeof(pk.strides)) == 0 &&
+                  std::memcmp(memo.state, state_block, sizeof(memo.state)) == 0 &&
+                  std::memcmp(memo.consts, consts_block, sizeof(memo.consts)) == 0;
+  for (u32 i = 0; memo_hit && i < targets.colorCount; ++i)
+    memo_hit = memo.images[i] == targets.colorImage[i];
 
   PipelineState st;
-  ZeroPipelineState(st);
-  u32 spec = layout->spec;
+  u32 spec = 0;
   bool a2c = false;
-  FillPipelineState(dev, targets, st, &spec, &a2c);
-  spec |= layout->spec;
-  st.vs = ResolveHostShader(s, *vs, spec);
-  st.ps = ps ? ResolveHostShader(s, *ps, spec) : nullptr;
-  if (!st.vs || (ps && !st.ps)) {
-    Dropped("host shader unavailable (link failure)", 0x6007);
-    return;
-  }
-  st.layout = layout;
-  st.vsHash = vs->hash;
-  st.psHash = ps ? ps->hash : 0;
-  if (!targets.colorCount && targets.depth) {
-    struct Snap {
-      u32 mode, cache204, cache208, vtx, vte, win;
-      float fs, fo, bs, bo, xs, xo, ys, yo;
-    };
-    static Snap last{};
-    static u32 lines = 0;
-    const Snap now{dev.U32(dev::kModeControl) & 0x1800u, mem::load<u32>(0x82496F7Cu + 204u * 4u),
-                   mem::load<u32>(0x82496F7Cu + 208u * 4u), dev.U32(dev::kVtxControl),
-                   dev.U32(dev::kVteControl), dev.U32(dev::kWindowOffset),
-                   dev.F32(dev::kPolyOffsetFrontScale), dev.F32(dev::kPolyOffsetFrontOffset),
-                   dev.F32(dev::kPolyOffsetBackScale), dev.F32(dev::kPolyOffsetBackOffset),
-                   dev.F32(dev::kVportXScale), dev.F32(dev::kVportXOffset),
-                   dev.F32(dev::kVportYScale), dev.F32(dev::kVportYOffset)};
-    if (std::memcmp(&now, &last, sizeof(now)) != 0 && lines < 64) {
-      last = now;
-      ++lines;
-      EOT_DEBUG("[shadow] caster draw: mode bits {:#x} front scale {:g} offset {:g} back scale {:g} "
-               "offset {:g} | cache 204 {:g} 208 {:g} -> host bias {} slope {:g} (vs {:016x}) | "
-               "vport x {:g}/{:g} y {:g}/{:g} vte {:#x} vtx {:#x} win {:#x} scale {:.4f}",
-               now.mode, now.fs, now.fo, now.bs, now.bo, std::bit_cast<float>(now.cache204),
-               std::bit_cast<float>(now.cache208), st.depthBias,
-               st.slopeScaledDepthBias * st.targetScale, st.vsHash, now.xs, now.xo, now.ys,
-               now.yo, now.vte, now.vtx, now.win, targets.scale);
+  plume::RenderPipeline *pipeline = nullptr;
+  ViewportInfo vp;
+  SharedConstants sc;
+  if (memo_hit) {
+    st = memo.st;
+    spec = memo.spec;
+    a2c = memo.a2c;
+    pipeline = memo.pipeline;
+    vp = memo.vp;
+    sc = memo.fixed;
+    s.perf.pipeline_hot_hits++;
+  } else {
+    ZeroPipelineState(st);
+    spec = layout->spec;
+    FillPipelineState(dev, targets, st, &spec, &a2c);
+    spec |= layout->spec;
+    st.vs = ResolveHostShader(s, *vs, spec);
+    st.ps = ps ? ResolveHostShader(s, *ps, spec) : nullptr;
+    if (!st.vs || (ps && !st.ps)) {
+      Dropped("host shader unavailable (link failure)", 0x6007);
+      return;
     }
+    st.layout = layout;
+    st.vsHash = vs->hash;
+    st.psHash = ps ? ps->hash : 0;
+    if (!targets.colorCount && targets.depth) {
+      struct Snap {
+        u32 mode, cache204, cache208, vtx, vte, win;
+        float fs, fo, bs, bo, xs, xo, ys, yo;
+      };
+      static Snap last{};
+      static u32 lines = 0;
+      const Snap now{dev.U32(dev::kModeControl) & 0x1800u, mem::load<u32>(0x82496F7Cu + 204u * 4u),
+                     mem::load<u32>(0x82496F7Cu + 208u * 4u), dev.U32(dev::kVtxControl),
+                     dev.U32(dev::kVteControl), dev.U32(dev::kWindowOffset),
+                     dev.F32(dev::kPolyOffsetFrontScale), dev.F32(dev::kPolyOffsetFrontOffset),
+                     dev.F32(dev::kPolyOffsetBackScale), dev.F32(dev::kPolyOffsetBackOffset),
+                     dev.F32(dev::kVportXScale), dev.F32(dev::kVportXOffset),
+                     dev.F32(dev::kVportYScale), dev.F32(dev::kVportYOffset)};
+      if (std::memcmp(&now, &last, sizeof(now)) != 0 && lines < 64) {
+        last = now;
+        ++lines;
+        EOT_DEBUG("[shadow] caster draw: mode bits {:#x} front scale {:g} offset {:g} back scale {:g} "
+                 "offset {:g} | cache 204 {:g} 208 {:g} -> host bias {} slope {:g} (vs {:016x}) | "
+                 "vport x {:g}/{:g} y {:g}/{:g} vte {:#x} vtx {:#x} win {:#x} scale {:.4f}",
+                 now.mode, now.fs, now.fo, now.bs, now.bo, std::bit_cast<float>(now.cache204),
+                 std::bit_cast<float>(now.cache208), st.depthBias,
+                 st.slopeScaledDepthBias * st.targetScale, st.vsHash, now.xs, now.xo, now.ys,
+                 now.yo, now.vte, now.vtx, now.win, targets.scale);
+      }
+    }
+    st.layoutKey = layout->key;
+    st.spec = spec;
+    for (u32 S = 0; S < 16; ++S)
+      st.strides[S] = pk.strides[S];
+    st.topology = pk.topology;
+    if (pk.rectList)
+      st.cull = plume::RenderCullMode::NONE;
+    CanonicalizePipelineState(st,
+                              (vs->entry ? vs->entry->specConstantsMask : 0u) |
+                                  (ps && ps->entry ? ps->entry->specConstantsMask : 0u),
+                              layout->streamMask);
+    static PipelineState last_state{};
+    static plume::RenderPipeline *last_pipeline = nullptr;
+    pipeline = last_pipeline;
+    if (!pipeline || std::memcmp(reinterpret_cast<const u8 *>(&st) + kPipelineKeyOffset,
+                                 reinterpret_cast<const u8 *>(&last_state) + kPipelineKeyOffset,
+                                 sizeof(st) - kPipelineKeyOffset) != 0) {
+      pipeline = GetOrCreatePipeline(s, st);
+      if (pipeline) {
+        last_state = st;
+        last_pipeline = pipeline;
+      }
+    }
+    if (!pipeline) {
+      Dropped("pipeline creation failed", 0x6008);
+      return;
+    }
+
+    vp = ComputeViewport(dev, targets);
+    for (u32 i = 0; i < 4; ++i) {
+      sc.booleans[i] = dev.U32(dev::kVsBoolConstants + 4 * i);
+      sc.booleans[4 + i] = dev.U32(dev::kPsBoolConstants + 4 * i);
+    }
+    FillLoopConstants(dev, dev::kVsLoopConstants, &sc.loopConstants[0]);
+    FillLoopConstants(dev, dev::kPsLoopConstants, &sc.loopConstants[16]);
+    sc.swappedTexcoords = layout->swappedTexcoords;
+    sc.swappedNormals = layout->swappedNormals;
+    sc.swappedBinormals = layout->swappedBinormals;
+    sc.swappedTangents = layout->swappedTangents;
+    sc.swappedBlendWeights = layout->swappedBlendWeights;
+    sc.swappedPositions = layout->swappedPositions;
+    sc.sintTexcoords = layout->sintTexcoords;
+    sc.packedDec3 = layout->packedDec3;
+    if (targets.colorCount) {
+      const u32 f0 = targets.color[0]->colorFormat;
+      if (f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_8_8_8_8_GAMMA))
+        sc.packedDec3 |= 1u << 31;
+      if (f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_8_8_8_8) ||
+          f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) ||
+          f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_2_10_10_10) ||
+          f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10))
+        sc.packedDec3 |= 1u << 30;
+    }
+    sc.alphaThreshold = dev.F32(dev::kAlphaRef);
+    std::memcpy(sc.posScale, vp.posScale, sizeof(sc.posScale));
+    std::memcpy(sc.posOffset, vp.posOffset, sizeof(sc.posOffset));
+
+    memo.valid = true;
+    memo.vs = vs;
+    memo.ps = ps;
+    memo.layout = layout;
+    for (u32 i = 0; i < 4; ++i)
+      memo.images[i] = i < targets.colorCount ? targets.colorImage[i] : nullptr;
+    memo.images[4] = targets.depthImage;
+    memo.colorCount = targets.colorCount;
+    memo.samples = targets.samples;
+    memo.offsetX = targets.offsetX;
+    memo.offsetY = targets.offsetY;
+    memo.topology = pk.topology;
+    memo.rectList = pk.rectList;
+    std::memcpy(memo.strides, pk.strides, sizeof(memo.strides));
+    std::memcpy(memo.state, state_block, sizeof(memo.state));
+    std::memcpy(memo.consts, consts_block, sizeof(memo.consts));
+    memo.st = st;
+    memo.spec = spec;
+    memo.a2c = a2c;
+    memo.pipeline = pipeline;
+    memo.vp = vp;
+    memo.fixed = sc;
   }
-  st.layoutKey = layout->key;
-  st.spec = spec;
-  for (u32 S = 0; S < 16; ++S)
-    st.strides[S] = pk.strides[S];
-  st.topology = pk.topology;
-  if (pk.rectList)
-    st.cull = plume::RenderCullMode::NONE;
-  CanonicalizePipelineState(st,
-                            (vs->entry ? vs->entry->specConstantsMask : 0u) |
-                                (ps && ps->entry ? ps->entry->specConstantsMask : 0u),
-                            layout->streamMask);
   s.current_vs_va = pk.vs_va;
   s.current_ps_va = pk.ps_va;
   {
@@ -1912,60 +2066,15 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     s.current_origin =
         kOrigins[vs->createdByGuestCall ? 1 : 0][ps ? (ps->createdByGuestCall ? 2 : 1) : 0];
   }
-  static PipelineState last_state{};
-  static plume::RenderPipeline *last_pipeline = nullptr;
-  plume::RenderPipeline *pipeline = last_pipeline;
-  if (!pipeline || std::memcmp(reinterpret_cast<const u8 *>(&st) + kPipelineKeyOffset,
-                               reinterpret_cast<const u8 *>(&last_state) + kPipelineKeyOffset,
-                               sizeof(st) - kPipelineKeyOffset) != 0) {
-    pipeline = GetOrCreatePipeline(s, st);
-    if (pipeline) {
-      last_state = st;
-      last_pipeline = pipeline;
-    }
-  }
   lap(s.perf.pso_lookup_ms);
-  if (!pipeline) {
-    Dropped("pipeline creation failed", 0x6008);
-    return;
-  }
 
-  ViewportInfo vp = ComputeViewport(dev, targets);
   if (Settings::DiagScissor() && targets.samples > 1)
     vp.scissor = plume::RenderRect(0, 0, 1, 1);
-  SharedConstants sc;
   {
     PerfScope bind_scope(s.perf.bind_ms);
     const u32 texture_mask = vs->textureFetchMask | (ps ? ps->textureFetchMask : 0u);
     BindTexturesAndSamplers(s, dev, texture_mask, sc);
   }
-  for (u32 i = 0; i < 4; ++i) {
-    sc.booleans[i] = dev.U32(dev::kVsBoolConstants + 4 * i);
-    sc.booleans[4 + i] = dev.U32(dev::kPsBoolConstants + 4 * i);
-  }
-  FillLoopConstants(dev, dev::kVsLoopConstants, &sc.loopConstants[0]);
-  FillLoopConstants(dev, dev::kPsLoopConstants, &sc.loopConstants[16]);
-  sc.swappedTexcoords = layout->swappedTexcoords;
-  sc.swappedNormals = layout->swappedNormals;
-  sc.swappedBinormals = layout->swappedBinormals;
-  sc.swappedTangents = layout->swappedTangents;
-  sc.swappedBlendWeights = layout->swappedBlendWeights;
-  sc.swappedPositions = layout->swappedPositions;
-  sc.sintTexcoords |= layout->sintTexcoords;
-  sc.packedDec3 = layout->packedDec3;
-  if (targets.colorCount) {
-    const u32 f0 = targets.color[0]->colorFormat;
-    if (f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_8_8_8_8_GAMMA))
-      sc.packedDec3 |= 1u << 31;
-    if (f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_8_8_8_8) ||
-        f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_8_8_8_8_GAMMA) ||
-        f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_2_10_10_10) ||
-        f0 == static_cast<u32>(xe::ColorRenderTargetFormat::k_2_10_10_10_AS_10_10_10_10))
-      sc.packedDec3 |= 1u << 30;
-  }
-  sc.alphaThreshold = dev.F32(dev::kAlphaRef);
-  std::memcpy(sc.posScale, vp.posScale, sizeof(sc.posScale));
-  std::memcpy(sc.posOffset, vp.posOffset, sizeof(sc.posOffset));
   UploadAlloc shared_alloc;
   const bool shared_changed =
       !s.shared_bound || std::memcmp(&s.last_shared, &sc, sizeof(sc)) != 0;

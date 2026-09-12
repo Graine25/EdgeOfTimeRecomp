@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstring>
+#include <immintrin.h>
+
 #include <rex/types.h>
 
 #include <plume_render_interface.h>
@@ -31,6 +34,45 @@ struct TargetWords {
   u32 depthWords[5] = {};
 };
 
+struct DeviceWindow {
+  struct Block {
+    u32 base, size;
+  };
+  static constexpr Block kBlocks[4] = {
+      {dev::kFetchConstants, dev::kVsFloatConstants - dev::kFetchConstants},
+      {dev::kVsBoolConstants, dev::kPsLoopConstants + 64 - dev::kVsBoolConstants},
+      {dev::kSurfaceInfo, dev::kPolyOffsetBackOffset + 4 - dev::kSurfaceInfo},
+      {dev::kIndexBuffer & ~31u, ((dev::kVertexShader + 4 + 31) & ~31u) - (dev::kIndexBuffer & ~31u)},
+  };
+  struct Pages {
+    bool in[kDeviceSnapshotBytes >> kDevicePageShift] = {};
+    constexpr Pages() {
+      for (const Block &b : kBlocks)
+        for (u32 p = b.base >> kDevicePageShift; p < (b.base + b.size) >> kDevicePageShift; ++p)
+          in[p] = true;
+    }
+  };
+  static const bool *PageTable() {
+    static constexpr Pages pages{};
+    return pages.in;
+  }
+  alignas(64) u8 image[kDeviceSnapshotBytes];
+  void Capture(const u8 *regs) {
+    for (const Block &b : kBlocks) {
+      const u8 *src = regs + b.base;
+      auto *dst = reinterpret_cast<__m128i *>(image + b.base);
+      for (u32 i = 0; i < b.size; i += 16, ++dst)
+        _mm_stream_si128(dst, _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + i)));
+    }
+    _mm_sfence();
+  }
+};
+static_assert((DeviceWindow::kBlocks[0].base | DeviceWindow::kBlocks[0].size |
+               DeviceWindow::kBlocks[1].base | DeviceWindow::kBlocks[1].size |
+               DeviceWindow::kBlocks[2].base | DeviceWindow::kBlocks[2].size |
+               DeviceWindow::kBlocks[3].base | DeviceWindow::kBlocks[3].size) % 32 == 0);
+static_assert(DeviceWindow::kBlocks[3].base + DeviceWindow::kBlocks[3].size <= kDeviceSnapshotBytes);
+
 struct DrawPacket {
   u32 device_va = 0;
   u32 prim = 0;
@@ -54,7 +96,7 @@ struct DrawPacket {
   plume::RenderInputSlot slots[16];
   UploadAlloc zero;
   UploadAlloc vs_consts, ps_consts;
-  alignas(16) u8 window[kDeviceSnapshotBytes];
+  DeviceWindow window;
 };
 
 struct ClearPacket {
