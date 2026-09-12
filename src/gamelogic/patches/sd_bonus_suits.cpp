@@ -14,7 +14,7 @@ REXCVAR_DEFINE_BOOL(eot_sd_suits, false, "EdgeOfTime/Config",
                     "Cosmic; Amazing Bag-Man, Cosmic, Scarlet, Secret War) as if a Shattered "
                     "Dimensions save had been found. Off leaves whatever the save file says.");
 
-REXCVAR_DEFINE_STRING(eot_sd_code, "shattered", "EdgeOfTime/Config",
+REXCVAR_DEFINE_STRING(eot_sd_code, "shatmypants", "EdgeOfTime/Config",
                       "A VIP unlock code the game's code page accepts for the Shattered Dimensions "
                       "bonus suits, compared without regard to case. Empty disables it.");
 
