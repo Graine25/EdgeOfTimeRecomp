@@ -3,7 +3,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <functional>
 #include <optional>
 #include <string>
@@ -75,34 +74,6 @@ namespace {
 namespace fs = std::filesystem;
 
 constexpr const char *kExecutable = "reeot.exe";
-
-void ForgetRepairInConfig(const fs::path &config) {
-  if (config.empty())
-    return;
-  std::ifstream in(config);
-  if (!in)
-    return;
-  std::string kept, line;
-  bool found = false;
-  while (std::getline(in, line)) {
-    const size_t start = line.find_first_not_of(" \t");
-    const size_t after = start == std::string::npos ? start : line.find_first_not_of(" \t", start + 6);
-    if (start != std::string::npos && line.compare(start, 6, "repair") == 0 && after != std::string::npos &&
-        line[after] == '=') {
-      found = true;
-      continue;
-    }
-    kept += line + "\n";
-  }
-  in.close();
-  if (!found)
-    return;
-  std::ofstream out(config, std::ios::trunc);
-  if (out && (out << kept))
-    EOT_INFO("[install] repair was set in {}; cleared for the next boot", config.string());
-  else
-    EOT_WARN("[install] could not clear repair from {}; the wizard will open again next boot", config.string());
-}
 
 bool GameFolderHolds(const fs::path &folder) {
   std::error_code ec;
@@ -275,8 +246,6 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
 #ifdef REEOT_BUILD_INSTALLER
   repair_requested = REXCVAR_GET(repair);
   REXCVAR_SET(repair, false);
-  if (repair_requested && rex::cvar::GetFlagSource("repair") == rex::cvar::Source::kConfig)
-    ForgetRepairInConfig(g_config_path);
 #endif
   std::optional<eot::installer::InstallConfig> existing;
   if (auto cfg = eot::installer::ReadInstallRegistry()) {
