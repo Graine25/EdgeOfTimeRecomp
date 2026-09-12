@@ -77,3 +77,9 @@ inline f32 ShadowMapTargetScale() {
 }
 
 }
+
+namespace eot::gpu {
+
+void ApplyQualityPresetAtBoot();
+
+}

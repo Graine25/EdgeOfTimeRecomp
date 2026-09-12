@@ -29,9 +29,8 @@
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/format.h"
-#include "gpu/quality.h"
-#include "platform/display.h"
 #include "gpu/settings.h"
+#include "platform/display.h"
 
 #if defined(EOT_D3D12)
 #include "shaders/blit_ps.hlsl.dxil.h"
