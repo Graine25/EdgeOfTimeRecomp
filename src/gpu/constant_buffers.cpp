@@ -6,6 +6,9 @@
 
 #include "core/logging.h"
 #include "gpu/device.h"
+#if defined(EOT_D3D12)
+#include <plume_d3d12.h>
+#endif
 
 namespace eot::gpu {
 
@@ -18,6 +21,7 @@ struct Chunk {
   u8 *cpu = nullptr;
   u64 capacity = 0;
   u64 used = 0;
+  u64 gpuVa = 0;
 };
 
 struct Ring {
@@ -46,6 +50,9 @@ bool MakeChunk(Chunk &chunk, u64 size) {
   }
   chunk.capacity = size;
   chunk.used = 0;
+#if defined(EOT_D3D12)
+  chunk.gpuVa = static_cast<plume::D3D12Buffer *>(chunk.buffer.get())->d3d->GetGPUVirtualAddress();
+#endif
   return true;
 }
 
@@ -95,6 +102,7 @@ bool UploadAllocate(u64 size, u64 alignment, UploadAlloc *out) {
       out->offset = start;
       out->cpu = c.cpu + start;
       out->size = size;
+      out->gpuVa = c.gpuVa ? c.gpuVa + start : 0;
       c.used = start + size;
       r.frame_bytes[s.recording_slot()] += size;
       return true;

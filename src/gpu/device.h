@@ -51,6 +51,7 @@ struct PerfCounters {
   f64 draw_ms = 0, resolve_ms = 0, upload_ms = 0, link_ms = 0, pso_ms = 0;
   f64 vertex_copy_ms = 0, index_ms = 0, bind_ms = 0;
   f64 setup_ms = 0, pso_lookup_ms = 0, stream_ms = 0, const_ms = 0, record_ms = 0;
+  f64 const_float_ms = 0, rec_state_ms = 0, rec_bind_ms = 0;
   f64 guest_d3d_ms = 0;
   u32 guest_d3d_calls = 0;
   u32 index_cache_hits = 0, index_cache_misses = 0;
@@ -241,6 +242,10 @@ struct VideoState {
   std::unordered_map<u64, TextureWorkStats> texture_work_window;
   std::unordered_map<u64, u64> render_area_window;
   u64 resolve_alias_token = 0;
+  std::vector<GuestTexture *> resolve_alias_candidates;
+  u64 resolve_alias_candidates_generation = 0;
+  u64 mirror_generation = 1;
+  u32 root_cbv_index[3] = {~0u, ~0u, ~0u};
   struct SurfaceHeaderBinding {
     u64 key = 0;
     u64 lastSeenFrame = 0;

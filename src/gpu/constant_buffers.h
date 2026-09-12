@@ -15,6 +15,7 @@ struct UploadAlloc {
   u64 offset = 0;
   u8 *cpu = nullptr;
   u64 size = 0;
+  u64 gpuVa = 0;
   explicit operator bool() const { return buffer != nullptr; }
 };
 
