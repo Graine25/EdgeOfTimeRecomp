@@ -169,6 +169,9 @@ REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame whose draws are logged in detail and whose resolve "
                      "sources are dumped as logs/f<N>_r<K>.ppm (0 = off).")
     .range(0, 100000000);
+REXCVAR_DEFINE_INT32(eot_diag_scene_from, 0, "EdgeOfTime/Debug",
+                     "eot_diag_scene arms only from this guest frame on (0 = any).")
+    .range(0, 100000000);
 REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug",
                     "Log the eot_diag_frame detail for the frame after the first frame of the "
                     "run with 400 or more draws, whatever its index.");
@@ -244,6 +247,7 @@ i32 Settings::DiagFrame() {
   return armed > 0 ? armed : REXCVAR_GET(eot_diag_frame);
 }
 bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
+i32 Settings::DiagSceneFrom() { return REXCVAR_GET(eot_diag_scene_from); }
 bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
 bool Settings::DiagScissor() { return REXCVAR_GET(eot_diag_scissor); }
 bool Settings::DiagRectClear() { return REXCVAR_GET(eot_diag_rectclear); }
