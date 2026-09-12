@@ -134,6 +134,10 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   surf.content = GuestSurface::Content::Undefined;
   surf.writeSerial = 1;
   surf.singleSerial = 0;
+  static u64 next_uid = 1;
+  surf.uid = next_uid++;
+  surf.serial++;
+  surf.resolveOrdinal = 0;
   return CreateSurfaceImage(s, surf, surf.host, HostSampleCountFor(s, surf),
                             surf.isDepth ? "surface-ds" : "surface-rt");
 }
@@ -449,18 +453,26 @@ bool ClearImageToRemembered(VideoState &s, GuestSurface &surf, HostTexture &imag
   return true;
 }
 
-void LogTransfer(const VideoState &s, const GuestSurface &surf, const char *what) {
-  if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()))
+void LogTransfer(VideoState &s, const GuestSurface &surf, const char *what) {
+  if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
+    GpuTimingDiagMark(s, s.command_list, std::format("{} {:#x}", what, surf.va));
     EOT_INFO("[diag] {} {:#x} ({} t{} {}x{}, content {} in {}, agree {})", what, surf.va,
              surf.isDepth ? "depth" : "colour", surf.baseTile, surf.width, surf.height,
              static_cast<u32>(surf.content), surf.contentInSingle ? "single" : "host",
              surf.imagesAgree);
+  }
+}
+
+void NoteHandoffRegret(const VideoState &s, GuestSurface &surf) {
+  if (surf.handoffFrame == s.guest_frames && surf.handoffOrdinal < 32)
+    surf.regretMask |= 1u << surf.handoffOrdinal;
 }
 
 bool ResolveHostToSingle(VideoState &s, GuestSurface &surf) {
   auto *cmd = s.command_list;
   GpuTimingMark(s, cmd, kGpuCatResolveHw);
   LogTransfer(s, surf, "resolve host->single");
+  NoteHandoffRegret(s, surf);
   surf.perfTransfers++;
   s.perf.surface_transfers++;
   surf.resolvedSinceDraw = true;
@@ -561,6 +573,7 @@ void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src
   src.needsClear = true;
   surf.contentInSingle = false;
   surf.imagesAgree = false;
+  surf.handoffFrame = s.guest_frames;
   DropBorrow(surf);
   if (host_keeps) {
     LogTransfer(s, surf, "hand twin to mirror");
@@ -586,6 +599,7 @@ bool SurfaceTakeBack(VideoState &s, GuestSurface &surf) {
       lender->host.width != dst.width || lender->host.height != dst.height ||
       lender->host.format != dst.format) {
     surf.content = GuestSurface::Content::Undefined;
+    surf.serial++;
     surf.host.needsClear = true;
     if (surf.single.valid())
       surf.single.needsClear = true;
@@ -597,6 +611,7 @@ bool SurfaceTakeBack(VideoState &s, GuestSurface &surf) {
   }
   GpuTimingMark(s, s.command_list, kGpuCatResolve);
   LogTransfer(s, surf, "take back from mirror");
+  NoteHandoffRegret(s, surf);
   const HostTextureTransition transitions[] = {
       {&lender->host, plume::RenderTextureLayout::COPY_SOURCE},
       {&dst, plume::RenderTextureLayout::COPY_DEST}};
@@ -674,6 +689,16 @@ HostTexture *SurfaceDepthSingle(VideoState &s, GuestSurface &surf, bool refresh)
   return &surf.single;
 }
 
+HostTexture *SurfaceContentPeek(VideoState &s, GuestSurface &surf) {
+  if (!surf.isDepth && surf.content == GuestSurface::Content::Borrowed) {
+    std::shared_ptr<GuestTexture> lender = surf.borrowed.lock();
+    if (lender && lender->borrower == &surf && lender->contentSerial == surf.borrowedSerial &&
+        lender->host.valid())
+      return &lender->host;
+  }
+  return SurfaceColorSingle(s, surf);
+}
+
 HostTexture *SurfaceColorSingle(VideoState &s, GuestSurface &surf) {
   if (surf.isDepth)
     return SurfaceDepthSingle(s, surf, true);
@@ -702,6 +727,8 @@ void NoteSurfaceDrawn(GuestSurface &surf, const HostTexture &image, bool writes_
   if (surf.isDepth) {
     if (!writes_depth_stencil)
       return;
+    if (writes_depth)
+      surf.serial++;
     if (twin) {
       if (writes_depth)
         surf.singleDirty = true;
@@ -714,6 +741,7 @@ void NoteSurfaceDrawn(GuestSurface &surf, const HostTexture &image, bool writes_
   surf.content = GuestSurface::Content::Drawn;
   surf.contentInSingle = twin;
   surf.imagesAgree = false;
+  surf.serial++;
   if (!twin)
     surf.resolvedSinceDraw = false;
 }
@@ -721,7 +749,9 @@ void NoteSurfaceDrawn(GuestSurface &surf, const HostTexture &image, bool writes_
 void NoteSurfaceClearedColor(GuestSurface &surf, const HostTexture &image, const float rgba[4],
                              bool whole, bool both) {
   surf.drawn = true;
+  surf.serial++;
   if (whole) {
+    surf.resolveOrdinal = 0;
     DropBorrow(surf);
     surf.content = GuestSurface::Content::Cleared;
     surf.resolvedSinceDraw = false;
@@ -743,9 +773,11 @@ void NoteSurfaceClearedColor(GuestSurface &surf, const HostTexture &image, const
 void NoteSurfaceClearedDepth(GuestSurface &surf, float depth, u8 stencil, bool whole, bool both) {
   surf.drawn = true;
   surf.writeSerial++;
+  surf.serial++;
   if (both)
     surf.singleDirty = false;
   if (whole) {
+    surf.resolveOrdinal = 0;
     surf.content = GuestSurface::Content::Cleared;
     surf.clearDepth = depth;
     surf.clearStencil = stencil;

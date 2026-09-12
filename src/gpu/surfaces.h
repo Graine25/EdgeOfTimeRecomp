@@ -29,6 +29,7 @@ HostTexture *SurfaceDepthSingle(VideoState &s, GuestSurface &surf, bool refresh)
 bool SurfacePropagateDepthSingle(VideoState &s, GuestSurface &surf);
 
 HostTexture *SurfaceColorSingle(VideoState &s, GuestSurface &surf);
+HostTexture *SurfaceContentPeek(VideoState &s, GuestSurface &surf);
 
 void NoteSurfaceDrawn(GuestSurface &surf, const HostTexture &image, bool writes_depth_stencil,
                       bool writes_depth = false);

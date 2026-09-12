@@ -12,16 +12,19 @@
 
 #include "core/logging.h"
 #include "gpu/device.h"
+#include "gpu/settings.h"
 
 namespace eot::gpu {
 
 namespace {
 
-constexpr u32 kQueryCount = 1024;
+constexpr u32 kQueryCount = 8192;
 
 struct SlotTiming {
   std::unique_ptr<plume::RenderQueryPool> pool;
   std::vector<u32> journal;
+  std::vector<std::string> tags;
+  bool diag = false;
   u32 used = 0;
   bool pending = false;
 };
@@ -32,11 +35,15 @@ u32 g_cat = kGpuCatOther;
 bool g_supported = true;
 bool g_open = false;
 
+std::string g_diag_tag;
+
 void WriteMark(SlotTiming &st, plume::RenderCommandList *cmd, u32 closing) {
   if (st.used >= kQueryCount)
     return;
   cmd->writeTimestamp(st.pool.get(), st.used++);
   st.journal.push_back(closing);
+  if (st.diag)
+    st.tags.push_back(g_diag_tag);
 }
 
 bool ReadbackIsMappable(plume::RenderQueryPool *pool) {
@@ -127,6 +134,10 @@ void GpuTimingFrameBegin(VideoState &s, plume::RenderCommandList *cmd, u32 slot)
   st.used = 0;
   st.journal.clear();
   st.journal.push_back(kGpuCatOther);
+  st.tags.clear();
+  st.tags.push_back(std::string());
+  st.diag = false;
+  g_diag_tag.clear();
   cmd->resetQueryPool(st.pool.get(), 0, kQueryCount);
   cmd->writeTimestamp(st.pool.get(), st.used++);
   g_active_slot = slot;
@@ -146,6 +157,26 @@ void GpuTimingCountDraw(VideoState &s) {
   if (!g_supported || !g_open)
     return;
   s.perf.gpu_cats[g_cat].second++;
+}
+
+bool DiagFrameNow(const VideoState &s) {
+  return Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame());
+}
+
+bool GpuTimingDiagActive(const VideoState &s) {
+  return g_supported && g_open && (g_slots[g_active_slot].diag || DiagFrameNow(s));
+}
+
+void GpuTimingDiagMark(VideoState &s, plume::RenderCommandList *cmd, std::string tag) {
+  if (!GpuTimingDiagActive(s) || !cmd)
+    return;
+  auto &st = g_slots[g_active_slot];
+  if (!st.diag) {
+    st.diag = true;
+    st.tags.assign(st.journal.size(), std::string());
+  }
+  WriteMark(st, cmd, g_cat);
+  g_diag_tag = std::move(tag);
 }
 
 void GpuTimingFrameEnd(plume::RenderCommandList *cmd) {
@@ -181,6 +212,23 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
   }
   s.perf.gpu_ms += (r[n - 1] - r[0]) * 1e-6;
   s.perf.gpu_frames++;
+  if (st.diag) {
+    std::string untagged_note;
+    f64 tagged = 0;
+    u32 items = 0;
+    for (size_t i = 1; i < n && i < st.tags.size(); ++i) {
+      if (st.tags[i].empty())
+        continue;
+      const f64 us = r[i] > r[i - 1] ? (r[i] - r[i - 1]) * 1e-3 : 0.0;
+      tagged += us;
+      items++;
+      EOT_INFO("[diag-gpu] {} {:.1f} us", st.tags[i], us);
+    }
+    EOT_INFO("[diag-gpu] frame {:.3f} ms, {} items {:.3f} ms, {} queries{}", (r[n - 1] - r[0]) * 1e-6,
+             items, tagged * 1e-3, st.used, st.used >= kQueryCount ? " (saturated)" : "");
+    st.diag = false;
+    st.tags.clear();
+  }
 }
 
 std::string GpuTimingSummary(const PerfCounters &p) {

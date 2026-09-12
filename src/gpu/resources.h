@@ -84,6 +84,11 @@ struct GuestTexture {
   bool storeSwapRB = false;
   u64 contentSerial = 0;
   GuestSurface *borrower = nullptr;
+  u64 resolvedSurfaceUid = 0;
+  u64 resolvedSurfaceSerial = 0;
+  u64 resolvedOwnSerial = 0;
+  u32 resolvedLevel = 0;
+  i32 resolvedRect[6] = {0, 0, 0, 0, 0, 0};
   u32 resolvedMipMask = 0;
   u64 lastUseFrame = 0;
   u64 lastSampledFrame = 0;
@@ -122,6 +127,14 @@ struct GuestSurface {
   Content content = Content::Undefined;
   std::weak_ptr<GuestTexture> borrowed;
   u64 borrowedSerial = 0;
+  u64 uid = 0;
+  u64 serial = 1;
+  u32 resolveOrdinal = 0;
+  u64 resolveOrdinalFrame = ~0ull;
+  u32 regretMask = 0;
+  u64 regretResetFrame = 0;
+  u64 handoffFrame = ~0ull;
+  u32 handoffOrdinal = 0;
   float clearColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   float clearDepth = 0.0f;
   u8 clearStencil = 0;

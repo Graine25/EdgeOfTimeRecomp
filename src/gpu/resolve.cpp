@@ -154,7 +154,9 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     alias_src = FindMultisampleAliasSource(s, *surf);
   }
   if (alias_src) {
-    src_host = depth_source ? &alias_src->host : &SurfaceContentImage(*alias_src);
+    src_host = depth_source ? &alias_src->host : SurfaceContentPeek(s, *alias_src);
+    if (!src_host)
+      return;
     u32 n;
     if (DiagShouldLog(0x7400 ^ src_va, &n) && n == 0)
       EOT_DEBUG("[resolve] {:#x}: {}x{} {}x-msaa alias -> sampling {}x{} 1x surface {:#x}", src_va,
@@ -247,8 +249,35 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
       const bool covers_image = whole && target.host.mipLevels == 1;
       const bool ms_src = src_host->sampleCount > 1;
+      const GuestSurface &content_surf = alias_src ? *alias_src : *surf;
+      const i32 rect_now[6] = {vx, vy, vw, vh, sx0, sy0};
+      if (target.resolvedSurfaceUid == content_surf.uid &&
+          target.resolvedSurfaceSerial == content_surf.serial &&
+          target.resolvedOwnSerial == target.contentSerial && target.resolvedLevel == level &&
+          std::memcmp(target.resolvedRect, rect_now, sizeof(rect_now)) == 0 &&
+          !target.host.needsClear && !reorder == !target.storeSwapRB) {
+        s.perf.resolve_noops++;
+        mark(target, level);
+        return true;
+      }
       TextureReleaseBorrower(s, target);
       target.contentSerial++;
+      target.resolvedSurfaceUid = content_surf.uid;
+      target.resolvedSurfaceSerial = content_surf.serial;
+      target.resolvedOwnSerial = target.contentSerial;
+      target.resolvedLevel = level;
+      std::memcpy(target.resolvedRect, rect_now, sizeof(rect_now));
+      if (s.guest_frames - surf->regretResetFrame >= 1024) {
+        surf->regretResetFrame = s.guest_frames;
+        surf->regretMask = 0;
+      }
+      if (surf->resolveOrdinalFrame != s.guest_frames) {
+        surf->resolveOrdinalFrame = s.guest_frames;
+        surf->resolveOrdinal = 0;
+      }
+      const u32 ordinal = surf->resolveOrdinal < 32 ? surf->resolveOrdinal : 31;
+      const bool regretted = (surf->regretMask >> ordinal) & 1u;
+      surf->resolveOrdinal++;
       const float k = surf->scale;
       const i32 hx0 = ScalePxBy(vx, k), hy0 = ScalePxBy(vy, k), hx1 = ScalePxBy(vx + vw, k),
                 hy1 = ScalePxBy(vy + vh, k);
@@ -263,7 +292,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       const bool whole_host = whole && src_host->width == static_cast<u32>(mip_w_host) &&
                               src_host->height == static_cast<u32>(mip_h_host);
       const bool own_image = src_host == &surf->single || src_host == &surf->host;
-      if (Settings::ResolveTransfer() && &target == dest && dest_ref && !depth_source &&
+      if (Settings::ResolveTransfer() && !regretted && &target == dest && dest_ref && !depth_source &&
           !ms_src && !alias_src && own_image && same_format && scale == 1.0f && level == 0 &&
           whole_host && covers_image && target.host.viewFormat == plume::RenderFormat::UNKNOWN &&
           target.host.arraySize == 1 && target.host.depth == 1 && target.host.sampleCount == 1 &&
@@ -275,6 +304,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
           target.bindingGeneration++;
         }
         target.host.needsClear = false;
+        surf->handoffOrdinal = ordinal;
         SurfaceTransferToMirror(s, *surf, *src_host, target, dest_ref);
         src_host = &target.host;
         mark(target, level);
@@ -295,6 +325,10 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
             {&target.host, plume::RenderTextureLayout::COPY_DEST}};
         TransitionManyLocked(s, transitions, 2);
         const plume::RenderBox box(sx0h, sy0h, sx0h + (hx1 - hx0), sy0h + (hy1 - hy0));
+        if (GpuTimingDiagActive(s))
+          GpuTimingDiagMark(s, cmd,
+                            std::format("resolve copy {:#x} {}x{} {}", dest_texture_va, hx1 - hx0,
+                                        hy1 - hy0, depth_source ? "depth" : "colour"));
         cmd->copyTextureRegion(
             plume::RenderTextureCopyLocation::Subresource(target.host.texture.get(), level, 0),
             plume::RenderTextureCopyLocation::Subresource(src_host->texture.get(), 0, 0),
@@ -348,6 +382,11 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
         target.host.needsClear = false;
       }
       GpuTimingMark(s, cmd, depth_source ? kGpuCatResolveDepth : kGpuCatResolve);
+      if (GpuTimingDiagActive(s))
+        GpuTimingDiagMark(s, cmd,
+                          std::format("resolve blit {:#x} {}x{} {}{}", dest_texture_va, hx1 - hx0,
+                                      hy1 - hy0, depth_source ? "depth" : "colour",
+                                      ms_src ? " ms" : ""));
       if (target.storeSwapRB) {
         target.storeSwapRB = false;
         target.bindingGeneration++;
@@ -459,7 +498,8 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
       EOT_WARN("[resolve] destination {:#x} has no usable host mirror", dest_texture_va);
   }
 
-  if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
+  if (Settings::DiagDump() && Settings::DiagFrame() > 0 &&
+      s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
     static u32 k = 0;
     const std::string path = std::format("logs/f{}_r{}_{}_{:x}.ppm", s.guest_frames + 1, k++,
                                          depth_source ? "depth" : "color", src_va);

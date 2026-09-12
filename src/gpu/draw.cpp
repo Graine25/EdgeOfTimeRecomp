@@ -124,6 +124,7 @@ struct DrawClass {
   bool depthTest = false;
   bool depthWrite = false;
   bool stencil = false;
+  bool stencilWrite = false;
   bool blend = false;
   bool additive = false;
   bool rect = false;
@@ -139,6 +140,12 @@ DrawClass ClassifyDraw(DeviceView dev, const Targets &t, bool has_ps, bool rect_
   c.depthTest = has_ds && (dc & 2);
   c.depthWrite = has_ds && (dc & 4);
   c.stencil = has_ds && (dc & 1);
+  if (c.stencil) {
+    const u32 front_ops = ((dc >> 11) & 7) | ((dc >> 14) & 7) | ((dc >> 17) & 7);
+    const u32 back_ops = (dc & 0x80) ? (((dc >> 23) & 7) | ((dc >> 26) & 7) | ((dc >> 29) & 7)) : 0;
+    const u32 write_mask = (dev.U32(dev::kStencilRefMask) >> 16) & 0xFF;
+    c.stencilWrite = (front_ops | back_ops) != 0 && write_mask != 0;
+  }
   if (t.colorCount) {
     const u32 cc = dev.U32(dev::kColorControl);
     const u32 bc = dev.U32(dev::kBlendControl0);
@@ -165,8 +172,9 @@ u32 SelectPassSamples(const Targets &t, const DrawClass &c) {
   if (c.nullPs)
     return ms_depth && !c.depthWrite && stencil_twin ? 1u : ms;
   const GuestSurface &c0 = *t.color[0];
-  const bool resolved = c0.content == GuestSurface::Content::Drawn &&
-                        (c0.contentInSingle || c0.imagesAgree || c0.resolvedSinceDraw);
+  const bool resolved = c0.content == GuestSurface::Content::Borrowed ||
+                        (c0.content == GuestSurface::Content::Drawn &&
+                         (c0.contentInSingle || c0.imagesAgree || c0.resolvedSinceDraw));
   if (resolved)
     return 1;
   if (ms_depth && c.depthWrite && !c.blend)
@@ -197,7 +205,7 @@ bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
     }
   }
   t.samples = samples;
-  t.writesDepthStencil = c.depthWrite || (c.stencil && Settings::StencilTwin());
+  t.writesDepthStencil = c.depthWrite || (c.stencilWrite && Settings::StencilTwin());
   t.writesDepth = c.depthWrite;
   t.writesColor = !c.nullPs;
   t.additive = c.additive;
@@ -1697,7 +1705,9 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   }
   s.vs_float_constants_stale = false;
   s.ps_float_constants_stale = false;
-  const ViewportInfo vp = ComputeViewport(dev, targets);
+  ViewportInfo vp = ComputeViewport(dev, targets);
+  if (Settings::DiagScissor() && targets.samples > 1)
+    vp.scissor = plume::RenderRect(0, 0, 1, 1);
   SharedConstants sc;
   {
     PerfScope bind_scope(s.perf.bind_ms);
@@ -1745,6 +1755,7 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
     static u32 k = 0;
     const u32 vte = dev.U32(dev::kVteControl);
+    GpuTimingDiagMark(s, s.command_list, std::format("draw {}", k));
     EOT_INFO("[diag] draw {} prim {} {}{} smp={}{}{} n={} pso={} key={:016x} mode={:#x} dc={:#x} srm={:#x} srmbf={:#x} rt0={:#x} {}x{} fmt{} rtexp{} ds={:#x} vs={:016x} ps={:016x} "
              "vp=({:.0f},{:.0f} {:.0f}x{:.0f} z{:.2f}-{:.2f}) vte={:#x} xs={:.1f} ys={:.1f} zs={:.3f} "
              "zo={:.3f} scis=({},{},{},{}) cull={} z={}{} func{} blend={} mask={:#x} spec={:#x} "
@@ -2114,6 +2125,13 @@ void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, floa
   }
   const bool clear_depth = (flags & 0x10) != 0, clear_stencil = (flags & 0x20) != 0;
   auto *cmd = s.command_list;
+  if (GpuTimingDiagActive(s)) {
+    GpuTimingDiagMark(s, cmd, std::format("clear flags {:#x}", flags));
+    EOT_INFO("[diag] clear flags {:#x} {} rt0={:#x} ds={:#x} {}x{} rgba=({:.2f},{:.2f},{:.2f},{:.2f}) z={:.3f} s={}",
+             flags, whole ? "whole" : "rect", targets.colorCount ? targets.color[0]->va : 0,
+             targets.depth ? targets.depth->va : 0, targets.width, targets.height, rgba[0], rgba[1],
+             rgba[2], rgba[3], z, stencil & 0xFF);
+  }
   auto clear_image = [&](GuestSurface &surf, HostTexture &image) {
     if (whole && (!surf.isDepth || (clear_depth && clear_stencil)))
       image.needsClear = false;

@@ -29,6 +29,8 @@ std::string GpuCategoryName(u32 cat);
 void GpuTimingFrameBegin(VideoState &s, plume::RenderCommandList *cmd, u32 slot);
 void GpuTimingMark(VideoState &s, plume::RenderCommandList *cmd, u32 cat);
 void GpuTimingCountDraw(VideoState &s);
+bool GpuTimingDiagActive(const VideoState &s);
+void GpuTimingDiagMark(VideoState &s, plume::RenderCommandList *cmd, std::string tag);
 void GpuTimingFrameEnd(plume::RenderCommandList *cmd);
 void GpuTimingCollect(VideoState &s, u32 slot);
 std::string GpuTimingSummary(const PerfCounters &p);
