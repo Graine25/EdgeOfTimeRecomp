@@ -109,19 +109,22 @@ bool ResolveTargets(VideoState &s, DeviceView dev, Targets &t) {
 
 bool BindTargets(VideoState &s, Targets &t) {
   HostTexture *colors[4] = {};
+  HostTextureTransition transitions[5];
+  u32 transition_count = 0;
   for (u32 i = 0; i < t.colorCount; ++i) {
     colors[i] = &t.color[i]->host;
-    TransitionLocked(s, *colors[i], plume::RenderTextureLayout::COLOR_WRITE);
+    transitions[transition_count++] = {colors[i], plume::RenderTextureLayout::COLOR_WRITE};
     t.color[i]->drawn = true;
     t.color[i]->lastUseFrame = s.guest_frames;
   }
   HostTexture *depth = nullptr;
   if (t.depth) {
     depth = &t.depth->host;
-    TransitionLocked(s, *depth, plume::RenderTextureLayout::DEPTH_WRITE);
+    transitions[transition_count++] = {depth, plume::RenderTextureLayout::DEPTH_WRITE};
     t.depth->drawn = true;
     t.depth->lastUseFrame = s.guest_frames;
   }
+  TransitionManyLocked(s, transitions, transition_count);
   if (depth && t.colorCount && colors[0]->sampleCount != depth->sampleCount) {
     u32 n;
     if (DiagShouldLog(0x6C20, &n) && n < 8)
@@ -129,12 +132,26 @@ bool BindTargets(VideoState &s, Targets &t) {
                t.color[0]->width, t.color[0]->height, colors[0]->sampleCount, t.depth->width,
                t.depth->height, depth->sampleCount);
   }
-  plume::RenderFramebuffer *fb = GetFramebuffer(s, colors, t.colorCount, depth);
-  if (!fb)
-    return false;
-  if (s.bound_framebuffer != fb) {
-    s.command_list->setFramebuffer(fb);
-    s.bound_framebuffer = fb;
+  bool same_targets = s.bound_draw_targets_valid && s.bound_framebuffer &&
+                      s.bound_draw_color_count == t.colorCount &&
+                      s.bound_draw_depth == (depth ? depth->texture.get() : nullptr);
+  for (u32 i = 0; same_targets && i < t.colorCount; ++i)
+    same_targets = s.bound_draw_colors[i] == colors[i]->texture.get();
+  if (same_targets) {
+    s.perf.framebuffer_cache_hits++;
+  } else {
+    plume::RenderFramebuffer *fb = GetFramebuffer(s, colors, t.colorCount, depth);
+    if (!fb)
+      return false;
+    if (s.bound_framebuffer != fb) {
+      s.command_list->setFramebuffer(fb);
+      s.bound_framebuffer = fb;
+    }
+    s.bound_draw_color_count = t.colorCount;
+    for (u32 i = 0; i < 4; ++i)
+      s.bound_draw_colors[i] = i < t.colorCount ? colors[i]->texture.get() : nullptr;
+    s.bound_draw_depth = depth ? depth->texture.get() : nullptr;
+    s.bound_draw_targets_valid = true;
   }
   GpuTimingMark(s, s.command_list,
                 GpuTargetCategory(t.width == kGuestRenderWidth && t.height == kGuestRenderHeight,
@@ -145,10 +162,12 @@ bool BindTargets(VideoState &s, Targets &t) {
       continue;
     s.command_list->clearColor(i, plume::RenderColor(0, 0, 0, 0), nullptr, 0);
     colors[i]->needsClear = false;
+    t.color[i]->perfClears++;
   }
   if (depth && depth->needsClear) {
     s.command_list->clearDepthStencil(true, true, 0.0f, 0, nullptr, 0);
     depth->needsClear = false;
+    t.depth->perfClears++;
   }
   return true;
 }
@@ -243,7 +262,7 @@ struct ConstFileCache {
 };
 
 bool UploadFloatFile(VideoState &s, DeviceView dev, u32 offset, u32 stage, u32 regs,
-                     UploadAlloc *out) {
+                     bool known_dirty, UploadAlloc *out) {
   static ConstFileCache caches[2];
   static const bool ranged = Settings::ConstRange();
   regs = ranged ? std::clamp(regs, 16u, 256u) : 256u;
@@ -252,10 +271,19 @@ bool UploadFloatFile(VideoState &s, DeviceView dev, u32 offset, u32 stage, u32 r
   if (!src)
     return false;
   ConstFileCache &c = caches[stage & 1];
-  if (c.epoch == UploadRingEpoch() && c.regs >= regs && std::memcmp(c.bytes, src, bytes) == 0) {
-    *out = c.alloc;
-    s.perf.const_file_hits++;
-    return true;
+  if (c.epoch == UploadRingEpoch() && c.regs >= regs) {
+    if (!known_dirty) {
+      *out = c.alloc;
+      s.perf.const_file_hits++;
+      s.perf.const_file_clean_hits++;
+      return true;
+    }
+    if (std::memcmp(c.bytes, src, bytes) == 0) {
+      *out = c.alloc;
+      c.regs = regs;
+      s.perf.const_file_hits++;
+      return true;
+    }
   }
   if (!UploadAllocate(bytes, kConstantBufferAlignment, out))
     return false;
@@ -462,11 +490,11 @@ struct IndexCacheChunk {
   std::unique_ptr<plume::RenderBuffer> buffer;
   u8 *cpu = nullptr;
   u64 capacity = 0, used = 0;
+  u64 accounted = 0;
+  u64 lastUseFrame = 0;
 };
 struct IndexCache {
   std::unordered_map<IndexCacheKey, CachedIndexRange, IndexCacheKeyHash> map;
-  std::vector<IndexCacheChunk> chunks;
-  u64 totalBytes = 0;
 };
 IndexCache &index_cache() {
   static IndexCache c;
@@ -534,6 +562,7 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
   *offset = off;
   *cpu = ch.cpu + off;
   ch.used = off + bytes;
+  ch.accounted += bytes;
   pool.totalBytes += bytes;
   return true;
 }
@@ -544,13 +573,72 @@ BufferPool &index_pool() {
 }
 bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, u64 *offset,
                         u8 **cpu) {
+  auto &pool = index_pool();
+  auto &cache = index_cache();
+  if (bytes > kIndexCacheBudgetBytes)
+    return false;
+
+  while (pool.totalBytes + bytes > kIndexCacheBudgetBytes && !pool.chunks.empty()) {
+    auto victim = std::min_element(
+        pool.chunks.begin(), pool.chunks.end(),
+        [](const IndexCacheChunk &a, const IndexCacheChunk &b) {
+          return a.lastUseFrame < b.lastUseFrame;
+        });
+    plume::RenderBuffer *dead = victim->buffer.get();
+    u32 erased = 0;
+    for (auto it = cache.map.begin(); it != cache.map.end();) {
+      if (it->second.buffer != dead) {
+        ++it;
+        continue;
+      }
+      it = cache.map.erase(it);
+      ++erased;
+    }
+    const u64 released = victim->accounted;
+    const bool gpu_idle = victim->lastUseFrame + kNumFrames < s.guest_frames;
+    IndexCacheChunk recycled;
+    if (gpu_idle && bytes <= victim->capacity) {
+      recycled = std::move(*victim);
+      recycled.used = 0;
+      recycled.accounted = 0;
+      recycled.lastUseFrame = s.guest_frames;
+    } else {
+      ParkBuffer(s, std::move(victim->buffer));
+    }
+    pool.chunks.erase(victim);
+    pool.totalBytes -= std::min(pool.totalBytes, released);
+    if (recycled.buffer)
+      pool.chunks.push_back(std::move(recycled));
+    s.perf.index_cache_evictions++;
+    u32 n;
+    if (DiagShouldLog(0x5A11, &n))
+      EOT_INFO("[draw] index-cache recycled one chunk ({} ranges, {} MB resident)", erased,
+               pool.totalBytes >> 20);
+  }
   bool reset = false;
-  const bool ok = PoolAllocate(s, index_pool(), kIndexCacheBudgetBytes, kIndexCacheChunkBytes,
+  const bool ok = PoolAllocate(s, pool, kIndexCacheBudgetBytes, kIndexCacheChunkBytes,
                                plume::RenderBufferFlag::INDEX, "index-cache", bytes, 4, buffer,
                                offset, cpu, &reset);
   if (reset)
-    index_cache().map.clear();
+    cache.map.clear();
+  if (ok) {
+    for (auto &chunk : pool.chunks) {
+      if (chunk.buffer.get() == *buffer) {
+        chunk.lastUseFrame = s.guest_frames;
+        break;
+      }
+    }
+  }
   return ok;
+}
+
+void TouchIndexCacheBuffer(plume::RenderBuffer *buffer, u64 frame) {
+  for (auto &chunk : index_pool().chunks) {
+    if (chunk.buffer.get() == buffer) {
+      chunk.lastUseFrame = frame;
+      return;
+    }
+  }
 }
 
 struct VertexMirrorKey {
@@ -686,6 +774,7 @@ const CachedIndexRange *GetCachedIndexRange(VideoState &s, u32 ib_va, u32 prim, 
   auto it = c.map.find(key);
   if (it != c.map.end()) {
     it->second.lastUseFrame = s.guest_frames;
+    TouchIndexCacheBuffer(it->second.buffer, s.guest_frames);
     s.perf.index_cache_hits++;
     return &it->second;
   }
@@ -1059,7 +1148,9 @@ struct SamplerBindings {
   SharedConstants shared;
 };
 
-void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc) {
+void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
+                             SharedConstants &sc) {
+  const u32 sampler_policy = static_cast<u32>(Settings::Anisotropy());
   for (u32 i = 0; i < 16; ++i) {
     sc.texture2DIndices[i] = kNullTexture2DDescriptorIndex;
     sc.texture3DIndices[i] = kNullTexture3DDescriptorIndex;
@@ -1068,6 +1159,8 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
     sc.samplerIndices[i] = kSamplerLinearClamp;
   }
   for (u32 slot = 0; slot < 16; ++slot) {
+    if (!(texture_mask & (1u << slot)))
+      continue;
     const u32 tex_va = dev.U32(dev::kTextureObject0 + 4 * slot);
     if (!tex_va)
       continue;
@@ -1076,12 +1169,15 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
       fc[d] = dev.U32(dev::kFetchConstants + 24 * slot + 4 * d);
     if ((fc[0] & 3) != 2)
       continue;
+    s.perf.texture_bind_requests++;
     GuestTexture *gt = nullptr;
     u32 index = kInvalidDescriptorIndex;
     u32 sampler = 0;
     VideoState::TextureSlotCache &cs = s.slot_cache[slot];
     const u64 generation = s.texture_generation.load(std::memory_order_relaxed);
     if (cs.generation == generation && cs.texVa == tex_va && cs.texture &&
+        cs.resourceGeneration == cs.texture->bindingGeneration &&
+        cs.samplerPolicy == sampler_policy &&
         std::memcmp(cs.fc, fc, sizeof(fc)) == 0) {
       gt = cs.texture;
       gt->lastUseFrame = s.guest_frames;
@@ -1089,6 +1185,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
       TransitionLocked(s, gt->host, plume::RenderTextureLayout::SHADER_READ);
       index = cs.index;
       sampler = cs.sampler;
+      s.perf.texture_bind_hits++;
     } else {
       gt = GetGuestTexture(s, tex_va);
       if (!gt) {
@@ -1113,10 +1210,13 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, SharedConstants &sc)
       cs.texVa = tex_va;
       std::memcpy(cs.fc, fc, sizeof(fc));
       cs.generation = s.texture_generation.load(std::memory_order_relaxed);
+      cs.resourceGeneration = gt->bindingGeneration;
+      cs.samplerPolicy = sampler_policy;
       cs.texture = gt;
       cs.index = index;
       cs.sampler = sampler;
     }
+    gt->perfSamples++;
     switch (gt->dimension) {
     case xe::DataDimension::k3D:
       sc.texture3DIndices[slot] = index;
@@ -1165,9 +1265,11 @@ bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {
 }
 
 void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
-                 const u8 *device_image = nullptr) {
+                 FloatConstantDirty constants, const u8 *device_image = nullptr) {
   auto &s = state();
   std::lock_guard lock(s.mutex);
+  s.vs_float_constants_stale |= constants.vs;
+  s.ps_float_constants_stale |= constants.ps;
   if (!s.ready)
     return;
   EOT_CPU_ZONE("ExecuteDraw");
@@ -1402,7 +1504,9 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     if (layout->streamMask & (1u << S))
       max_slot = S;
   UploadAlloc zero;
-  if (!UploadZeroBuffer(s, &zero)) {
+  const u32 prefix_mask = (1u << (max_slot + 1)) - 1;
+  const bool need_zero = layout->needsSyntheticSlot || layout->streamMask != prefix_mask;
+  if (need_zero && !UploadZeroBuffer(s, &zero)) {
     Dropped("upload ring exhausted (zero buffer)", 0x600C);
     return;
   }
@@ -1460,17 +1564,21 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   lap(s.perf.stream_ms);
 
   UploadAlloc vs_consts, ps_consts, shared_alloc;
-  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs, &vs_consts) ||
+  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs,
+                       s.vs_float_constants_stale, &vs_consts) ||
       !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
-                       &ps_consts)) {
+                       s.ps_float_constants_stale, &ps_consts)) {
     Dropped("constant upload failed", 0x6010);
     return;
   }
+  s.vs_float_constants_stale = false;
+  s.ps_float_constants_stale = false;
   const ViewportInfo vp = ComputeViewport(dev, targets);
   SharedConstants sc;
   {
     PerfScope bind_scope(s.perf.bind_ms);
-    BindTexturesAndSamplers(s, dev, sc);
+    const u32 texture_mask = vs->textureFetchMask | (ps ? ps->textureFetchMask : 0u);
+    BindTexturesAndSamplers(s, dev, texture_mask, sc);
   }
   for (u32 i = 0; i < 4; ++i) {
     sc.booleans[i] = dev.U32(dev::kVsBoolConstants + 4 * i);
@@ -1575,30 +1683,42 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     Dropped("framebuffer creation failed", 0x6012);
     return;
   }
+  GuestSurface *work_surface = targets.colorCount ? targets.color[0] : targets.depth;
+  if (work_surface)
+    work_surface->perfDraws++;
   GpuTimingCountDraw(s);
   auto *cmd = s.command_list;
+  const bool dynamic_state_invalid = s.bound_pipeline == nullptr;
   const bool pipeline_changed = s.bound_pipeline != pipeline;
   if (pipeline_changed) {
     cmd->setPipeline(pipeline);
+    s.perf.pipeline_bind_calls++;
     s.bound_pipeline = pipeline;
-    if (st.stencilEnable) {
+  }
+  static u32 last_stencil_ref = ~0u;
+  if (dynamic_state_invalid)
+    last_stencil_ref = ~0u;
+  if (st.stencilEnable && last_stencil_ref != st.stencilRef) {
 #if defined(EOT_D3D12)
-      static_cast<plume::D3D12CommandList *>(cmd)->d3d->OMSetStencilRef(st.stencilRef);
+    static_cast<plume::D3D12CommandList *>(cmd)->d3d->OMSetStencilRef(st.stencilRef);
 #else
-      vkCmdSetStencilReference(static_cast<plume::VulkanCommandList *>(cmd)->vk,
-                               VK_STENCIL_FACE_FRONT_AND_BACK, st.stencilRef);
+    vkCmdSetStencilReference(static_cast<plume::VulkanCommandList *>(cmd)->vk,
+                             VK_STENCIL_FACE_FRONT_AND_BACK, st.stencilRef);
 #endif
-    }
+    last_stencil_ref = st.stencilRef;
+    s.perf.stencil_ref_calls++;
   }
   static plume::RenderViewport last_vp;
   static plume::RenderRect last_sc;
-  if (pipeline_changed || std::memcmp(&last_vp, &vp.vp, sizeof(last_vp)) != 0) {
+  if (dynamic_state_invalid || std::memcmp(&last_vp, &vp.vp, sizeof(last_vp)) != 0) {
     cmd->setViewports(&vp.vp, 1);
     last_vp = vp.vp;
+    s.perf.viewport_bind_calls++;
   }
-  if (pipeline_changed || std::memcmp(&last_sc, &vp.scissor, sizeof(last_sc)) != 0) {
+  if (dynamic_state_invalid || std::memcmp(&last_sc, &vp.scissor, sizeof(last_sc)) != 0) {
     cmd->setScissors(&vp.scissor, 1);
     last_sc = vp.scissor;
+    s.perf.scissor_bind_calls++;
   }
   const UploadAlloc *roots[2] = {&vs_consts, &ps_consts};
   for (u32 r = 0; r < 2; ++r) {
@@ -1616,28 +1736,73 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     s.last_shared = sc;
     s.shared_bound = true;
   }
-  cmd->setVertexBuffers(0, views, max_slot + 1, slots);
+  auto bind_vertex_views = [&](u32 first, const plume::RenderVertexBufferView *want_views,
+                               u32 count, const plume::RenderInputSlot *want_slots) {
+    s.perf.vertex_bind_requests++;
+    u32 first_dirty = count, last_dirty = 0;
+    for (u32 i = 0; i < count; ++i) {
+      const u32 slot = first + i;
+      const auto &want = want_views[i];
+      const auto &input = want_slots[i];
+      const auto &have = s.bound_vertex_streams[slot];
+      if (!have.valid || have.buffer != want.buffer.ref || have.offset != want.buffer.offset ||
+          have.size != want.size || have.stride != input.stride) {
+        first_dirty = std::min(first_dirty, i);
+        last_dirty = i;
+      }
+    }
+    if (first_dirty == count)
+      return;
+    const u32 dirty_count = last_dirty - first_dirty + 1;
+    cmd->setVertexBuffers(first + first_dirty, want_views + first_dirty, dirty_count,
+                          want_slots + first_dirty);
+    s.perf.vertex_bind_calls++;
+    for (u32 i = first_dirty; i <= last_dirty; ++i) {
+      const u32 slot = first + i;
+      auto &have = s.bound_vertex_streams[slot];
+      have.buffer = want_views[i].buffer.ref;
+      have.offset = want_views[i].buffer.offset;
+      have.size = want_views[i].size;
+      have.stride = want_slots[i].stride;
+      have.valid = true;
+    }
+  };
+  bind_vertex_views(0, views, max_slot + 1, slots);
   if (layout->needsSyntheticSlot) {
     plume::RenderVertexBufferView zv(plume::RenderBufferReference(zero.buffer, zero.offset), 4096);
     plume::RenderInputSlot zs(kSyntheticVertexSlot, 0);
-    cmd->setVertexBuffers(kSyntheticVertexSlot, &zv, 1, &zs);
+    bind_vertex_views(kSyntheticVertexSlot, &zv, 1, &zs);
   }
+  auto bind_index_view = [&](const plume::RenderIndexBufferView &want) {
+    s.perf.index_bind_requests++;
+    auto &have = s.bound_index_stream;
+    if (have.valid && have.buffer == want.buffer.ref && have.offset == want.buffer.offset &&
+        have.size == want.size && have.format == want.format)
+      return;
+    cmd->setIndexBuffer(&want);
+    s.perf.index_bind_calls++;
+    have.buffer = want.buffer.ref;
+    have.offset = want.buffer.offset;
+    have.size = want.size;
+    have.format = want.format;
+    have.valid = true;
+  };
   if (geom.rectList) {
     plume::RenderIndexBufferView ib(plume::RenderBufferReference(index_alloc.buffer, index_alloc.offset),
                                     index_count * 4, plume::RenderFormat::R32_UINT);
-    cmd->setIndexBuffer(&ib);
+    bind_index_view(ib);
     cmd->drawIndexedInstanced(index_count, 1, 0, 0, 0);
   } else if (geom.cached) {
     const u32 elem = geom.cached->is32 ? 4 : 2;
     plume::RenderIndexBufferView ib(
         plume::RenderBufferReference(geom.cached->buffer, geom.cached->offset), index_count * elem,
         geom.cached->is32 ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
-    cmd->setIndexBuffer(&ib);
+    bind_index_view(ib);
     cmd->drawIndexedInstanced(index_count, 1, 0, host_base_vertex, 0);
   } else if (geom.indexed) {
     plume::RenderIndexBufferView ib(plume::RenderBufferReference(index_alloc.buffer, index_alloc.offset),
                                     index_count * 4, plume::RenderFormat::R32_UINT);
-    cmd->setIndexBuffer(&ib);
+    bind_index_view(ib);
     cmd->drawIndexedInstanced(index_count, 1, 0, host_base_vertex, 0);
   } else {
     cmd->drawInstanced(geom.vertexCount, 1, 0, 0);
@@ -1649,9 +1814,15 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
 
 }
 
-void DrawGuestPrimitives(u32 device_va, u32 prim, u32 start_vertex, u32 vertex_count) {
-  if (!vertex_count)
+void DrawGuestPrimitives(u32 device_va, u32 prim, u32 start_vertex, u32 vertex_count,
+                         FloatConstantDirty constants) {
+  if (!vertex_count) {
+    auto &s = state();
+    std::lock_guard lock(s.mutex);
+    s.vs_float_constants_stale |= constants.vs;
+    s.ps_float_constants_stale |= constants.ps;
     return;
+  }
   GeometryPlan g;
   bool expand = false;
   g.topology = ConvertPrimitiveType(prim, &expand);
@@ -1668,10 +1839,11 @@ void DrawGuestPrimitives(u32 device_va, u32 prim, u32 start_vertex, u32 vertex_c
     g.baseVertex = 0;
     g.topology = plume::RenderPrimitiveTopology::TRIANGLE_LIST;
   }
-  ExecuteDraw(device_va, prim, g);
+  ExecuteDraw(device_va, prim, g, constants);
 }
 
-void QueueGuestUpDraw(u32 device_va, u32 prim, u32 vertex_count, u32 stride, u32 data_va) {
+void QueueGuestUpDraw(u32 device_va, u32 prim, u32 vertex_count, u32 stride, u32 data_va,
+                      FloatConstantDirty constants) {
   FlushPendingUpDraw();
   auto &s = state();
   std::lock_guard lock(s.mutex);
@@ -1682,6 +1854,12 @@ void QueueGuestUpDraw(u32 device_va, u32 prim, u32 vertex_count, u32 stride, u32
   s.pending_up.vertex_count = vertex_count;
   s.pending_up.stride = stride;
   s.pending_up.data_va = data_va;
+  s.pending_up.vs_constants_dirty = constants.vs;
+  s.pending_up.ps_constants_dirty = constants.ps;
+  if (!s.pending_up.valid) {
+    s.vs_float_constants_stale |= constants.vs;
+    s.ps_float_constants_stale |= constants.ps;
+  }
   s.pending_up.has_image = false;
   if (const u8 *image = mem::at<u8>(device_va)) {
     s.pending_up.device_image.assign(image, image + kDeviceSnapshotBytes);
@@ -1721,13 +1899,19 @@ void FlushPendingUpDraw() {
   }
   trace::Bump(trace::Counter::DrawVertices);
   ExecuteDraw(up.device_va, up.primitive_type, g,
+              {up.vs_constants_dirty, up.ps_constants_dirty},
               up.has_image ? up.device_image.data() : nullptr);
 }
 
 void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 start_index,
-                                u32 index_count) {
-  if (!index_count)
+                                u32 index_count, FloatConstantDirty constants) {
+  if (!index_count) {
+    auto &s = state();
+    std::lock_guard lock(s.mutex);
+    s.vs_float_constants_stale |= constants.vs;
+    s.ps_float_constants_stale |= constants.ps;
     return;
+  }
   DeviceView dev = Device(device_va);
   GeometryPlan g;
   bool expand = false;
@@ -1743,12 +1927,16 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 st
     }
   }
   if (g.cached) {
-    ExecuteDraw(device_va, prim, g);
+    ExecuteDraw(device_va, prim, g, constants);
     return;
   }
   {
     PerfScope index_scope(state().perf.index_ms);
     if (!ReadGuestIndices(dev.U32(dev::kIndexBuffer), start_index, index_count, g.indices)) {
+      auto &s = state();
+      std::lock_guard lock(s.mutex);
+      s.vs_float_constants_stale |= constants.vs;
+      s.ps_float_constants_stale |= constants.ps;
       Dropped("index buffer unreadable", 0x6020);
       return;
     }
@@ -1760,7 +1948,7 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 st
                                           : plume::RenderPrimitiveTopology::TRIANGLE_LIST;
     }
   }
-  ExecuteDraw(device_va, prim, g);
+  ExecuteDraw(device_va, prim, g, constants);
 }
 
 void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, float z, u32 stencil) {
@@ -1773,8 +1961,29 @@ void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, floa
   if (!s.command_list_open)
     return;
   Targets targets;
-  if (!ResolveTargets(s, dev, targets) || !BindTargets(s, targets))
+  if (!ResolveTargets(s, dev, targets))
     return;
+  bool suppressed_color_init[4] = {};
+  bool suppressed_depth_init = false;
+  if (!rect_va) {
+    for (u32 i = 0; i < targets.colorCount; ++i) {
+      if ((flags & (1u << i)) && targets.color[i]->host.needsClear) {
+        suppressed_color_init[i] = true;
+        targets.color[i]->host.needsClear = false;
+      }
+    }
+    if (targets.depth && (flags & 0x30) == 0x30 && targets.depth->host.needsClear) {
+      suppressed_depth_init = true;
+      targets.depth->host.needsClear = false;
+    }
+  }
+  if (!BindTargets(s, targets)) {
+    for (u32 i = 0; i < targets.colorCount; ++i)
+      targets.color[i]->host.needsClear |= suppressed_color_init[i];
+    if (targets.depth)
+      targets.depth->host.needsClear |= suppressed_depth_init;
+    return;
+  }
   plume::RenderColor color(0, 0, 0, 0);
   if (color_va) {
     color = plume::RenderColor(mem::f32at(color_va), mem::f32at(color_va + 4),
@@ -1794,12 +2003,15 @@ void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, floa
   }
   auto *cmd = s.command_list;
   for (u32 i = 0; i < targets.colorCount; ++i) {
-    if (flags & (1u << i))
+    if (flags & (1u << i)) {
       cmd->clearColor(i, color, rects, rect_count);
+      targets.color[i]->perfClears++;
+    }
   }
   if (targets.depth && (flags & 0x30)) {
     cmd->clearDepthStencil((flags & 0x10) != 0, (flags & 0x20) != 0, z, stencil & 0xFF, rects,
                            rect_count);
+    targets.depth->perfClears++;
   }
   DrainHostDebugMessages(s, "clear");
 }

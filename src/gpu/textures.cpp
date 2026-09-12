@@ -225,6 +225,14 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
       w = std::max(1u, host.width >> level);
       h = std::max(1u, host.height >> level);
     }
+    if (!mem::readable(address, lvl->level_data_extent_bytes)) {
+      u32 n;
+      if (DiagShouldLog(0x5EB0 ^ t.va, &n))
+        EOT_WARN("[textures] {:#x}: level {} at {:#x} ({} bytes) is not mapped guest memory; "
+                 "skipping the upload (x{})",
+                 t.va, level, address, lvl->level_data_extent_bytes, n + 1);
+      continue;
+    }
     const u8 *src_base = mem::at<u8>(address);
     if (!src_base)
       continue;
@@ -331,9 +339,19 @@ void EvictStaleGuestTextures(VideoState &s) {
 
 void NotifyResourceUnlocked(u32 resource_va) {
   auto &u = unlocks();
-  std::lock_guard lock(u.mutex);
-  u.seq[resource_va] = ++u.global;
-  state().texture_generation.fetch_add(1, std::memory_order_relaxed);
+  {
+    std::lock_guard lock(u.mutex);
+    u.seq[resource_va] = ++u.global;
+  }
+  auto &s = state();
+  std::unique_lock lock(s.mutex, std::try_to_lock);
+  if (lock.owns_lock()) {
+    const auto texture = s.textures.find(resource_va);
+    if (texture != s.textures.end() && texture->second)
+      texture->second->bindingGeneration++;
+  } else {
+    s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+  }
 }
 
 u64 ResourceUnlockSeq(u32 resource_va) {
@@ -364,7 +382,7 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
     if (create_host_image && !slot->host.texture) {
       const auto info = infos().find(header_va);
       if (info != infos().end() && CreateHostImage(s, *slot, info->second))
-        s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+        slot->bindingGeneration++;
     }
     return slot.get();
   }
@@ -388,6 +406,7 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
                static_cast<u32>(info.format), info.memory.base_address, n + 1);
     if (slot.use_count() == 1)
       ParkHostTexture(s, slot->host);
+    s.texture_generation.fetch_add(1, std::memory_order_relaxed);
     slot.reset();
   }
   for (auto &[other_va, other] : s.textures) {
@@ -400,10 +419,8 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
                other->width, other->height, static_cast<u32>(other->format), other->baseAddress);
     infos()[header_va] = info;
     slot = other;
-    s.texture_generation.fetch_add(1, std::memory_order_relaxed);
     return slot.get();
   }
-  s.texture_generation.fetch_add(1, std::memory_order_relaxed);
   auto t = std::make_shared<GuestTexture>();
   t->va = header_va;
   std::memcpy(t->fetch, fetch, sizeof(fetch));
@@ -468,7 +485,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
        mapping.blockCompressed || depth_source != texture_is_depth)) {
     if (!CreateHostImage(s, t, info))
       return false;
-    s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+    t.bindingGeneration++;
   }
   if (!t.resolveOwned &&
       (!t.host.texture || (depth_source == t.host.isDepth && t.host.renderable &&
@@ -486,7 +503,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
                 t.host.width, t.host.height);
       const bool replacing_host = t.host.texture != nullptr;
       ParkHostTexture(s, t.host);
-      s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+      t.bindingGeneration++;
       const bool is_depth = depth_source;
       t.host = HostTexture{};
       plume::RenderTextureDesc desc;

@@ -54,8 +54,18 @@ struct PerfCounters {
   f64 guest_d3d_ms = 0;
   u32 guest_d3d_calls = 0;
   u32 index_cache_hits = 0, index_cache_misses = 0;
+  u32 index_cache_evictions = 0;
   u32 vertex_cache_hits = 0, vertex_cache_misses = 0;
   u32 const_file_hits = 0;
+  u32 const_file_clean_hits = 0;
+  u32 pipeline_hot_hits = 0;
+  u32 vertex_bind_requests = 0, vertex_bind_calls = 0;
+  u32 index_bind_requests = 0, index_bind_calls = 0;
+  u32 framebuffer_cache_hits = 0;
+  u32 texture_bind_requests = 0, texture_bind_hits = 0;
+  u32 pipeline_bind_calls = 0, viewport_bind_calls = 0, scissor_bind_calls = 0;
+  u32 stencil_ref_calls = 0;
+  u32 texture_barrier_calls = 0, texture_barrier_resources = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
   f64 pace_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
@@ -189,6 +199,8 @@ struct VideoState {
     u32 texVa = 0;
     u32 fc[6] = {};
     u64 generation = ~0ull;
+    u64 resourceGeneration = ~0ull;
+    u32 samplerPolicy = ~0u;
     GuestTexture *texture = nullptr;
     u32 index = kInvalidDescriptorIndex;
     u32 sampler = 0;
@@ -196,6 +208,22 @@ struct VideoState {
   TextureSlotCache slot_cache[16];
   std::atomic<u64> texture_generation{1};
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
+  struct SurfaceWorkStats {
+    bool isDepth = false;
+    u32 format = 0, baseTile = 0;
+    u32 minWidth = 0, maxWidth = 0, minHeight = 0, maxHeight = 0;
+    u32 allocWidth = 0, allocHeight = 0, hostWidth = 0, hostHeight = 0;
+    u32 samples = 1;
+    u64 draws = 0, clears = 0, resolves = 0;
+  };
+  struct TextureWorkStats {
+    u32 va = 0, width = 0, height = 0, hostWidth = 0, hostHeight = 0, format = 0;
+    u64 samples = 0, resolves = 0, deadResolves = 0;
+  };
+  std::unordered_map<u64, SurfaceWorkStats> surface_work_window;
+  std::unordered_map<u64, TextureWorkStats> texture_work_window;
+  std::unordered_map<u64, u64> render_area_window;
+  u64 resolve_alias_token = 0;
   struct SurfaceHeaderBinding {
     u64 key = 0;
     u64 lastSeenFrame = 0;
@@ -217,10 +245,30 @@ struct VideoState {
   std::vector<PooledHostTexture> host_texture_pool;
   const plume::RenderFramebuffer *bound_framebuffer = nullptr;
   const plume::RenderPipeline *bound_pipeline = nullptr;
+  struct BoundVertexStream {
+    const plume::RenderBuffer *buffer = nullptr;
+    u64 offset = 0;
+    u32 size = 0;
+    u32 stride = 0;
+    bool valid = false;
+  } bound_vertex_streams[16];
+  struct BoundIndexStream {
+    const plume::RenderBuffer *buffer = nullptr;
+    u64 offset = 0;
+    u32 size = 0;
+    plume::RenderFormat format = plume::RenderFormat::UNKNOWN;
+    bool valid = false;
+  } bound_index_stream;
+  const plume::RenderTexture *bound_draw_colors[4] = {};
+  const plume::RenderTexture *bound_draw_depth = nullptr;
+  u32 bound_draw_color_count = 0;
+  bool bound_draw_targets_valid = false;
   plume::RenderBuffer *bound_root_buffer[3] = {};
   u64 bound_root_offset[3] = {};
   SharedConstants last_shared{};
   bool shared_bound = false;
+  bool vs_float_constants_stale = true;
+  bool ps_float_constants_stale = true;
 
   enum class GammaMode : u32 { None = 0, Table = 1, Pwl = 2 };
   GammaMode gamma_mode = GammaMode::None;
@@ -241,6 +289,8 @@ struct VideoState {
     u32 vertex_count = 0;
     u32 stride = 0;
     u32 data_va = 0;
+    bool vs_constants_dirty = true;
+    bool ps_constants_dirty = true;
     bool has_image = false;
     std::vector<u8> device_image;
   } pending_up;
@@ -302,7 +352,13 @@ u32 BindTextureSRVSwizzledLocked(VideoState &s, HostTexture &host, u32 swizzle);
 void ReleaseTextureSRVLocked(VideoState &s, HostTexture &host);
 void DrainDescriptorSlotsLocked(VideoState &s, u32 slot);
 
+struct HostTextureTransition {
+  HostTexture *host = nullptr;
+  plume::RenderTextureLayout layout = plume::RenderTextureLayout::UNKNOWN;
+};
+
 void TransitionLocked(VideoState &s, HostTexture &host, plume::RenderTextureLayout layout);
+void TransitionManyLocked(VideoState &s, const HostTextureTransition *transitions, u32 count);
 
 plume::RenderColor ArgbToRenderColor(u32 argb);
 
