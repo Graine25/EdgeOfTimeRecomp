@@ -30,7 +30,9 @@
 #include "gpu/patches/movie_aspect.h"
 #include "gpu/patches/present_effects.h"
 #include "gpu/pipeline/pipeline_cache.h"
+#include "gpu/render_thread.h"
 #include "gpu/settings.h"
+#include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
@@ -506,13 +508,14 @@ void LogPerfLocked(VideoState &s) {
   if (every <= 0 || static_cast<i32>(p.frames) < every)
     return;
   const f64 n = static_cast<f64>(p.frames);
-  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws, {} noop; "
+  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
            "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
            "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
            "idx {} const {} | gpu {}",
-           p.frames, p.frame_ms / n, p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
+           p.frames, p.frame_ms / n, p.capture_ms / n, p.present_wait_ms / n, p.worker_idle_ms / n,
+           p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
            p.setup_ms / n,
            p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
            p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
@@ -605,197 +608,222 @@ void FrameLimitWait() {
 
 }
 
+void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
+  EOT_CPU_ZONE("PresentLocked");
+  s.guest_frames++;
+  if (!s.ready || s.shutting_down.load(std::memory_order_acquire))
+    return;
+  DrainShaderGraveyardLocked(s);
+  s.last_front_buffer_va = front_buffer_texture_va;
+  BeginCommandList(s);
+  if (!s.command_list_open)
+    return;
+
+  GuestTexture *front = nullptr;
+  if (front_buffer_texture_va) {
+    front = GetGuestTexture(s, front_buffer_texture_va);
+    if (front && !front->host.valid())
+      front = nullptr;
+  }
+  const bool want_vsync = Settings::Vsync();
+  const bool vsync_changed = s.swap_chain->isVsyncEnabled() != want_vsync;
+  s.swap_chain->setVsyncEnabled(want_vsync);
+#if !defined(EOT_D3D12)
+  if (vsync_changed)
+    s.resize_requested.store(true, std::memory_order_release);
+#else
+  (void)vsync_changed;
+#endif
+  if (!HandleResize(s)) {
+    if (!s.ready)
+      return;
+    SubmitOpenListLocked(s);
+    AdvanceAndWaitReused(s);
+    return;
+  }
+  BeginCommandList(s);
+  if (!s.command_list_open)
+    return;
+
+  const u32 cur = s.recording_slot();
+  u32 image = 0;
+  bool acquired = false;
+  {
+    PerfScope perf_scope(s.perf.acquire_ms);
+    s.swap_chain->wait();
+    acquired = s.swap_chain->acquireTexture(s.acquire_semaphores[cur].get(), &image) &&
+               image < s.swap_framebuffers.size();
+  }
+  if (!acquired) {
+    u32 n;
+    if (DiagShouldLog(0x8001, &n))
+      EOT_WARN("[present] acquireTexture failed (minimised?)");
+    s.resize_requested.store(true, std::memory_order_release);
+    SubmitOpenListLocked(s);
+    AdvanceAndWaitReused(s);
+    return;
+  }
+
+  auto *cmd = s.command_list;
+  GpuTimingMark(s, cmd, kGpuCatPresent);
+  GpuTimingDiagMark(s, cmd, "present");
+  plume::RenderTexture *back = s.swap_chain->getTexture(image);
+  plume::RenderTextureBarrier to_rt(back, plume::RenderTextureLayout::COLOR_WRITE);
+  cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_rt, 1);
+  u32 src_index = kInvalidDescriptorIndex;
+  if (front) {
+    TransitionLocked(s, front->host, plume::RenderTextureLayout::SHADER_READ);
+    src_index = BindTextureSRVSwizzledLocked(s, front->host,
+                                             SamplingSwizzle(*front, front->fetch[3] >> 1));
+    front->lastUseFrame = s.guest_frames;
+    GpuTimingMark(s, cmd, kGpuCatPresent);
+  }
+  const u32 lut_index = front ? EnsureGammaLutLocked(s) : kInvalidDescriptorIndex;
+
+  const float out_w = static_cast<float>(s.swap_chain->getWidth());
+  const float out_h = static_cast<float>(s.swap_chain->getHeight());
+  float fit_w = out_w, fit_h = out_h, fit_x = 0.0f, fit_y = 0.0f;
+  if (src_index != kInvalidDescriptorIndex) {
+    ApplyAspectRatio();
+    const bool movie = TakeMovieDrawnFlag();
+    const float aspect =
+        movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
+    fit_h = out_w / aspect;
+    if (fit_h > out_h) {
+      fit_h = out_h;
+      fit_w = out_h * aspect;
+    }
+    fit_x = (out_w - fit_w) * 0.5f;
+    fit_y = (out_h - fit_h) * 0.5f;
+  }
+
+  cmd->setFramebuffer(s.swap_framebuffers[image].get());
+  s.bound_framebuffer = nullptr;
+  const bool uncovered =
+      src_index == kInvalidDescriptorIndex || fit_w < out_w || fit_h < out_h;
+  if (uncovered)
+    cmd->clearColor(0, plume::RenderColor(0, 0, 0, 1), nullptr, 0);
+  const i32 dump_every = Settings::DumpEvery();
+  if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
+    const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
+    DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index,
+                          SamplingSwizzle(*front, front->fetch[3] >> 1));
+    cmd->setFramebuffer(s.swap_framebuffers[image].get());
+  }
+  if (src_index != kInvalidDescriptorIndex) {
+    plume::RenderViewport vp(fit_x, fit_y, fit_w, fit_h, 0.0f, 1.0f);
+    plume::RenderRect sc(static_cast<i32>(fit_x), static_cast<i32>(fit_y),
+                         static_cast<i32>(fit_x + fit_w),
+                         static_cast<i32>(fit_y + fit_h));
+    cmd->setViewports(&vp, 1);
+    cmd->setScissors(&sc, 1);
+    plume::RenderPipeline *pso = GetBlitPipeline(s, plume::RenderFormat::B8G8R8A8_UNORM);
+    cmd->setPipeline(pso);
+    s.bound_pipeline = nullptr;
+    CopyPushConstants pc;
+    pc.resourceDescriptorIndex = src_index;
+    pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
+    pc.param0 = 1.0f;
+    SelectPresentBlitMode(front->host.width, front->host.height, fit_w, fit_h, pc.extra);
+    pc.colorAdjust[0] = static_cast<float>(std::clamp(Settings::Brightness(), -0.5, 0.5));
+    pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
+    pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));
+    pc.colorAdjust[3] = static_cast<float>(std::clamp(Settings::Gamma(), 0.4, 2.5));
+    pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
+    pc.rect[0] = 0.0f;
+    pc.rect[1] = 0.0f;
+    pc.rect[2] = 1.0f;
+    pc.rect[3] = 1.0f;
+    cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
+                                  sizeof(pc));
+    cmd->drawInstanced(3, 1, 0, 0);
+  } else if (front_buffer_texture_va) {
+    u32 n;
+    if (DiagShouldLog(0x8002, &n))
+      EOT_WARN("[present] no front buffer mirror for {:#x}; presenting black",
+               front_buffer_texture_va);
+  }
+  {
+    const u32 out_w = s.swap_chain->getWidth(), out_h = s.swap_chain->getHeight();
+    const plume::RenderViewport full(0.0f, 0.0f, static_cast<float>(out_w),
+                                     static_cast<float>(out_h), 0.0f, 1.0f);
+    const plume::RenderRect full_scissor(0, 0, static_cast<i32>(out_w), static_cast<i32>(out_h));
+    cmd->setViewports(&full, 1);
+    cmd->setScissors(&full_scissor, 1);
+    RunOverlayDrawHook(cmd, s.swap_framebuffers[image].get(), out_w, out_h);
+    s.bound_pipeline = nullptr;
+    s.bound_framebuffer = nullptr;
+  }
+
+  plume::RenderTextureBarrier to_present(back, plume::RenderTextureLayout::PRESENT);
+  cmd->barriers(plume::RenderBarrierStage::NONE, &to_present, 1);
+
+  FlushGeometryStaging(s);
+  GpuTimingFrameEnd(cmd);
+  s.command_lists[cur]->end();
+  s.command_list_open = false;
+  s.bound_framebuffer = nullptr;
+  s.bound_pipeline = nullptr;
+  const plume::RenderCommandList *lists[] = {s.command_lists[cur].get()};
+  plume::RenderCommandSemaphore *wait[] = {s.acquire_semaphores[cur].get()};
+  plume::RenderCommandSemaphore *signal[] = {s.render_semaphores[image].get()};
+  {
+    PerfScope perf_scope(s.perf.submit_ms);
+    s.queue->executeCommandLists(lists, 1, wait, 1, signal, 1, s.fences[cur].get());
+    s.command_list_submitted[cur] = true;
+    if (!s.swap_chain->present(image, signal, 1)) {
+      const bool device_removed = ReportSwapChainFailure(s, "swap-chain present");
+      if (device_removed) {
+        DisableFailedDevice(s);
+        return;
+      }
+      s.resize_requested.store(true, std::memory_order_release);
+    }
+  }
+  s.presented_frames++;
+  trace::PresentMarker(s.presented_frames);
+
+  {
+    PerfScope perf_scope(s.perf.fence_ms);
+    AdvanceAndWaitReused(s);
+  }
+  LogPerfLocked(s);
+  PsoCacheFlushIfDirty(false);
+  DrainHostDebugMessages(s, "present");
+  RenderDocFrameBoundary(s.guest_frames);
+}
+
 void Video::Present(u32 front_buffer_texture_va) {
   EOT_CPU_ZONE("Present");
   auto &s = state();
-  {
-    std::lock_guard lock(s.mutex);
-    s.guest_frames++;
-    trace::EndFrame(s.guest_frames);
-    if (!s.ready || s.shutting_down.load(std::memory_order_acquire))
-      return;
-    s.last_front_buffer_va = front_buffer_texture_va;
-    BeginCommandList(s);
-    if (!s.command_list_open)
-      return;
-
-    GuestTexture *front = nullptr;
-    if (front_buffer_texture_va) {
-      front = GetGuestTexture(s, front_buffer_texture_va);
-      if (front && !front->host.valid())
-        front = nullptr;
-    }
-    const bool want_vsync = Settings::Vsync();
-    const bool vsync_changed = s.swap_chain->isVsyncEnabled() != want_vsync;
-    s.swap_chain->setVsyncEnabled(want_vsync);
-#if !defined(EOT_D3D12)
-    if (vsync_changed)
-      s.resize_requested.store(true, std::memory_order_release);
-#else
-    (void)vsync_changed;
-#endif
-    if (!HandleResize(s)) {
-      if (!s.ready)
-        return;
-      SubmitOpenListLocked(s);
-      AdvanceAndWaitReused(s);
-      return;
-    }
-    BeginCommandList(s);
-    if (!s.command_list_open)
-      return;
-
-    const u32 cur = s.recording_slot();
-    u32 image = 0;
-    bool acquired = false;
-    {
-      PerfScope perf_scope(s.perf.acquire_ms);
-      s.swap_chain->wait();
-      acquired = s.swap_chain->acquireTexture(s.acquire_semaphores[cur].get(), &image) &&
-                 image < s.swap_framebuffers.size();
-    }
-    if (!acquired) {
-      u32 n;
-      if (DiagShouldLog(0x8001, &n))
-        EOT_WARN("[present] acquireTexture failed (minimised?)");
-      s.resize_requested.store(true, std::memory_order_release);
-      SubmitOpenListLocked(s);
-      AdvanceAndWaitReused(s);
-      return;
-    }
-
-    auto *cmd = s.command_list;
-    GpuTimingMark(s, cmd, kGpuCatPresent);
-    GpuTimingDiagMark(s, cmd, "present");
-    plume::RenderTexture *back = s.swap_chain->getTexture(image);
-    plume::RenderTextureBarrier to_rt(back, plume::RenderTextureLayout::COLOR_WRITE);
-    cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_rt, 1);
-    u32 src_index = kInvalidDescriptorIndex;
-    if (front) {
-      TransitionLocked(s, front->host, plume::RenderTextureLayout::SHADER_READ);
-      src_index = BindTextureSRVSwizzledLocked(s, front->host,
-                                               SamplingSwizzle(*front, front->fetch[3] >> 1));
-      front->lastUseFrame = s.guest_frames;
-      GpuTimingMark(s, cmd, kGpuCatPresent);
-    }
-    const u32 lut_index = front ? EnsureGammaLutLocked(s) : kInvalidDescriptorIndex;
-
-    const float out_w = static_cast<float>(s.swap_chain->getWidth());
-    const float out_h = static_cast<float>(s.swap_chain->getHeight());
-    float fit_w = out_w, fit_h = out_h, fit_x = 0.0f, fit_y = 0.0f;
-    if (src_index != kInvalidDescriptorIndex) {
-      ApplyAspectRatio();
-      const bool movie = TakeMovieDrawnFlag();
-      const float aspect =
-          movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
-      fit_h = out_w / aspect;
-      if (fit_h > out_h) {
-        fit_h = out_h;
-        fit_w = out_h * aspect;
+  trace::EndFrame(s.guest_frames + 1);
+  if (s.ready && !s.shutting_down.load(std::memory_order_acquire)) {
+    if (RenderThreadActive()) {
+      u64 seq = 0;
+      {
+        RenderEnqueue enqueue;
+        enqueue.cmd().type = RenderCommandType::Present;
+        enqueue.cmd().va = front_buffer_texture_va;
+        seq = enqueue.commit();
       }
-      fit_x = (out_w - fit_w) * 0.5f;
-      fit_y = (out_h - fit_h) * 0.5f;
+      PerfScope wait_scope(s.perf.present_wait_ms);
+      RenderThreadWait(seq);
+    } else {
+      std::lock_guard lock(s.mutex);
+      PresentLocked(s, front_buffer_texture_va);
     }
-
-    cmd->setFramebuffer(s.swap_framebuffers[image].get());
-    s.bound_framebuffer = nullptr;
-    const bool uncovered =
-        src_index == kInvalidDescriptorIndex || fit_w < out_w || fit_h < out_h;
-    if (uncovered)
-      cmd->clearColor(0, plume::RenderColor(0, 0, 0, 1), nullptr, 0);
-    const i32 dump_every = Settings::DumpEvery();
-    if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
-      const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
-      DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index,
-                            SamplingSwizzle(*front, front->fetch[3] >> 1));
-      cmd->setFramebuffer(s.swap_framebuffers[image].get());
-    }
-    if (src_index != kInvalidDescriptorIndex) {
-      plume::RenderViewport vp(fit_x, fit_y, fit_w, fit_h, 0.0f, 1.0f);
-      plume::RenderRect sc(static_cast<i32>(fit_x), static_cast<i32>(fit_y),
-                           static_cast<i32>(fit_x + fit_w),
-                           static_cast<i32>(fit_y + fit_h));
-      cmd->setViewports(&vp, 1);
-      cmd->setScissors(&sc, 1);
-      plume::RenderPipeline *pso = GetBlitPipeline(s, plume::RenderFormat::B8G8R8A8_UNORM);
-      cmd->setPipeline(pso);
-      s.bound_pipeline = nullptr;
-      CopyPushConstants pc;
-      pc.resourceDescriptorIndex = src_index;
-      pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
-      pc.param0 = 1.0f;
-      SelectPresentBlitMode(front->host.width, front->host.height, fit_w, fit_h, pc.extra);
-      pc.colorAdjust[0] = static_cast<float>(std::clamp(Settings::Brightness(), -0.5, 0.5));
-      pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
-      pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));
-      pc.colorAdjust[3] = static_cast<float>(std::clamp(Settings::Gamma(), 0.4, 2.5));
-      pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
-      pc.rect[0] = 0.0f;
-      pc.rect[1] = 0.0f;
-      pc.rect[2] = 1.0f;
-      pc.rect[3] = 1.0f;
-      cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
-                                    sizeof(pc));
-      cmd->drawInstanced(3, 1, 0, 0);
-    } else if (front_buffer_texture_va) {
-      u32 n;
-      if (DiagShouldLog(0x8002, &n))
-        EOT_WARN("[present] no front buffer mirror for {:#x}; presenting black",
-                 front_buffer_texture_va);
-    }
-    {
-      const u32 out_w = s.swap_chain->getWidth(), out_h = s.swap_chain->getHeight();
-      const plume::RenderViewport full(0.0f, 0.0f, static_cast<float>(out_w),
-                                       static_cast<float>(out_h), 0.0f, 1.0f);
-      const plume::RenderRect full_scissor(0, 0, static_cast<i32>(out_w), static_cast<i32>(out_h));
-      cmd->setViewports(&full, 1);
-      cmd->setScissors(&full_scissor, 1);
-      RunOverlayDrawHook(cmd, s.swap_framebuffers[image].get(), out_w, out_h);
-      s.bound_pipeline = nullptr;
-      s.bound_framebuffer = nullptr;
-    }
-
-    plume::RenderTextureBarrier to_present(back, plume::RenderTextureLayout::PRESENT);
-    cmd->barriers(plume::RenderBarrierStage::NONE, &to_present, 1);
-
-    FlushGeometryStaging(s);
-    GpuTimingFrameEnd(cmd);
-    s.command_lists[cur]->end();
-    s.command_list_open = false;
-    s.bound_framebuffer = nullptr;
-    s.bound_pipeline = nullptr;
-    const plume::RenderCommandList *lists[] = {s.command_lists[cur].get()};
-    plume::RenderCommandSemaphore *wait[] = {s.acquire_semaphores[cur].get()};
-    plume::RenderCommandSemaphore *signal[] = {s.render_semaphores[image].get()};
-    {
-      PerfScope perf_scope(s.perf.submit_ms);
-      s.queue->executeCommandLists(lists, 1, wait, 1, signal, 1, s.fences[cur].get());
-      s.command_list_submitted[cur] = true;
-      if (!s.swap_chain->present(image, signal, 1)) {
-        const bool device_removed = ReportSwapChainFailure(s, "swap-chain present");
-        if (device_removed) {
-          DisableFailedDevice(s);
-          return;
-        }
-        s.resize_requested.store(true, std::memory_order_release);
-      }
-    }
-    s.presented_frames++;
-    trace::PresentMarker(s.presented_frames);
-
-    {
-      PerfScope perf_scope(s.perf.fence_ms);
-      AdvanceAndWaitReused(s);
-    }
-    LogPerfLocked(s);
-    PsoCacheFlushIfDirty(false);
-    DrainHostDebugMessages(s, "present");
-    RenderDocFrameBoundary(s.guest_frames);
   }
   FrameLimitWait();
   EOT_FRAME_MARK();
 }
 
-void Video::PresentOverlayOnly() { Present(0); }
+void Video::PresentOverlayOnly() {
+  auto &s = state();
+  {
+    std::lock_guard lock(s.mutex);
+    PresentLocked(s, 0);
+  }
+  FrameLimitWait();
+}
 
 }

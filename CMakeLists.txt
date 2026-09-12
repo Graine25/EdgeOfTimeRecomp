@@ -145,6 +145,7 @@ set(REEOT_SOURCES
     src/gpu/surfaces.cpp
     src/gpu/vertex_layout.cpp
     src/gpu/draw.cpp
+    src/gpu/render_thread.cpp
     src/gpu/resolve.cpp
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp

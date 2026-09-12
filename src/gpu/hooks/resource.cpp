@@ -42,7 +42,6 @@ extern "C" REX_FUNC(XGRegisterVertexShader) {
   __imp__XGRegisterVertexShader(ctx, base);
   EOT_TRACE_CALL("XGRegisterVertexShader obj={:#x} phys={:#x}", shader, physical);
   auto &s = state();
-  std::lock_guard lock(s.mutex);
   if (GuestShader *g = RegisterGuestShader(s, shader, false)) {
     if (physical >= 0x82000000u && physical < 0x83000000u) {
       g->createdByGuestCall = true;
@@ -57,7 +56,6 @@ extern "C" REX_FUNC(XGRegisterPixelShader) {
   __imp__XGRegisterPixelShader(ctx, base);
   EOT_TRACE_CALL("XGRegisterPixelShader obj={:#x} phys={:#x}", shader, physical);
   auto &s = state();
-  std::lock_guard lock(s.mutex);
   if (GuestShader *g = RegisterGuestShader(s, shader, true)) {
     if (physical >= 0x82000000u && physical < 0x83000000u) {
       g->createdByGuestCall = true;

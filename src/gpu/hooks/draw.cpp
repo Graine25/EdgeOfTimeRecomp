@@ -122,7 +122,7 @@ extern "C" REX_FUNC(D3DDevice_BeginIndexedVertices) {
   }
   if (constants.vs || constants.ps) {
     auto &s = state();
-    std::lock_guard lock(s.mutex);
+    std::lock_guard lock(s.guest_mutex);
     s.vs_float_constants_stale |= constants.vs;
     s.ps_float_constants_stale |= constants.ps;
   }

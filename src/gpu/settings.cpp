@@ -81,6 +81,9 @@ REXCVAR_DEFINE_BOOL(eot_stencil_twin, true, "EdgeOfTime/Config",
 REXCVAR_DEFINE_BOOL(eot_geometry_vram, true, "EdgeOfTime/Config",
                     "Keep the persistent index and vertex caches in VRAM (copied from their "
                     "upload chunks at the end of the frame that admits them).");
+REXCVAR_DEFINE_BOOL(eot_render_thread, true, "EdgeOfTime/Config",
+                    "Record and submit the host frame on a render thread; the game thread "
+                    "captures each draw and waits only at the frame's present.");
 REXCVAR_DEFINE_BOOL(eot_shadow_atlas_direct, true, "EdgeOfTime/Config",
                     "Draw the shadow tile straight into its atlas region instead of copying it "
                     "there after the pass (predicted from the previous frame).");
@@ -177,6 +180,8 @@ REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug",
                     "run with 400 or more draws, whatever its index.");
 REXCVAR_DEFINE_BOOL(eot_diag_scissor, false, "EdgeOfTime/Debug",
                     "Experiment: scissor every multisampled draw to one pixel (per-draw GPU cost only).");
+REXCVAR_DEFINE_BOOL(eot_diag_skipdraw, false, "EdgeOfTime/Debug",
+                    "Experiment: record no guest draws (black frame; the wall time is the guest's own).");
 REXCVAR_DEFINE_BOOL(eot_diag_novtx, false, "EdgeOfTime/Debug",
                     "Experiment: multisampled indexed draws issue three indices only.");
 REXCVAR_DEFINE_BOOL(eot_diag_extrapso, false, "EdgeOfTime/Debug",
@@ -229,6 +234,7 @@ bool Settings::ResolveHardware() { return REXCVAR_GET(eot_resolve_hw); }
 bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
 bool Settings::ShadowAtlasDirect() { return REXCVAR_GET(eot_shadow_atlas_direct); }
 bool Settings::GeometryVram() { return REXCVAR_GET(eot_geometry_vram); }
+bool Settings::RenderThread() { return REXCVAR_GET(eot_render_thread); }
 bool Settings::StencilTwin() { return REXCVAR_GET(eot_stencil_twin); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
@@ -254,6 +260,7 @@ bool Settings::DiagRectClear() { return REXCVAR_GET(eot_diag_rectclear); }
 bool Settings::DiagNoPso() { return REXCVAR_GET(eot_diag_nopso); }
 bool Settings::DiagExtraPso() { return REXCVAR_GET(eot_diag_extrapso); }
 bool Settings::DiagNoVtx() { return REXCVAR_GET(eot_diag_novtx); }
+bool Settings::DiagSkipDraw() { return REXCVAR_GET(eot_diag_skipdraw); }
 bool Settings::DiagNoConst() { return REXCVAR_GET(eot_diag_noconst); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }

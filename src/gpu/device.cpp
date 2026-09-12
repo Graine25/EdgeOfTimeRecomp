@@ -32,6 +32,7 @@
 #include "gpu/format.h"
 #include "gpu/quality.h"
 #include "platform/display.h"
+#include "gpu/render_thread.h"
 #include "gpu/settings.h"
 
 #if defined(EOT_D3D12)
@@ -955,6 +956,7 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
     s.host_msaa_samples = samples;
   }
   s.ready = true;
+  RenderThreadStart();
   EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots, msaa {}x on the "
            "full-frame surfaces",
            s.backend_info, s.device->getDescription().name, s.swap_chain->getWidth(),
@@ -982,6 +984,7 @@ bool Video::IsShuttingDown() { return state().shutting_down.load(std::memory_ord
 void Video::BeginShutdown() {
   auto &s = state();
   s.shutting_down.store(true, std::memory_order_release);
+  RenderThreadStop();
   PsoPrecacheStop();
   PsoCacheFlushIfDirty(true);
   if (s.quiesced)
