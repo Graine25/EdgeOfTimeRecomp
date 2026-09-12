@@ -78,6 +78,9 @@ REXCVAR_DEFINE_BOOL(eot_stencil_twin, true, "EdgeOfTime/Config",
                     "plane too (a pixel shader writing SV_StencilRef; D3D12), so the passes that "
                     "mark and test stencil without writing depth -- the deferred light volumes -- "
                     "draw single-sample.");
+REXCVAR_DEFINE_BOOL(eot_shadow_atlas_direct, true, "EdgeOfTime/Config",
+                    "Draw the shadow tile straight into its atlas region instead of copying it "
+                    "there after the pass (predicted from the previous frame).");
 REXCVAR_DEFINE_BOOL(eot_resolve_transfer, true, "EdgeOfTime/Config",
                     "A whole-surface resolve hands the surface's single-sample image to the "
                     "destination texture instead of copying it (the surface copies it back "
@@ -168,6 +171,12 @@ REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug",
                     "run with 400 or more draws, whatever its index.");
 REXCVAR_DEFINE_BOOL(eot_diag_scissor, false, "EdgeOfTime/Debug",
                     "Experiment: scissor every multisampled draw to one pixel (per-draw GPU cost only).");
+REXCVAR_DEFINE_BOOL(eot_diag_nopso, false, "EdgeOfTime/Debug",
+                    "Experiment: multisampled draws keep the bound pipeline (garbage output).");
+REXCVAR_DEFINE_BOOL(eot_diag_noconst, false, "EdgeOfTime/Debug",
+                    "Experiment: multisampled draws keep the bound constants (garbage output).");
+REXCVAR_DEFINE_BOOL(eot_diag_rectclear, false, "EdgeOfTime/Debug",
+                    "Experiment: clear the shadow tile through a covering rect.");
 REXCVAR_DEFINE_BOOL(eot_diag_dump, false, "EdgeOfTime/Debug",
                     "Dump every resolve source of the diagnostic frame as a PPM (submits and stalls per dump).");
 
@@ -208,6 +217,7 @@ bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
 bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
 bool Settings::ResolveHardware() { return REXCVAR_GET(eot_resolve_hw); }
 bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
+bool Settings::ShadowAtlasDirect() { return REXCVAR_GET(eot_shadow_atlas_direct); }
 bool Settings::StencilTwin() { return REXCVAR_GET(eot_stencil_twin); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
@@ -228,6 +238,9 @@ i32 Settings::DiagFrame() {
 bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
 bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
 bool Settings::DiagScissor() { return REXCVAR_GET(eot_diag_scissor); }
+bool Settings::DiagRectClear() { return REXCVAR_GET(eot_diag_rectclear); }
+bool Settings::DiagNoPso() { return REXCVAR_GET(eot_diag_nopso); }
+bool Settings::DiagNoConst() { return REXCVAR_GET(eot_diag_noconst); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }

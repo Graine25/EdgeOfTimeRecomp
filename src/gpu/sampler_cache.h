@@ -6,7 +6,7 @@
 
 namespace eot::gpu {
 
-plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6]);
+plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6], bool mipmapped_upload = true);
 
 u32 ResolveSamplerSlotLocked(const plume::RenderSamplerDesc &desc);
 

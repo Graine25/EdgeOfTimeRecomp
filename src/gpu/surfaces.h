@@ -44,6 +44,8 @@ void ParkSurfaceImages(VideoState &s, GuestSurface &surf);
 void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src,
                              GuestTexture &target, const std::shared_ptr<GuestTexture> &target_ref);
 bool SurfaceTakeBack(VideoState &s, GuestSurface &surf);
+void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf);
+bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf);
 void TextureReleaseBorrower(VideoState &s, GuestTexture &t);
 
 }

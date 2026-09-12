@@ -39,6 +39,7 @@ struct Settings {
   static bool ResolveCopy();
   static bool ResolveHardware();
   static bool ResolveTransfer();
+  static bool ShadowAtlasDirect();
   static bool StencilTwin();
   static f64 RenderScale();
   static std::string Resolution();
@@ -55,6 +56,9 @@ struct Settings {
   static bool DiagScene();
   static bool DiagDump();
   static bool DiagScissor();
+  static bool DiagRectClear();
+  static bool DiagNoPso();
+  static bool DiagNoConst();
   static void ArmDiagFrame(i32 frame);
   static i32 RenderDocFrame();
   static std::string RenderDocDll();
