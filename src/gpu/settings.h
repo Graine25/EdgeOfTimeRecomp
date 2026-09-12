@@ -42,6 +42,8 @@ struct Settings {
   static bool ShadowAtlasDirect();
   static bool GeometryVram();
   static bool RenderThread();
+  static i32 FastSetters();
+  static bool FastSettersVerify();
   static bool StencilTwin();
   static f64 RenderScale();
   static std::string Resolution();

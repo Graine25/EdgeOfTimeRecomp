@@ -84,6 +84,12 @@ REXCVAR_DEFINE_BOOL(eot_geometry_vram, true, "EdgeOfTime/Config",
 REXCVAR_DEFINE_BOOL(eot_render_thread, true, "EdgeOfTime/Config",
                     "Record and submit the host frame on a render thread; the game thread "
                     "captures each draw and waits only at the frame's present.");
+REXCVAR_DEFINE_INT32(eot_fast_setters, 7, "EdgeOfTime/Config",
+                     "Bits: 1 SetTexture, 2 SetStreamSource, 4 SetIndices done in the hook "
+                     "instead of by the recompiled XDK function (the same device stores).");
+REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug",
+                    "Run both the hook's setter and the XDK's on every call and log any "
+                    "difference in what they wrote.");
 REXCVAR_DEFINE_BOOL(eot_shadow_atlas_direct, true, "EdgeOfTime/Config",
                     "Draw the shadow tile straight into its atlas region instead of copying it "
                     "there after the pass (predicted from the previous frame).");
@@ -235,6 +241,8 @@ bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
 bool Settings::ShadowAtlasDirect() { return REXCVAR_GET(eot_shadow_atlas_direct); }
 bool Settings::GeometryVram() { return REXCVAR_GET(eot_geometry_vram); }
 bool Settings::RenderThread() { return REXCVAR_GET(eot_render_thread); }
+i32 Settings::FastSetters() { return REXCVAR_GET(eot_fast_setters); }
+bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
 bool Settings::StencilTwin() { return REXCVAR_GET(eot_stencil_twin); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }

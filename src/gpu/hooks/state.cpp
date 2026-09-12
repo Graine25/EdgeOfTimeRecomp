@@ -1,12 +1,183 @@
-#include <rex/hook.h>
+#include <cstring>
 
+#include <rex/hook.h>
+#include <rex/memory/utils.h>
+
+#include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
+#include "gpu/settings.h"
 #include "gpu/trace.h"
 
 using namespace eot;
 using namespace eot::gpu;
+
+namespace {
+
+constexpr u32 kDevReleaseStamp = 11036;  // 0x2B1C
+constexpr u32 kDevReleaseMask = 11040;   // 0x2B20
+constexpr u32 kDevSamplerMinMip = 12332;
+constexpr u32 kDevSamplerMaxMip = 12358;
+constexpr u32 kDevDeclStride = 12240;
+constexpr u32 kDevPendingGroup2 = 16;    // u64: vertex declaration dirty bit 0x80000
+constexpr u32 kDevPendingGroup3 = 24;
+constexpr u32 kObjReleaseStamp = 8;
+constexpr u32 kTexFetch = 28;
+constexpr u32 kVbAddress = 24, kVbSize = 28;
+
+inline u8 *Guest(u8 *base, u32 va) { return base + va + (va >= 0xE0000000u ? 0x1000u : 0u); }
+inline const u8 *Guest(const u8 *base, u32 va) {
+  return base + va + (va >= 0xE0000000u ? 0x1000u : 0u);
+}
+
+inline u32 Ld32(const u8 *p) { return rex::memory::load_and_swap<u32>(p); }
+inline u64 Ld64(const u8 *p) { return rex::memory::load_and_swap<u64>(p); }
+inline void St32(u8 *p, u32 v) {
+  v = __builtin_bswap32(v);
+  std::memcpy(p, &v, 4);
+}
+inline void St64(u8 *p, u64 v) {
+  v = __builtin_bswap64(v);
+  std::memcpy(p, &v, 8);
+}
+
+inline bool NeedsRing(const u8 *base, const u8 *dev, u32 old) {
+  if (!old || Ld32(dev + kDevReleaseStamp) != 0)
+    return false;
+  return (Ld32(dev + kDevReleaseMask) & Ld32(Guest(base, old))) != 0;
+}
+inline void StampReplaced(u8 *base, const u8 *dev, u32 old) {
+  if (!old)
+    return;
+  if (const u32 stamp = Ld32(dev + kDevReleaseStamp))
+    St32(Guest(base, old) + kObjReleaseStamp, stamp);
+}
+
+bool FastSetTexture(u8 *base, u32 device, u32 sampler, u32 texture, u64 mask) {
+  u8 *dev = Guest(base, device);
+  const u32 old = Ld32(dev + dev::kTextureObject0 + 4 * sampler);
+  if (NeedsRing(base, dev, old))
+    return false;
+  u8 *slot = dev + dev::kFetchConstants + 24 * sampler;
+  if (texture) {
+    const u8 *tex = Guest(base, texture) + kTexFetch;
+    const u32 t0 = Ld32(tex), t1 = Ld32(tex + 4), t2 = Ld32(tex + 8), t3 = Ld32(tex + 12),
+              t4 = Ld32(tex + 16), t5 = Ld32(tex + 20);
+    const u32 d0 = Ld32(slot), d1 = Ld32(slot + 4), d3 = Ld32(slot + 12), d4 = Ld32(slot + 16),
+              d5 = Ld32(slot + 20);
+    const u32 base_addr = ((((t1 >> 20) & 0xFFFu) + 512u) & 0x1000u) + (t1 & 0x1FFFFFFFu);
+    const u32 mip_addr = ((((t5 >> 20) & 0xFFFu) + 512u) & 0x1000u) + (t5 & 0x1FFFFE00u);
+    u32 n4 = (d4 & ~0x3FCu) | (t4 & 0x3FCu);
+    u32 lo = dev[kDevSamplerMinMip + sampler];
+    if (const u32 tlo = (t4 >> 2) & 0xFu; tlo > lo)
+      lo = tlo;
+    n4 = (n4 & ~0x3Cu) | ((lo << 2) & 0x3Cu);
+    u32 hi = dev[kDevSamplerMaxMip + sampler];
+    if (const u32 thi = (t4 >> 6) & 0xFu; thi < hi)
+      hi = thi;
+    n4 = (n4 & ~0x3C0u) | ((hi << 6) & 0x3C0u);
+    St32(slot, (d0 & 0x3FFC00u) | (t0 & ~0x3FFC00u));
+    St32(slot + 4, (d1 & 0x800u) | (base_addr & ~0x800u));
+    St32(slot + 8, t2);
+    St32(slot + 12, (d3 & 0x7FF80000u) | (t3 & ~0x7FF80000u));
+    St32(slot + 16, n4);
+    St32(slot + 20, (d5 & 0x1FFu) | (mip_addr & ~0x1FFu));
+    St64(dev + kDevPendingGroup3, Ld64(dev + kDevPendingGroup3) | mask);
+  } else {
+    St32(slot, Ld32(slot) & ~3u);
+  }
+  St32(dev + dev::kTextureObject0 + 4 * sampler, texture);
+  StampReplaced(base, dev, old);
+  return true;
+}
+
+bool FastSetStreamSource(u8 *base, u32 device, u32 stream, u32 vb, u32 offset, u32 stride,
+                         u64 mask) {
+  u8 *dev = Guest(base, device);
+  const u32 old = Ld32(dev + dev::kStreamObject0 + 4 * stream);
+  if (NeedsRing(base, dev, old))
+    return false;
+  if (vb) {
+    const u8 *obj = Guest(base, vb);
+    const u32 addr = Ld32(obj + kVbAddress) + offset;
+    const u32 size = Ld32(obj + kVbSize);
+    u8 *fetch = dev + dev::StreamFetchSlotOffset(stream);
+    St32(fetch, ((((addr >> 20) & 0xFFFu) + 512u) & 0x1000u) + (addr & 0x1FFFFFFFu));
+    St32(fetch + 4, size - offset);
+    St64(dev + kDevPendingGroup3, Ld64(dev + kDevPendingGroup3) | mask);
+  }
+  StampReplaced(base, dev, old);
+  St32(dev + dev::kStreamObject0 + 4 * stream, vb);
+  const u32 stride4 = stride >> 2;
+  dev[dev::kStreamStride0 + stream] = static_cast<u8>(stride4);
+  const u32 s = stride4 & 0x3FFFFFFFu;
+  if (s != 0 && s != dev[kDevDeclStride + stream])
+    St64(dev + kDevPendingGroup2, Ld64(dev + kDevPendingGroup2) | 0x80000u);
+  return true;
+}
+
+bool FastSetIndices(u8 *base, u32 device, u32 ib) {
+  u8 *dev = Guest(base, device);
+  const u32 old = Ld32(dev + dev::kIndexBuffer);
+  if (NeedsRing(base, dev, old))
+    return false;
+  StampReplaced(base, dev, old);
+  St32(dev + dev::kIndexBuffer, ib);
+  return true;
+}
+
+struct VerifyRegions {
+  struct Region {
+    u8 *p;
+    u32 n;
+  };
+  Region regions[7];
+  u32 count = 0;
+  u8 before[128];
+  u8 after_fast[128];
+  u32 total = 0;
+  void add(u8 *p, u32 n) {
+    regions[count++] = {p, n};
+    total += n;
+  }
+  void snapshot(u8 *out) const {
+    u32 off = 0;
+    for (u32 i = 0; i < count; ++i) {
+      std::memcpy(out + off, regions[i].p, regions[i].n);
+      off += regions[i].n;
+    }
+  }
+  void restore(const u8 *in) const {
+    u32 off = 0;
+    for (u32 i = 0; i < count; ++i) {
+      std::memcpy(regions[i].p, in + off, regions[i].n);
+      off += regions[i].n;
+    }
+  }
+};
+
+void ReportVerify(const char *what, const VerifyRegions &v, const u8 *after_orig) {
+  static u32 reports = 0;
+  if (reports >= 40)
+    return;
+  u32 off = 0;
+  for (u32 i = 0; i < v.count; ++i) {
+    if (std::memcmp(v.after_fast + off, after_orig + off, v.regions[i].n) != 0) {
+      std::string fast, orig;
+      for (u32 b = 0; b < v.regions[i].n; ++b) {
+        fast += std::format("{:02x}", v.after_fast[off + b]);
+        orig += std::format("{:02x}", after_orig[off + b]);
+      }
+      EOT_WARN("[fast-setters] {} region {} differs: hook {} xdk {}", what, i, fast, orig);
+      reports++;
+    }
+    off += v.regions[i].n;
+  }
+}
+
+}
 
 REX_EXTERN(__imp__D3DDevice_SetRenderTarget);
 REX_EXTERN(__imp__D3DDevice_SetDepthStencilSurface);
@@ -66,8 +237,35 @@ extern "C" REX_FUNC(D3DDevice_SetViewport) {
 
 extern "C" REX_FUNC(D3DDevice_SetTexture) {
   FlushPendingUpDraw();
-  const u32 sampler = ctx.r4.u32, texture = ctx.r5.u32;
-  {
+  const u32 device = ctx.r3.u32, sampler = ctx.r4.u32, texture = ctx.r5.u32;
+  const u64 mask = ctx.r6.u64;
+  static const bool fast = (Settings::FastSetters() & 1) != 0;
+  static const bool verify = Settings::FastSettersVerify();
+  bool done = false;
+  if (fast && sampler < 26 && device) {
+    if (verify) {
+      u8 *dev = Guest(base, device);
+      VerifyRegions v;
+      v.add(dev + dev::kFetchConstants + 24 * sampler, 24);
+      v.add(dev + dev::kTextureObject0 + 4 * sampler, 4);
+      v.add(dev + kDevPendingGroup3, 8);
+      if (const u32 old = Ld32(dev + dev::kTextureObject0 + 4 * sampler))
+        v.add(Guest(base, old) + kObjReleaseStamp, 4);
+      v.snapshot(v.before);
+      if (FastSetTexture(base, device, sampler, texture, mask)) {
+        v.snapshot(v.after_fast);
+        v.restore(v.before);
+        __imp__D3DDevice_SetTexture(ctx, base);
+        u8 after_orig[128];
+        v.snapshot(after_orig);
+        ReportVerify("SetTexture", v, after_orig);
+        done = true;
+      }
+    } else {
+      done = FastSetTexture(base, device, sampler, texture, mask);
+    }
+  }
+  if (!done) {
     PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetTexture(ctx, base);
   }
@@ -104,8 +302,38 @@ extern "C" REX_FUNC(D3DDevice_SetPixelShader) {
 
 extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
   FlushPendingUpDraw();
-  const u32 stream = ctx.r4.u32, vb = ctx.r5.u32, offset = ctx.r6.u32, stride = ctx.r7.u32;
-  {
+  const u32 device = ctx.r3.u32, stream = ctx.r4.u32, vb = ctx.r5.u32, offset = ctx.r6.u32,
+            stride = ctx.r7.u32;
+  const u64 mask = ctx.r8.u64;
+  static const bool fast = (Settings::FastSetters() & 2) != 0;
+  static const bool verify = Settings::FastSettersVerify();
+  bool done = false;
+  if (fast && stream < 16 && device) {
+    if (verify) {
+      u8 *dev = Guest(base, device);
+      VerifyRegions v;
+      v.add(dev + dev::StreamFetchSlotOffset(stream), 8);
+      v.add(dev + dev::kStreamObject0 + 4 * stream, 4);
+      v.add(dev + dev::kStreamStride0 + stream, 1);
+      v.add(dev + kDevPendingGroup2, 8);
+      v.add(dev + kDevPendingGroup3, 8);
+      if (const u32 old = Ld32(dev + dev::kStreamObject0 + 4 * stream))
+        v.add(Guest(base, old) + kObjReleaseStamp, 4);
+      v.snapshot(v.before);
+      if (FastSetStreamSource(base, device, stream, vb, offset, stride, mask)) {
+        v.snapshot(v.after_fast);
+        v.restore(v.before);
+        __imp__D3DDevice_SetStreamSource(ctx, base);
+        u8 after_orig[128];
+        v.snapshot(after_orig);
+        ReportVerify("SetStreamSource", v, after_orig);
+        done = true;
+      }
+    } else {
+      done = FastSetStreamSource(base, device, stream, vb, offset, stride, mask);
+    }
+  }
+  if (!done) {
     PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetStreamSource(ctx, base);
   }
@@ -115,8 +343,32 @@ extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
 
 extern "C" REX_FUNC(D3DDevice_SetIndices) {
   FlushPendingUpDraw();
-  const u32 ib = ctx.r4.u32;
-  {
+  const u32 device = ctx.r3.u32, ib = ctx.r4.u32;
+  static const bool fast = (Settings::FastSetters() & 4) != 0;
+  static const bool verify = Settings::FastSettersVerify();
+  bool done = false;
+  if (fast && device) {
+    if (verify) {
+      u8 *dev = Guest(base, device);
+      VerifyRegions v;
+      v.add(dev + dev::kIndexBuffer, 4);
+      if (const u32 old = Ld32(dev + dev::kIndexBuffer))
+        v.add(Guest(base, old) + kObjReleaseStamp, 4);
+      v.snapshot(v.before);
+      if (FastSetIndices(base, device, ib)) {
+        v.snapshot(v.after_fast);
+        v.restore(v.before);
+        __imp__D3DDevice_SetIndices(ctx, base);
+        u8 after_orig[128];
+        v.snapshot(after_orig);
+        ReportVerify("SetIndices", v, after_orig);
+        done = true;
+      }
+    } else {
+      done = FastSetIndices(base, device, ib);
+    }
+  }
+  if (!done) {
     PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetIndices(ctx, base);
   }
