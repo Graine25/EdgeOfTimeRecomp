@@ -454,7 +454,8 @@ void LogPerfLocked(VideoState &s) {
     static u64 next_arm = 0;
     const u32 draws_this_frame =
         p.draws >= s.perf_prev_frame.draws ? p.draws - s.perf_prev_frame.draws : p.draws;
-    if (armed < 3 && draws_this_frame >= 400 && s.guest_frames >= next_arm) {
+    if (armed < 3 && draws_this_frame >= 400 && s.guest_frames >= next_arm &&
+        s.guest_frames >= static_cast<u64>(std::max(0, Settings::DiagSceneFrom()))) {
       armed++;
       next_arm = s.guest_frames + 400;
       Settings::ArmDiagFrame(static_cast<i32>(s.guest_frames + 2));

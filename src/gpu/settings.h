@@ -55,6 +55,7 @@ struct Settings {
   static i32 DumpEvery();
   static i32 DiagFrame();
   static bool DiagScene();
+  static i32 DiagSceneFrom();
   static bool DiagDump();
   static bool DiagScissor();
   static bool DiagRectClear();

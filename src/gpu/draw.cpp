@@ -1853,6 +1853,23 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
              layout->streamMask, streams[0].stride, dev.U32(dev::kTextureObject0),
              vp.posScale[0], vp.posScale[1], vp.posScale[2], vp.posOffset[0], vp.posOffset[1],
              vp.posOffset[2]);
+    if (geom.rectList && streams[0].data && streams[0].stride >= 8) {
+      std::string verts;
+      const u32 n_show = std::min<u32>(geom.vertexCount, 12u);
+      for (u32 v = 0; v < n_show; ++v) {
+        const u8 *p = streams[0].data + u64(v) * streams[0].stride;
+        float f[4] = {0, 0, 0, 0};
+        const u32 words = std::min<u32>(4u, streams[0].stride / 4u);
+        for (u32 c = 0; c < words; ++c) {
+          u32 raw;
+          std::memcpy(&raw, p + 4 * c, 4);
+          raw = (raw >> 24) | ((raw >> 8) & 0xFF00u) | ((raw << 8) & 0xFF0000u) | (raw << 24);
+          std::memcpy(&f[c], &raw, 4);
+        }
+        verts += std::format(" [{:.3f} {:.3f} {:.3f} {:.3f}]", f[0], f[1], f[2], f[3]);
+      }
+      EOT_INFO("[diag]   rect verts{}", verts);
+    }
     for (u32 slot = 0; slot < 16; ++slot) {
       const u32 tex_va = dev.U32(dev::kTextureObject0 + 4 * slot);
       if (!tex_va)
