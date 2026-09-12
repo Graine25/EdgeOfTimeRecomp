@@ -113,7 +113,7 @@ bool SetCvarDefault(std::string_view name, const std::string &value) {
 }
 
 void ApplyReeotCvarDefaults() {
-  SetCvarDefault("mnk_mode", "true");
+  SetCvarDefault("mnk_mode", "false");
   SetCvarDefault("hid_mappings_file",
                  (rex::filesystem::GetExecutableFolder() / "gamecontrollerdb.txt").generic_string());
   SetCvarDefault("log_flush_interval", "1");
