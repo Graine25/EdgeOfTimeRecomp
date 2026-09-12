@@ -5,6 +5,7 @@
 #include "core/logging.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/device.h"
+#include "gpu/draw.h"
 #include "gpu/gpu_profiling.h"
 #include "gpu/gpu_timing.h"
 
@@ -76,6 +77,7 @@ void SubmitOpenListLocked(VideoState &s) {
   if (!s.command_list_open)
     return;
   const u32 cur = s.frame.load(std::memory_order_relaxed);
+  FlushGeometryStaging(s);
   GpuTimingFrameEnd(s.command_list);
   s.command_lists[cur]->end();
   s.command_list_open = false;

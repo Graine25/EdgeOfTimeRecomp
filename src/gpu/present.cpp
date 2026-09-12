@@ -23,6 +23,7 @@
 #include "gpu/constant_buffers.h"
 #include "core/profiling.h"
 #include "gpu/device.h"
+#include "gpu/draw.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/imgui_overlay.h"
 #include "gpu/patches/aspect_ratio.h"
@@ -506,7 +507,7 @@ void LogPerfLocked(VideoState &s) {
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: draw {:.2f} ({} draws, {} noop; "
            "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f}; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin) upload {:.2f} ({}) link "
-           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} "
+           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
            "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
            "idx {} const {} | gpu {}",
@@ -520,6 +521,7 @@ void LogPerfLocked(VideoState &s) {
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
            p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
+           p.geometry_vram_binds / p.frames, p.geometry_staging_binds / p.frames,
            static_cast<f64>(p.vertex_bind_calls) / n,
            static_cast<f64>(p.vertex_bind_requests) / n,
            static_cast<f64>(p.index_bind_calls) / n,
@@ -754,6 +756,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     plume::RenderTextureBarrier to_present(back, plume::RenderTextureLayout::PRESENT);
     cmd->barriers(plume::RenderBarrierStage::NONE, &to_present, 1);
 
+    FlushGeometryStaging(s);
     GpuTimingFrameEnd(cmd);
     s.command_lists[cur]->end();
     s.command_list_open = false;

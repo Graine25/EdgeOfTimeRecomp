@@ -25,6 +25,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gpu/constant_buffers.h"
+#include "gpu/backend.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/format.h"
@@ -622,6 +623,8 @@ struct IndexCacheKeyHash {
 };
 struct IndexCacheChunk {
   std::unique_ptr<plume::RenderBuffer> buffer;
+  std::unique_ptr<plume::RenderBuffer> vram;
+  u64 vramValidUpTo = 0;
   u8 *cpu = nullptr;
   u64 capacity = 0, used = 0;
   u64 accounted = 0;
@@ -666,8 +669,11 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
                   plume::RenderBuffer **buffer, u64 *offset, u8 **cpu, bool *reset) {
   *reset = false;
   if (pool.totalBytes + bytes > budget) {
-    for (auto &ch : pool.chunks)
+    for (auto &ch : pool.chunks) {
       ParkBuffer(s, std::move(ch.buffer));
+      if (ch.vram)
+        ParkBuffer(s, std::move(ch.vram));
+    }
     pool.chunks.clear();
     pool.totalBytes = 0;
     *reset = true;
@@ -688,6 +694,11 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
       return false;
     }
     ch.capacity = size;
+    if (Settings::GeometryVram()) {
+      plume::RenderBufferDesc vram_desc = plume::RenderBufferDesc::DefaultBuffer(size, flags);
+      const std::string vram_name = std::string(name) + "-vram";
+      ch.vram = CreateHostBuffer(s.device.get(), vram_desc, vram_name.c_str());
+    }
     pool.chunks.push_back(std::move(ch));
   }
   auto &ch = pool.chunks.back();
@@ -704,6 +715,38 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
 BufferPool &index_pool() {
   static BufferPool p;
   return p;
+}
+
+plume::RenderBuffer *PoolResidentBuffer(VideoState &s, const BufferPool &pool,
+                                        plume::RenderBuffer *upload, u64 offset, u64 bytes) {
+  for (const auto &ch : pool.chunks) {
+    if (ch.buffer.get() != upload)
+      continue;
+    if (ch.vram && offset + bytes <= ch.vramValidUpTo) {
+      s.perf.geometry_vram_binds++;
+      return ch.vram.get();
+    }
+    break;
+  }
+  s.perf.geometry_staging_binds++;
+  return upload;
+}
+
+void PoolFlushToVram(VideoState &s, BufferPool &pool, plume::RenderBufferFlags flags) {
+  auto *cmd = s.command_list;
+  for (auto &ch : pool.chunks) {
+    if (!ch.vram || ch.used <= ch.vramValidUpTo)
+      continue;
+    const u64 from = ch.vramValidUpTo, bytes = ch.used - from;
+    const plume::RenderBufferBarrier to_copy(ch.vram.get(), plume::RenderBufferAccess::WRITE);
+    cmd->barriers(plume::RenderBarrierStage::COPY, &to_copy, 1, nullptr, 0);
+    cmd->copyBufferRegion(plume::RenderBufferReference(ch.vram.get(), from),
+                          plume::RenderBufferReference(ch.buffer.get(), from), bytes);
+    const plume::RenderBufferBarrier to_read(ch.vram.get(), plume::RenderBufferAccess::READ);
+    cmd->barriers(plume::RenderBarrierStage::GRAPHICS, &to_read, 1, nullptr, 0);
+    (void)flags;
+    ch.vramValidUpTo = ch.used;
+  }
 }
 bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, u64 *offset,
                         u8 **cpu) {
@@ -735,9 +778,12 @@ bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, 
       recycled = std::move(*victim);
       recycled.used = 0;
       recycled.accounted = 0;
+      recycled.vramValidUpTo = 0;
       recycled.lastUseFrame = s.guest_frames;
     } else {
       ParkBuffer(s, std::move(victim->buffer));
+      if (victim->vram)
+        ParkBuffer(s, std::move(victim->vram));
     }
     pool.chunks.erase(victim);
     pool.totalBytes -= std::min(pool.totalBytes, released);
@@ -1700,7 +1746,9 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     }
     if (const VertexMirror *mirror = GetVertexMirror(s, st_info, first, bytes)) {
       views[S] = plume::RenderVertexBufferView(
-          plume::RenderBufferReference(mirror->buffer, mirror->offset),
+          plume::RenderBufferReference(
+              PoolResidentBuffer(s, vertex_mirrors().pool, mirror->buffer, mirror->offset, bytes),
+              mirror->offset),
           static_cast<u32>(bytes));
       continue;
     }
@@ -1850,7 +1898,24 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
     work_surface->perfDraws++;
   GpuTimingCountDraw(s);
   auto *cmd = s.command_list;
-  const bool dynamic_state_invalid = s.bound_pipeline == nullptr;
+  bool dynamic_state_invalid = s.bound_pipeline == nullptr;
+  if (Settings::DiagExtraPso() && targets.samples > 1 && targets.colorCount) {
+    if (plume::RenderPipeline *other =
+            GetBlitPipeline(s, targets.colorImage[0]->format, targets.samples)) {
+      cmd->setPipeline(other);
+      const plume::RenderRect one(0, 0, 1, 1);
+      const plume::RenderViewport vp1(0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f);
+      cmd->setViewports(&vp1, 1);
+      cmd->setScissors(&one, 1);
+      CopyPushConstants pc;
+      pc.resourceDescriptorIndex = kNullTexture2DDescriptorIndex;
+      cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
+                                    sizeof(pc));
+      cmd->drawInstanced(3, 1, 0, 0);
+      s.bound_pipeline = other;
+      dynamic_state_invalid = true;
+    }
+  }
   const bool pipeline_changed = s.bound_pipeline != pipeline &&
                                 !(Settings::DiagNoPso() && targets.samples > 1 && s.bound_pipeline);
   if (pipeline_changed) {
@@ -1959,15 +2024,22 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   } else if (geom.cached) {
     const u32 elem = geom.cached->is32 ? 4 : 2;
     plume::RenderIndexBufferView ib(
-        plume::RenderBufferReference(geom.cached->buffer, geom.cached->offset), index_count * elem,
+        plume::RenderBufferReference(PoolResidentBuffer(s, index_pool(), geom.cached->buffer,
+                                                        geom.cached->offset,
+                                                        u64(index_count) * elem),
+                                     geom.cached->offset),
+        index_count * elem,
         geom.cached->is32 ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
     bind_index_view(ib);
-    cmd->drawIndexedInstanced(index_count, 1, 0, host_base_vertex, 0);
+    cmd->drawIndexedInstanced(
+        Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count, 1, 0,
+        host_base_vertex, 0);
   } else if (geom.indexed) {
     plume::RenderIndexBufferView ib(plume::RenderBufferReference(index_alloc.buffer, index_alloc.offset),
                                     index_count * 4, plume::RenderFormat::R32_UINT);
     bind_index_view(ib);
-    cmd->drawIndexedInstanced(index_count, 1, 0, host_base_vertex, 0);
+    const u32 issue = Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count;
+    cmd->drawIndexedInstanced(issue, 1, 0, host_base_vertex, 0);
   } else {
     cmd->drawInstanced(geom.vertexCount, 1, 0, 0);
   }
@@ -1976,6 +2048,13 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   DrainHostDebugMessages(s, "draw");
 }
 }
+void FlushGeometryStaging(VideoState &s) {
+  if (!s.command_list_open || !Settings::GeometryVram())
+    return;
+  PoolFlushToVram(s, index_pool(), plume::RenderBufferFlag::INDEX);
+  PoolFlushToVram(s, vertex_mirrors().pool, plume::RenderBufferFlag::VERTEX);
+}
+
 void FlushPendingTransitions(VideoState &s) {
   if (!s.pending_transition_count)
     return;

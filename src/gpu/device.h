@@ -56,6 +56,7 @@ struct PerfCounters {
   u32 index_cache_hits = 0, index_cache_misses = 0;
   u32 index_cache_evictions = 0;
   u32 vertex_cache_hits = 0, vertex_cache_misses = 0;
+  u32 geometry_vram_binds = 0, geometry_staging_binds = 0;
   u32 const_file_hits = 0;
   u32 const_file_clean_hits = 0;
   u32 pipeline_hot_hits = 0;
