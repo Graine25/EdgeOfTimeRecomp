@@ -207,6 +207,7 @@ if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
+        src/gamelogic/patches/sd_bonus_suits.cpp
         src/gamelogic/ui/pause_menu.cpp
         src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/save_select.cpp

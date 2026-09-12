@@ -1837,7 +1837,7 @@ out_directory_path = "generated/gamelogic"
 0x88349290 = { size = 0x150 }
 0x883493E0 = { size = 0x1FC }
 0x883495E0 = { size = 0xFC }
-0x883496E0 = { size = 0x94 }
+0x883496E0 = { name = "eot_HUDStartScreen_EnterSDCheck", size = 0x94 }
 0x88349778 = { size = 0x14C }
 0x883498C8 = { size = 0x1F8 }
 0x88349AC0 = { size = 0x1A0 }
@@ -1896,7 +1896,7 @@ out_directory_path = "generated/gamelogic"
 0x88356DA0 = { size = 0x80 }
 0x88356E20 = { size = 0x60 }
 0x88356E80 = { size = 0x44 }
-0x88356EC8 = { size = 0x300 }
+0x88356EC8 = { name = "eot_HUDDLCCode_Validate", size = 0x300 }
 0x883571C8 = { size = 0x128 }
 0x883572F0 = { size = 0x9C }
 0x88357AF0 = { size = 0x334 }
@@ -2282,6 +2282,10 @@ out_directory_path = "generated/gamelogic"
 0x88345E98 = { name = "eot_HUDSavegameSelect_Construct", size = 0x3D0 }
 0x883469D8 = { name = "eot_HUDSavegameSelect_HandleInputEvent", size = 0x470 }
 0x88347D80 = { name = "eot_HUDSavegameSelect_HandleMessage", size = 0x368 }
+
+0x88270130 = { name = "eot_SaveGame_ApplyLoadedData", size = 0x1AC }
+0x88296C78 = { name = "eot_TextPopup_InitConfig", size = 0x160 }
+0x88296DD8 = { name = "eot_TextPopup_SetBody", size = 0xF8 }
 
 [[midasm_hook]]
 address = 0x882314D4
