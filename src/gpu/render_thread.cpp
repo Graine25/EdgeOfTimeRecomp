@@ -1,6 +1,7 @@
 #include "gpu/render_thread.h"
 
 #include <atomic>
+#include <cstddef>
 #include <condition_variable>
 #include <memory>
 #include <thread>
@@ -50,6 +51,16 @@ void PublishExecuted(Queue &q, u64 seq) {
   q.executed.store(seq, std::memory_order_release);
   std::lock_guard lock(q.cv_mutex);
   q.cv_done.notify_all();
+}
+
+void Prefetch(const RenderCommand &c) {
+  const auto *base = reinterpret_cast<const char *>(&c);
+  for (u32 off = 0; off < offsetof(RenderCommand, draw) + offsetof(DrawPacket, window); off += 64)
+    _mm_prefetch(base + off, _MM_HINT_T0);
+  const auto *image = reinterpret_cast<const char *>(c.draw.window.image);
+  for (const DeviceWindow::Block &b : DeviceWindow::kBlocks)
+    for (u32 off = 0; off < b.size; off += 64)
+      _mm_prefetch(image + b.base + off, _MM_HINT_T0);
 }
 
 void Execute(VideoState &s, Queue &q, RenderCommand &c) {
@@ -117,6 +128,8 @@ void WorkerMain() {
     const u64 n = std::min<u64>(tail - head, kBatch);
     for (u64 i = 0; i < n; ++i) {
       RenderCommand &c = q.slots[head & kQueueMask];
+      if (i + 1 < n)
+        Prefetch(q.slots[(head + 1) & kQueueMask]);
       Execute(s, q, c);
       ++head;
       q.head.store(head, std::memory_order_seq_cst);

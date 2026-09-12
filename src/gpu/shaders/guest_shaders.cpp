@@ -329,6 +329,7 @@ GuestShader *RegisterGuestShader(VideoState &s, u32 object_va, bool is_pixel) {
   if (slot)
     s.shader_graveyard.push_back(std::move(slot));
   slot = std::move(sh);
+  s.shader_generation.fetch_add(1, std::memory_order_release);
   return slot.get();
 }
 

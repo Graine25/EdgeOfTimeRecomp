@@ -21,8 +21,7 @@ extern "C" REX_FUNC(D3DDevice_SetRenderTarget) {
   FlushPendingUpDraw();
   const u32 index = ctx.r4.u32, surface = ctx.r5.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetRenderTarget(ctx, base);
   }
   if (trace::Enabled()) {
@@ -39,8 +38,7 @@ extern "C" REX_FUNC(D3DDevice_SetDepthStencilSurface) {
   FlushPendingUpDraw();
   const u32 surface = ctx.r4.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetDepthStencilSurface(ctx, base);
   }
   if (trace::Enabled()) {
@@ -55,8 +53,7 @@ extern "C" REX_FUNC(D3DDevice_SetViewport) {
   FlushPendingUpDraw();
   const u32 vp = ctx.r4.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetViewport(ctx, base);
   }
   if (trace::Enabled() && vp) {
@@ -71,8 +68,7 @@ extern "C" REX_FUNC(D3DDevice_SetTexture) {
   FlushPendingUpDraw();
   const u32 sampler = ctx.r4.u32, texture = ctx.r5.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetTexture(ctx, base);
   }
   if (trace::Enabled()) {
@@ -88,8 +84,7 @@ extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
   FlushPendingUpDraw();
   const u32 shader = ctx.r4.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetVertexShader(ctx, base);
   }
   EOT_TRACE_CALL("SetVertexShader {:#x}", shader);
@@ -100,8 +95,7 @@ extern "C" REX_FUNC(D3DDevice_SetPixelShader) {
   FlushPendingUpDraw();
   const u32 shader = ctx.r4.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetPixelShader(ctx, base);
   }
   EOT_TRACE_CALL("SetPixelShader {:#x}", shader);
@@ -112,8 +106,7 @@ extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
   FlushPendingUpDraw();
   const u32 stream = ctx.r4.u32, vb = ctx.r5.u32, offset = ctx.r6.u32, stride = ctx.r7.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetStreamSource(ctx, base);
   }
   EOT_TRACE_CALL("SetStreamSource {} vb={:#x} offset={} stride={}", stream, vb, offset, stride);
@@ -124,8 +117,7 @@ extern "C" REX_FUNC(D3DDevice_SetIndices) {
   FlushPendingUpDraw();
   const u32 ib = ctx.r4.u32;
   {
-    PerfScope guest_scope(state().perf.guest_d3d_ms);
-    state().perf.guest_d3d_calls++;
+    PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_SetIndices(ctx, base);
   }
   EOT_TRACE_CALL("SetIndices {:#x}", ib);

@@ -509,14 +509,14 @@ void LogPerfLocked(VideoState &s) {
     return;
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
-           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
+           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
+           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
            "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
-           "| present acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | KB/frame vtx {} "
+           "| present acquire {:.2f} blit {:.2f} submit {:.2f} fence {:.2f} house {:.2f} pace {:.2f} | KB/frame vtx {} "
            "idx {} const {} | gpu {}",
            p.frames, p.frame_ms / n, p.capture_ms / n, p.present_wait_ms / n, p.worker_idle_ms / n,
            p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
-           p.setup_ms / n,
+           p.setup_ms / n, p.replay_targets_ms / n,
            p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
            p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
            p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
@@ -524,7 +524,8 @@ void LogPerfLocked(VideoState &s) {
            p.surface_transfers / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
            p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
-           p.guest_d3d_calls / p.frames, p.index_cache_hits / p.frames, p.index_cache_misses,
+           p.guest_d3d_calls / p.frames, g_device_block_misses.exchange(0, std::memory_order_relaxed),
+           p.index_cache_hits / p.frames, p.index_cache_misses,
            p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
            p.geometry_vram_binds / p.frames, p.geometry_staging_binds / p.frames,
            static_cast<f64>(p.vertex_bind_calls) / n,
@@ -540,7 +541,8 @@ void LogPerfLocked(VideoState &s) {
            static_cast<f64>(p.stencil_ref_calls) / n,
            static_cast<f64>(p.texture_barrier_calls) / n,
            static_cast<f64>(p.texture_barrier_resources) / n,
-           p.acquire_ms / n, p.submit_ms / n, p.fence_ms / n, g_pace_ms / n,
+           p.acquire_ms / n, p.present_blit_ms / n, p.submit_ms / n, p.fence_ms / n,
+           p.present_house_ms / n, g_pace_ms / n,
            p.vertex_bytes / p.frames / 1024,
            p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024,
            GpuTimingSummary(p));
@@ -665,6 +667,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   }
 
   auto *cmd = s.command_list;
+  const u64 blit_t0 = PerfNow();
   GpuTimingMark(s, cmd, kGpuCatPresent);
   GpuTimingDiagMark(s, cmd, "present");
   plume::RenderTexture *back = s.swap_chain->getTexture(image);
@@ -757,6 +760,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
 
   plume::RenderTextureBarrier to_present(back, plume::RenderTextureLayout::PRESENT);
   cmd->barriers(plume::RenderBarrierStage::NONE, &to_present, 1);
+  s.perf.present_blit_ms += static_cast<f64>(PerfNow() - blit_t0) * PerfMsPerTick();
 
   FlushGeometryStaging(s);
   GpuTimingFrameEnd(cmd);
@@ -787,10 +791,13 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
     PerfScope perf_scope(s.perf.fence_ms);
     AdvanceAndWaitReused(s);
   }
-  LogPerfLocked(s);
-  PsoCacheFlushIfDirty(false);
-  DrainHostDebugMessages(s, "present");
-  RenderDocFrameBoundary(s.guest_frames);
+  {
+    PerfScope house_scope(s.perf.present_house_ms);
+    LogPerfLocked(s);
+    PsoCacheFlushIfDirty(false);
+    DrainHostDebugMessages(s, "present");
+    RenderDocFrameBoundary(s.guest_frames);
+  }
 }
 
 void Video::Present(u32 front_buffer_texture_va) {
