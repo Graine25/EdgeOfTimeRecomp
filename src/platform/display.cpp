@@ -1,6 +1,8 @@
 #include "platform/display.h"
 
 #include <cmath>
+#include <cstring>
+#include <vector>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -9,22 +11,58 @@
 
 namespace eot::platform {
 
-DisplaySize DisplayFor(void *native_window) {
-  DisplaySize size;
+namespace {
+
+#if defined(_WIN32)
+uint32_t RefreshRateOf(const wchar_t *gdi_device) {
+  UINT32 paths = 0, modes = 0;
+  if (::GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &paths, &modes) == ERROR_SUCCESS && paths) {
+    std::vector<DISPLAYCONFIG_PATH_INFO> path(paths);
+    std::vector<DISPLAYCONFIG_MODE_INFO> mode(modes ? modes : 1);
+    if (::QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &paths, path.data(), &modes, mode.data(), nullptr) ==
+        ERROR_SUCCESS) {
+      for (UINT32 i = 0; i < paths; ++i) {
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME source{};
+        source.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        source.header.size = sizeof(source);
+        source.header.adapterId = path[i].sourceInfo.adapterId;
+        source.header.id = path[i].sourceInfo.id;
+        if (::DisplayConfigGetDeviceInfo(&source.header) != ERROR_SUCCESS ||
+            std::wcscmp(source.viewGdiDeviceName, gdi_device) != 0)
+          continue;
+        const DISPLAYCONFIG_RATIONAL &rate = path[i].targetInfo.refreshRate;
+        if (rate.Denominator)
+          return static_cast<uint32_t>(std::lround(static_cast<double>(rate.Numerator) / rate.Denominator));
+      }
+    }
+  }
+  DEVMODEW device_mode{};
+  device_mode.dmSize = sizeof(device_mode);
+  if (::EnumDisplaySettingsW(gdi_device, ENUM_CURRENT_SETTINGS, &device_mode) && device_mode.dmDisplayFrequency > 1)
+    return device_mode.dmDisplayFrequency;
+  return 0;
+}
+#endif
+
+}
+
+Display DisplayFor(void *native_window) {
+  Display display;
 #if defined(_WIN32)
   HMONITOR monitor = native_window ? ::MonitorFromWindow(static_cast<HWND>(native_window), MONITOR_DEFAULTTONEAREST)
                                    : ::MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
-  MONITORINFO info{};
+  MONITORINFOEXW info{};
   info.cbSize = sizeof(info);
   if (monitor && ::GetMonitorInfoW(monitor, &info)) {
-    size.width = static_cast<uint32_t>(info.rcMonitor.right - info.rcMonitor.left);
-    size.height = static_cast<uint32_t>(info.rcMonitor.bottom - info.rcMonitor.top);
+    display.width = static_cast<uint32_t>(info.rcMonitor.right - info.rcMonitor.left);
+    display.height = static_cast<uint32_t>(info.rcMonitor.bottom - info.rcMonitor.top);
+    display.refresh_hz = RefreshRateOf(info.szDevice);
   }
 #endif
-  return size;
+  return display;
 }
 
-uint32_t AutoRenderHeight(const DisplaySize &display) {
+uint32_t AutoRenderHeight(const Display &display) {
   const uint32_t height = display.height ? display.height : 1080;
   if (height >= 1440)
     return 1440;
@@ -33,7 +71,7 @@ uint32_t AutoRenderHeight(const DisplaySize &display) {
   return 720;
 }
 
-const char *AutoResolutionPreset(const DisplaySize &display) {
+const char *AutoResolutionPreset(const Display &display) {
   switch (AutoRenderHeight(display)) {
   case 1440:
     return "1440p";
@@ -44,7 +82,7 @@ const char *AutoResolutionPreset(const DisplaySize &display) {
   }
 }
 
-const char *AutoAspectPreset(const DisplaySize &display) {
+const char *AutoAspectPreset(const Display &display) {
   if (!display.width || !display.height)
     return "16:9";
   const double ratio = static_cast<double>(display.width) / static_cast<double>(display.height);
@@ -62,9 +100,11 @@ const char *AutoAspectPreset(const DisplaySize &display) {
   return best->name;
 }
 
-const char *AutoQualityPreset(const DisplaySize &display) {
+const char *AutoQualityPreset(const Display &display) {
   const uint32_t height = display.height ? display.height : 1080;
   return height >= 1080 ? "medium" : "low";
 }
+
+uint32_t AutoFrameRateLimit(const Display &display) { return display.refresh_hz ? display.refresh_hz : 60; }
 
 }

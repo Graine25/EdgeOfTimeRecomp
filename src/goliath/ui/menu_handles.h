@@ -21,5 +21,6 @@ inline constexpr uint32_t kHandleLeaveTitle = kReeotHandleBase | 5;
 inline constexpr uint32_t kHandleLeaveBody = kReeotHandleBase | 6;
 inline constexpr uint32_t kHandleYes = kReeotHandleBase | 7;
 inline constexpr uint32_t kHandleNo = kReeotHandleBase | 8;
+inline constexpr uint32_t kHandleSdCodeAccepted = kReeotHandleBase | 10;
 
 }

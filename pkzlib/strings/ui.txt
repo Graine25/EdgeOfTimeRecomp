@@ -9,3 +9,4 @@ REEOT_LEAVE_BODY	You will return to the desktop.
 REEOT_YES	Yes
 REEOT_NO	No
 REEOT_PROMPT_EXIT_GAME	\MENUBACK\ Exit Game
+REEOT_SD_CODE_ACCEPTED	You just unlocked the Shattered Dimensions suits! Check out the Bonus Gallery to use them.

@@ -49,23 +49,35 @@ constexpr const char *kSuggestedVsync = "false";
 struct SettingRow {
   const char *label;
   const char *cvar;
-  std::vector<std::pair<const char *, const char *>> values;
+  std::vector<std::pair<std::string, std::string>> values;
 };
 
-const SettingRow kSettingRows[] = {
-    {"Quality preset", "eot_quality_preset", {{"Low", "low"}, {"Medium", "medium"}, {"High", "high"}}},
-    {"Display mode", "fullscreen", {{"Windowed", "false"}, {"Fullscreen", "true"}}},
-    {"Resolution",
-     "eot_resolution",
-     {{"720p", "720p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}},
-    {"Aspect ratio",
-     "eot_aspect_ratio",
-     {{"4:3", "4:3"}, {"16:10", "16:10"}, {"16:9", "16:9"}, {"21:9", "21:9"}, {"32:9", "32:9"}}},
-    {"Frame rate limit",
-     "eot_fps_limit",
-     {{"30 fps", "30"}, {"60 fps", "60"}, {"120 fps", "120"}, {"Unlimited", "0"}}},
-    {"Vsync", "eot_vsync", {{"Off", "false"}, {"On", "true"}}},
-};
+std::vector<SettingRow> g_rows;
+
+void BuildRows(const eot::platform::Display &display) {
+  g_rows = {
+      {"Quality preset", "eot_quality_preset", {{"Low", "low"}, {"Medium", "medium"}, {"High", "high"}}},
+      {"Display mode", "fullscreen", {{"Windowed", "false"}, {"Fullscreen", "true"}}},
+      {"Resolution",
+       "eot_resolution",
+       {{"720p", "720p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}},
+      {"Aspect ratio",
+       "eot_aspect_ratio",
+       {{"4:3", "4:3"}, {"16:10", "16:10"}, {"16:9", "16:9"}, {"21:9", "21:9"}, {"32:9", "32:9"}}},
+  };
+  SettingRow frame_rate{"Frame rate limit", "eot_fps_limit", {}};
+  std::vector<uint32_t> rates = {30, 60, 120};
+  const uint32_t own = eot::platform::AutoFrameRateLimit(display);
+  if (std::find(rates.begin(), rates.end(), own) == rates.end())
+    rates.push_back(own);
+  std::sort(rates.begin(), rates.end());
+  for (const uint32_t rate : rates)
+    frame_rate.values.push_back(
+        {std::to_string(rate) + (rate == own ? " fps (display)" : " fps"), std::to_string(rate)});
+  frame_rate.values.push_back({"Unlimited", "0"});
+  g_rows.push_back(std::move(frame_rate));
+  g_rows.push_back({"Vsync", "eot_vsync", {{"Off", "false"}, {"On", "true"}}});
+}
 
 int RowSelected(const SettingRow &row) {
   const std::string current = rex::cvar::GetFlagByName(row.cvar);
@@ -73,13 +85,6 @@ int RowSelected(const SettingRow &row) {
     if (current == row.values[i].second)
       return static_cast<int>(i);
   return -1;
-}
-
-const SettingRow *FindRow(const char *cvar) {
-  for (const SettingRow &row : kSettingRows)
-    if (std::strcmp(row.cvar, cvar) == 0)
-      return &row;
-  return nullptr;
 }
 
 void DrawTitle(const char *text) {
@@ -181,12 +186,12 @@ void SettingCells(const SettingRow &row, const std::function<void(const SettingR
   ImGui::TableNextColumn();
   const int count = static_cast<int>(row.values.size());
   const int selected = RowSelected(row);
-  const char *current = selected >= 0 ? row.values[static_cast<size_t>(selected)].first : "";
+  const char *current = selected >= 0 ? row.values[static_cast<size_t>(selected)].first.c_str() : "";
   ImGui::SetNextItemWidth(kValueWidth);
   if (ImGui::BeginCombo("##value", current)) {
     for (int i = 0; i < count; ++i) {
       ImGui::PushID(i);
-      if (ImGui::Selectable(row.values[static_cast<size_t>(i)].first, i == selected))
+      if (ImGui::Selectable(row.values[static_cast<size_t>(i)].first.c_str(), i == selected))
         pick(row, i);
       if (i == selected)
         ImGui::SetItemDefaultFocus();
@@ -242,24 +247,26 @@ std::string InstallerWizard::MissingProgramFilesLine() const {
 }
 
 void InstallerWizard::SuggestDefaults() {
-  auto suggest = [](const char *cvar, const char *value) {
-    if (const SettingRow *row = FindRow(cvar); row && RowSelected(*row) < 0)
+  const eot::platform::Display display = eot::platform::DisplayFor(nullptr);
+  BuildRows(display);
+  auto suggest = [](const char *cvar, const std::string &value) {
+    if (rex::cvar::GetFlagSource(cvar) == rex::cvar::Source::kDefault)
       rex::cvar::SetFlagByName(cvar, value);
   };
-  const eot::platform::DisplaySize display = eot::platform::DisplayFor(nullptr);
-  EOT_INFO("[install] primary display {}x{}: suggesting {}, {}, the {} preset", display.width, display.height,
-           eot::platform::AutoResolutionPreset(display), eot::platform::AutoAspectPreset(display),
+  EOT_INFO("[install] primary display {}x{} at {} Hz: suggesting {}, {}, {} fps, the {} preset", display.width,
+           display.height, display.refresh_hz, eot::platform::AutoResolutionPreset(display),
+           eot::platform::AutoAspectPreset(display), eot::platform::AutoFrameRateLimit(display),
            eot::platform::AutoQualityPreset(display));
   suggest("eot_quality_preset", eot::platform::AutoQualityPreset(display));
   suggest("eot_resolution", eot::platform::AutoResolutionPreset(display));
   suggest("eot_aspect_ratio", eot::platform::AutoAspectPreset(display));
-  if (!rex::cvar::HasNonDefaultValue("eot_vsync"))
-    rex::cvar::SetFlagByName("eot_vsync", kSuggestedVsync);
+  suggest("eot_fps_limit", std::to_string(eot::platform::AutoFrameRateLimit(display)));
+  suggest("eot_vsync", kSuggestedVsync);
 }
 
 void InstallerWizard::RecordSettings() {
   choices_.settings.clear();
-  for (const SettingRow &row : kSettingRows)
+  for (const SettingRow &row : g_rows)
     choices_.settings.push_back({row.cvar, rex::cvar::GetFlagByName(row.cvar)});
 }
 
@@ -685,7 +692,7 @@ void InstallerWizard::DrawSettings() {
     ImGui::TableSetupColumn("##l1", ImGuiTableColumnFlags_WidthFixed, kLabelColumn);
     ImGui::TableSetupColumn("##v1", ImGuiTableColumnFlags_WidthStretch);
     int cell = 0;
-    for (const SettingRow &row : kSettingRows) {
+    for (const SettingRow &row : g_rows) {
       if (cell % 2 == 0)
         ImGui::TableNextRow();
       SettingCells(row, pick);
