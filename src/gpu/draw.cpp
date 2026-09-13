@@ -213,16 +213,18 @@ DrawClass ClassifyDraw(DeviceView dev, const Targets &t, bool has_ps, bool rect_
   return c;
 }
 
-u32 SelectPassSamples(const Targets &t, const DrawClass &c) {
+u32 SelectPassSamples(const Targets &t, const DrawClass &c, bool stencil_twin) {
   const u32 ms = t.colorCount ? t.color[0]->host.sampleCount
                               : (t.depth ? t.depth->host.sampleCount : 1u);
   if (ms <= 1)
     return 1;
   const bool ms_depth = t.depth && t.depth->host.sampleCount > 1;
+  if (ms_depth && c.stencil && !stencil_twin)
+    return ms;
   if (!t.colorCount)
     return ms;
   if (c.nullPs)
-    return ms_depth && !c.depthWrite ? 1u : ms;
+    return ms_depth && !c.depthWrite && stencil_twin ? 1u : ms;
   const GuestSurface &c0 = *t.color[0];
   const bool resolved = c0.content == GuestSurface::Content::Borrowed ||
                         (c0.content == GuestSurface::Content::Drawn &&
@@ -237,7 +239,7 @@ u32 SelectPassSamples(const Targets &t, const DrawClass &c) {
 }
 
 bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
-  u32 samples = SelectPassSamples(t, c);
+  u32 samples = SelectPassSamples(t, c, s.stencil_ref_supported);
   if (t.depth && t.colorCount && samples > 1 && t.depth->host.sampleCount != samples)
     samples = 1;
   for (u32 i = 0; i < t.colorCount; ++i) {
@@ -262,7 +264,7 @@ bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
     }
   }
   t.samples = samples;
-  t.writesDepthStencil = c.depthWrite || c.stencilWrite;
+  t.writesDepthStencil = c.depthWrite || (c.stencilWrite && s.stencil_ref_supported);
   t.writesDepth = c.depthWrite;
   t.writesColor = !c.nullPs;
   t.additive = c.additive;

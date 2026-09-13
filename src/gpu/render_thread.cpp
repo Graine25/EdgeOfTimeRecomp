@@ -28,7 +28,7 @@ constexpr u64 kQueueSlots = 1024;
 constexpr u64 kQueueMask = kQueueSlots - 1;
 constexpr u64 kBatch = 64;
 constexpr u64 kPublishEvery = 8;
-constexpr u32 kIdleSpins = 20000;
+constexpr u32 kIdleSpins = 4000;
 constexpr u32 kSortWindow = 512;
 constexpr f64 kSortFillMs = 0.08;
 
