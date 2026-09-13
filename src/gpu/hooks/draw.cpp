@@ -80,20 +80,20 @@ void DrawFlush(PPCContext &ctx, u8 *base, u32 device, const char *what, Original
   original();
 }
 
+u64 ReverseBits(u64 v) {
+  v = ((v >> 1) & 0x5555555555555555ull) | ((v & 0x5555555555555555ull) << 1);
+  v = ((v >> 2) & 0x3333333333333333ull) | ((v & 0x3333333333333333ull) << 2);
+  v = ((v >> 4) & 0x0F0F0F0F0F0F0F0Full) | ((v & 0x0F0F0F0F0F0F0F0Full) << 4);
+  return __builtin_bswap64(v);
+}
+
 FloatConstantDirty PendingFloatConstants(u32 device_va) {
   if (!device_va)
     return {};
   const u8 *pending = eot::mem::at<u8>(device_va + eot::gpu::dev::kPendingMask);
   if (!pending)
     return {};
-  auto group_dirty = [&](u32 group) {
-    const u8 *q = pending + group * 8;
-    u32 lo, hi;
-    std::memcpy(&lo, q, 4);
-    std::memcpy(&hi, q + 4, 4);
-    return lo != 0 || hi != 0;
-  };
-  return {group_dirty(0), group_dirty(1)};
+  return {ReverseBits(Ld64(pending)), ReverseBits(Ld64(pending + 8))};
 }
 
 }
@@ -115,6 +115,7 @@ extern "C" REX_FUNC(D3DDevice_DrawIndexedVertices) {
   const i32 base_vertex = ctx.r5.s32;
   const u32 start_index = ctx.r6.u32, count = ctx.r7.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
+  PrefetchIndexProbes(device, start_index, count);
   DrawFlush(ctx, base, device, "DrawIndexedVertices",
             [&] { __imp__D3DDevice_DrawIndexedVertices(ctx, base); });
   EOT_TRACE_CALL("DrawIndexedVertices prim={} base={} start={} count={}", prim, base_vertex,

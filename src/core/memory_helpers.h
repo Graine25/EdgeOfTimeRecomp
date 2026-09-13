@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include <rex/system/kernel_state.h>
 #include <rex/types.h>
 
@@ -9,20 +11,44 @@ template <typename T> using be = rex::be<T>;
 
 namespace mem {
 
-template <typename T> inline T *at(u32 va) {
+struct Bases {
+  u8 *virtual_base = nullptr;
+  u8 *physical_base = nullptr;
+  u32 e0_offset = 0;
+};
+inline Bases g_bases;
+inline std::atomic<u8 *> g_virtual_base{nullptr};
+
+inline const Bases *bases() {
+  if (g_virtual_base.load(std::memory_order_acquire))
+    return &g_bases;
   auto *kernel = REX_KERNEL_STATE();
   auto *memory = kernel ? kernel->memory() : nullptr;
-  if (!memory || va < 0x1000)
+  u8 *virtual_base = memory ? memory->virtual_membase() : nullptr;
+  if (!virtual_base)
     return nullptr;
-  return memory->template TranslateVirtual<T *>(va);
+  g_bases.physical_base = memory->template TranslatePhysical<u8 *>(0);
+  g_bases.e0_offset = static_cast<u32>(memory->template TranslateVirtual<u8 *>(0xE0000000u) -
+                                       (virtual_base + 0xE0000000u));
+  g_bases.virtual_base = virtual_base;
+  g_virtual_base.store(virtual_base, std::memory_order_release);
+  return &g_bases;
+}
+
+template <typename T> inline T *at(u32 va) {
+  if (va < 0x1000)
+    return nullptr;
+  const Bases *b = bases();
+  if (!b)
+    return nullptr;
+  return reinterpret_cast<T *>(b->virtual_base + va + (va >= 0xE0000000u ? b->e0_offset : 0u));
 }
 
 template <typename T> inline T *phys(u32 gpu_address) {
-  auto *kernel = REX_KERNEL_STATE();
-  auto *memory = kernel ? kernel->memory() : nullptr;
-  if (!memory)
+  const Bases *b = bases();
+  if (!b)
     return nullptr;
-  return memory->template TranslatePhysical<T *>(gpu_address & 0x1FFFFFFFu);
+  return reinterpret_cast<T *>(b->physical_base + (gpu_address & 0x1FFFFFFFu));
 }
 
 template <typename T> inline T load(u32 va, T fallback = T{}) {

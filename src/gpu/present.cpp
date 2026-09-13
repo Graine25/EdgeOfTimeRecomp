@@ -509,9 +509,9 @@ void LogPerfLocked(VideoState &s) {
     return;
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
-           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
-           "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
+           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
+           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} (@{:#x}) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
+           "| hostbind/f vb {:.1f}/{:.1f} (1s {:.1f}) ib {:.1f}/{:.1f} fb reuse {:.1f} tgtmemo {:.1f} (miss g{:.0f} w{:.0f} s{:.0f}) tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} blit {:.2f} submit {:.2f} fence {:.2f} house {:.2f} pace {:.2f} | KB/frame vtx {} "
            "idx {} const {} | gpu {}",
            p.frames, p.frame_ms / n, p.capture_ms / n, p.present_wait_ms / n, p.worker_idle_ms / n,
@@ -520,19 +520,26 @@ void LogPerfLocked(VideoState &s) {
            p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
            p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
            p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
+           p.const_file_mask_misses,
            p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames,
            p.surface_transfers / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
            p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, g_device_block_misses.exchange(0, std::memory_order_relaxed),
+           g_device_block_miss_offset.exchange(0, std::memory_order_relaxed),
            p.index_cache_hits / p.frames, p.index_cache_misses,
            p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
            p.geometry_vram_binds / p.frames, p.geometry_staging_binds / p.frames,
            static_cast<f64>(p.vertex_bind_calls) / n,
            static_cast<f64>(p.vertex_bind_requests) / n,
+           static_cast<f64>(p.single_stream_draws) / n,
            static_cast<f64>(p.index_bind_calls) / n,
            static_cast<f64>(p.index_bind_requests) / n,
            static_cast<f64>(p.framebuffer_cache_hits) / n,
+           static_cast<f64>(p.target_memo_hits) / n,
+           static_cast<f64>(p.target_memo_miss_gen) / n,
+           static_cast<f64>(p.target_memo_miss_words) / n,
+           static_cast<f64>(p.target_memo_miss_sig) / n,
            static_cast<f64>(p.texture_bind_hits) / n,
            static_cast<f64>(p.texture_bind_requests) / n,
            static_cast<f64>(p.pipeline_bind_calls) / n,
@@ -548,6 +555,7 @@ void LogPerfLocked(VideoState &s) {
            GpuTimingSummary(p));
   LogRenderAreaLocked(s, p.frames);
   p = PerfCounters{};
+  s.perf_resets++;
   p.last_present = now;
   g_pace_ms = 0.0;
 }

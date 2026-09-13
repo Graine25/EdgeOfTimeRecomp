@@ -169,7 +169,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     c.type = RenderCommandType::Resolve;
     if (CaptureResolve(device_va, flags, src_rect_va, dest_texture_va, dest_point_va, dest_level,
                        clear_color_va, clear_z, c.resolve))
-      enqueue.commit();
+      enqueue.commit(false);
     return;
   }
   ResolvePacket pk;
