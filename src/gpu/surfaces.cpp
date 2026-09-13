@@ -111,7 +111,7 @@ bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u3
   desc.flags = surf.isDepth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
   desc.multisampling.sampleCount = static_cast<plume::RenderSampleCounts>(host.sampleCount);
-  desc.committed = Settings::CommittedTextures();
+  desc.committed = false;
   plume::RenderClearValue clear;
   if (!surf.isDepth) {
     clear = plume::RenderClearValue::Color(plume::RenderColor(0, 0, 0, 0), host.format);
@@ -496,21 +496,16 @@ bool ResolveHostToSingle(VideoState &s, GuestSurface &surf) {
   surf.perfTransfers++;
   s.perf.surface_transfers++;
   surf.resolvedSinceDraw = true;
-  if (Settings::ResolveHardware()) {
-    const HostTextureTransition transitions[] = {
-        {&surf.host, plume::RenderTextureLayout::RESOLVE_SOURCE},
-        {&surf.single, plume::RenderTextureLayout::RESOLVE_DEST}};
-    TransitionManyLocked(s, transitions, 2);
-    {
-      EOT_GPU_ZONE("resolve twin (hw)");
-      cmd->resolveTexture(surf.single.texture.get(), surf.host.texture.get());
-    }
-    surf.single.needsClear = false;
-    return true;
+  const HostTextureTransition transitions[] = {
+      {&surf.host, plume::RenderTextureLayout::RESOLVE_SOURCE},
+      {&surf.single, plume::RenderTextureLayout::RESOLVE_DEST}};
+  TransitionManyLocked(s, transitions, 2);
+  {
+    EOT_GPU_ZONE("resolve twin (hw)");
+    cmd->resolveTexture(surf.single.texture.get(), surf.host.texture.get());
   }
-  EOT_GPU_ZONE("resolve twin");
-  return HelperBlit(s, surf.host, surf.single,
-                    GetResolveMsaaPipeline(s, surf.single.format, surf.host.sampleCount, false));
+  surf.single.needsClear = false;
+  return true;
 }
 
 bool BroadcastSingleToHost(VideoState &s, GuestSurface &surf) {
@@ -531,7 +526,7 @@ bool DeriveDepthSingle(VideoState &s, GuestSurface &surf) {
   s.perf.surface_transfers++;
   if (surf.content == GuestSurface::Content::Cleared)
     return ClearImageToRemembered(s, surf, surf.single);
-  if (Settings::StencilTwin() && s.stencil_ref_supported) {
+  if (s.stencil_ref_supported) {
     plume::RenderPipeline *pso =
         GetDeriveDepthStencilPipeline(s, surf.single.format, surf.host.sampleCount);
     const u32 stencil_index = pso ? BindStencilSRVLocked(s, surf.host) : kInvalidDescriptorIndex;
@@ -614,7 +609,7 @@ void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf) {
   }
   const u32 pass = surf.redirectPasses++;
   surf.redirectMirror.reset();
-  if (!Settings::ShadowAtlasDirect() || pass >= GuestSurface::kRedirectPasses || !surf.isDepth ||
+  if (pass >= GuestSurface::kRedirectPasses || !surf.isDepth ||
       surf.host.sampleCount != 1 || !surf.host.valid())
     return;
   const GuestSurface::RedirectPrediction &p = surf.redirectPredictions[pass];

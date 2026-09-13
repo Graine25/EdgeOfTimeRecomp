@@ -339,8 +339,6 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
 
 bool PinThreadToPhysicalCore(u32 core, const char *what) {
 #if defined(_WIN32)
-  if (!Settings::ThreadAffinity())
-    return false;
   SYSTEM_INFO info{};
   GetSystemInfo(&info);
   const u32 logical = info.dwNumberOfProcessors;
@@ -363,7 +361,7 @@ bool PinThreadToPhysicalCore(u32 core, const char *what) {
       off += e->Size;
     }
   }
-  if (cores < 4 || logical > 64)
+  if (cores < 6 || logical > 64)
     return false;
   const u32 per_core = smt ? logical / cores : 1;
   const u32 first = core * per_core;
