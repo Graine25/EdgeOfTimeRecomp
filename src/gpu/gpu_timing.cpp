@@ -242,7 +242,7 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
       static u32 diag_armed = 0;
       static u64 diag_next = 0;
       const i32 from = Settings::DiagHitch();
-      bool transfers_on_top = false;
+      bool transfers_on_top = Settings::DiagHitchAny();
       for (size_t i = 0; i < order.size() && i < 2; ++i)
         transfers_on_top |= order[i].second == kGpuCatBroadcast || order[i].second == kGpuCatResolveDepth;
       if (from > 0 && diag_armed < 4 && transfers_on_top && s.guest_frames >= static_cast<u64>(from) &&

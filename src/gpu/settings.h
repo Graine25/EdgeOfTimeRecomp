@@ -50,6 +50,7 @@ struct Settings {
   static i32 DiagSceneFrom();
   static bool DiagDump();
   static i32 DiagHitch();
+  static bool DiagHitchAny();
   static void ArmDiagFrame(i32 frame);
   static i32 RenderDocFrame();
   static std::string RenderDocDll();
