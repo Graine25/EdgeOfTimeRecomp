@@ -31,11 +31,6 @@ REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug",
                     "Start the Tracy profiler at boot so a viewer can attach. Zones are compiled "
                     "into every non-Release build (a Release one only with -DREEOT_PROFILING=ON) "
                     "and cost nothing until then.");
-REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "EdgeOfTime/Config",
-                    "Give every EDRAM surface, resolve mirror and guest texture its own "
-                    "dedicated allocation. The game resizes render targets every frame in "
-                    "some scenes, and a dedicated allocation costs about a millisecond each; "
-                    "suballocating from shared heaps is far cheaper.");
 REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug",
                      "Log a [hitch] line with that frame's own CPU split for any presented "
                      "frame longer than this many milliseconds (0 = off).")
@@ -70,58 +65,9 @@ REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
                      "the display's own refresh rate. The guest runs one frame per present, so this "
                      "paces the whole game, not just the display.")
     .range(0, 1000);
-REXCVAR_DEFINE_BOOL(eot_resolve_copy, true, "EdgeOfTime/Config",
-                    "Perform same-format, no-reorder resolves as texture copies instead of "
-                    "full-screen sampling draws.");
-REXCVAR_DEFINE_BOOL(eot_stencil_twin, true, "EdgeOfTime/Config",
-                    "Derive a multisampled depth surface's single-sample twin with its stencil "
-                    "plane too (a pixel shader writing SV_StencilRef; D3D12), so the passes that "
-                    "mark and test stencil without writing depth -- the deferred light volumes -- "
-                    "draw single-sample.");
-REXCVAR_DEFINE_BOOL(eot_geometry_vram, true, "EdgeOfTime/Config",
-                    "Keep the persistent index and vertex caches in VRAM (copied from their "
-                    "upload chunks at the end of the frame that admits them).");
-REXCVAR_DEFINE_BOOL(eot_render_thread, true, "EdgeOfTime/Config",
-                    "Record and submit the host frame on a render thread; the game thread "
-                    "captures each draw and waits only at the frame's present.");
-REXCVAR_DEFINE_BOOL(eot_thread_affinity, false, "EdgeOfTime/Config",
-                    "Pin the guest's rendering thread and the render thread to two separate "
-                    "physical cores (the second and third, the first left to the system), so "
-                    "neither runs on the other's hyperthread sibling and a frame is not "
-                    "slowed by a migration. Machines with fewer than four physical cores "
-                    "are left alone.");
-REXCVAR_DEFINE_INT32(eot_sort_opaque, 1, "EdgeOfTime/Config",
-                     "The render thread reorders runs of consecutive opaque draws (depth test "
-                     "and write on, an ordering-independent depth function, no blending, no "
-                     "stencil, the same targets) by pipeline, so a pass alternating a few "
-                     "materials switches pipelines a few times instead of once per object. "
-                     "0 off; 1 depth-writing passes; 2 also passes that test depth without "
-                     "writing it (LEQUAL/EQUAL over a prepass; a coplanar decal drawn later "
-                     "than its surface could then draw first).");
-REXCVAR_DEFINE_INT32(eot_fast_setters, 31, "EdgeOfTime/Config",
-                     "Bits: 1 SetTexture, 2 SetStreamSource, 4 SetIndices, 8 SetVertexShader and "
-                     "SetPixelShader, 16 the draws' pending-state flush, done in the hook instead "
-                     "of by the recompiled XDK function (the same device stores, no PM4).");
 REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug",
                     "Run both the hook's setter and the XDK's on every call and log any "
                     "difference in what they wrote.");
-REXCVAR_DEFINE_BOOL(eot_shadow_atlas_direct, true, "EdgeOfTime/Config",
-                    "Draw the shadow tile straight into its atlas region instead of copying it "
-                    "there after the pass (predicted from the previous frame).");
-REXCVAR_DEFINE_BOOL(eot_resolve_transfer, true, "EdgeOfTime/Config",
-                    "A whole-surface resolve hands the surface's single-sample image to the "
-                    "destination texture instead of copying it (the surface copies it back "
-                    "only if drawn over before its next clear).");
-REXCVAR_DEFINE_BOOL(eot_resolve_hw, true, "EdgeOfTime/Config",
-                    "Resolve a multisampled scene surface into its single-sample twin with the "
-                    "hardware resolve (ResolveSubresource) instead of a shader that reads every "
-                    "sample.");
-REXCVAR_DEFINE_BOOL(eot_const_range, true, "EdgeOfTime/Config",
-                    "Upload only the prefix of each 4 KB float constant file the bound shader "
-                    "can address (from its constant table) instead of the whole file.");
-REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "EdgeOfTime/Config",
-                    "Mirror stable guest vertex ranges into persistent host buffers on their "
-                    "second sighting instead of byte-swapping the drawn range per draw.");
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
                     "Bloom (the HDR glow around bright light). Off keeps the tone curve.");
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics",
@@ -199,20 +145,6 @@ REXCVAR_DEFINE_INT32(eot_diag_scene_from, 0, "EdgeOfTime/Debug",
 REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug",
                     "Log the eot_diag_frame detail for the frame after the first frame of the "
                     "run with 400 or more draws, whatever its index.");
-REXCVAR_DEFINE_BOOL(eot_diag_scissor, false, "EdgeOfTime/Debug",
-                    "Experiment: scissor every multisampled draw to one pixel (per-draw GPU cost only).");
-REXCVAR_DEFINE_BOOL(eot_diag_skipdraw, false, "EdgeOfTime/Debug",
-                    "Experiment: record no guest draws (black frame; the wall time is the guest's own).");
-REXCVAR_DEFINE_BOOL(eot_diag_novtx, false, "EdgeOfTime/Debug",
-                    "Experiment: multisampled indexed draws issue three indices only.");
-REXCVAR_DEFINE_BOOL(eot_diag_extrapso, false, "EdgeOfTime/Debug",
-                    "Experiment: an extra pipeline switch and one-pixel draw before every multisampled draw.");
-REXCVAR_DEFINE_BOOL(eot_diag_nopso, false, "EdgeOfTime/Debug",
-                    "Experiment: multisampled draws keep the bound pipeline (garbage output).");
-REXCVAR_DEFINE_BOOL(eot_diag_noconst, false, "EdgeOfTime/Debug",
-                    "Experiment: multisampled draws keep the bound constants (garbage output).");
-REXCVAR_DEFINE_BOOL(eot_diag_rectclear, false, "EdgeOfTime/Debug",
-                    "Experiment: clear the shadow tile through a covering rect.");
 REXCVAR_DEFINE_BOOL(eot_diag_dump, false, "EdgeOfTime/Debug",
                     "Dump every resolve source of the diagnostic frame as a PPM (submits and stalls per dump).");
 
@@ -248,25 +180,12 @@ i32 Settings::SummaryFrames() { return REXCVAR_GET(eot_summary_frames); }
 i32 Settings::TraceStartFrame() { return REXCVAR_GET(eot_trace_start_frame); }
 i32 Settings::DiagVerbosity() { return REXCVAR_GET(eot_diag); }
 bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
-bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
-bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
-bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
-bool Settings::ResolveHardware() { return REXCVAR_GET(eot_resolve_hw); }
-bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
-bool Settings::ShadowAtlasDirect() { return REXCVAR_GET(eot_shadow_atlas_direct); }
-bool Settings::GeometryVram() { return REXCVAR_GET(eot_geometry_vram); }
-bool Settings::RenderThread() { return REXCVAR_GET(eot_render_thread); }
-bool Settings::ThreadAffinity() { return REXCVAR_GET(eot_thread_affinity); }
-i32 Settings::SortOpaque() { return REXCVAR_GET(eot_sort_opaque); }
-i32 Settings::FastSetters() { return REXCVAR_GET(eot_fast_setters); }
 bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
-bool Settings::StencilTwin() { return REXCVAR_GET(eot_stencil_twin); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
-bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
@@ -280,13 +199,6 @@ i32 Settings::DiagFrame() {
 bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
 i32 Settings::DiagSceneFrom() { return REXCVAR_GET(eot_diag_scene_from); }
 bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
-bool Settings::DiagScissor() { return REXCVAR_GET(eot_diag_scissor); }
-bool Settings::DiagRectClear() { return REXCVAR_GET(eot_diag_rectclear); }
-bool Settings::DiagNoPso() { return REXCVAR_GET(eot_diag_nopso); }
-bool Settings::DiagExtraPso() { return REXCVAR_GET(eot_diag_extrapso); }
-bool Settings::DiagNoVtx() { return REXCVAR_GET(eot_diag_novtx); }
-bool Settings::DiagSkipDraw() { return REXCVAR_GET(eot_diag_skipdraw); }
-bool Settings::DiagNoConst() { return REXCVAR_GET(eot_diag_noconst); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }

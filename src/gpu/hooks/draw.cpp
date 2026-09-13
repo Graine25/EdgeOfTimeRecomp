@@ -56,9 +56,8 @@ constexpr DeviceCompare::Range kDrawSkip[] = {{40, 64}, {11064, 11072}, {13600, 
 
 template <typename Original>
 void DrawFlush(PPCContext &ctx, u8 *base, u32 device, const char *what, Original original) {
-  static const bool fast = (Settings::FastSetters() & 16) != 0;
   static const bool verify = Settings::FastSettersVerify();
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       DeviceCompare cmp;

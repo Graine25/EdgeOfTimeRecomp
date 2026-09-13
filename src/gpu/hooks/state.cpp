@@ -295,10 +295,9 @@ extern "C" REX_FUNC(D3DDevice_SetTexture) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, sampler = ctx.r4.u32, texture = ctx.r5.u32;
   const u64 mask = ctx.r6.u64;
-  static const bool fast = (Settings::FastSetters() & 1) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && sampler < 26 && device) {
+  if (sampler < 26 && device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       VerifyRegions v;
@@ -337,10 +336,9 @@ extern "C" REX_FUNC(D3DDevice_SetTexture) {
 extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, shader = ctx.r4.u32;
-  static const bool fast = (Settings::FastSetters() & 8) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       DeviceCompare cmp;
@@ -368,10 +366,9 @@ extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
 extern "C" REX_FUNC(D3DDevice_SetPixelShader) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, shader = ctx.r4.u32;
-  static const bool fast = (Settings::FastSetters() & 8) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       DeviceCompare cmp;
@@ -401,10 +398,9 @@ extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
   const u32 device = ctx.r3.u32, stream = ctx.r4.u32, vb = ctx.r5.u32, offset = ctx.r6.u32,
             stride = ctx.r7.u32;
   const u64 mask = ctx.r8.u64;
-  static const bool fast = (Settings::FastSetters() & 2) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && stream < 16 && device) {
+  if (stream < 16 && device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       VerifyRegions v;
@@ -440,10 +436,9 @@ extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
 extern "C" REX_FUNC(D3DDevice_SetIndices) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, ib = ctx.r4.u32;
-  static const bool fast = (Settings::FastSetters() & 4) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       VerifyRegions v;

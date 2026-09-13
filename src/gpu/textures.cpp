@@ -103,7 +103,7 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   }
   desc.depth = 1;
   desc.arraySize = 1;
-  desc.committed = Settings::CommittedTextures();
+  desc.committed = false;
   switch (info.dimension) {
   case xe::DataDimension::k3D:
     desc.dimension = plume::RenderTextureDimension::TEXTURE_3D;
@@ -576,7 +576,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       desc.format = want;
       desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
-      desc.committed = Settings::CommittedTextures();
+      desc.committed = false;
       t.host.format = want;
       t.host.viewFormat = plume::RenderFormat::UNKNOWN;
       t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
