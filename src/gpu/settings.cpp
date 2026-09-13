@@ -145,6 +145,11 @@ REXCVAR_DEFINE_INT32(eot_diag_scene_from, 0, "EdgeOfTime/Debug",
 REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug",
                     "Log the eot_diag_frame detail for the frame after the first frame of the "
                     "run with 400 or more draws, whatever its index.");
+REXCVAR_DEFINE_INT32(eot_diag_hitch, 0, "EdgeOfTime/Debug",
+                     "Log the eot_diag_frame detail for the frame after the first GPU frame at "
+                     "or past this guest frame that the hitch reporter flags (40% over its "
+                     "running average): the passes and transfers of a slow frame, once per "
+                     "run (0 = off).");
 REXCVAR_DEFINE_BOOL(eot_diag_dump, false, "EdgeOfTime/Debug",
                     "Dump every resolve source of the diagnostic frame as a PPM (submits and stalls per dump).");
 
@@ -199,6 +204,7 @@ i32 Settings::DiagFrame() {
 bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
 i32 Settings::DiagSceneFrom() { return REXCVAR_GET(eot_diag_scene_from); }
 bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
+i32 Settings::DiagHitch() { return REXCVAR_GET(eot_diag_hitch); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }

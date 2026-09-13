@@ -239,6 +239,20 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
         line += std::format(" {} {:.2f}", GpuCategoryName(order[i].second), order[i].first);
       EOT_WARN("[hitch-gpu] frame {} took {:.2f} ms on the GPU (average {:.2f}):{}", s.guest_frames,
                total, average, line);
+      static u32 diag_armed = 0;
+      static u64 diag_next = 0;
+      const i32 from = Settings::DiagHitch();
+      bool transfers_on_top = false;
+      for (size_t i = 0; i < order.size() && i < 2; ++i)
+        transfers_on_top |= order[i].second == kGpuCatBroadcast || order[i].second == kGpuCatResolveDepth;
+      if (from > 0 && diag_armed < 4 && transfers_on_top && s.guest_frames >= static_cast<u64>(from) &&
+          s.guest_frames >= diag_next && Settings::DiagFrame() < static_cast<i32>(s.guest_frames)) {
+        diag_armed++;
+        diag_next = s.guest_frames + 300;
+        Settings::ArmDiagFrame(static_cast<i32>(s.guest_frames + 2));
+        EOT_INFO("[hitch-gpu] diagnostic frame armed for guest frame {} ({} of 4)",
+                 s.guest_frames + 2, diag_armed);
+      }
     }
     average = average > 0.0 ? average * 0.98 + total * 0.02 : total;
   }
