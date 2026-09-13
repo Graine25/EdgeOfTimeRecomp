@@ -84,6 +84,12 @@ REXCVAR_DEFINE_BOOL(eot_geometry_vram, true, "EdgeOfTime/Config",
 REXCVAR_DEFINE_BOOL(eot_render_thread, true, "EdgeOfTime/Config",
                     "Record and submit the host frame on a render thread; the game thread "
                     "captures each draw and waits only at the frame's present.");
+REXCVAR_DEFINE_BOOL(eot_thread_affinity, false, "EdgeOfTime/Config",
+                    "Pin the guest's rendering thread and the render thread to two separate "
+                    "physical cores (the second and third, the first left to the system), so "
+                    "neither runs on the other's hyperthread sibling and a frame is not "
+                    "slowed by a migration. Machines with fewer than four physical cores "
+                    "are left alone.");
 REXCVAR_DEFINE_INT32(eot_sort_opaque, 1, "EdgeOfTime/Config",
                      "The render thread reorders runs of consecutive opaque draws (depth test "
                      "and write on, an ordering-independent depth function, no blending, no "
@@ -250,6 +256,7 @@ bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
 bool Settings::ShadowAtlasDirect() { return REXCVAR_GET(eot_shadow_atlas_direct); }
 bool Settings::GeometryVram() { return REXCVAR_GET(eot_geometry_vram); }
 bool Settings::RenderThread() { return REXCVAR_GET(eot_render_thread); }
+bool Settings::ThreadAffinity() { return REXCVAR_GET(eot_thread_affinity); }
 i32 Settings::SortOpaque() { return REXCVAR_GET(eot_sort_opaque); }
 i32 Settings::FastSetters() { return REXCVAR_GET(eot_fast_setters); }
 bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }

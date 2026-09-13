@@ -152,6 +152,7 @@ void WorkerMain() {
 #if defined(_WIN32)
   SetThreadDescription(GetCurrentThread(), L"reeot render");
 #endif
+  PinThreadToPhysicalCore(2, "the render thread");
 #if defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING)
   if (TracyIsStarted)
     tracy::SetThreadName("render");
