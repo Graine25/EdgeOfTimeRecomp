@@ -339,41 +339,38 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
 
 bool PinThreadToPhysicalCore(u32 core, const char *what) {
 #if defined(_WIN32)
-  SYSTEM_INFO info{};
-  GetSystemInfo(&info);
-  const u32 logical = info.dwNumberOfProcessors;
   DWORD length = 0;
   GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
+  if (!length)
+    return false;
   std::vector<u8> buffer(length);
-  u32 cores = 0;
-  bool smt = false;
-  if (length && GetLogicalProcessorInformationEx(
-                    RelationProcessorCore,
-                    reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data()),
-                    &length)) {
-    for (DWORD off = 0; off < length;) {
-      auto *e = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data() + off);
-      if (e->Relationship == RelationProcessorCore) {
-        cores++;
-        if (e->Processor.Flags & LTP_PC_SMT)
-          smt = true;
-      }
-      off += e->Size;
-    }
+  if (!GetLogicalProcessorInformationEx(
+          RelationProcessorCore,
+          reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data()), &length))
+    return false;
+  struct Core {
+    u32 efficiency;
+    KAFFINITY mask;
+    u32 group;
+  };
+  std::vector<Core> cores;
+  for (DWORD off = 0; off < length;) {
+    auto *e = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data() + off);
+    if (e->Relationship == RelationProcessorCore && e->Processor.GroupCount >= 1)
+      cores.push_back({e->Processor.EfficiencyClass, e->Processor.GroupMask[0].Mask,
+                       e->Processor.GroupMask[0].Group});
+    off += e->Size;
   }
-  if (cores < 6 || logical > 64)
+  if (cores.size() < 8)
     return false;
-  const u32 per_core = smt ? logical / cores : 1;
-  const u32 first = core * per_core;
-  if (first + per_core > logical)
+  std::stable_sort(cores.begin(), cores.end(),
+                   [](const Core &a, const Core &b) { return a.efficiency > b.efficiency; });
+  if (core >= cores.size() || cores[core].group != 0 || !cores[core].mask)
     return false;
-  DWORD_PTR mask = 0;
-  for (u32 i = 0; i < per_core; ++i)
-    mask |= DWORD_PTR(1) << (first + i);
-  if (!SetThreadAffinityMask(GetCurrentThread(), mask))
+  if (!SetThreadAffinityMask(GetCurrentThread(), cores[core].mask))
     return false;
-  EOT_INFO("[gpu] {} pinned to physical core {} (logical {}-{} of {}, {} cores)", what, core, first,
-           first + per_core - 1, logical, cores);
+  EOT_INFO("[gpu] {} pinned to physical core {} (logical mask {:#x} of {} cores)", what, core,
+           static_cast<u64>(cores[core].mask), cores.size());
   return true;
 #else
   (void)core;
