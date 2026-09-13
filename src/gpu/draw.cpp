@@ -223,12 +223,15 @@ u32 SelectPassSamples(const Targets &t, const DrawClass &c, bool stencil_twin) {
     return ms;
   if (!t.colorCount)
     return ms;
-  if (c.nullPs)
-    return ms_depth && !c.depthWrite && stencil_twin ? 1u : ms;
   const GuestSurface &c0 = *t.color[0];
   const bool resolved = c0.content == GuestSurface::Content::Borrowed ||
                         (c0.content == GuestSurface::Content::Drawn &&
                          (c0.contentInSingle || c0.imagesAgree || c0.resolvedSinceDraw));
+  if (c.nullPs) {
+    if (ms_depth && resolved)
+      return 1;
+    return ms_depth && !c.depthWrite && stencil_twin ? 1u : ms;
+  }
   if (resolved)
     return 1;
   if (ms_depth && c.depthWrite && !c.blend)
@@ -2967,6 +2970,9 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
         region = plume::RenderRect(rect.left + surf.redirectX, rect.top + surf.redirectY,
                                    rect.right + surf.redirectX, rect.bottom + surf.redirectY);
       if (BindImages(s, nullptr, 0, &image, true)) {
+        if (GpuTimingDiagActive(s))
+          GpuTimingDiagMark(s, cmd, std::format("redirect region clear {}x{}", surf.host.width,
+                                                surf.host.height));
         cmd->clearDepthStencil(clear_depth, clear_stencil, z, stencil & 0xFF, &region, 1);
         surf.perfClears++;
       }
