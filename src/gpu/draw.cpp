@@ -776,7 +776,7 @@ void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count) {
   PrefetchSampleProbes(mem::at<u8>(data_va + static_cast<u32>(start)), bytes);
 }
 
-u64 DrawSortKey(const DrawPacket &pk) {
+u64 DrawSortKey(const DrawPacket &pk, u32 *depth_func) {
   if (pk.rectList || !pk.vs)
     return 0;
   DeviceView dev = Device(pk.device_va);
@@ -801,6 +801,8 @@ u64 DrawSortKey(const DrawPacket &pk) {
   const bool ordered = zfunc == 1 || zfunc == 3 || zfunc == 4 || zfunc == 6;
   if (!(dc & 4) || !ordered)
     return 0;
+  if (depth_func)
+    *depth_func = zfunc;
   const u32 cc = dev.U32(dev::kColorControl), bc = dev.U32(dev::kBlendControl0);
   const u32 src = bc & 0x1F, op = (bc >> 5) & 7, dst = (bc >> 8) & 0x1F;
   const bool passthrough = src == 1 && dst == 0 && op == 0;
