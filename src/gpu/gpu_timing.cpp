@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <format>
+#include <functional>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -220,6 +222,26 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
   }
   s.perf.gpu_ms += (r[n - 1] - r[0]) * 1e-6;
   s.perf.gpu_frames++;
+  {
+    static f64 average = 0.0;
+    const f64 total = (r[n - 1] - r[0]) * 1e-6;
+    if (average > 0.0 && total > average * 1.4 && total > average + 2.0) {
+      std::map<u32, f64> cats;
+      for (size_t i = 1; i < n; ++i)
+        if (r[i] > r[i - 1])
+          cats[st.journal[i]] += (r[i] - r[i - 1]) * 1e-6;
+      std::vector<std::pair<f64, u32>> order;
+      for (const auto &[cat, ms] : cats)
+        order.emplace_back(ms, cat);
+      std::sort(order.begin(), order.end(), std::greater<>());
+      std::string line;
+      for (size_t i = 0; i < order.size() && i < 8; ++i)
+        line += std::format(" {} {:.2f}", GpuCategoryName(order[i].second), order[i].first);
+      EOT_WARN("[hitch-gpu] frame {} took {:.2f} ms on the GPU (average {:.2f}):{}", s.guest_frames,
+               total, average, line);
+    }
+    average = average > 0.0 ? average * 0.98 + total * 0.02 : total;
+  }
   if (st.diag) {
     std::string untagged_note;
     f64 tagged = 0;

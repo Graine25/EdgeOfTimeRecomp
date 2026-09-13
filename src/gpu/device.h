@@ -103,6 +103,7 @@ struct PerfCounters {
 inline u64 PerfNow() { return __rdtsc(); }
 inline f64 g_perf_ms_per_tick = 0.0;
 f64 PerfMsPerTickSlow();
+bool PinThreadToPhysicalCore(u32 core, const char *what);
 inline f64 PerfMsPerTick() {
   const f64 v = g_perf_ms_per_tick;
   return v > 0.0 ? v : PerfMsPerTickSlow();
@@ -239,6 +240,7 @@ struct VideoState {
 
   PerfCounters perf;
   PerfCounters perf_prev_frame;
+  std::vector<f32> frame_walls;
 
   struct TextureSlotCache {
     u32 texVa = 0;

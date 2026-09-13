@@ -337,6 +337,53 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
   return ok;
 }
 
+bool PinThreadToPhysicalCore(u32 core, const char *what) {
+#if defined(_WIN32)
+  if (!Settings::ThreadAffinity())
+    return false;
+  SYSTEM_INFO info{};
+  GetSystemInfo(&info);
+  const u32 logical = info.dwNumberOfProcessors;
+  DWORD length = 0;
+  GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
+  std::vector<u8> buffer(length);
+  u32 cores = 0;
+  bool smt = false;
+  if (length && GetLogicalProcessorInformationEx(
+                    RelationProcessorCore,
+                    reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data()),
+                    &length)) {
+    for (DWORD off = 0; off < length;) {
+      auto *e = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data() + off);
+      if (e->Relationship == RelationProcessorCore) {
+        cores++;
+        if (e->Processor.Flags & LTP_PC_SMT)
+          smt = true;
+      }
+      off += e->Size;
+    }
+  }
+  if (cores < 4 || logical > 64)
+    return false;
+  const u32 per_core = smt ? logical / cores : 1;
+  const u32 first = core * per_core;
+  if (first + per_core > logical)
+    return false;
+  DWORD_PTR mask = 0;
+  for (u32 i = 0; i < per_core; ++i)
+    mask |= DWORD_PTR(1) << (first + i);
+  if (!SetThreadAffinityMask(GetCurrentThread(), mask))
+    return false;
+  EOT_INFO("[gpu] {} pinned to physical core {} (logical {}-{} of {}, {} cores)", what, core, first,
+           first + per_core - 1, logical, cores);
+  return true;
+#else
+  (void)core;
+  (void)what;
+  return false;
+#endif
+}
+
 f64 PerfMsPerTickSlow() {
   static const f64 ms_per_tick = [] {
     const auto s0 = std::chrono::steady_clock::now();
