@@ -337,7 +337,7 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
   return ok;
 }
 
-f64 PerfMsPerTick() {
+f64 PerfMsPerTickSlow() {
   static const f64 ms_per_tick = [] {
     const auto s0 = std::chrono::steady_clock::now();
     const u64 t0 = PerfNow();
@@ -349,6 +349,7 @@ f64 PerfMsPerTick() {
     return std::chrono::duration<f64, std::milli>(s1 - s0).count() /
            static_cast<f64>(std::max<u64>(1, t1 - t0));
   }();
+  g_perf_ms_per_tick = ms_per_tick;
   return ms_per_tick;
 }
 

@@ -42,7 +42,7 @@ public:
   RenderEnqueue(const RenderEnqueue &) = delete;
   RenderEnqueue &operator=(const RenderEnqueue &) = delete;
   RenderCommand &cmd() { return *cmd_; }
-  u64 commit();
+  u64 commit(bool publish = true);
 
 private:
   std::unique_lock<std::mutex> lock_;

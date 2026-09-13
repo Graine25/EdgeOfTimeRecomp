@@ -22,9 +22,10 @@ namespace eot::gpu {
 
 namespace {
 
-constexpr u64 kQueueSlots = 4096;
+constexpr u64 kQueueSlots = 1024;
 constexpr u64 kQueueMask = kQueueSlots - 1;
 constexpr u64 kBatch = 64;
+constexpr u64 kPublishEvery = 8;
 constexpr u32 kIdleSpins = 20000;
 
 struct Queue {
@@ -32,15 +33,29 @@ struct Queue {
   alignas(64) std::atomic<u64> head{0};
   alignas(64) std::atomic<u64> tail{0};
   alignas(64) std::atomic<u64> executed{0};
-  std::atomic<bool> consumer_sleeping{false};
+  alignas(64) std::atomic<bool> consumer_sleeping{false};
   std::atomic<bool> producer_sleeping{false};
   std::atomic<bool> active{false};
   std::atomic<bool> stop{false};
   std::mutex produce_mutex;
   std::mutex cv_mutex;
   std::condition_variable cv_work, cv_space, cv_done;
-  u64 next_seq = 1;
+  alignas(64) u64 next_seq = 1;
+  u64 tail_local = 0;
+  u64 tail_published = 0;
+  u64 head_cache = 0;
 };
+
+void PublishTail(Queue &q) {
+  if (q.tail_published == q.tail_local)
+    return;
+  q.tail_published = q.tail_local;
+  q.tail.store(q.tail_local, std::memory_order_seq_cst);
+  if (q.consumer_sleeping.load(std::memory_order_seq_cst)) {
+    std::lock_guard cv_lock(q.cv_mutex);
+    q.cv_work.notify_one();
+  }
+}
 
 Queue &queue() {
   static auto *q = new Queue;
@@ -132,10 +147,12 @@ void WorkerMain() {
         Prefetch(q.slots[(head + 1) & kQueueMask]);
       Execute(s, q, c);
       ++head;
-      q.head.store(head, std::memory_order_seq_cst);
-      if (q.producer_sleeping.load(std::memory_order_seq_cst)) {
-        std::lock_guard cv_lock(q.cv_mutex);
-        q.cv_space.notify_all();
+      if ((head & (kPublishEvery - 1)) == 0 || i + 1 == n) {
+        q.head.store(head, std::memory_order_seq_cst);
+        if (q.producer_sleeping.load(std::memory_order_seq_cst)) {
+          std::lock_guard cv_lock(q.cv_mutex);
+          q.cv_space.notify_all();
+        }
       }
     }
   }
@@ -172,16 +189,21 @@ void RenderThreadStop() {
 
 RenderEnqueue::RenderEnqueue() : lock_(queue().produce_mutex) {
   auto &q = queue();
-  const u64 t = q.tail.load(std::memory_order_relaxed);
-  if (t - q.head.load(std::memory_order_acquire) >= kQueueSlots) {
-    EOT_CPU_ZONE("render queue full");
-    std::unique_lock cv_lock(q.cv_mutex);
-    q.producer_sleeping.store(true, std::memory_order_seq_cst);
-    q.cv_space.wait(cv_lock, [&] {
-      return t - q.head.load(std::memory_order_seq_cst) < kQueueSlots ||
-             q.stop.load(std::memory_order_relaxed);
-    });
-    q.producer_sleeping.store(false, std::memory_order_seq_cst);
+  const u64 t = q.tail_local;
+  if (t - q.head_cache >= kQueueSlots) {
+    q.head_cache = q.head.load(std::memory_order_acquire);
+    if (t - q.head_cache >= kQueueSlots) {
+      EOT_CPU_ZONE("render queue full");
+      PublishTail(q);
+      std::unique_lock cv_lock(q.cv_mutex);
+      q.producer_sleeping.store(true, std::memory_order_seq_cst);
+      q.cv_space.wait(cv_lock, [&] {
+        return t - q.head.load(std::memory_order_seq_cst) < kQueueSlots ||
+               q.stop.load(std::memory_order_relaxed);
+      });
+      q.producer_sleeping.store(false, std::memory_order_seq_cst);
+      q.head_cache = q.head.load(std::memory_order_acquire);
+    }
   }
   if (q.stop.load(std::memory_order_acquire)) {
     static RenderCommand scratch;
@@ -192,7 +214,7 @@ RenderEnqueue::RenderEnqueue() : lock_(queue().produce_mutex) {
   cmd_->seq = q.next_seq;
 }
 
-u64 RenderEnqueue::commit() {
+u64 RenderEnqueue::commit(bool publish) {
   auto &q = queue();
   const u64 seq = q.next_seq++;
   if (q.stop.load(std::memory_order_acquire)) {
@@ -200,11 +222,10 @@ u64 RenderEnqueue::commit() {
     return seq;
   }
   cmd_->seq = seq;
-  q.tail.store(q.tail.load(std::memory_order_relaxed) + 1, std::memory_order_seq_cst);
-  if (q.consumer_sleeping.load(std::memory_order_seq_cst)) {
-    std::lock_guard cv_lock(q.cv_mutex);
-    q.cv_work.notify_one();
-  }
+  ++q.tail_local;
+  if (publish || q.tail_local - q.tail_published >= kPublishEvery ||
+      q.consumer_sleeping.load(std::memory_order_relaxed))
+    PublishTail(q);
   committed_ = true;
   return seq;
 }

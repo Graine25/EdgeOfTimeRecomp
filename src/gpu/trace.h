@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <format>
 #include <string_view>
 
@@ -26,9 +27,21 @@ enum class Counter : u32 {
   Count
 };
 
-bool Enabled();
+inline std::atomic<bool> g_trace_ready{false};
+inline std::atomic<bool> g_trace_on{false};
+inline std::atomic<bool> g_summary_on{false};
+bool EnabledSlow();
+void BumpSlow(Counter c);
+inline bool Enabled() {
+  if (!g_trace_ready.load(std::memory_order_relaxed))
+    return EnabledSlow();
+  return g_trace_on.load(std::memory_order_relaxed);
+}
 void Line(std::string_view text);
-void Bump(Counter c);
+inline void Bump(Counter c) {
+  if (!g_trace_ready.load(std::memory_order_relaxed) || g_summary_on.load(std::memory_order_relaxed))
+    BumpSlow(c);
+}
 void EndFrame(u64 frame_index);
 void PresentMarker(u64 frame_index);
 

@@ -156,7 +156,15 @@ void GpuTimingMark(VideoState &s, plume::RenderCommandList *cmd, u32 cat) {
 void GpuTimingCountDraw(VideoState &s) {
   if (!g_supported || !g_open)
     return;
-  s.perf.gpu_cats[g_cat].second++;
+  static u32 *count = nullptr;
+  static u32 count_cat = ~0u;
+  static u64 count_reset = ~0ull;
+  if (!count || count_cat != g_cat || count_reset != s.perf_resets) {
+    count = &s.perf.gpu_cats[g_cat].second;
+    count_cat = g_cat;
+    count_reset = s.perf_resets;
+  }
+  ++*count;
 }
 
 bool DiagFrameNow(const VideoState &s) {
