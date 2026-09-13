@@ -72,6 +72,9 @@ REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug", "Frame to log in det
 REXCVAR_DEFINE_INT32(eot_diag_scene_from, 0, "EdgeOfTime/Debug", "First frame for scene diag")
     .range(0, 100000000);
 REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug", "Detail log the first scene");
+REXCVAR_DEFINE_INT32(eot_diag_hitch, 0, "EdgeOfTime/Debug", "Detail log slow frames");
+REXCVAR_DEFINE_BOOL(eot_diag_hitch_any, false, "EdgeOfTime/Debug", "Hitch diag on any frame");
+REXCVAR_DEFINE_BOOL(eot_d3d12_debug, false, "EdgeOfTime/Debug", "D3D12 debug layer");
 REXCVAR_DEFINE_BOOL(eot_diag_dump, false, "EdgeOfTime/Debug", "Dump resolve images");
 
 REXCVAR_DEFINE_INT32(eot_rdc_frame, 0, "EdgeOfTime/Debug", "Frame to capture in RenderDoc")
@@ -116,6 +119,9 @@ i32 Settings::DiagFrame() {
 bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
 i32 Settings::DiagSceneFrom() { return REXCVAR_GET(eot_diag_scene_from); }
 bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
+i32 Settings::DiagHitch() { return REXCVAR_GET(eot_diag_hitch); }
+bool Settings::DiagHitchAny() { return REXCVAR_GET(eot_diag_hitch_any); }
+bool Settings::D3D12Debug() { return REXCVAR_GET(eot_d3d12_debug); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }

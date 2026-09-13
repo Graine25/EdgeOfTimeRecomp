@@ -562,6 +562,10 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       if (hx >= 0 && hy >= 0 && hx + surf->host.width <= dest->host.width &&
           hy + surf->host.height <= dest->host.height) {
         GuestSurface::RedirectPrediction &p = surf->redirectPredictions[surf->redirectPasses - 1];
+        const bool same = p.recordedFrame + 1 == s.guest_frames && p.mirror.lock() == dest_ref &&
+                          p.texture == dest->host.texture.get() && p.x == hx && p.y == hy;
+        p.streak = same ? p.streak + 1 : 0;
+        p.recordedFrame = s.guest_frames;
         p.mirror = dest_ref;
         p.texture = dest->host.texture.get();
         p.x = hx;

@@ -126,14 +126,20 @@ u64 WaitForWork(Queue &q, u64 head) {
 u32 GatherSortRun(Queue &q, u64 head, u64 avail, u64 *keys) {
   const RenderCommand &first = q.slots[head & kQueueMask];
   u32 run = 0;
+  u32 first_func = 0;
   for (; run < kSortWindow && run < avail; ++run) {
     const RenderCommand &c = q.slots[(head + run) & kQueueMask];
     if (c.type != RenderCommandType::Draw)
       break;
     if (run && std::memcmp(&c.draw.targets, &first.draw.targets, sizeof(TargetWords)) != 0)
       break;
-    const u64 key = DrawSortKey(c.draw);
+    u32 func = 0;
+    const u64 key = DrawSortKey(c.draw, &func);
     if (!key)
+      break;
+    if (run == 0)
+      first_func = func;
+    else if (func != first_func)
       break;
     keys[run] = key;
   }

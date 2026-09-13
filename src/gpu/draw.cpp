@@ -221,12 +221,15 @@ u32 SelectPassSamples(const Targets &t, const DrawClass &c, bool stencil_twin) {
     return ms;
   if (!t.colorCount)
     return ms;
-  if (c.nullPs)
-    return ms_depth && !c.depthWrite && stencil_twin ? 1u : ms;
   const GuestSurface &c0 = *t.color[0];
   const bool resolved = c0.content == GuestSurface::Content::Borrowed ||
                         (c0.content == GuestSurface::Content::Drawn &&
                          (c0.contentInSingle || c0.imagesAgree || c0.resolvedSinceDraw));
+  if (c.nullPs) {
+    if (ms_depth && resolved)
+      return 1;
+    return ms_depth && !c.depthWrite && stencil_twin ? 1u : ms;
+  }
   if (resolved)
     return 1;
   if (ms_depth && c.depthWrite && !c.blend)
@@ -774,7 +777,7 @@ void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count) {
   PrefetchSampleProbes(mem::at<u8>(data_va + static_cast<u32>(start)), bytes);
 }
 
-u64 DrawSortKey(const DrawPacket &pk) {
+u64 DrawSortKey(const DrawPacket &pk, u32 *depth_func) {
   if (pk.rectList || !pk.vs)
     return 0;
   DeviceView dev = Device(pk.device_va);
@@ -799,6 +802,8 @@ u64 DrawSortKey(const DrawPacket &pk) {
   const bool ordered = zfunc == 1 || zfunc == 3 || zfunc == 4 || zfunc == 6;
   if (!(dc & 4) || !ordered)
     return 0;
+  if (depth_func)
+    *depth_func = zfunc;
   const u32 cc = dev.U32(dev::kColorControl), bc = dev.U32(dev::kBlendControl0);
   const u32 src = bc & 0x1F, op = (bc >> 5) & 7, dst = (bc >> 8) & 0x1F;
   const bool passthrough = src == 1 && dst == 0 && op == 0;
@@ -2963,6 +2968,9 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
         region = plume::RenderRect(rect.left + surf.redirectX, rect.top + surf.redirectY,
                                    rect.right + surf.redirectX, rect.bottom + surf.redirectY);
       if (BindImages(s, nullptr, 0, &image, true)) {
+        if (GpuTimingDiagActive(s))
+          GpuTimingDiagMark(s, cmd, std::format("redirect region clear {}x{}", surf.host.width,
+                                                surf.host.height));
         cmd->clearDepthStencil(clear_depth, clear_stencil, z, stencil & 0xFF, &region, 1);
         surf.perfClears++;
       }
