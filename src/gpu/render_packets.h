@@ -39,10 +39,10 @@ struct DeviceWindow {
     u32 base, size;
   };
   static constexpr Block kBlocks[4] = {
-      {dev::kFetchConstants, dev::kVsFloatConstants - dev::kFetchConstants},
+      {dev::kFetchConstants, 16u * 24u},
       {dev::kVsBoolConstants, dev::kPsLoopConstants + 64 - dev::kVsBoolConstants},
       {dev::kSurfaceInfo, dev::kPolyOffsetBackOffset + 4 - dev::kSurfaceInfo},
-      {dev::kIndexBuffer & ~31u, ((dev::kVertexShader + 4 + 31) & ~31u) - (dev::kIndexBuffer & ~31u)},
+      {dev::kTextureObject0, 16u * 4u},
   };
   struct Pages {
     bool in[kDeviceSnapshotBytes >> kDevicePageShift] = {};
@@ -57,14 +57,14 @@ struct DeviceWindow {
     return pages.in;
   }
   alignas(64) u8 image[kDeviceSnapshotBytes];
+  template <u32 I> void CopyBlock(const u8 *regs) {
+    std::memcpy(image + kBlocks[I].base, regs + kBlocks[I].base, kBlocks[I].size);
+  }
   void Capture(const u8 *regs) {
-    for (const Block &b : kBlocks) {
-      const u8 *src = regs + b.base;
-      auto *dst = reinterpret_cast<__m128i *>(image + b.base);
-      for (u32 i = 0; i < b.size; i += 16, ++dst)
-        _mm_stream_si128(dst, _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + i)));
-    }
-    _mm_sfence();
+    CopyBlock<0>(regs);
+    CopyBlock<1>(regs);
+    CopyBlock<2>(regs);
+    CopyBlock<3>(regs);
   }
 };
 static_assert((DeviceWindow::kBlocks[0].base | DeviceWindow::kBlocks[0].size |

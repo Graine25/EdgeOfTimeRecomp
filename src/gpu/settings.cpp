@@ -24,7 +24,6 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "EdgeOfTime/Debug", "Renderer log verbosity")
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Sync frames to display");
 REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug", "Start Tracy at boot");
-REXCVAR_DEFINE_BOOL(eot_committed_textures, false, "EdgeOfTime/Config", "Own allocation per surface");
 REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug", "Log frames slower than this")
     .range(0, 1000);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale")
@@ -36,17 +35,7 @@ REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video", "Fullscreen 
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video", "Frame rate cap")
     .range(0, 1000);
-REXCVAR_DEFINE_BOOL(eot_resolve_copy, true, "EdgeOfTime/Config", "Resolve with texture copies");
-REXCVAR_DEFINE_BOOL(eot_stencil_twin, true, "EdgeOfTime/Config", "Copy stencil to twin");
-REXCVAR_DEFINE_BOOL(eot_geometry_vram, true, "EdgeOfTime/Config", "Keep geometry caches in VRAM");
-REXCVAR_DEFINE_BOOL(eot_render_thread, true, "EdgeOfTime/Config", "Render on its own thread");
-REXCVAR_DEFINE_INT32(eot_fast_setters, 31, "EdgeOfTime/Config", "Fast setter hook bits");
 REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug", "Check fast setters match");
-REXCVAR_DEFINE_BOOL(eot_shadow_atlas_direct, true, "EdgeOfTime/Config", "Draw shadows into atlas");
-REXCVAR_DEFINE_BOOL(eot_resolve_transfer, true, "EdgeOfTime/Config", "Hand off resolved images");
-REXCVAR_DEFINE_BOOL(eot_resolve_hw, true, "EdgeOfTime/Config", "Hardware MSAA resolves");
-REXCVAR_DEFINE_BOOL(eot_const_range, true, "EdgeOfTime/Config", "Upload only used constants");
-REXCVAR_DEFINE_BOOL(eot_vertex_mirrors, true, "EdgeOfTime/Config", "Mirror static vertex buffers");
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics", "Glow around bright lights");
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics", "Depth of field blur");
 REXCVAR_DEFINE_BOOL(eot_motion_blur, true, "EdgeOfTime/Graphics", "Motion blur on or off");
@@ -83,13 +72,6 @@ REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug", "Frame to log in det
 REXCVAR_DEFINE_INT32(eot_diag_scene_from, 0, "EdgeOfTime/Debug", "First frame for scene diag")
     .range(0, 100000000);
 REXCVAR_DEFINE_BOOL(eot_diag_scene, false, "EdgeOfTime/Debug", "Detail log the first scene");
-REXCVAR_DEFINE_BOOL(eot_diag_scissor, false, "EdgeOfTime/Debug", "Test: one pixel draws");
-REXCVAR_DEFINE_BOOL(eot_diag_skipdraw, false, "EdgeOfTime/Debug", "Test: record no draws");
-REXCVAR_DEFINE_BOOL(eot_diag_novtx, false, "EdgeOfTime/Debug", "Test: three indices only");
-REXCVAR_DEFINE_BOOL(eot_diag_extrapso, false, "EdgeOfTime/Debug", "Test: extra pipeline switch");
-REXCVAR_DEFINE_BOOL(eot_diag_nopso, false, "EdgeOfTime/Debug", "Test: keep bound pipeline");
-REXCVAR_DEFINE_BOOL(eot_diag_noconst, false, "EdgeOfTime/Debug", "Test: keep bound constants");
-REXCVAR_DEFINE_BOOL(eot_diag_rectclear, false, "EdgeOfTime/Debug", "Test: clear shadows with rect");
 REXCVAR_DEFINE_BOOL(eot_diag_dump, false, "EdgeOfTime/Debug", "Dump resolve images");
 
 REXCVAR_DEFINE_INT32(eot_rdc_frame, 0, "EdgeOfTime/Debug", "Frame to capture in RenderDoc")
@@ -115,23 +97,12 @@ i32 Settings::SummaryFrames() { return REXCVAR_GET(eot_summary_frames); }
 i32 Settings::TraceStartFrame() { return REXCVAR_GET(eot_trace_start_frame); }
 i32 Settings::DiagVerbosity() { return REXCVAR_GET(eot_diag); }
 bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
-bool Settings::VertexMirrors() { return REXCVAR_GET(eot_vertex_mirrors); }
-bool Settings::ConstRange() { return REXCVAR_GET(eot_const_range); }
-bool Settings::ResolveCopy() { return REXCVAR_GET(eot_resolve_copy); }
-bool Settings::ResolveHardware() { return REXCVAR_GET(eot_resolve_hw); }
-bool Settings::ResolveTransfer() { return REXCVAR_GET(eot_resolve_transfer); }
-bool Settings::ShadowAtlasDirect() { return REXCVAR_GET(eot_shadow_atlas_direct); }
-bool Settings::GeometryVram() { return REXCVAR_GET(eot_geometry_vram); }
-bool Settings::RenderThread() { return REXCVAR_GET(eot_render_thread); }
-i32 Settings::FastSetters() { return REXCVAR_GET(eot_fast_setters); }
 bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
-bool Settings::StencilTwin() { return REXCVAR_GET(eot_stencil_twin); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
-bool Settings::CommittedTextures() { return REXCVAR_GET(eot_committed_textures); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
@@ -145,13 +116,6 @@ i32 Settings::DiagFrame() {
 bool Settings::DiagScene() { return REXCVAR_GET(eot_diag_scene); }
 i32 Settings::DiagSceneFrom() { return REXCVAR_GET(eot_diag_scene_from); }
 bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
-bool Settings::DiagScissor() { return REXCVAR_GET(eot_diag_scissor); }
-bool Settings::DiagRectClear() { return REXCVAR_GET(eot_diag_rectclear); }
-bool Settings::DiagNoPso() { return REXCVAR_GET(eot_diag_nopso); }
-bool Settings::DiagExtraPso() { return REXCVAR_GET(eot_diag_extrapso); }
-bool Settings::DiagNoVtx() { return REXCVAR_GET(eot_diag_novtx); }
-bool Settings::DiagSkipDraw() { return REXCVAR_GET(eot_diag_skipdraw); }
-bool Settings::DiagNoConst() { return REXCVAR_GET(eot_diag_noconst); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
@@ -250,7 +214,7 @@ struct Gate {
 
 constexpr Gate kGates[] = {
     {"eot_msaa", "0", "4", "8"},
-    {"eot_upscale", "bilinear", "bicubic", "lanczos"},
+    {"eot_upscale", "bilinear", "bicubic", "bicubic"},
     {"eot_anisotropy", "0", "8", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096"},
 };

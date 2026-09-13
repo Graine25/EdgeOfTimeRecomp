@@ -335,7 +335,49 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
   return ok;
 }
 
-f64 PerfMsPerTick() {
+bool PinThreadToPhysicalCore(u32 core, const char *what) {
+#if defined(_WIN32)
+  DWORD length = 0;
+  GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
+  if (!length)
+    return false;
+  std::vector<u8> buffer(length);
+  if (!GetLogicalProcessorInformationEx(
+          RelationProcessorCore,
+          reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data()), &length))
+    return false;
+  struct Core {
+    u32 efficiency;
+    KAFFINITY mask;
+    u32 group;
+  };
+  std::vector<Core> cores;
+  for (DWORD off = 0; off < length;) {
+    auto *e = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data() + off);
+    if (e->Relationship == RelationProcessorCore && e->Processor.GroupCount >= 1)
+      cores.push_back({e->Processor.EfficiencyClass, e->Processor.GroupMask[0].Mask,
+                       e->Processor.GroupMask[0].Group});
+    off += e->Size;
+  }
+  if (cores.size() < 8)
+    return false;
+  std::stable_sort(cores.begin(), cores.end(),
+                   [](const Core &a, const Core &b) { return a.efficiency > b.efficiency; });
+  if (core >= cores.size() || cores[core].group != 0 || !cores[core].mask)
+    return false;
+  if (!SetThreadAffinityMask(GetCurrentThread(), cores[core].mask))
+    return false;
+  EOT_INFO("[gpu] {} pinned to physical core {} (logical mask {:#x} of {} cores)", what, core,
+           static_cast<u64>(cores[core].mask), cores.size());
+  return true;
+#else
+  (void)core;
+  (void)what;
+  return false;
+#endif
+}
+
+f64 PerfMsPerTickSlow() {
   static const f64 ms_per_tick = [] {
     const auto s0 = std::chrono::steady_clock::now();
     const u64 t0 = PerfNow();
@@ -347,6 +389,7 @@ f64 PerfMsPerTick() {
     return std::chrono::duration<f64, std::milli>(s1 - s0).count() /
            static_cast<f64>(std::max<u64>(1, t1 - t0));
   }();
+  g_perf_ms_per_tick = ms_per_tick;
   return ms_per_tick;
 }
 

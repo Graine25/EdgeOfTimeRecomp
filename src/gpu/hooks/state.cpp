@@ -298,10 +298,9 @@ extern "C" REX_FUNC(D3DDevice_SetTexture) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, sampler = ctx.r4.u32, texture = ctx.r5.u32;
   const u64 mask = ctx.r6.u64;
-  static const bool fast = (Settings::FastSetters() & 1) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && sampler < 26 && device) {
+  if (sampler < 26 && device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       VerifyRegions v;
@@ -340,10 +339,9 @@ extern "C" REX_FUNC(D3DDevice_SetTexture) {
 extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, shader = ctx.r4.u32;
-  static const bool fast = (Settings::FastSetters() & 8) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       DeviceCompare cmp;
@@ -371,10 +369,9 @@ extern "C" REX_FUNC(D3DDevice_SetVertexShader) {
 extern "C" REX_FUNC(D3DDevice_SetPixelShader) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, shader = ctx.r4.u32;
-  static const bool fast = (Settings::FastSetters() & 8) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       DeviceCompare cmp;
@@ -404,10 +401,9 @@ extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
   const u32 device = ctx.r3.u32, stream = ctx.r4.u32, vb = ctx.r5.u32, offset = ctx.r6.u32,
             stride = ctx.r7.u32;
   const u64 mask = ctx.r8.u64;
-  static const bool fast = (Settings::FastSetters() & 2) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && stream < 16 && device) {
+  if (stream < 16 && device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       VerifyRegions v;
@@ -443,10 +439,9 @@ extern "C" REX_FUNC(D3DDevice_SetStreamSource) {
 extern "C" REX_FUNC(D3DDevice_SetIndices) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, ib = ctx.r4.u32;
-  static const bool fast = (Settings::FastSetters() & 4) != 0;
   static const bool verify = Settings::FastSettersVerify();
   bool done = false;
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       VerifyRegions v;
@@ -584,9 +579,8 @@ constexpr DeviceCompare::Range kDrawSkip[] = {{40, 64}, {11064, 11072}, {13600, 
 
 template <typename Original>
 void DrawFlush(PPCContext &ctx, u8 *base, u32 device, const char *what, Original original) {
-  static const bool fast = (Settings::FastSetters() & 16) != 0;
   static const bool verify = Settings::FastSettersVerify();
-  if (fast && device) {
+  if (device) {
     if (verify) {
       u8 *dev = Guest(base, device);
       DeviceCompare cmp;
@@ -608,20 +602,20 @@ void DrawFlush(PPCContext &ctx, u8 *base, u32 device, const char *what, Original
   original();
 }
 
+u64 ReverseBits(u64 v) {
+  v = ((v >> 1) & 0x5555555555555555ull) | ((v & 0x5555555555555555ull) << 1);
+  v = ((v >> 2) & 0x3333333333333333ull) | ((v & 0x3333333333333333ull) << 2);
+  v = ((v >> 4) & 0x0F0F0F0F0F0F0F0Full) | ((v & 0x0F0F0F0F0F0F0F0Full) << 4);
+  return __builtin_bswap64(v);
+}
+
 FloatConstantDirty PendingFloatConstants(u32 device_va) {
   if (!device_va)
     return {};
   const u8 *pending = eot::mem::at<u8>(device_va + eot::gpu::dev::kPendingMask);
   if (!pending)
     return {};
-  auto group_dirty = [&](u32 group) {
-    const u8 *q = pending + group * 8;
-    u32 lo, hi;
-    std::memcpy(&lo, q, 4);
-    std::memcpy(&hi, q + 4, 4);
-    return lo != 0 || hi != 0;
-  };
-  return {group_dirty(0), group_dirty(1)};
+  return {ReverseBits(Ld64(pending)), ReverseBits(Ld64(pending + 8))};
 }
 
 }
@@ -643,6 +637,7 @@ extern "C" REX_FUNC(D3DDevice_DrawIndexedVertices) {
   const i32 base_vertex = ctx.r5.s32;
   const u32 start_index = ctx.r6.u32, count = ctx.r7.u32;
   const FloatConstantDirty constants = PendingFloatConstants(device);
+  PrefetchIndexProbes(device, start_index, count);
   DrawFlush(ctx, base, device, "DrawIndexedVertices",
             [&] { __imp__D3DDevice_DrawIndexedVertices(ctx, base); });
   EOT_TRACE_CALL("DrawIndexedVertices prim={} base={} start={} count={}", prim, base_vertex,

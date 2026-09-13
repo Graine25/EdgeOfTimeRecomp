@@ -15,7 +15,6 @@ struct Settings {
   static i32 SummaryFrames();
   static i32 DiagVerbosity();
   static bool Vsync();
-  static bool VertexMirrors();
   static bool Bloom();
   static bool DepthOfField();
   static bool MotionBlur();
@@ -35,16 +34,7 @@ struct Settings {
   static double Contrast();
   static double Saturation();
   static double Gamma();
-  static bool ConstRange();
-  static bool ResolveCopy();
-  static bool ResolveHardware();
-  static bool ResolveTransfer();
-  static bool ShadowAtlasDirect();
-  static bool GeometryVram();
-  static bool RenderThread();
-  static i32 FastSetters();
   static bool FastSettersVerify();
-  static bool StencilTwin();
   static f64 RenderScale();
   static std::string Resolution();
   static i32 FpsLimit();
@@ -52,7 +42,6 @@ struct Settings {
   static std::string EffectiveAspectRatio();
   static bool Fullscreen();
   static i32 HitchMs();
-  static bool CommittedTextures();
   static bool Profiler();
   static i32 PerfFrames();
   static i32 DumpEvery();
@@ -60,13 +49,6 @@ struct Settings {
   static bool DiagScene();
   static i32 DiagSceneFrom();
   static bool DiagDump();
-  static bool DiagScissor();
-  static bool DiagRectClear();
-  static bool DiagNoPso();
-  static bool DiagExtraPso();
-  static bool DiagNoVtx();
-  static bool DiagSkipDraw();
-  static bool DiagNoConst();
   static void ArmDiagFrame(i32 frame);
   static i32 RenderDocFrame();
   static std::string RenderDocDll();

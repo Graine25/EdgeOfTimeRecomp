@@ -61,12 +61,18 @@ struct PerfCounters {
   u32 geometry_vram_binds = 0, geometry_staging_binds = 0;
   u32 const_file_hits = 0;
   u32 const_file_clean_hits = 0;
+  u32 const_file_mask_misses = 0;
   u32 pipeline_hot_hits = 0;
+  u32 replay_memo_hits = 0;
   u32 vertex_bind_requests = 0, vertex_bind_calls = 0;
+  u32 single_stream_draws = 0, target_memo_hits = 0;
+  u32 sorted_draws = 0, sort_runs = 0;
+  u32 target_memo_miss_gen = 0, target_memo_miss_words = 0, target_memo_miss_sig = 0;
   u32 index_bind_requests = 0, index_bind_calls = 0;
   u32 framebuffer_cache_hits = 0;
   u32 texture_bind_requests = 0, texture_bind_hits = 0;
   u32 pipeline_bind_calls = 0, viewport_bind_calls = 0, scissor_bind_calls = 0;
+  u32 pipeline_bind_on_hit = 0;
   u32 stencil_ref_calls = 0;
   u32 texture_barrier_calls = 0, texture_barrier_resources = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
@@ -95,7 +101,13 @@ struct PerfCounters {
 };
 
 inline u64 PerfNow() { return __rdtsc(); }
-f64 PerfMsPerTick();
+inline f64 g_perf_ms_per_tick = 0.0;
+f64 PerfMsPerTickSlow();
+bool PinThreadToPhysicalCore(u32 core, const char *what);
+inline f64 PerfMsPerTick() {
+  const f64 v = g_perf_ms_per_tick;
+  return v > 0.0 ? v : PerfMsPerTickSlow();
+}
 struct PerfScopeSampled {
   f64 &acc;
   u64 t0 = 0;
@@ -228,18 +240,23 @@ struct VideoState {
 
   PerfCounters perf;
   PerfCounters perf_prev_frame;
+  std::vector<f32> frame_walls;
 
   struct TextureSlotCache {
     u32 texVa = 0;
-    u32 fc[6] = {};
+    u8 fc[24] = {};
     u64 generation = ~0ull;
     u64 resourceGeneration = ~0ull;
     u32 samplerPolicy = ~0u;
     GuestTexture *texture = nullptr;
     u32 index = kInvalidDescriptorIndex;
     u32 sampler = 0;
+    u8 dimension = 0;
+    u8 biasedBits = 0;
   };
-  TextureSlotCache slot_cache[16];
+  static constexpr u32 kTextureSlotWays = 4;
+  TextureSlotCache slot_cache[16][kTextureSlotWays];
+  u8 slot_cache_next[16] = {};
   std::atomic<u64> texture_generation{1};
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
   struct SurfaceWorkStats {
@@ -306,10 +323,9 @@ struct VideoState {
   bool bound_draw_targets_valid = false;
   plume::RenderBuffer *bound_root_buffer[3] = {};
   u64 bound_root_offset[3] = {};
-  SharedConstants last_shared{};
-  bool shared_bound = false;
-  bool vs_float_constants_stale = true;
-  bool ps_float_constants_stale = true;
+  u64 perf_resets = 0;
+  u64 vs_float_constants_stale = ~0ull;
+  u64 ps_float_constants_stale = ~0ull;
 
   enum class GammaMode : u32 { None = 0, Table = 1, Pwl = 2 };
   GammaMode gamma_mode = GammaMode::None;
@@ -331,8 +347,8 @@ struct VideoState {
     u32 vertex_count = 0;
     u32 stride = 0;
     u32 data_va = 0;
-    bool vs_constants_dirty = true;
-    bool ps_constants_dirty = true;
+    u64 vs_constants_dirty = ~0ull;
+    u64 ps_constants_dirty = ~0ull;
     bool has_image = false;
     std::vector<u8> device_image;
   } pending_up;

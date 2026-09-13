@@ -5,6 +5,7 @@
 #include "gpu/settings.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -210,12 +211,11 @@ DrawClass ClassifyDraw(DeviceView dev, const Targets &t, bool has_ps, bool rect_
   return c;
 }
 
-u32 SelectPassSamples(const Targets &t, const DrawClass &c) {
+u32 SelectPassSamples(const Targets &t, const DrawClass &c, bool stencil_twin) {
   const u32 ms = t.colorCount ? t.color[0]->host.sampleCount
                               : (t.depth ? t.depth->host.sampleCount : 1u);
   if (ms <= 1)
     return 1;
-  const bool stencil_twin = Settings::StencilTwin();
   const bool ms_depth = t.depth && t.depth->host.sampleCount > 1;
   if (ms_depth && c.stencil && !stencil_twin)
     return ms;
@@ -237,7 +237,7 @@ u32 SelectPassSamples(const Targets &t, const DrawClass &c) {
 }
 
 bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
-  u32 samples = SelectPassSamples(t, c);
+  u32 samples = SelectPassSamples(t, c, s.stencil_ref_supported);
   if (t.depth && t.colorCount && samples > 1 && t.depth->host.sampleCount != samples)
     samples = 1;
   for (u32 i = 0; i < t.colorCount; ++i) {
@@ -262,7 +262,7 @@ bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
     }
   }
   t.samples = samples;
-  t.writesDepthStencil = c.depthWrite || (c.stencilWrite && Settings::StencilTwin());
+  t.writesDepthStencil = c.depthWrite || (c.stencilWrite && s.stencil_ref_supported);
   t.writesDepth = c.depthWrite;
   t.writesColor = !c.nullPs;
   t.additive = c.additive;
@@ -446,33 +446,68 @@ struct ConstFileCache {
 };
 
 bool UploadFloatFile(VideoState &s, DeviceView dev, u32 offset, u32 stage, u32 regs,
-                     bool known_dirty, UploadAlloc *out) {
+                     u64 dirty, UploadAlloc *out) {
   static ConstFileCache caches[2];
-  static const bool ranged = Settings::ConstRange();
-  regs = ranged ? std::clamp(regs, 16u, 256u) : 256u;
+  static const bool verify = Settings::FastSettersVerify();
+  regs = std::clamp(regs, 16u, 256u);
   const u32 bytes = regs * 16;
   const u8 *src = dev.Bytes(offset, bytes);
   if (!src)
     return false;
   ConstFileCache &c = caches[stage & 1];
+  const u32 blocks = (bytes + 63) / 64;
+  const u64 in_file = blocks >= 64 ? ~0ull : ((1ull << blocks) - 1);
+  auto compare_blocks = [&](u64 mask) {
+    u64 changed = 0;
+    for (u64 m = mask & in_file; m; m &= m - 1) {
+      const u32 b = static_cast<u32>(std::countr_zero(m));
+      const u32 n = std::min(64u, bytes - 64 * b);
+      if (std::memcmp(c.bytes + 64 * b, src + 64 * b, n) != 0)
+        changed |= 1ull << b;
+    }
+    return changed;
+  };
+  u64 refresh = ~0ull;
   if (c.epoch == UploadRingEpoch() && c.regs >= regs) {
-    if (!known_dirty) {
+    if (dirty == 0) {
       *out = c.alloc;
       s.perf.const_file_hits++;
       s.perf.const_file_clean_hits++;
       return true;
     }
-    if (std::memcmp(c.bytes, src, bytes) == 0) {
+    u64 changed = dirty == ~0ull ? (std::memcmp(c.bytes, src, bytes) != 0 ? ~0ull : 0ull)
+                                 : compare_blocks(dirty);
+    if (verify) {
+      const u64 actual = compare_blocks(~0ull);
+      if (actual & ~dirty) {
+        static u32 logged = 0;
+        if (logged++ < 24)
+          EOT_WARN("[draw] float file {} changed outside its pending mask: mask {:#018x} changed {:#018x} "
+                   "(regs {})",
+                   stage, dirty, actual, regs);
+        s.perf.const_file_mask_misses++;
+        changed |= actual;
+      }
+    }
+    if (!changed) {
       *out = c.alloc;
       c.regs = regs;
       s.perf.const_file_hits++;
       return true;
     }
+    refresh = changed;
   }
   if (!UploadAllocate(bytes, kConstantBufferAlignment, out))
     return false;
   rex::memory::copy_and_swap_32_unaligned(out->cpu, reinterpret_cast<const u32 *>(src), regs * 4);
-  std::memcpy(c.bytes, src, bytes);
+  if (refresh == ~0ull) {
+    std::memcpy(c.bytes, src, bytes);
+  } else {
+    for (u64 m = refresh & in_file; m; m &= m - 1) {
+      const u32 b = static_cast<u32>(std::countr_zero(m));
+      std::memcpy(c.bytes + 64 * b, src + 64 * b, std::min(64u, bytes - 64 * b));
+    }
+  }
   c.alloc = *out;
   c.epoch = UploadRingEpoch();
   c.regs = regs;
@@ -700,6 +735,97 @@ u64 SampleHostBytes(const u8 *p, u32 bytes) {
 }
 u64 SampleGuestBytes(u32 va, u32 bytes) { return SampleHostBytes(mem::at<u8>(va), bytes); }
 
+void PrefetchSampleProbes(const u8 *p, u64 bytes) {
+  if (!p || bytes < 4)
+    return;
+  _mm_prefetch(reinterpret_cast<const char *>(p), _MM_HINT_T0);
+  _mm_prefetch(reinterpret_cast<const char *>(p) + 15, _MM_HINT_T0);
+  if (bytes >= 16) {
+    const u64 span = (bytes - 16) & ~3ull;
+    _mm_prefetch(reinterpret_cast<const char *>(p) + span, _MM_HINT_T0);
+    _mm_prefetch(reinterpret_cast<const char *>(p) + span + 15, _MM_HINT_T0);
+  }
+}
+
+}
+
+void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count) {
+  if (!device_va || !index_count)
+    return;
+  const u8 *dev = mem::at<u8>(device_va);
+  if (!dev)
+    return;
+  const u32 ib_va = rex::memory::load_and_swap<u32>(dev + dev::kIndexBuffer);
+  const u8 *ib = ib_va ? mem::at<u8>(ib_va) : nullptr;
+  if (!ib)
+    return;
+  const u32 common = rex::memory::load_and_swap<u32>(ib + obj::kCommon);
+  const u32 data_va = rex::memory::load_and_swap<u32>(ib + obj::kBufferFetch0);
+  const u32 size = rex::memory::load_and_swap<u32>(ib + obj::kBufferFetch1);
+  if (!data_va)
+    return;
+  const u32 elem = (common & obj::kIndexBuffer32BitBit) ? 4 : 2;
+  const u64 start = u64(start_index) * elem;
+  u64 bytes = u64(index_count) * elem;
+  if (size && start + bytes > size)
+    bytes = start < size ? size - start : 0;
+  if (start > 0xFFFFFFFFu - data_va)
+    return;
+  PrefetchSampleProbes(mem::at<u8>(data_va + static_cast<u32>(start)), bytes);
+}
+
+u64 DrawSortKey(const DrawPacket &pk) {
+  if (pk.rectList || !pk.vs)
+    return 0;
+  DeviceView dev = Device(pk.device_va);
+  dev.snapshot = pk.window.image;
+  dev.snapshotSize = kDeviceSnapshotBytes;
+  dev.pages = DeviceWindow::PageTable();
+  const u32 dc = dev.U32(dev::kDepthControl);
+  if (!(dc & 2))
+    return 0;
+  if (dc & 1) {
+    auto constant_write = [](u32 func, u32 fail, u32 zpass, u32 zfail) {
+      auto ok = [](u32 op) { return op == 0 || op == 1 || op == 2; };
+      return func == 7 && ok(fail) && ok(zpass) && ok(zfail);
+    };
+    if (!constant_write((dc >> 8) & 7, (dc >> 11) & 7, (dc >> 14) & 7, (dc >> 17) & 7))
+      return 0;
+    if ((dc & 0x80) &&
+        !constant_write((dc >> 20) & 7, (dc >> 23) & 7, (dc >> 26) & 7, (dc >> 29) & 7))
+      return 0;
+  }
+  const u32 zfunc = (dc >> 4) & 7;
+  const bool ordered = zfunc == 1 || zfunc == 3 || zfunc == 4 || zfunc == 6;
+  if (!(dc & 4) || !ordered)
+    return 0;
+  const u32 cc = dev.U32(dev::kColorControl), bc = dev.U32(dev::kBlendControl0);
+  const u32 src = bc & 0x1F, op = (bc >> 5) & 7, dst = (bc >> 8) & 0x1F;
+  const bool passthrough = src == 1 && dst == 0 && op == 0;
+  if (!(cc & (1u << 5)) && !passthrough)
+    return 0;
+  u64 h = 0x9E3779B97F4A7C15ull;
+  auto mix = [&](u64 v) {
+    h ^= v + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2);
+    h *= 0xFF51AFD7ED558CCDull;
+  };
+  mix(reinterpret_cast<u64>(pk.vs));
+  mix(reinterpret_cast<u64>(pk.ps));
+  mix(reinterpret_cast<u64>(pk.layout));
+  mix(static_cast<u64>(pk.topology));
+  for (u32 S = 0; S <= pk.max_slot && S < 16; ++S)
+    mix(pk.strides[S]);
+  constexpr u32 kRegs[] = {dev::kModeControl,   dev::kDepthControl, dev::kBlendControl0,
+                           dev::kBlendControl1, dev::kBlendControl2, dev::kBlendControl3,
+                           dev::kColorControl,  dev::kColorMask,     dev::kAlphaRef};
+  for (u32 off : kRegs)
+    mix(dev.U32(off));
+  mix(dev.U32(dev::kStencilRefMask));
+  return h ? h : 1;
+}
+
+namespace {
+
 struct BufferPool {
   std::mutex mutex;
   std::vector<IndexCacheChunk> chunks;
@@ -746,8 +872,9 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
     *reset = true;
     EOT_INFO("[draw] {} pool over budget ({} MB); rebuilt", name, budget >> 20);
   }
+  auto align_up = [align](u64 v) { return (v + align - 1) / align * align; };
   if (pool.chunks.empty() ||
-      ((pool.chunks.back().used + align - 1) & ~(align - 1)) + bytes > pool.chunks.back().capacity) {
+      align_up(pool.chunks.back().used) + bytes > pool.chunks.back().capacity) {
     IndexCacheChunk ch;
     const u64 size = std::max(chunk_bytes, bytes + align);
     plume::RenderBufferDesc desc = plume::RenderBufferDesc::UploadBuffer(size);
@@ -761,7 +888,7 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
       return false;
     }
     ch.capacity = size;
-    if (Settings::GeometryVram()) {
+    {
       plume::RenderBufferDesc vram_desc = plume::RenderBufferDesc::DefaultBuffer(size, flags);
       const std::string vram_name = std::string(name) + "-vram";
       ch.vram = CreateHostBuffer(s.device.get(), vram_desc, vram_name.c_str());
@@ -769,7 +896,7 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
     pool.chunks.push_back(std::move(ch));
   }
   auto &ch = pool.chunks.back();
-  const u64 off = (ch.used + align - 1) & ~(align - 1);
+  const u64 off = align_up(ch.used);
   *buffer = ch.buffer.get();
   *offset = off;
   *cpu = ch.cpu + off;
@@ -936,6 +1063,7 @@ struct VertexMirror {
   u32 size = 0;
   u64 lastUseFrame = 0;
   mutable plume::RenderBuffer *resident = nullptr;
+  mutable u64 residentCapacity = 0;
   mutable u64 residentEpoch = 0;
 };
 struct VertexMirrorCache {
@@ -954,8 +1082,7 @@ constexpr u32 kVertexMirrorMaxBytes = 32u << 20;
 constexpr size_t kVertexMirrorSeenCap = 4096;
 
 const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st, u64 first, u64 bytes) {
-  static const bool enabled = Settings::VertexMirrors();
-  if (!enabled || !st.dataVa || !bytes || bytes > kVertexMirrorMaxBytes || !st.data ||
+  if (!st.dataVa || !bytes || bytes > kVertexMirrorMaxBytes || !st.data ||
       first > UINT32_MAX - st.dataVa)
     return nullptr;
   auto &c = vertex_mirrors();
@@ -999,8 +1126,8 @@ const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st, u64 fir
   {
     std::lock_guard lock(c.pool.mutex);
     ok = PoolAllocate(s, c.pool, kVertexMirrorBudgetBytes, kVertexMirrorChunkBytes,
-                      plume::RenderBufferFlag::VERTEX, "vertex-mirror", bytes, 16, &buffer,
-                      &offset, &cpu, &reset);
+                      plume::RenderBufferFlag::VERTEX, "vertex-mirror", bytes,
+                      std::max<u64>(4, st.stride), &buffer, &offset, &cpu, &reset);
   }
   if (reset)
     c.map.clear();
@@ -1444,35 +1571,45 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
     sc.texture1DIndices[i] = kNullTexture2DDescriptorIndex;
     sc.samplerIndices[i] = kSamplerLinearClamp;
   }
+  const u64 generation = s.texture_generation.load(std::memory_order_relaxed);
   for (u32 slot = 0; slot < 16; ++slot) {
     if (!(texture_mask & (1u << slot)))
       continue;
     const u32 tex_va = dev.U32(dev::kTextureObject0 + 4 * slot);
     if (!tex_va)
       continue;
-    u32 fc[6];
-    for (u32 d = 0; d < 6; ++d)
-      fc[d] = dev.U32(dev::kFetchConstants + 24 * slot + 4 * d);
-    if ((fc[0] & 3) != 2)
+    const u8 *fc_raw = dev.Bytes(dev::kFetchConstants + 24 * slot, 24);
+    if (!fc_raw || (fc_raw[3] & 3) != 2)
       continue;
     s.perf.texture_bind_requests++;
     GuestTexture *gt = nullptr;
     u32 index = kInvalidDescriptorIndex;
     u32 sampler = 0;
-    VideoState::TextureSlotCache &cs = s.slot_cache[slot];
-    const u64 generation = s.texture_generation.load(std::memory_order_relaxed);
-    if (cs.generation == generation && cs.texVa == tex_va && cs.texture &&
-        cs.resourceGeneration == cs.texture->bindingGeneration &&
-        cs.samplerPolicy == sampler_policy &&
-        std::memcmp(cs.fc, fc, sizeof(fc)) == 0) {
-      gt = cs.texture;
+    u8 dimension = 0, biased_bits = 0;
+    VideoState::TextureSlotCache *hit = nullptr;
+    for (u32 w = 0; w < VideoState::kTextureSlotWays; ++w) {
+      VideoState::TextureSlotCache &cs = s.slot_cache[slot][w];
+      if (cs.texVa == tex_va && cs.generation == generation && cs.texture &&
+          cs.resourceGeneration == cs.texture->bindingGeneration &&
+          cs.samplerPolicy == sampler_policy && std::memcmp(cs.fc, fc_raw, sizeof(cs.fc)) == 0) {
+        hit = &cs;
+        break;
+      }
+    }
+    if (hit) {
+      gt = hit->texture;
       gt->lastUseFrame = s.guest_frames;
       gt->lastSampledFrame = s.guest_frames;
       TransitionLocked(s, gt->host, plume::RenderTextureLayout::SHADER_READ);
-      index = cs.index;
-      sampler = cs.sampler;
+      index = hit->index;
+      sampler = hit->sampler;
+      dimension = hit->dimension;
+      biased_bits = hit->biasedBits;
       s.perf.texture_bind_hits++;
     } else {
+      u32 fc[6];
+      for (u32 d = 0; d < 6; ++d)
+        fc[d] = rex::memory::load_and_swap<u32>(fc_raw + 4 * d);
       gt = GetGuestTexture(s, tex_va);
       if (!gt) {
         u32 n;
@@ -1494,17 +1631,36 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       }
       sampler = ResolveSamplerSlotLocked(DecodeSamplerFromFetch(
           fc, !gt->resolveOwned && !gt->host.isDepth && gt->host.mipLevels > 1));
+      dimension = static_cast<u8>(gt->dimension);
+      const u32 sign_x = (fc[0] >> 2) & 3;
+      const u32 sign_w = (fc[0] >> 8) & 3;
+      if (sign_x == 2)
+        biased_bits |= 1;
+      if (sign_x == 3) {
+        const bool srgb_view = gt->host.viewFormat == plume::RenderFormat::BC1_UNORM_SRGB ||
+                               gt->host.viewFormat == plume::RenderFormat::BC2_UNORM_SRGB ||
+                               gt->host.viewFormat == plume::RenderFormat::BC3_UNORM_SRGB;
+        if (!srgb_view)
+          biased_bits |= 2;
+      }
+      if (sign_w == 2)
+        biased_bits |= 4;
+      u8 &next = s.slot_cache_next[slot];
+      VideoState::TextureSlotCache &cs = s.slot_cache[slot][next];
+      next = static_cast<u8>((next + 1) % VideoState::kTextureSlotWays);
       cs.texVa = tex_va;
-      std::memcpy(cs.fc, fc, sizeof(fc));
+      std::memcpy(cs.fc, fc_raw, sizeof(cs.fc));
       cs.generation = s.texture_generation.load(std::memory_order_relaxed);
       cs.resourceGeneration = gt->bindingGeneration;
       cs.samplerPolicy = sampler_policy;
       cs.texture = gt;
       cs.index = index;
       cs.sampler = sampler;
+      cs.dimension = dimension;
+      cs.biasedBits = biased_bits;
     }
     gt->perfSamples++;
-    switch (gt->dimension) {
+    switch (static_cast<xe::DataDimension>(dimension)) {
     case xe::DataDimension::k3D:
       sc.texture3DIndices[slot] = index;
       break;
@@ -1517,18 +1673,11 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       break;
     }
     sc.samplerIndices[slot] = sampler;
-    const u32 sign_x = (fc[0] >> 2) & 3;
-    const u32 sign_w = (fc[0] >> 8) & 3;
-    if (sign_x == 2)
+    if (biased_bits & 1)
       sc.biasedTextures |= 1u << slot;
-    if (sign_x == 3) {
-      const bool srgb_view = gt->host.viewFormat == plume::RenderFormat::BC1_UNORM_SRGB ||
-                             gt->host.viewFormat == plume::RenderFormat::BC2_UNORM_SRGB ||
-                             gt->host.viewFormat == plume::RenderFormat::BC3_UNORM_SRGB;
-      if (!srgb_view)
-        sc.biasedTextures |= 1u << (16 + slot);
-    }
-    if (sign_w == 2)
+    if (biased_bits & 2)
+      sc.biasedTextures |= 1u << (16 + slot);
+    if (biased_bits & 4)
       sc.sintTexcoords |= 1u << (16 + slot);
   }
 }
@@ -1555,10 +1704,14 @@ static_assert(dev::kPsFloatConstants + 256u * 16u == dev::kVsBoolConstants);
 
 bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
                  const u8 *device_image, DrawPacket &pk) {
-  u64 lap_t0 = PerfNow();
+  static u32 capture_count = 0;
+  const bool timed = (++capture_count & 15u) == 0;
+  u64 lap_t0 = timed ? PerfNow() : 0;
   auto lap = [&](f64 &acc) {
+    if (!timed)
+      return;
     const u64 t1 = PerfNow();
-    acc += static_cast<f64>(t1 - lap_t0) * PerfMsPerTick();
+    acc += 16.0 * static_cast<f64>(t1 - lap_t0) * PerfMsPerTick();
     lap_t0 = t1;
   };
   pk.device_va = device_va;
@@ -1746,6 +1899,31 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
     hi = geom.startVertex + geom.vertexCount - 1;
   }
 
+  if (!geom.rectList) {
+    for (u32 S = 0; S < 16; ++S) {
+      if (!(layout->streamMask & (1u << S)) || (S == 0 && geom.stream0OverrideVa))
+        continue;
+      const StreamInfo &st_info = streams[S];
+      const u64 first = u64(lo) * st_info.stride;
+      u64 bytes = (u64(hi) - lo + 1) * st_info.stride;
+      if (st_info.sizeBytes && first + bytes > st_info.sizeBytes)
+        bytes = first < st_info.sizeBytes ? st_info.sizeBytes - first : 0;
+      if (bytes && bytes <= kVertexMirrorMaxBytes)
+        PrefetchSampleProbes(st_info.data + first, bytes);
+    }
+  }
+
+  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs,
+                       s.vs_float_constants_stale, &pk.vs_consts) ||
+      !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
+                       s.ps_float_constants_stale, &pk.ps_consts)) {
+    Dropped("constant upload failed", 0x6010);
+    return false;
+  }
+  s.vs_float_constants_stale = 0;
+  s.ps_float_constants_stale = 0;
+  lap(s.perf.const_float_ms);
+
   u32 max_slot = 0;
   for (u32 S = 0; S < 16; ++S)
     if (layout->streamMask & (1u << S))
@@ -1793,9 +1971,17 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
       auto &pool = vertex_mirrors().pool;
       const u64 epoch = pool.flushEpoch.load(std::memory_order_acquire);
       if (mirror->residentEpoch != epoch || !mirror->resident) {
-        mirror->resident =
-            PoolResidentBuffer(s, pool, mirror->buffer, mirror->offset, bytes);
+        mirror->resident = PoolResidentBuffer(s, pool, mirror->buffer, mirror->offset, bytes,
+                                              &mirror->residentCapacity);
         mirror->residentEpoch = epoch;
+      }
+      if (max_slot == 0 && mirror->residentCapacity && mirror->offset % st_info.stride == 0 &&
+          mirror->residentCapacity <= 0xFFFFFFFFull) {
+        pk.views[S] = plume::RenderVertexBufferView(
+            plume::RenderBufferReference(mirror->resident, 0),
+            static_cast<u32>(mirror->residentCapacity));
+        pk.host_base_vertex += static_cast<i32>(mirror->offset / st_info.stride);
+        continue;
       }
       pk.views[S] = plume::RenderVertexBufferView(
           plume::RenderBufferReference(mirror->resident, mirror->offset),
@@ -1815,17 +2001,6 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
                                                 static_cast<u32>(bytes));
   }
   lap(s.perf.stream_ms);
-
-  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs,
-                       s.vs_float_constants_stale, &pk.vs_consts) ||
-      !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
-                       s.ps_float_constants_stale, &pk.ps_consts)) {
-    Dropped("constant upload failed", 0x6010);
-    return false;
-  }
-  s.vs_float_constants_stale = false;
-  s.ps_float_constants_stale = false;
-  lap(s.perf.const_float_ms);
 
   if (geom.rectList && streams[0].data && streams[0].stride >= 8 && Settings::DiagFrame() > 0 &&
       s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
@@ -1848,11 +2023,50 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
   return true;
 }
 
+struct SurfaceSignature {
+  const void *host = nullptr, *single = nullptr, *redirect = nullptr, *redirectHost = nullptr;
+  u32 samples = 0;
+  i32 redirectX = 0, redirectY = 0;
+  u8 content = 0;
+  bool contentInSingle = false, imagesAgree = false, resolvedSinceDraw = false;
+  bool singleDirty = false, singleStale = false;
+  bool operator==(const SurfaceSignature &o) const {
+    return host == o.host && single == o.single && redirect == o.redirect &&
+           redirectHost == o.redirectHost && samples == o.samples && redirectX == o.redirectX &&
+           redirectY == o.redirectY && content == o.content &&
+           contentInSingle == o.contentInSingle && imagesAgree == o.imagesAgree &&
+           resolvedSinceDraw == o.resolvedSinceDraw && singleDirty == o.singleDirty &&
+           singleStale == o.singleStale;
+  }
+};
+
+SurfaceSignature SignSurface(const GuestSurface &surf) {
+  SurfaceSignature sig{};
+  sig.host = surf.host.texture.get();
+  sig.single = surf.single.texture.get();
+  sig.redirect = surf.redirectMirror.get();
+  sig.redirectHost = surf.redirectMirror ? surf.redirectMirror->host.texture.get() : nullptr;
+  sig.samples = surf.host.sampleCount;
+  sig.redirectX = surf.redirectX;
+  sig.redirectY = surf.redirectY;
+  sig.content = static_cast<u8>(surf.content);
+  sig.contentInSingle = surf.contentInSingle;
+  sig.imagesAgree = surf.imagesAgree;
+  sig.resolvedSinceDraw = surf.resolvedSinceDraw;
+  sig.singleDirty = surf.singleDirty;
+  sig.singleStale = surf.singleSerial != surf.writeSerial;
+  return sig;
+}
+
 void ReplayDraw(VideoState &s, const DrawPacket &pk) {
-  u64 lap_t0 = PerfNow();
+  static u32 replay_count = 0;
+  const bool timed = (++replay_count & 15u) == 0;
+  u64 lap_t0 = timed ? PerfNow() : 0;
   auto lap = [&](f64 &acc) {
+    if (!timed)
+      return;
     const u64 t1 = PerfNow();
-    acc += static_cast<f64>(t1 - lap_t0) * PerfMsPerTick();
+    acc += 16.0 * static_cast<f64>(t1 - lap_t0) * PerfMsPerTick();
     lap_t0 = t1;
   };
   DeviceView dev = Device(pk.device_va);
@@ -1866,29 +2080,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   if (!s.command_list_open)
     return;
 
-  Targets targets;
-  if (!ResolveTargetsFromWords(s, pk.targets, targets)) {
-    Dropped("no render target or depth surface bound", 0x6003);
-    return;
-  }
-  const DrawClass cls = ClassifyDraw(dev, targets, ps != nullptr, pk.rectList);
-  if (cls.nullPs && !cls.depthWrite && !cls.stencil) {
-    if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()))
-      EOT_INFO("[diag] skip prim {} n={} dc={:#x} rt0={:#x} ds={:#x} vs={:016x}: no pixel shader, no "
-               "depth or stencil write",
-               pk.prim, pk.indexed ? pk.index_count : pk.vertexCount, dev.U32(dev::kDepthControl),
-               targets.colorCount ? targets.color[0]->va : 0, targets.depth ? targets.depth->va : 0,
-               vs->hash);
-    s.perf.draws--;
-    s.perf.draws_skipped++;
-    return;
-  }
-  if (!SelectTargetImages(s, targets, cls)) {
-    Dropped("surface image unavailable", 0x6016);
-    return;
-  }
-  lap(s.perf.replay_targets_ms);
-
+  constexpr u32 kSharedTextureBytes = offsetof(SharedConstants, booleans);
+  static_assert(kSharedTextureBytes == 20 * 16);
   struct ReplayMemo {
     bool valid = false;
     GuestShader *vs = nullptr, *ps = nullptr;
@@ -1907,36 +2100,158 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     plume::RenderPipeline *pipeline = nullptr;
     ViewportInfo vp;
     SharedConstants fixed;
+    UploadAlloc shared;
+    u64 sharedRing = ~0ull;
+    u8 sharedTextures[kSharedTextureBytes] = {};
+    u32 sharedSint = 0, sharedBiased = 0;
   };
-  static ReplayMemo memo;
+  constexpr u32 kReplayMemoWays = 8;
+  static ReplayMemo memos[kReplayMemoWays];
+  static u32 memo_next = 0;
   const u8 *state_block = pk.window.image + DeviceWindow::kBlocks[2].base;
   const u8 *consts_block = pk.window.image + DeviceWindow::kBlocks[1].base;
-  bool memo_hit = memo.valid && memo.vs == vs && memo.ps == ps && memo.layout == layout &&
-                  memo.colorCount == targets.colorCount && memo.samples == targets.samples &&
-                  memo.offsetX == targets.offsetX && memo.offsetY == targets.offsetY &&
-                  memo.topology == pk.topology && memo.rectList == pk.rectList &&
-                  memo.images[4] == targets.depthImage &&
-                  std::memcmp(memo.strides, pk.strides, sizeof(pk.strides)) == 0 &&
-                  std::memcmp(memo.state, state_block, sizeof(memo.state)) == 0 &&
-                  std::memcmp(memo.consts, consts_block, sizeof(memo.consts)) == 0;
+  ReplayMemo *memo = nullptr;
+  for (ReplayMemo &m : memos) {
+    if (m.valid && m.vs == vs && m.ps == ps && m.layout == layout && m.topology == pk.topology &&
+        m.rectList == pk.rectList && std::memcmp(m.strides, pk.strides, sizeof(pk.strides)) == 0 &&
+        std::memcmp(m.state, state_block, sizeof(m.state)) == 0 &&
+        std::memcmp(m.consts, consts_block, sizeof(m.consts)) == 0) {
+      memo = &m;
+      break;
+    }
+  }
+  const bool state_hit = memo != nullptr;
+
+  struct ClsKey {
+    u32 dc = 0, srm = 0, cc = 0, bc = 0;
+    bool hasPs = false, rect = false;
+    bool operator==(const ClsKey &o) const {
+      return dc == o.dc && srm == o.srm && cc == o.cc && bc == o.bc && hasPs == o.hasPs &&
+             rect == o.rect;
+    }
+  };
+  const ClsKey cls_key{dev.U32(dev::kDepthControl), dev.U32(dev::kStencilRefMask),
+                       dev.U32(dev::kColorControl), dev.U32(dev::kBlendControl0), ps != nullptr,
+                       pk.rectList};
+  struct TargetMemo {
+    bool valid = false;
+    ClsKey key;
+    TargetWords words;
+    u64 surfaceGeneration = 0;
+    SurfaceSignature sigs[5];
+    Targets targets;
+    DrawClass cls;
+  };
+  static TargetMemo tmemo;
+  Targets targets;
+  DrawClass cls;
+  bool target_hit = tmemo.valid && tmemo.key == cls_key &&
+                    tmemo.surfaceGeneration == s.surface_generation &&
+                    std::memcmp(&tmemo.words, &pk.targets, sizeof(TargetWords)) == 0;
+  if (target_hit) {
+    const Targets &t = tmemo.targets;
+    for (u32 i = 0; target_hit && i < t.colorCount; ++i) {
+      const SurfaceSignature sig = SignSurface(*t.color[i]);
+      target_hit = sig == tmemo.sigs[i];
+    }
+    if (target_hit && t.depth) {
+      const SurfaceSignature sig = SignSurface(*t.depth);
+      target_hit = sig == tmemo.sigs[4];
+    }
+  }
+  if (target_hit) {
+    targets = tmemo.targets;
+    cls = tmemo.cls;
+    s.perf.target_memo_hits++;
+  } else {
+    if (tmemo.valid) {
+      if (tmemo.surfaceGeneration != s.surface_generation)
+        s.perf.target_memo_miss_gen++;
+      else if (!(tmemo.key == cls_key) ||
+               std::memcmp(&tmemo.words, &pk.targets, sizeof(TargetWords)) != 0)
+        s.perf.target_memo_miss_words++;
+      else {
+        s.perf.target_memo_miss_sig++;
+        static u32 logged = 0;
+        if (logged < 12) {
+          const Targets &t = tmemo.targets;
+          for (u32 i = 0; i < 5; ++i) {
+            const GuestSurface *surf = i < 4 ? (i < t.colorCount ? t.color[i] : nullptr) : t.depth;
+            if (!surf)
+              continue;
+            const SurfaceSignature now = SignSurface(*surf), was = tmemo.sigs[i];
+            if (now == was)
+              continue;
+            ++logged;
+            EOT_INFO("[draw] target memo miss: surface {} ({:#x}) host {}/{} single {}/{} redirect {}/{} "
+                     "samples {}/{} content {}/{} cis {}/{} agree {}/{} rsd {}/{} dirty {}/{} stale {}/{}",
+                     i, surf->va, was.host, now.host, was.single, now.single, was.redirect,
+                     now.redirect, was.samples, now.samples, was.content, now.content,
+                     was.contentInSingle, now.contentInSingle, was.imagesAgree, now.imagesAgree,
+                     was.resolvedSinceDraw, now.resolvedSinceDraw, was.singleDirty, now.singleDirty,
+                     was.singleStale, now.singleStale);
+          }
+        }
+      }
+    }
+    tmemo.valid = false;
+    if (!ResolveTargetsFromWords(s, pk.targets, targets)) {
+      Dropped("no render target or depth surface bound", 0x6003);
+      return;
+    }
+    cls = ClassifyDraw(dev, targets, ps != nullptr, pk.rectList);
+    if (cls.nullPs && !cls.depthWrite && !cls.stencil) {
+      if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()))
+        EOT_INFO("[diag] skip prim {} n={} dc={:#x} rt0={:#x} ds={:#x} vs={:016x}: no pixel shader, no "
+                 "depth or stencil write",
+                 pk.prim, pk.indexed ? pk.index_count : pk.vertexCount, dev.U32(dev::kDepthControl),
+                 targets.colorCount ? targets.color[0]->va : 0, targets.depth ? targets.depth->va : 0,
+                 vs->hash);
+      s.perf.draws--;
+      s.perf.draws_skipped++;
+      return;
+    }
+    SurfaceSignature sigs[5];
+    for (u32 i = 0; i < targets.colorCount; ++i)
+      sigs[i] = SignSurface(*targets.color[i]);
+    if (targets.depth)
+      sigs[4] = SignSurface(*targets.depth);
+    if (!SelectTargetImages(s, targets, cls)) {
+      Dropped("surface image unavailable", 0x6016);
+      return;
+    }
+    tmemo.key = cls_key;
+    tmemo.words = pk.targets;
+    tmemo.surfaceGeneration = s.surface_generation;
+    std::memcpy(tmemo.sigs, sigs, sizeof(sigs));
+    tmemo.targets = targets;
+    tmemo.cls = cls;
+    tmemo.valid = true;
+  }
+  lap(s.perf.replay_targets_ms);
+
+  bool memo_hit = state_hit && memo->colorCount == targets.colorCount &&
+                  memo->samples == targets.samples && memo->offsetX == targets.offsetX &&
+                  memo->offsetY == targets.offsetY && memo->images[4] == targets.depthImage;
   for (u32 i = 0; memo_hit && i < targets.colorCount; ++i)
-    memo_hit = memo.images[i] == targets.colorImage[i];
+    memo_hit = memo->images[i] == targets.colorImage[i];
 
   PipelineState st;
   u32 spec = 0;
   bool a2c = false;
   plume::RenderPipeline *pipeline = nullptr;
   ViewportInfo vp;
-  SharedConstants sc;
+  static SharedConstants sc;
   if (memo_hit) {
-    st = memo.st;
-    spec = memo.spec;
-    a2c = memo.a2c;
-    pipeline = memo.pipeline;
-    vp = memo.vp;
-    sc = memo.fixed;
-    s.perf.pipeline_hot_hits++;
+    st = memo->st;
+    spec = memo->spec;
+    a2c = memo->a2c;
+    pipeline = memo->pipeline;
+    vp = memo->vp;
+    sc = memo->fixed;
+    s.perf.replay_memo_hits++;
   } else {
+    sc.biasedTextures = 0;
     ZeroPipelineState(st);
     spec = layout->spec;
     FillPipelineState(dev, targets, st, &spec, &a2c);
@@ -2033,28 +2348,31 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     std::memcpy(sc.posScale, vp.posScale, sizeof(sc.posScale));
     std::memcpy(sc.posOffset, vp.posOffset, sizeof(sc.posOffset));
 
-    memo.valid = true;
-    memo.vs = vs;
-    memo.ps = ps;
-    memo.layout = layout;
+    ReplayMemo &fill = memo ? *memo : memos[memo_next++ % kReplayMemoWays];
+    fill.valid = true;
+    fill.vs = vs;
+    fill.ps = ps;
+    fill.layout = layout;
     for (u32 i = 0; i < 4; ++i)
-      memo.images[i] = i < targets.colorCount ? targets.colorImage[i] : nullptr;
-    memo.images[4] = targets.depthImage;
-    memo.colorCount = targets.colorCount;
-    memo.samples = targets.samples;
-    memo.offsetX = targets.offsetX;
-    memo.offsetY = targets.offsetY;
-    memo.topology = pk.topology;
-    memo.rectList = pk.rectList;
-    std::memcpy(memo.strides, pk.strides, sizeof(memo.strides));
-    std::memcpy(memo.state, state_block, sizeof(memo.state));
-    std::memcpy(memo.consts, consts_block, sizeof(memo.consts));
-    memo.st = st;
-    memo.spec = spec;
-    memo.a2c = a2c;
-    memo.pipeline = pipeline;
-    memo.vp = vp;
-    memo.fixed = sc;
+      fill.images[i] = i < targets.colorCount ? targets.colorImage[i] : nullptr;
+    fill.images[4] = targets.depthImage;
+    fill.colorCount = targets.colorCount;
+    fill.samples = targets.samples;
+    fill.offsetX = targets.offsetX;
+    fill.offsetY = targets.offsetY;
+    fill.topology = pk.topology;
+    fill.rectList = pk.rectList;
+    std::memcpy(fill.strides, pk.strides, sizeof(fill.strides));
+    std::memcpy(fill.state, state_block, sizeof(fill.state));
+    std::memcpy(fill.consts, consts_block, sizeof(fill.consts));
+    fill.st = st;
+    fill.spec = spec;
+    fill.a2c = a2c;
+    fill.pipeline = pipeline;
+    fill.vp = vp;
+    fill.fixed = sc;
+    fill.sharedRing = ~0ull;
+    memo = &fill;
   }
   s.current_vs_va = pk.vs_va;
   s.current_ps_va = pk.ps_va;
@@ -2066,22 +2384,28 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   }
   lap(s.perf.pso_lookup_ms);
 
-  if (Settings::DiagScissor() && targets.samples > 1)
-    vp.scissor = plume::RenderRect(0, 0, 1, 1);
   {
     PerfScope bind_scope(s.perf.bind_ms);
     const u32 texture_mask = vs->textureFetchMask | (ps ? ps->textureFetchMask : 0u);
     BindTexturesAndSamplers(s, dev, texture_mask, sc);
   }
   UploadAlloc shared_alloc;
-  const bool shared_changed =
-      !s.shared_bound || std::memcmp(&s.last_shared, &sc, sizeof(sc)) != 0;
-  if (shared_changed) {
+  const u64 ring_epoch = UploadRingEpoch();
+  if (memo->sharedRing == ring_epoch &&
+      std::memcmp(memo->sharedTextures, &sc, kSharedTextureBytes) == 0 &&
+      memo->sharedSint == sc.sintTexcoords && memo->sharedBiased == sc.biasedTextures) {
+    shared_alloc = memo->shared;
+  } else {
     if (!UploadBytes(&sc, sizeof(sc), kConstantBufferAlignment, &shared_alloc)) {
       Dropped("shared constant upload failed", 0x6011);
       return;
     }
     s.perf.constant_bytes += sizeof(SharedConstants);
+    memo->shared = shared_alloc;
+    memo->sharedRing = ring_epoch;
+    std::memcpy(memo->sharedTextures, &sc, kSharedTextureBytes);
+    memo->sharedSint = sc.sintTexcoords;
+    memo->sharedBiased = sc.biasedTextures;
   }
   lap(s.perf.const_ms);
 
@@ -2158,30 +2482,24 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   if (work_surface)
     work_surface->perfDraws++;
   GpuTimingCountDraw(s);
+  if (pk.max_slot == 0 && !layout->needsSyntheticSlot)
+    s.perf.single_stream_draws++;
   auto *cmd = s.command_list;
   bool dynamic_state_invalid = s.bound_pipeline == nullptr;
-  if (Settings::DiagExtraPso() && targets.samples > 1 && targets.colorCount) {
-    if (plume::RenderPipeline *other =
-            GetBlitPipeline(s, targets.colorImage[0]->format, targets.samples)) {
-      cmd->setPipeline(other);
-      const plume::RenderRect one(0, 0, 1, 1);
-      const plume::RenderViewport vp1(0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f);
-      cmd->setViewports(&vp1, 1);
-      cmd->setScissors(&one, 1);
-      CopyPushConstants pc;
-      pc.resourceDescriptorIndex = kNullTexture2DDescriptorIndex;
-      cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
-                                    sizeof(pc));
-      cmd->drawInstanced(3, 1, 0, 0);
-      s.bound_pipeline = other;
-      dynamic_state_invalid = true;
-    }
-  }
-  const bool pipeline_changed = s.bound_pipeline != pipeline &&
-                                !(Settings::DiagNoPso() && targets.samples > 1 && s.bound_pipeline);
+  const bool pipeline_changed = s.bound_pipeline != pipeline;
   if (pipeline_changed) {
     cmd->setPipeline(pipeline);
     s.perf.pipeline_bind_calls++;
+    if (memo_hit) {
+      s.perf.pipeline_bind_on_hit++;
+      static u32 logged = 0;
+      if (logged++ < 8)
+        EOT_INFO("[draw] pipeline bind on a memo hit: memo {} bound {} entry {} vs {:016x} ps {:016x} "
+                 "samples {} rt0 {:#x}",
+                 static_cast<const void *>(pipeline), static_cast<const void *>(s.bound_pipeline),
+                 static_cast<const void *>(memo), vs->hash, ps ? ps->hash : 0, targets.samples,
+                 targets.colorCount ? targets.color[0]->va : 0);
+    }
     s.bound_pipeline = pipeline;
   }
   static u32 last_stencil_ref = ~0u;
@@ -2210,7 +2528,6 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     s.perf.scissor_bind_calls++;
   }
   const UploadAlloc *roots[2] = {&pk.vs_consts, &pk.ps_consts};
-  const bool keep_roots = Settings::DiagNoConst() && targets.samples > 1 && s.bound_root_buffer[0];
   auto bind_root_cbv = [&](u32 r, const UploadAlloc &alloc) {
 #if defined(EOT_D3D12)
     if (alloc.gpuVa && s.root_cbv_index[r] != ~0u) {
@@ -2221,19 +2538,18 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
 #endif
     cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(alloc.buffer, alloc.offset), r);
   };
-  for (u32 r = 0; r < 2 && !keep_roots; ++r) {
+  for (u32 r = 0; r < 2; ++r) {
     if (s.bound_root_buffer[r] == roots[r]->buffer && s.bound_root_offset[r] == roots[r]->offset)
       continue;
     bind_root_cbv(r, *roots[r]);
     s.bound_root_buffer[r] = roots[r]->buffer;
     s.bound_root_offset[r] = roots[r]->offset;
   }
-  if (shared_changed) {
+  if (s.bound_root_buffer[2] != shared_alloc.buffer ||
+      s.bound_root_offset[2] != shared_alloc.offset) {
     bind_root_cbv(2, shared_alloc);
     s.bound_root_buffer[2] = shared_alloc.buffer;
     s.bound_root_offset[2] = shared_alloc.offset;
-    s.last_shared = sc;
-    s.shared_bound = true;
   }
   lap(s.perf.rec_state_ms);
   auto bind_vertex_views = [&](u32 first, const plume::RenderVertexBufferView *want_views,
@@ -2307,18 +2623,16 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
         plume::RenderBufferReference(chunk, 0), static_cast<u32>(std::min<u64>(view_bytes, 0xFFFFFFFFu)),
         pk.cached.is32 ? plume::RenderFormat::R32_UINT : plume::RenderFormat::R16_UINT);
     bind_index_view(ib);
-    cmd->drawIndexedInstanced(
-        Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count, 1,
-        static_cast<u32>(pk.cached.offset / elem), pk.host_base_vertex, 0);
+    cmd->drawIndexedInstanced(index_count, 1, static_cast<u32>(pk.cached.offset / elem),
+                              pk.host_base_vertex, 0);
   } else if (pk.indexed) {
     plume::RenderIndexBufferView ib(
         plume::RenderBufferReference(pk.index_alloc.buffer, pk.index_alloc.offset), index_count * 4,
         plume::RenderFormat::R32_UINT);
     bind_index_view(ib);
-    const u32 issue = Settings::DiagNoVtx() && targets.samples > 1 ? std::min(index_count, 3u) : index_count;
-    cmd->drawIndexedInstanced(issue, 1, 0, pk.host_base_vertex, 0);
+    cmd->drawIndexedInstanced(index_count, 1, 0, pk.host_base_vertex, 0);
   } else {
-    cmd->drawInstanced(pk.vertexCount, 1, 0, 0);
+    cmd->drawInstanced(pk.vertexCount, 1, static_cast<u32>(pk.host_base_vertex), 0);
   }
   lap(s.perf.record_ms);
   DrainHostDebugMessages(s, "draw");
@@ -2334,18 +2648,13 @@ void ExecuteDraw(u32 device_va, u32 prim, GeometryPlan &geom,
   EOT_CPU_ZONE("ExecuteDraw");
   PerfScope perf_scope(s.perf.capture_ms);
   s.perf.draws++;
-  if (Settings::DiagSkipDraw()) {
-    s.vs_float_constants_stale = false;
-    s.ps_float_constants_stale = false;
-    return;
-  }
   if (RenderThreadActive()) {
     {
       RenderEnqueue enqueue;
       RenderCommand &c = enqueue.cmd();
       c.type = RenderCommandType::Draw;
       if (CaptureDraw(s, device_va, prim, geom, device_image, c.draw))
-        enqueue.commit();
+        enqueue.commit(false);
     }
     PoolDrainRetired(s, vertex_mirrors().pool);
     return;
@@ -2372,7 +2681,7 @@ void ReplayDrawLocked(VideoState &s, const DrawPacket &pk) {
 }
 
 void FlushGeometryStaging(VideoState &s) {
-  if (!s.command_list_open || !Settings::GeometryVram())
+  if (!s.command_list_open)
     return;
   PoolFlushToVram(s, index_pool(), plume::RenderBufferFlag::INDEX);
   PoolFlushToVram(s, vertex_mirrors().pool, plume::RenderBufferFlag::VERTEX);
@@ -2487,6 +2796,7 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 st
     s.ps_float_constants_stale |= constants.ps;
     return;
   }
+  auto &s = state();
   DeviceView dev = Device(device_va);
   GeometryPlan g;
   bool expand = false;
@@ -2494,9 +2804,9 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 st
   g.indexed = true;
   g.baseVertex = base_vertex;
   {
-    PerfScope index_scope(state().perf.index_ms);
+    PerfScope index_scope(s.perf.index_ms);
     if (const CachedIndexRange *cached =
-            GetCachedIndexRange(state(), dev.U32(dev::kIndexBuffer), prim, start_index, index_count)) {
+            GetCachedIndexRange(s, dev.U32(dev::kIndexBuffer), prim, start_index, index_count)) {
       g.cached = cached;
       g.topology = cached->topology;
     }
@@ -2506,9 +2816,8 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 prim, i32 base_vertex, u32 st
     return;
   }
   {
-    PerfScope index_scope(state().perf.index_ms);
+    PerfScope index_scope(s.perf.index_ms);
     if (!ReadGuestIndices(dev.U32(dev::kIndexBuffer), start_index, index_count, g.indices)) {
-      auto &s = state();
       std::lock_guard lock(s.guest_mutex);
       s.vs_float_constants_stale |= constants.vs;
       s.ps_float_constants_stale |= constants.ps;
@@ -2565,7 +2874,7 @@ void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, floa
     RenderCommand &c = enqueue.cmd();
     c.type = RenderCommandType::Clear;
     if (CaptureClear(device_va, flags, rect_va, color_va, z, stencil, c.clear))
-      enqueue.commit();
+      enqueue.commit(false);
     return;
   }
   ClearPacket pk;
@@ -2606,13 +2915,6 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
     }
   }
   const bool clear_depth = (flags & 0x10) != 0, clear_stencil = (flags & 0x20) != 0;
-  if (Settings::DiagRectClear() && whole && !targets.colorCount && targets.depth &&
-      targets.width == 1024 && targets.height == 1024) {
-    rect = plume::RenderRect(0, 0, static_cast<i32>(targets.depth->host.width),
-                             static_cast<i32>(targets.depth->host.height));
-    rects = &rect;
-    rect_count = 1;
-  }
   auto *cmd = s.command_list;
   if (GpuTimingDiagActive(s)) {
     GpuTimingDiagMark(s, cmd, std::format("clear flags {:#x}", flags));

@@ -169,7 +169,7 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
     c.type = RenderCommandType::Resolve;
     if (CaptureResolve(device_va, flags, src_rect_va, dest_texture_va, dest_point_va, dest_level,
                        clear_color_va, clear_z, c.resolve))
-      enqueue.commit();
+      enqueue.commit(false);
     return;
   }
   ResolvePacket pk;
@@ -312,7 +312,6 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       target.lastResolvedFrame = s.guest_frames;
       target.perfResolves++;
     };
-    static const bool copies = Settings::ResolveCopy();
     plume::RenderViewport last_resolve_vp;
     plume::RenderRect last_resolve_sc;
     bool resolve_dynamic_valid = false;
@@ -370,7 +369,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       const bool whole_host = whole && src_host->width == static_cast<u32>(mip_w_host) &&
                               src_host->height == static_cast<u32>(mip_h_host);
       const bool own_image = src_host == &surf->single || src_host == &surf->host;
-      if (Settings::ResolveTransfer() && !regretted && &target == dest && dest_ref && !depth_source &&
+      if (!regretted && &target == dest && dest_ref && !depth_source &&
           !ms_src && !alias_src && own_image && same_format && scale == 1.0f && level == 0 &&
           whole_host && covers_image && target.host.viewFormat == plume::RenderFormat::UNKNOWN &&
           target.host.arraySize == 1 && target.host.depth == 1 && target.host.sampleCount == 1 &&
@@ -388,7 +387,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
         mark(target, level);
         return true;
       }
-      if (copies && !ms_src && !alias_src && same_format && scale == 1.0f && copy_fits &&
+      if (!ms_src && !alias_src && same_format && scale == 1.0f && copy_fits &&
           (!depth_source || whole_host) && (covers_image || !target.host.needsClear) &&
           (!reorder || covers_image)) {
         if (covers_image)
@@ -421,7 +420,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
                         static_cast<u32>(target.host.format) ^ (reorder ? 0x40000 : 0) ^
                         (alias_src ? 0x80000 : 0) ^ (depth_source ? 0x100000 : 0) ^
                         (ms_src ? 0x200000 : 0);
-        if (copies && DiagShouldLog(key, &n) && n == 0)
+        if (DiagShouldLog(key, &n) && n == 0)
           EOT_DEBUG("[resolve] blit kept: host fmt {} -> {}{}{}{}{}", static_cast<u32>(src_host->format),
                    static_cast<u32>(target.host.format), reorder ? " reorder" : "",
                    alias_src ? " msaa-alias" : "", depth_source && !whole ? " depth-subrect" : "",

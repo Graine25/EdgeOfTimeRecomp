@@ -13,8 +13,8 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk);
 void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk);
 
 struct FloatConstantDirty {
-  bool vs = true;
-  bool ps = true;
+  u64 vs = ~0ull;
+  u64 ps = ~0ull;
 };
 
 void DrawGuestPrimitives(u32 device_va, u32 primitive_type, u32 start_vertex,
@@ -27,6 +27,8 @@ void FlushPendingUpDraw();
 void DrawGuestIndexedPrimitives(u32 device_va, u32 primitive_type, i32 base_vertex,
                                 u32 start_index, u32 index_count,
                                 FloatConstantDirty constants);
+void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count);
+u64 DrawSortKey(const DrawPacket &pk);
 
 void FlushPendingTransitions(VideoState &s);
 void FlushGeometryStaging(VideoState &s);

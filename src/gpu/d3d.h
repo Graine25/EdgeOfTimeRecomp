@@ -172,6 +172,7 @@ enum class DeclUsage : u8 {
 
 constexpr u32 kDevicePageShift = 5;
 inline std::atomic<u32> g_device_block_misses{0};
+inline std::atomic<u32> g_device_block_miss_offset{0};
 
 struct DeviceView {
   u32 va = 0;
@@ -182,7 +183,8 @@ struct DeviceView {
     if (!snapshot || off + bytes > snapshotSize)
       return nullptr;
     if (pages && !(pages[off >> kDevicePageShift] && pages[(off + bytes - 1) >> kDevicePageShift])) {
-      g_device_block_misses.fetch_add(1, std::memory_order_relaxed);
+      if (g_device_block_misses.fetch_add(1, std::memory_order_relaxed) == 0)
+        g_device_block_miss_offset.store(off, std::memory_order_relaxed);
       return nullptr;
     }
     return snapshot + off;

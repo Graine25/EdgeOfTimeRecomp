@@ -417,10 +417,28 @@ void LogPerfLocked(VideoState &s) {
   p.frames++;
 
   const i32 hitch_ms = Settings::HitchMs();
+  {
+    const f64 wall = p.frame_ms - s.perf_prev_frame.frame_ms;
+    if (wall >= 0.0 && s.frame_walls.size() < 4096)
+      s.frame_walls.push_back(static_cast<f32>(wall));
+  }
   if (hitch_ms > 0 && p.last_present.time_since_epoch().count() != 0) {
     const PerfCounters &q = s.perf_prev_frame;
     const f64 wall = p.frame_ms - q.frame_ms;
     if (wall > static_cast<f64>(hitch_ms)) {
+      EOT_WARN("[hitch] frame {} threads: capture {:.2f} present-wait {:.2f} worker-idle {:.2f} "
+               "blit {:.2f} house {:.2f} | gpu {:.2f} ({} frames collected) | transfers {} "
+               "evicted {} vtx-miss {} idx-miss {} pso-binds {} dead-resolves {} | "
+               "guest+other {:.2f}",
+               s.guest_frames, p.capture_ms - q.capture_ms, p.present_wait_ms - q.present_wait_ms,
+               p.worker_idle_ms - q.worker_idle_ms, p.present_blit_ms - q.present_blit_ms,
+               p.present_house_ms - q.present_house_ms, p.gpu_ms - q.gpu_ms,
+               p.gpu_frames - q.gpu_frames, p.surface_transfers - q.surface_transfers,
+               p.textures_evicted - q.textures_evicted,
+               p.vertex_cache_misses - q.vertex_cache_misses,
+               p.index_cache_misses - q.index_cache_misses,
+               p.pipeline_bind_calls - q.pipeline_bind_calls, p.dead_resolves - q.dead_resolves,
+               wall - (p.capture_ms - q.capture_ms) - (p.present_wait_ms - q.present_wait_ms));
       EOT_WARN("[hitch] frame {} took {:.1f} ms: draw {:.2f} ({} draws) upload {:.2f} ({} tex) "
                "resolve {:.2f} ({}) link {:.2f} ({}) pso {:.2f} ({}) guest d3d {:.2f} ({} calls) "
                "| acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | new host objects: "
@@ -505,37 +523,57 @@ void LogPerfLocked(VideoState &s) {
   s.perf_prev_frame = p;
   s.perf_prev_frame.pace_ms = g_pace_ms;
 
+  f64 wall_p50 = 0, wall_p95 = 0, wall_p99 = 0, wall_max = 0;
+  if (every > 0 && static_cast<i32>(p.frames) >= every && !s.frame_walls.empty()) {
+    std::sort(s.frame_walls.begin(), s.frame_walls.end());
+    const size_t n = s.frame_walls.size();
+    auto at = [&](f64 q) { return s.frame_walls[std::min(n - 1, static_cast<size_t>(q * n))]; };
+    wall_p50 = at(0.50);
+    wall_p95 = at(0.95);
+    wall_p99 = at(0.99);
+    wall_max = s.frame_walls.back();
+    s.frame_walls.clear();
+  }
   if (every <= 0 || static_cast<i32>(p.frames) < every)
     return;
   const f64 n = static_cast<f64>(p.frames);
-  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
-           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
-           "| hostbind/f vb {:.1f}/{:.1f} ib {:.1f}/{:.1f} fb reuse {:.1f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f}/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
+  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall (p50 {:.2f} p95 {:.2f} p99 {:.2f} max {:.2f}) | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
+           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
+           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} (@{:#x}) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
+           "| hostbind/f vb {:.1f}/{:.1f} (1s {:.1f}) ib {:.1f}/{:.1f} fb reuse {:.1f} tgtmemo {:.1f} (miss g{:.0f} w{:.0f} s{:.0f}) sorted {:.0f}/{:.0f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f} (hit {:.1f})/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} blit {:.2f} submit {:.2f} fence {:.2f} house {:.2f} pace {:.2f} | KB/frame vtx {} "
            "idx {} const {} | gpu {}",
-           p.frames, p.frame_ms / n, p.capture_ms / n, p.present_wait_ms / n, p.worker_idle_ms / n,
+           p.frames, p.frame_ms / n, wall_p50, wall_p95, wall_p99, wall_max, p.capture_ms / n, p.present_wait_ms / n, p.worker_idle_ms / n,
            p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
            p.setup_ms / n, p.replay_targets_ms / n,
-           p.pso_lookup_ms / n, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
+           p.pso_lookup_ms / n, p.replay_memo_hits / p.frames, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
            p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
            p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
+           p.const_file_mask_misses,
            p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames,
            p.surface_transfers / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
            p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, g_device_block_misses.exchange(0, std::memory_order_relaxed),
+           g_device_block_miss_offset.exchange(0, std::memory_order_relaxed),
            p.index_cache_hits / p.frames, p.index_cache_misses,
            p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
            p.geometry_vram_binds / p.frames, p.geometry_staging_binds / p.frames,
            static_cast<f64>(p.vertex_bind_calls) / n,
            static_cast<f64>(p.vertex_bind_requests) / n,
+           static_cast<f64>(p.single_stream_draws) / n,
            static_cast<f64>(p.index_bind_calls) / n,
            static_cast<f64>(p.index_bind_requests) / n,
            static_cast<f64>(p.framebuffer_cache_hits) / n,
+           static_cast<f64>(p.target_memo_hits) / n,
+           static_cast<f64>(p.target_memo_miss_gen) / n,
+           static_cast<f64>(p.target_memo_miss_words) / n,
+           static_cast<f64>(p.target_memo_miss_sig) / n,
+           static_cast<f64>(p.sorted_draws) / n, static_cast<f64>(p.sort_runs) / n,
            static_cast<f64>(p.texture_bind_hits) / n,
            static_cast<f64>(p.texture_bind_requests) / n,
            static_cast<f64>(p.pipeline_bind_calls) / n,
+           static_cast<f64>(p.pipeline_bind_on_hit) / n,
            static_cast<f64>(p.viewport_bind_calls) / n,
            static_cast<f64>(p.scissor_bind_calls) / n,
            static_cast<f64>(p.stencil_ref_calls) / n,
@@ -548,6 +586,7 @@ void LogPerfLocked(VideoState &s) {
            GpuTimingSummary(p));
   LogRenderAreaLocked(s, p.frames);
   p = PerfCounters{};
+  s.perf_resets++;
   p.last_present = now;
   g_pace_ms = 0.0;
 }
@@ -732,6 +771,9 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
     pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
     pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));
     pc.colorAdjust[3] = static_cast<float>(std::clamp(Settings::Gamma(), 0.4, 2.5));
+    if (pc.colorAdjust[0] == 0.0f && pc.colorAdjust[1] == 1.0f && pc.colorAdjust[2] == 1.0f &&
+        pc.colorAdjust[3] == 1.0f)
+      pc.colorAdjust[3] = 0.0f;
     pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
     pc.rect[0] = 0.0f;
     pc.rect[1] = 0.0f;
@@ -803,6 +845,11 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
 void Video::Present(u32 front_buffer_texture_va) {
   EOT_CPU_ZONE("Present");
   auto &s = state();
+  static thread_local bool pinned = false;
+  if (!pinned) {
+    pinned = true;
+    PinThreadToPhysicalCore(1, "the guest's rendering thread");
+  }
   trace::EndFrame(s.guest_frames + 1);
   if (s.ready && !s.shutting_down.load(std::memory_order_acquire)) {
     if (RenderThreadActive()) {

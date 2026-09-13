@@ -30,12 +30,14 @@ State &st() {
 
 void Refresh(State &s) {
   const i64 seen = static_cast<i64>(s.frames_seen.load(std::memory_order_relaxed));
-  s.trace_on.store(s.frames_left.load(std::memory_order_relaxed) > 0 &&
-                       seen >= Settings::TraceStartFrame(),
-                   std::memory_order_relaxed);
+  const bool trace_on =
+      s.frames_left.load(std::memory_order_relaxed) > 0 && seen >= Settings::TraceStartFrame();
+  s.trace_on.store(trace_on, std::memory_order_relaxed);
+  g_trace_on.store(trace_on, std::memory_order_relaxed);
   const i32 summary_frames = Settings::SummaryFrames();
-  s.summary_on.store(summary_frames > 0 && seen < static_cast<i64>(summary_frames),
-                     std::memory_order_relaxed);
+  const bool summary_on = summary_frames > 0 && seen < static_cast<i64>(summary_frames);
+  s.summary_on.store(summary_on, std::memory_order_relaxed);
+  g_summary_on.store(summary_on, std::memory_order_relaxed);
 }
 
 void InitOnce(State &s) {
@@ -44,6 +46,7 @@ void InitOnce(State &s) {
     s.frames_left.compare_exchange_strong(expected, Settings::TraceFrames(),
                                           std::memory_order_relaxed);
     Refresh(s);
+    g_trace_ready.store(true, std::memory_order_release);
   }
 }
 
@@ -86,7 +89,7 @@ const char *CounterName(Counter c) {
 
 }
 
-bool Enabled() {
+bool EnabledSlow() {
   auto &s = st();
   InitOnce(s);
   return s.trace_on.load(std::memory_order_relaxed);
@@ -99,8 +102,9 @@ void Line(std::string_view text) {
     s.lines.emplace_back(text);
 }
 
-void Bump(Counter c) {
+void BumpSlow(Counter c) {
   auto &s = st();
+  InitOnce(s);
   if (!s.summary_on.load(std::memory_order_relaxed))
     return;
   s.counters[static_cast<u32>(c)].fetch_add(1, std::memory_order_relaxed);

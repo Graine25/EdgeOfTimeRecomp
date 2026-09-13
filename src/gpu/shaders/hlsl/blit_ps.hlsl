@@ -38,15 +38,27 @@ float4 BoxDownsample(Texture2D<float4> tex, float2 uv, uint2 size, uint ratio)
     return acc / (float)(taps * taps);
 }
 
+float4 LanczosWeights(float f)
+{
+    f = clamp(f, 1e-4, 1.0 - 1e-4);
+    float sf, cf, sh, ch;
+    sincos(3.14159265 * f, sf, cf);
+    sincos(1.57079633 * f, sh, ch);
+    const float a0 = f + 1.0, a1 = f, a2 = 1.0 - f, a3 = 2.0 - f;
+    return float4(-sf * ch / (a0 * a0), sf * sh / (a1 * a1), sf * ch / (a2 * a2),
+                  -sf * sh / (a3 * a3));
+}
+
 float4 LanczosUpsample(Texture2D<float4> tex, SamplerState linear_sampler, float2 uv, float2 size)
 {
     const float2 p = uv * size - 0.5;
     const float2 f = frac(p);
     const float2 base = floor(p);
-    const float2 w0 = float2(Lanczos2(f.x + 1.0), Lanczos2(f.y + 1.0));
-    const float2 w1 = float2(Lanczos2(f.x), Lanczos2(f.y));
-    const float2 w2 = float2(Lanczos2(1.0 - f.x), Lanczos2(1.0 - f.y));
-    const float2 w3 = float2(Lanczos2(2.0 - f.x), Lanczos2(2.0 - f.y));
+    const float4 wx = LanczosWeights(f.x), wy = LanczosWeights(f.y);
+    const float2 w0 = float2(wx.x, wy.x);
+    const float2 w1 = float2(wx.y, wy.y);
+    const float2 w2 = float2(wx.z, wy.z);
+    const float2 w3 = float2(wx.w, wy.w);
     const float2 w12 = w1 + w2;
     const float2 t0 = (base - 0.5) / size;
     const float2 t12 = (base + 0.5 + w2 / w12) / size;

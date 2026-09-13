@@ -80,7 +80,6 @@ void BeginCommandList(VideoState &s) {
     s.bound_root_buffer[i] = nullptr;
     s.bound_root_offset[i] = 0;
   }
-  s.shared_bound = false;
 }
 
 void SubmitOpenListLocked(VideoState &s) {

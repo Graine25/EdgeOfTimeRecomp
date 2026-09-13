@@ -1,7 +1,9 @@
 #include "gpu/render_thread.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <cstring>
 #include <condition_variable>
 #include <memory>
 #include <thread>
@@ -22,25 +24,42 @@ namespace eot::gpu {
 
 namespace {
 
-constexpr u64 kQueueSlots = 4096;
+constexpr u64 kQueueSlots = 1024;
 constexpr u64 kQueueMask = kQueueSlots - 1;
 constexpr u64 kBatch = 64;
-constexpr u32 kIdleSpins = 20000;
+constexpr u64 kPublishEvery = 8;
+constexpr u32 kIdleSpins = 4000;
+constexpr u32 kSortWindow = 512;
+constexpr f64 kSortFillMs = 0.08;
 
 struct Queue {
   std::unique_ptr<RenderCommand[]> slots;
   alignas(64) std::atomic<u64> head{0};
   alignas(64) std::atomic<u64> tail{0};
   alignas(64) std::atomic<u64> executed{0};
-  std::atomic<bool> consumer_sleeping{false};
+  alignas(64) std::atomic<bool> consumer_sleeping{false};
   std::atomic<bool> producer_sleeping{false};
   std::atomic<bool> active{false};
   std::atomic<bool> stop{false};
   std::mutex produce_mutex;
   std::mutex cv_mutex;
   std::condition_variable cv_work, cv_space, cv_done;
-  u64 next_seq = 1;
+  alignas(64) u64 next_seq = 1;
+  u64 tail_local = 0;
+  u64 tail_published = 0;
+  u64 head_cache = 0;
 };
+
+void PublishTail(Queue &q) {
+  if (q.tail_published == q.tail_local)
+    return;
+  q.tail_published = q.tail_local;
+  q.tail.store(q.tail_local, std::memory_order_seq_cst);
+  if (q.consumer_sleeping.load(std::memory_order_seq_cst)) {
+    std::lock_guard cv_lock(q.cv_mutex);
+    q.cv_work.notify_one();
+  }
+}
 
 Queue &queue() {
   static auto *q = new Queue;
@@ -104,16 +123,44 @@ u64 WaitForWork(Queue &q, u64 head) {
   return q.tail.load(std::memory_order_acquire);
 }
 
+u32 GatherSortRun(Queue &q, u64 head, u64 avail, u64 *keys) {
+  const RenderCommand &first = q.slots[head & kQueueMask];
+  u32 run = 0;
+  for (; run < kSortWindow && run < avail; ++run) {
+    const RenderCommand &c = q.slots[(head + run) & kQueueMask];
+    if (c.type != RenderCommandType::Draw)
+      break;
+    if (run && std::memcmp(&c.draw.targets, &first.draw.targets, sizeof(TargetWords)) != 0)
+      break;
+    const u64 key = DrawSortKey(c.draw);
+    if (!key)
+      break;
+    keys[run] = key;
+  }
+  return run;
+}
+
+void PublishHead(Queue &q, u64 head) {
+  q.head.store(head, std::memory_order_seq_cst);
+  if (q.producer_sleeping.load(std::memory_order_seq_cst)) {
+    std::lock_guard cv_lock(q.cv_mutex);
+    q.cv_space.notify_all();
+  }
+}
+
 void WorkerMain() {
 #if defined(_WIN32)
   SetThreadDescription(GetCurrentThread(), L"reeot render");
 #endif
+  PinThreadToPhysicalCore(2, "the render thread");
 #if defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING)
   if (TracyIsStarted)
     tracy::SetThreadName("render");
 #endif
   auto &q = queue();
   auto &s = state();
+  static u64 sort_keys[kSortWindow];
+  static u32 sort_order[kSortWindow];
   u64 head = q.head.load(std::memory_order_relaxed);
   for (;;) {
     u64 tail;
@@ -123,20 +170,59 @@ void WorkerMain() {
     }
     if (q.stop.load(std::memory_order_acquire) || s.shutting_down.load(std::memory_order_acquire))
       break;
+    u64 avail = tail - head;
+    u32 run = GatherSortRun(q, head, avail, sort_keys);
+    if (run && run == avail && run < kSortWindow) {
+      const u64 t0 = PerfNow();
+      while (static_cast<f64>(PerfNow() - t0) * PerfMsPerTick() < kSortFillMs) {
+        const u64 t = q.tail.load(std::memory_order_acquire);
+        if (t - head > avail) {
+          avail = t - head;
+          run = GatherSortRun(q, head, avail, sort_keys);
+          if (run < avail || run == kSortWindow)
+            break;
+        }
+        if (q.stop.load(std::memory_order_relaxed))
+          break;
+        _mm_pause();
+      }
+    }
     EOT_CPU_ZONE("render batch");
     std::lock_guard lock(s.mutex);
-    const u64 n = std::min<u64>(tail - head, kBatch);
+    if (run >= 2) {
+      for (u32 i = 0; i < run; ++i)
+        sort_order[i] = i;
+      std::stable_sort(sort_order, sort_order + run,
+                       [&](u32 a, u32 b) { return sort_keys[a] < sort_keys[b]; });
+      for (u32 i = 0; i < run; ++i) {
+        if (i + 1 < run)
+          Prefetch(q.slots[(head + sort_order[i + 1]) & kQueueMask]);
+        Execute(s, q, q.slots[(head + sort_order[i]) & kQueueMask]);
+      }
+      head += run;
+      s.perf.sorted_draws += run;
+      s.perf.sort_runs++;
+      PublishHead(q, head);
+      continue;
+    }
+    u64 n = std::min<u64>(avail, kBatch);
+    for (u64 i = run ? 1 : 0; i < n; ++i) {
+      const RenderCommand &c = q.slots[(head + i) & kQueueMask];
+      if (c.type == RenderCommandType::Draw && DrawSortKey(c.draw)) {
+        n = i;
+        break;
+      }
+    }
+    if (!n)
+      n = 1;
     for (u64 i = 0; i < n; ++i) {
       RenderCommand &c = q.slots[head & kQueueMask];
       if (i + 1 < n)
         Prefetch(q.slots[(head + 1) & kQueueMask]);
       Execute(s, q, c);
       ++head;
-      q.head.store(head, std::memory_order_seq_cst);
-      if (q.producer_sleeping.load(std::memory_order_seq_cst)) {
-        std::lock_guard cv_lock(q.cv_mutex);
-        q.cv_space.notify_all();
-      }
+      if ((head & (kPublishEvery - 1)) == 0 || i + 1 == n)
+        PublishHead(q, head);
     }
   }
   q.active.store(false, std::memory_order_release);
@@ -149,7 +235,7 @@ void WorkerMain() {
 
 void RenderThreadStart() {
   auto &q = queue();
-  if (q.active.load(std::memory_order_acquire) || !Settings::RenderThread())
+  if (q.active.load(std::memory_order_acquire))
     return;
   q.slots = std::make_unique<RenderCommand[]>(kQueueSlots);
   q.stop.store(false, std::memory_order_release);
@@ -172,16 +258,21 @@ void RenderThreadStop() {
 
 RenderEnqueue::RenderEnqueue() : lock_(queue().produce_mutex) {
   auto &q = queue();
-  const u64 t = q.tail.load(std::memory_order_relaxed);
-  if (t - q.head.load(std::memory_order_acquire) >= kQueueSlots) {
-    EOT_CPU_ZONE("render queue full");
-    std::unique_lock cv_lock(q.cv_mutex);
-    q.producer_sleeping.store(true, std::memory_order_seq_cst);
-    q.cv_space.wait(cv_lock, [&] {
-      return t - q.head.load(std::memory_order_seq_cst) < kQueueSlots ||
-             q.stop.load(std::memory_order_relaxed);
-    });
-    q.producer_sleeping.store(false, std::memory_order_seq_cst);
+  const u64 t = q.tail_local;
+  if (t - q.head_cache >= kQueueSlots) {
+    q.head_cache = q.head.load(std::memory_order_acquire);
+    if (t - q.head_cache >= kQueueSlots) {
+      EOT_CPU_ZONE("render queue full");
+      PublishTail(q);
+      std::unique_lock cv_lock(q.cv_mutex);
+      q.producer_sleeping.store(true, std::memory_order_seq_cst);
+      q.cv_space.wait(cv_lock, [&] {
+        return t - q.head.load(std::memory_order_seq_cst) < kQueueSlots ||
+               q.stop.load(std::memory_order_relaxed);
+      });
+      q.producer_sleeping.store(false, std::memory_order_seq_cst);
+      q.head_cache = q.head.load(std::memory_order_acquire);
+    }
   }
   if (q.stop.load(std::memory_order_acquire)) {
     static RenderCommand scratch;
@@ -192,7 +283,7 @@ RenderEnqueue::RenderEnqueue() : lock_(queue().produce_mutex) {
   cmd_->seq = q.next_seq;
 }
 
-u64 RenderEnqueue::commit() {
+u64 RenderEnqueue::commit(bool publish) {
   auto &q = queue();
   const u64 seq = q.next_seq++;
   if (q.stop.load(std::memory_order_acquire)) {
@@ -200,11 +291,10 @@ u64 RenderEnqueue::commit() {
     return seq;
   }
   cmd_->seq = seq;
-  q.tail.store(q.tail.load(std::memory_order_relaxed) + 1, std::memory_order_seq_cst);
-  if (q.consumer_sleeping.load(std::memory_order_seq_cst)) {
-    std::lock_guard cv_lock(q.cv_mutex);
-    q.cv_work.notify_one();
-  }
+  ++q.tail_local;
+  if (publish || q.tail_local - q.tail_published >= kPublishEvery ||
+      q.consumer_sleeping.load(std::memory_order_relaxed))
+    PublishTail(q);
   committed_ = true;
   return seq;
 }
