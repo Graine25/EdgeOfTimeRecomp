@@ -732,6 +732,9 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
     pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
     pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));
     pc.colorAdjust[3] = static_cast<float>(std::clamp(Settings::Gamma(), 0.4, 2.5));
+    if (pc.colorAdjust[0] == 0.0f && pc.colorAdjust[1] == 1.0f && pc.colorAdjust[2] == 1.0f &&
+        pc.colorAdjust[3] == 1.0f)
+      pc.colorAdjust[3] = 0.0f;
     pc.param1 = lut_index != kInvalidDescriptorIndex ? 2.0f : 1.0f;
     pc.rect[0] = 0.0f;
     pc.rect[1] = 0.0f;
