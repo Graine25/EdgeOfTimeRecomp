@@ -613,6 +613,15 @@ void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf) {
       surf.host.sampleCount != 1 || !surf.host.valid())
     return;
   const GuestSurface::RedirectPrediction &p = surf.redirectPredictions[pass];
+  constexpr u32 kRedirectConfidence = 16;
+  if (p.streak < kRedirectConfidence || p.recordedFrame + 1 != s.guest_frames)
+    return;
+  for (u32 j = 0; j < GuestSurface::kRedirectPasses; ++j) {
+    const GuestSurface::RedirectPrediction &q = surf.redirectPredictions[j];
+    if (j != pass && q.recordedFrame == s.guest_frames && q.texture == p.texture && q.x == p.x &&
+        q.y == p.y)
+      return;
+  }
   std::shared_ptr<GuestTexture> m = p.mirror.lock();
   if (!m || !m->host.valid() || m->host.texture.get() != p.texture || !m->host.isDepth ||
       !m->host.renderable || m->host.format != surf.host.format || m->host.sampleCount != 1 ||
@@ -628,6 +637,9 @@ void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf) {
 bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf) {
   std::shared_ptr<GuestTexture> m = std::move(surf.redirectMirror);
   surf.redirectMirror.reset();
+  if (surf.redirectPassFrame == s.guest_frames && surf.redirectPasses >= 1 &&
+      surf.redirectPasses <= GuestSurface::kRedirectPasses)
+    surf.redirectPredictions[surf.redirectPasses - 1].streak = 0;
   if (!m || !m->host.valid() || !surf.host.valid())
     return true;
   GpuTimingMark(s, s.command_list, kGpuCatResolveDepth);

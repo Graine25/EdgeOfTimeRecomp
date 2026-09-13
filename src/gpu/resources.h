@@ -135,6 +135,8 @@ struct GuestSurface {
     std::weak_ptr<GuestTexture> mirror;
     const void *texture = nullptr;
     i32 x = 0, y = 0;
+    u32 streak = 0;
+    u64 recordedFrame = ~0ull;
   };
   static constexpr u32 kRedirectPasses = 8;
   RedirectPrediction redirectPredictions[kRedirectPasses];
