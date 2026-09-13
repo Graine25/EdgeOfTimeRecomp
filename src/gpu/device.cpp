@@ -924,6 +924,16 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
 #endif
 
 #if defined(EOT_D3D12)
+#if defined(EOT_D3D12)
+  if (Settings::D3D12Debug()) {
+    ID3D12Debug *debug = nullptr;
+    if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug)))) {
+      debug->EnableDebugLayer();
+      debug->Release();
+      EOT_INFO("[gpu] D3D12 debug layer enabled (eot_d3d12_debug)");
+    }
+  }
+#endif
   s.render_iface = plume::CreateD3D12Interface();
 #else
   s.render_iface = plume::CreateVulkanInterface();
