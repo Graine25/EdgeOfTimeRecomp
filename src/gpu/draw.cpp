@@ -778,6 +778,60 @@ void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count) {
   PrefetchSampleProbes(mem::at<u8>(data_va + static_cast<u32>(start)), bytes);
 }
 
+u64 DrawSortKey(const DrawPacket &pk, i32 mode) {
+  if (mode <= 0 || pk.rectList || !pk.vs)
+    return 0;
+  DeviceView dev = Device(pk.device_va);
+  dev.snapshot = pk.window.image;
+  dev.snapshotSize = kDeviceSnapshotBytes;
+  dev.pages = DeviceWindow::PageTable();
+  const u32 dc = dev.U32(dev::kDepthControl);
+  if (!(dc & 2))
+    return 0;
+  if (dc & 1) {
+    auto constant_write = [](u32 func, u32 fail, u32 zpass, u32 zfail) {
+      auto ok = [](u32 op) { return op == 0 || op == 1 || op == 2; };
+      return func == 7 && ok(fail) && ok(zpass) && ok(zfail);
+    };
+    if (!constant_write((dc >> 8) & 7, (dc >> 11) & 7, (dc >> 14) & 7, (dc >> 17) & 7))
+      return 0;
+    if ((dc & 0x80) &&
+        !constant_write((dc >> 20) & 7, (dc >> 23) & 7, (dc >> 26) & 7, (dc >> 29) & 7))
+      return 0;
+  }
+  const u32 zfunc = (dc >> 4) & 7;
+  const bool ordered = zfunc == 1 || zfunc == 3 || zfunc == 4 || zfunc == 6;
+  if (dc & 4) {
+    if (!ordered)
+      return 0;
+  } else if (mode < 2 || !(ordered || zfunc == 2)) {
+    return 0;
+  }
+  const u32 cc = dev.U32(dev::kColorControl), bc = dev.U32(dev::kBlendControl0);
+  const u32 src = bc & 0x1F, op = (bc >> 5) & 7, dst = (bc >> 8) & 0x1F;
+  const bool passthrough = src == 1 && dst == 0 && op == 0;
+  if (!(cc & (1u << 5)) && !passthrough)
+    return 0;
+  u64 h = 0x9E3779B97F4A7C15ull;
+  auto mix = [&](u64 v) {
+    h ^= v + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2);
+    h *= 0xFF51AFD7ED558CCDull;
+  };
+  mix(reinterpret_cast<u64>(pk.vs));
+  mix(reinterpret_cast<u64>(pk.ps));
+  mix(reinterpret_cast<u64>(pk.layout));
+  mix(static_cast<u64>(pk.topology));
+  for (u32 S = 0; S <= pk.max_slot && S < 16; ++S)
+    mix(pk.strides[S]);
+  constexpr u32 kRegs[] = {dev::kModeControl,   dev::kDepthControl, dev::kBlendControl0,
+                           dev::kBlendControl1, dev::kBlendControl2, dev::kBlendControl3,
+                           dev::kColorControl,  dev::kColorMask,     dev::kAlphaRef};
+  for (u32 off : kRegs)
+    mix(dev.U32(off));
+  mix(dev.U32(dev::kStencilRefMask));
+  return h ? h : 1;
+}
+
 namespace {
 
 struct BufferPool {
@@ -1985,6 +2039,14 @@ struct SurfaceSignature {
   u8 content = 0;
   bool contentInSingle = false, imagesAgree = false, resolvedSinceDraw = false;
   bool singleDirty = false, singleStale = false;
+  bool operator==(const SurfaceSignature &o) const {
+    return host == o.host && single == o.single && redirect == o.redirect &&
+           redirectHost == o.redirectHost && samples == o.samples && redirectX == o.redirectX &&
+           redirectY == o.redirectY && content == o.content &&
+           contentInSingle == o.contentInSingle && imagesAgree == o.imagesAgree &&
+           resolvedSinceDraw == o.resolvedSinceDraw && singleDirty == o.singleDirty &&
+           singleStale == o.singleStale;
+  }
 };
 
 SurfaceSignature SignSurface(const GuestSurface &surf) {
@@ -2027,6 +2089,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   if (!s.command_list_open)
     return;
 
+  constexpr u32 kSharedTextureBytes = offsetof(SharedConstants, booleans);
+  static_assert(kSharedTextureBytes == 20 * 16);
   struct ReplayMemo {
     bool valid = false;
     GuestShader *vs = nullptr, *ps = nullptr;
@@ -2045,20 +2109,42 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     plume::RenderPipeline *pipeline = nullptr;
     ViewportInfo vp;
     SharedConstants fixed;
-    u64 epoch = 0;
+    UploadAlloc shared;
+    u64 sharedRing = ~0ull;
+    u8 sharedTextures[kSharedTextureBytes] = {};
+    u32 sharedSint = 0, sharedBiased = 0;
   };
-  static ReplayMemo memo;
-  static u64 memo_epochs = 0;
+  constexpr u32 kReplayMemoWays = 8;
+  static ReplayMemo memos[kReplayMemoWays];
+  static u32 memo_next = 0;
   const u8 *state_block = pk.window.image + DeviceWindow::kBlocks[2].base;
   const u8 *consts_block = pk.window.image + DeviceWindow::kBlocks[1].base;
-  const bool state_hit = memo.valid && memo.vs == vs && memo.ps == ps && memo.layout == layout &&
-                         memo.topology == pk.topology && memo.rectList == pk.rectList &&
-                         std::memcmp(memo.strides, pk.strides, sizeof(pk.strides)) == 0 &&
-                         std::memcmp(memo.state, state_block, sizeof(memo.state)) == 0 &&
-                         std::memcmp(memo.consts, consts_block, sizeof(memo.consts)) == 0;
+  ReplayMemo *memo = nullptr;
+  for (ReplayMemo &m : memos) {
+    if (m.valid && m.vs == vs && m.ps == ps && m.layout == layout && m.topology == pk.topology &&
+        m.rectList == pk.rectList && std::memcmp(m.strides, pk.strides, sizeof(pk.strides)) == 0 &&
+        std::memcmp(m.state, state_block, sizeof(m.state)) == 0 &&
+        std::memcmp(m.consts, consts_block, sizeof(m.consts)) == 0) {
+      memo = &m;
+      break;
+    }
+  }
+  const bool state_hit = memo != nullptr;
 
+  struct ClsKey {
+    u32 dc = 0, srm = 0, cc = 0, bc = 0;
+    bool hasPs = false, rect = false;
+    bool operator==(const ClsKey &o) const {
+      return dc == o.dc && srm == o.srm && cc == o.cc && bc == o.bc && hasPs == o.hasPs &&
+             rect == o.rect;
+    }
+  };
+  const ClsKey cls_key{dev.U32(dev::kDepthControl), dev.U32(dev::kStencilRefMask),
+                       dev.U32(dev::kColorControl), dev.U32(dev::kBlendControl0), ps != nullptr,
+                       pk.rectList};
   struct TargetMemo {
     bool valid = false;
+    ClsKey key;
     TargetWords words;
     u64 surfaceGeneration = 0;
     SurfaceSignature sigs[5];
@@ -2068,17 +2154,18 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   static TargetMemo tmemo;
   Targets targets;
   DrawClass cls;
-  bool target_hit = state_hit && tmemo.valid && tmemo.surfaceGeneration == s.surface_generation &&
+  bool target_hit = tmemo.valid && tmemo.key == cls_key &&
+                    tmemo.surfaceGeneration == s.surface_generation &&
                     std::memcmp(&tmemo.words, &pk.targets, sizeof(TargetWords)) == 0;
   if (target_hit) {
     const Targets &t = tmemo.targets;
     for (u32 i = 0; target_hit && i < t.colorCount; ++i) {
       const SurfaceSignature sig = SignSurface(*t.color[i]);
-      target_hit = std::memcmp(&sig, &tmemo.sigs[i], sizeof(sig)) == 0;
+      target_hit = sig == tmemo.sigs[i];
     }
     if (target_hit && t.depth) {
       const SurfaceSignature sig = SignSurface(*t.depth);
-      target_hit = std::memcmp(&sig, &tmemo.sigs[4], sizeof(sig)) == 0;
+      target_hit = sig == tmemo.sigs[4];
     }
   }
   if (target_hit) {
@@ -2086,10 +2173,11 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     cls = tmemo.cls;
     s.perf.target_memo_hits++;
   } else {
-    if (state_hit && tmemo.valid) {
+    if (tmemo.valid) {
       if (tmemo.surfaceGeneration != s.surface_generation)
         s.perf.target_memo_miss_gen++;
-      else if (std::memcmp(&tmemo.words, &pk.targets, sizeof(TargetWords)) != 0)
+      else if (!(tmemo.key == cls_key) ||
+               std::memcmp(&tmemo.words, &pk.targets, sizeof(TargetWords)) != 0)
         s.perf.target_memo_miss_words++;
       else {
         s.perf.target_memo_miss_sig++;
@@ -2101,7 +2189,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
             if (!surf)
               continue;
             const SurfaceSignature now = SignSurface(*surf), was = tmemo.sigs[i];
-            if (std::memcmp(&now, &was, sizeof(now)) == 0)
+            if (now == was)
               continue;
             ++logged;
             EOT_INFO("[draw] target memo miss: surface {} ({:#x}) host {}/{} single {}/{} redirect {}/{} "
@@ -2141,22 +2229,21 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
       Dropped("surface image unavailable", 0x6016);
       return;
     }
-    if (state_hit) {
-      tmemo.words = pk.targets;
-      tmemo.surfaceGeneration = s.surface_generation;
-      std::memcpy(tmemo.sigs, sigs, sizeof(sigs));
-      tmemo.targets = targets;
-      tmemo.cls = cls;
-      tmemo.valid = true;
-    }
+    tmemo.key = cls_key;
+    tmemo.words = pk.targets;
+    tmemo.surfaceGeneration = s.surface_generation;
+    std::memcpy(tmemo.sigs, sigs, sizeof(sigs));
+    tmemo.targets = targets;
+    tmemo.cls = cls;
+    tmemo.valid = true;
   }
   lap(s.perf.replay_targets_ms);
 
-  bool memo_hit = state_hit && memo.colorCount == targets.colorCount &&
-                  memo.samples == targets.samples && memo.offsetX == targets.offsetX &&
-                  memo.offsetY == targets.offsetY && memo.images[4] == targets.depthImage;
+  bool memo_hit = state_hit && memo->colorCount == targets.colorCount &&
+                  memo->samples == targets.samples && memo->offsetX == targets.offsetX &&
+                  memo->offsetY == targets.offsetY && memo->images[4] == targets.depthImage;
   for (u32 i = 0; memo_hit && i < targets.colorCount; ++i)
-    memo_hit = memo.images[i] == targets.colorImage[i];
+    memo_hit = memo->images[i] == targets.colorImage[i];
 
   PipelineState st;
   u32 spec = 0;
@@ -2165,14 +2252,13 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   ViewportInfo vp;
   static SharedConstants sc;
   if (memo_hit) {
-    st = memo.st;
-    spec = memo.spec;
-    a2c = memo.a2c;
-    pipeline = memo.pipeline;
-    vp = memo.vp;
-    sc.sintTexcoords = memo.fixed.sintTexcoords;
-    sc.biasedTextures = memo.fixed.biasedTextures;
-    s.perf.pipeline_hot_hits++;
+    st = memo->st;
+    spec = memo->spec;
+    a2c = memo->a2c;
+    pipeline = memo->pipeline;
+    vp = memo->vp;
+    sc = memo->fixed;
+    s.perf.replay_memo_hits++;
   } else {
     sc.biasedTextures = 0;
     ZeroPipelineState(st);
@@ -2271,29 +2357,31 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     std::memcpy(sc.posScale, vp.posScale, sizeof(sc.posScale));
     std::memcpy(sc.posOffset, vp.posOffset, sizeof(sc.posOffset));
 
-    memo.valid = true;
-    memo.vs = vs;
-    memo.ps = ps;
-    memo.layout = layout;
+    ReplayMemo &fill = memo ? *memo : memos[memo_next++ % kReplayMemoWays];
+    fill.valid = true;
+    fill.vs = vs;
+    fill.ps = ps;
+    fill.layout = layout;
     for (u32 i = 0; i < 4; ++i)
-      memo.images[i] = i < targets.colorCount ? targets.colorImage[i] : nullptr;
-    memo.images[4] = targets.depthImage;
-    memo.colorCount = targets.colorCount;
-    memo.samples = targets.samples;
-    memo.offsetX = targets.offsetX;
-    memo.offsetY = targets.offsetY;
-    memo.topology = pk.topology;
-    memo.rectList = pk.rectList;
-    std::memcpy(memo.strides, pk.strides, sizeof(memo.strides));
-    std::memcpy(memo.state, state_block, sizeof(memo.state));
-    std::memcpy(memo.consts, consts_block, sizeof(memo.consts));
-    memo.st = st;
-    memo.spec = spec;
-    memo.a2c = a2c;
-    memo.pipeline = pipeline;
-    memo.vp = vp;
-    memo.fixed = sc;
-    memo.epoch = ++memo_epochs;
+      fill.images[i] = i < targets.colorCount ? targets.colorImage[i] : nullptr;
+    fill.images[4] = targets.depthImage;
+    fill.colorCount = targets.colorCount;
+    fill.samples = targets.samples;
+    fill.offsetX = targets.offsetX;
+    fill.offsetY = targets.offsetY;
+    fill.topology = pk.topology;
+    fill.rectList = pk.rectList;
+    std::memcpy(fill.strides, pk.strides, sizeof(fill.strides));
+    std::memcpy(fill.state, state_block, sizeof(fill.state));
+    std::memcpy(fill.consts, consts_block, sizeof(fill.consts));
+    fill.st = st;
+    fill.spec = spec;
+    fill.a2c = a2c;
+    fill.pipeline = pipeline;
+    fill.vp = vp;
+    fill.fixed = sc;
+    fill.sharedRing = ~0ull;
+    memo = &fill;
   }
   s.current_vs_va = pk.vs_va;
   s.current_ps_va = pk.ps_va;
@@ -2313,18 +2401,22 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     BindTexturesAndSamplers(s, dev, texture_mask, sc);
   }
   UploadAlloc shared_alloc;
-  static_assert(offsetof(SharedConstants, booleans) == 20 * 16);
-  const bool shared_changed =
-      !s.shared_bound || s.last_shared_epoch != memo.epoch ||
-      std::memcmp(&s.last_shared, &sc, offsetof(SharedConstants, booleans)) != 0 ||
-      s.last_shared.biasedTextures != sc.biasedTextures ||
-      s.last_shared.sintTexcoords != sc.sintTexcoords;
-  if (shared_changed) {
+  const u64 ring_epoch = UploadRingEpoch();
+  if (memo->sharedRing == ring_epoch &&
+      std::memcmp(memo->sharedTextures, &sc, kSharedTextureBytes) == 0 &&
+      memo->sharedSint == sc.sintTexcoords && memo->sharedBiased == sc.biasedTextures) {
+    shared_alloc = memo->shared;
+  } else {
     if (!UploadBytes(&sc, sizeof(sc), kConstantBufferAlignment, &shared_alloc)) {
       Dropped("shared constant upload failed", 0x6011);
       return;
     }
     s.perf.constant_bytes += sizeof(SharedConstants);
+    memo->shared = shared_alloc;
+    memo->sharedRing = ring_epoch;
+    std::memcpy(memo->sharedTextures, &sc, kSharedTextureBytes);
+    memo->sharedSint = sc.sintTexcoords;
+    memo->sharedBiased = sc.biasedTextures;
   }
   lap(s.perf.const_ms);
 
@@ -2427,6 +2519,16 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   if (pipeline_changed) {
     cmd->setPipeline(pipeline);
     s.perf.pipeline_bind_calls++;
+    if (memo_hit) {
+      s.perf.pipeline_bind_on_hit++;
+      static u32 logged = 0;
+      if (logged++ < 8)
+        EOT_INFO("[draw] pipeline bind on a memo hit: memo {} bound {} entry {} vs {:016x} ps {:016x} "
+                 "samples {} rt0 {:#x}",
+                 static_cast<const void *>(pipeline), static_cast<const void *>(s.bound_pipeline),
+                 static_cast<const void *>(memo), vs->hash, ps ? ps->hash : 0, targets.samples,
+                 targets.colorCount ? targets.color[0]->va : 0);
+    }
     s.bound_pipeline = pipeline;
   }
   static u32 last_stencil_ref = ~0u;
@@ -2473,13 +2575,11 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     s.bound_root_buffer[r] = roots[r]->buffer;
     s.bound_root_offset[r] = roots[r]->offset;
   }
-  if (shared_changed) {
+  if (s.bound_root_buffer[2] != shared_alloc.buffer ||
+      s.bound_root_offset[2] != shared_alloc.offset) {
     bind_root_cbv(2, shared_alloc);
     s.bound_root_buffer[2] = shared_alloc.buffer;
     s.bound_root_offset[2] = shared_alloc.offset;
-    s.last_shared = sc;
-    s.last_shared_epoch = memo.epoch;
-    s.shared_bound = true;
   }
   lap(s.perf.rec_state_ms);
   auto bind_vertex_views = [&](u32 first, const plume::RenderVertexBufferView *want_views,

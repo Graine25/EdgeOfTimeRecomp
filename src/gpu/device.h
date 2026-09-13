@@ -63,13 +63,16 @@ struct PerfCounters {
   u32 const_file_clean_hits = 0;
   u32 const_file_mask_misses = 0;
   u32 pipeline_hot_hits = 0;
+  u32 replay_memo_hits = 0;
   u32 vertex_bind_requests = 0, vertex_bind_calls = 0;
   u32 single_stream_draws = 0, target_memo_hits = 0;
+  u32 sorted_draws = 0, sort_runs = 0;
   u32 target_memo_miss_gen = 0, target_memo_miss_words = 0, target_memo_miss_sig = 0;
   u32 index_bind_requests = 0, index_bind_calls = 0;
   u32 framebuffer_cache_hits = 0;
   u32 texture_bind_requests = 0, texture_bind_hits = 0;
   u32 pipeline_bind_calls = 0, viewport_bind_calls = 0, scissor_bind_calls = 0;
+  u32 pipeline_bind_on_hit = 0;
   u32 stencil_ref_calls = 0;
   u32 texture_barrier_calls = 0, texture_barrier_resources = 0;
   f64 acquire_ms = 0, submit_ms = 0, fence_ms = 0, frame_ms = 0;
@@ -318,9 +321,6 @@ struct VideoState {
   bool bound_draw_targets_valid = false;
   plume::RenderBuffer *bound_root_buffer[3] = {};
   u64 bound_root_offset[3] = {};
-  SharedConstants last_shared{};
-  u64 last_shared_epoch = 0;
-  bool shared_bound = false;
   u64 perf_resets = 0;
   u64 vs_float_constants_stale = ~0ull;
   u64 ps_float_constants_stale = ~0ull;

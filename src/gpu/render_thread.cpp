@@ -1,7 +1,9 @@
 #include "gpu/render_thread.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <cstring>
 #include <condition_variable>
 #include <memory>
 #include <thread>
@@ -27,6 +29,8 @@ constexpr u64 kQueueMask = kQueueSlots - 1;
 constexpr u64 kBatch = 64;
 constexpr u64 kPublishEvery = 8;
 constexpr u32 kIdleSpins = 20000;
+constexpr u32 kSortWindow = 512;
+constexpr f64 kSortFillMs = 0.08;
 
 struct Queue {
   std::unique_ptr<RenderCommand[]> slots;
@@ -119,6 +123,31 @@ u64 WaitForWork(Queue &q, u64 head) {
   return q.tail.load(std::memory_order_acquire);
 }
 
+u32 GatherSortRun(Queue &q, u64 head, u64 avail, i32 mode, u64 *keys) {
+  const RenderCommand &first = q.slots[head & kQueueMask];
+  u32 run = 0;
+  for (; run < kSortWindow && run < avail; ++run) {
+    const RenderCommand &c = q.slots[(head + run) & kQueueMask];
+    if (c.type != RenderCommandType::Draw)
+      break;
+    if (run && std::memcmp(&c.draw.targets, &first.draw.targets, sizeof(TargetWords)) != 0)
+      break;
+    const u64 key = DrawSortKey(c.draw, mode);
+    if (!key)
+      break;
+    keys[run] = key;
+  }
+  return run;
+}
+
+void PublishHead(Queue &q, u64 head) {
+  q.head.store(head, std::memory_order_seq_cst);
+  if (q.producer_sleeping.load(std::memory_order_seq_cst)) {
+    std::lock_guard cv_lock(q.cv_mutex);
+    q.cv_space.notify_all();
+  }
+}
+
 void WorkerMain() {
 #if defined(_WIN32)
   SetThreadDescription(GetCurrentThread(), L"reeot render");
@@ -129,6 +158,9 @@ void WorkerMain() {
 #endif
   auto &q = queue();
   auto &s = state();
+  const i32 sort_mode = Settings::SortOpaque();
+  static u64 sort_keys[kSortWindow];
+  static u32 sort_order[kSortWindow];
   u64 head = q.head.load(std::memory_order_relaxed);
   for (;;) {
     u64 tail;
@@ -138,22 +170,61 @@ void WorkerMain() {
     }
     if (q.stop.load(std::memory_order_acquire) || s.shutting_down.load(std::memory_order_acquire))
       break;
+    u64 avail = tail - head;
+    u32 run = sort_mode > 0 ? GatherSortRun(q, head, avail, sort_mode, sort_keys) : 0;
+    if (run && run == avail && run < kSortWindow) {
+      const u64 t0 = PerfNow();
+      while (static_cast<f64>(PerfNow() - t0) * PerfMsPerTick() < kSortFillMs) {
+        const u64 t = q.tail.load(std::memory_order_acquire);
+        if (t - head > avail) {
+          avail = t - head;
+          run = GatherSortRun(q, head, avail, sort_mode, sort_keys);
+          if (run < avail || run == kSortWindow)
+            break;
+        }
+        if (q.stop.load(std::memory_order_relaxed))
+          break;
+        _mm_pause();
+      }
+    }
     EOT_CPU_ZONE("render batch");
     std::lock_guard lock(s.mutex);
-    const u64 n = std::min<u64>(tail - head, kBatch);
+    if (run >= 2) {
+      for (u32 i = 0; i < run; ++i)
+        sort_order[i] = i;
+      std::stable_sort(sort_order, sort_order + run,
+                       [&](u32 a, u32 b) { return sort_keys[a] < sort_keys[b]; });
+      for (u32 i = 0; i < run; ++i) {
+        if (i + 1 < run)
+          Prefetch(q.slots[(head + sort_order[i + 1]) & kQueueMask]);
+        Execute(s, q, q.slots[(head + sort_order[i]) & kQueueMask]);
+      }
+      head += run;
+      s.perf.sorted_draws += run;
+      s.perf.sort_runs++;
+      PublishHead(q, head);
+      continue;
+    }
+    u64 n = std::min<u64>(avail, kBatch);
+    if (sort_mode > 0) {
+      for (u64 i = run ? 1 : 0; i < n; ++i) {
+        const RenderCommand &c = q.slots[(head + i) & kQueueMask];
+        if (c.type == RenderCommandType::Draw && DrawSortKey(c.draw, sort_mode)) {
+          n = i;
+          break;
+        }
+      }
+      if (!n)
+        n = 1;
+    }
     for (u64 i = 0; i < n; ++i) {
       RenderCommand &c = q.slots[head & kQueueMask];
       if (i + 1 < n)
         Prefetch(q.slots[(head + 1) & kQueueMask]);
       Execute(s, q, c);
       ++head;
-      if ((head & (kPublishEvery - 1)) == 0 || i + 1 == n) {
-        q.head.store(head, std::memory_order_seq_cst);
-        if (q.producer_sleeping.load(std::memory_order_seq_cst)) {
-          std::lock_guard cv_lock(q.cv_mutex);
-          q.cv_space.notify_all();
-        }
-      }
+      if ((head & (kPublishEvery - 1)) == 0 || i + 1 == n)
+        PublishHead(q, head);
     }
   }
   q.active.store(false, std::memory_order_release);

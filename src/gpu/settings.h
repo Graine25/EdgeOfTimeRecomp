@@ -42,6 +42,7 @@ struct Settings {
   static bool ShadowAtlasDirect();
   static bool GeometryVram();
   static bool RenderThread();
+  static i32 SortOpaque();
   static i32 FastSetters();
   static bool FastSettersVerify();
   static bool StencilTwin();

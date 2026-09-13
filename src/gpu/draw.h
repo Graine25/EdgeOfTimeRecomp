@@ -28,6 +28,7 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 primitive_type, i32 base_vert
                                 u32 start_index, u32 index_count,
                                 FloatConstantDirty constants);
 void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count);
+u64 DrawSortKey(const DrawPacket &pk, i32 mode);
 
 void FlushPendingTransitions(VideoState &s);
 void FlushGeometryStaging(VideoState &s);
