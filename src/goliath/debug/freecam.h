@@ -7,3 +7,11 @@ void FreecamTick();
 bool FreecamActive();
 
 }
+
+namespace eot::debug {
+
+void ScenePauseTick();
+
+bool ScenePauseActive();
+
+}

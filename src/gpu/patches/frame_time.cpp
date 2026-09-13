@@ -7,7 +7,6 @@
 
 #include "core/memory_helpers.h"
 #include "goliath/debug/freecam.h"
-#include "goliath/debug/scene_pause.h"
 #include "gpu/settings.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgrBC_UpdateFrameTime);
