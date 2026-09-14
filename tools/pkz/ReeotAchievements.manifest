@@ -1,0 +1,49 @@
+package 0x7EC ReeotAchievements
+languages 1 2 5 3 4
+strings generated/reeot_ach_strings.txt ReeotAchievements
+texture Reeot_Ach_Icons png ../../res/textures/achievement_icons_64.png
+texture Reeot_Ach_Row_Tex from WebOfSkills.pkz Menu_Upgrades_Slot_Selected_DA[Hi]
+texture Reeot_Ach_Details_Tex from WebOfSkills.pkz Menu_WOSDialogueBox_DA[Hi]
+texture Reeot_Ach_IconBox_Tex from WebOfSkills.pkz Menu_WOSBG_Video_DA[Hi]
+texture Reeot_Ach_Amazing_Tex from WebOfSkills.pkz Menu_WOSSpideyAmazing_DA[Hi]
+texture Reeot_Ach_2099_Tex from WebOfSkills.pkz Menu_WOSSpidey2099_DA[Hi]
+texture Reeot_Ach_SliderBar_Tex from Common.pak Menu_SlideMiddle_Normal[Hi]
+texture Reeot_Ach_SliderKnob_Tex from Common.pak Menu_SliderKnob_Normal[Hi]
+texture Reeot_Ach_ScrollArrow_Tex from Common.pak Menu_ScrollArrowUp[Hi]
+texture Reeot_Ach_Cursor_Tex from Main.pak Menu_Curser_Normal[Hi]
+texture Reeot_Ach_Bar_Tex from Common.pak Menu_RightCorner_GreyBar_DA[Hi]
+textstyle Reeot_Ach_Style_Label from WebOfSkills.pkz HUDUpgrade_ListLabel
+textstyle Reeot_Ach_Style_Title from WebOfSkills.pkz HUDUpgrade_DescriptionTitle
+textstyle Reeot_Ach_Style_Text from WebOfSkills.pkz HUDUpgrade_Description
+textstyle Reeot_Ach_Style_Score from WebOfSkills.pkz HUDUpgrade_Golden
+window Reeot_Ach_TextureHolder0 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Icons
+window Reeot_Ach_TextureHolder2 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Row_Tex
+window Reeot_Ach_TextureHolder3 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Details_Tex
+window Reeot_Ach_TextureHolder4 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_IconBox_Tex
+window Reeot_Ach_TextureHolder5 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Amazing_Tex
+window Reeot_Ach_TextureHolder6 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_2099_Tex
+window Reeot_Ach_TextureHolder7 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_SliderBar_Tex
+window Reeot_Ach_TextureHolder8 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_SliderKnob_Tex
+window Reeot_Ach_TextureHolder9 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_ScrollArrow_Tex
+window Reeot_Ach_TextureHolder10 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Cursor_Tex
+window Reeot_Ach_TextureHolder11 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Bar_Tex
+window Reeot_Ach_Page type=0 prio=2700 rect=0,0,1,1 wide=0,0,1,1
+window Reeot_Ach_ProgressBar type=1 parent=Reeot_Ach_Page prio=5 flags=0x1 rect=0.103,0.190,0.331,0.066 texture=Reeot_Ach_Bar_Tex
+window Reeot_Ach_Progress type=4 parent=Reeot_Ach_Page prio=6 flags=0x1 rect=0.115,0.190,0.310,0.066 style=Reeot_Ach_Style_Label textflags=0x30000 align=0,1
+windowgrid Reeot_Ach_Row 1 8 type=1 parent=Reeot_Ach_Page prio=8 flags=0x1 rect=0.120,0.267,0.286,0.060 step=0,0.070 texture=Reeot_Ach_Row_Tex
+windowgrid Reeot_Ach_Label 1 8 type=4 parent=Reeot_Ach_Page prio=10 flags=0x1 rect=0.128,0.272,0.235,0.050 step=0,0.070 style=Reeot_Ach_Style_Label textflags=0x20000 align=0,1
+windowgrid Reeot_Ach_Icon 1 8 type=1 parent=Reeot_Ach_Page prio=10 flags=0x1 rect=0.3688,0.271,0.02925,0.052 step=0,0.070 texture=Reeot_Ach_Icons
+window Reeot_Ach_Cursor type=1 parent=Reeot_Ach_Page prio=12 flags=0x1 rect=0.094,0.267,0.033,0.060 texture=Reeot_Ach_Cursor_Tex
+window Reeot_Ach_SliderBar type=1 parent=Reeot_Ach_Page prio=9 flags=0x1 rect=0.079,0.293,0.008,0.496 texture=Reeot_Ach_SliderBar_Tex
+window Reeot_Ach_SliderKnob type=1 parent=Reeot_Ach_SliderBar prio=10 flags=0x1 rect=-0.498,0,1.976,0.054 texture=Reeot_Ach_SliderKnob_Tex
+window Reeot_Ach_ArrowUp type=1 parent=Reeot_Ach_Page prio=9 flags=0x1 rect=0.069,0.259,0.027,0.024 texture=Reeot_Ach_ScrollArrow_Tex
+window Reeot_Ach_ArrowDown type=1 parent=Reeot_Ach_Page prio=9 flags=0x1 rect=0.067,0.796,0.032,0.027 texture=Reeot_Ach_ScrollArrow_Tex
+window Reeot_Ach_IconBox type=1 parent=Reeot_Ach_Page prio=8 flags=0x1 rect=0.408,0.185,0.354,0.300 texture=Reeot_Ach_IconBox_Tex
+window Reeot_Ach_Details type=1 parent=Reeot_Ach_Page prio=8 flags=0x1 rect=0.429,0.497,0.313,0.377 texture=Reeot_Ach_Details_Tex
+window Reeot_Ach_Name type=4 parent=Reeot_Ach_Details prio=9 flags=0x1 rect=0.027,0.006,0.940,0.116 style=Reeot_Ach_Style_Title textflags=0x30000 align=0,1
+window Reeot_Ach_Desc type=4 parent=Reeot_Ach_Details prio=9 flags=0x1 rect=0.020,0.149,0.960,0.560 style=Reeot_Ach_Style_Label textflags=0x70000 align=0,0
+window Reeot_Ach_Status type=4 parent=Reeot_Ach_Details prio=9 flags=0x1 rect=0.027,0.760,0.600,0.150 style=Reeot_Ach_Style_Text textflags=0x30000 align=0,1
+window Reeot_Ach_Score type=4 parent=Reeot_Ach_Details prio=9 flags=0x1 rect=0.600,0.760,0.373,0.150 style=Reeot_Ach_Style_Score textflags=0x30000 align=2,1
+window Reeot_Ach_PortraitAmazing type=1 parent=Reeot_Ach_Page prio=8 flags=0x1 rect=0.754,0.190,0.167,0.631 texture=Reeot_Ach_Amazing_Tex
+window Reeot_Ach_Portrait2099 type=1 parent=Reeot_Ach_Page prio=8 rect=0.754,0.190,0.167,0.631 texture=Reeot_Ach_2099_Tex
+compress true

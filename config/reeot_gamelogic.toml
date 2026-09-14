@@ -1962,7 +1962,6 @@ out_directory_path = "generated/gamelogic"
 0x88363BE0 = { size = 0x168 }
 0x88363D48 = { size = 0x44 }
 0x883648A8 = { size = 0x78 }
-0x88365338 = { size = 0x10 }
 0x88365348 = { size = 0xE0 }
 0x88365B00 = { size = 0x100 }
 0x88365C00 = { size = 0xBC }
@@ -2270,6 +2269,15 @@ out_directory_path = "generated/gamelogic"
 0x88272FF0 = { name = "eot_SliderControl_SetState", size = 0x94 }
 0x88293820 = { name = "eot_Wnd_SetX", size = 0x74 }
 0x88293AC0 = { name = "eot_Wnd_SetColorBytes", size = 0xA4 }
+0x88215F00 = { name = "eot_Audio_SetFxVolume", size = 0xA8 }
+0x88215FA8 = { name = "eot_Audio_SetMusicVolume", size = 0xA8 }
+0x88216050 = { name = "eot_Audio_SetVoiceVolume", size = 0x8C }
+0x882163A8 = { name = "eot_Subtitles_SetEnabled", size = 0x9C }
+0x88272268 = { name = "eot_AudioOptionsPopup_Prepare", size = 0xF0 }
+0x882723C8 = { name = "eot_AudioOptionsPopup_OnShow", size = 0x164 }
+0x882726E0 = { name = "eot_AudioOptionsPopup_OnUpdate", size = 0x660 }
+0x882731B8 = { name = "eot_DifficultyOptionsPopup_Prepare", size = 0x10C }
+0x88273448 = { name = "eot_DifficultyOptionsPopup_OnUpdate", size = 0x250 }
 0x88280F98 = { name = "eot_WindowComponent_Init", size = 0x128 }
 0x882810C0 = { name = "eot_WindowComponent_ShowHide", size = 0xF0 }
 0x882811B0 = { name = "eot_WindowComponent_Teardown", size = 0x1A8 }
@@ -2278,6 +2286,10 @@ out_directory_path = "generated/gamelogic"
 0x88282110 = { name = "eot_TCRWindow_Init", size = 0x4B8 }
 0x88283800 = { name = "eot_TCRWindow_HandleMessage", size = 0x398 }
 0x88294C38 = { name = "eot_HUDTween_Start", size = 0x430 }
+
+0x88365338 = { name = "eot_HUDGalleryOptions_PushTabs", size = 0x10 }
+0x883651C0 = { name = "eot_HUDGalleryOptions_SetHudGlobalOptions", size = 0x178 }
+0x88365428 = { name = "eot_HUDGalleryOptions_HandleInputEvent", size = 0x6D4 }
 
 0x88345E98 = { name = "eot_HUDSavegameSelect_Construct", size = 0x3D0 }
 0x883469D8 = { name = "eot_HUDSavegameSelect_HandleInputEvent", size = 0x470 }
@@ -2303,4 +2315,16 @@ after_instruction = true
 address = 0x8823B68C
 name = "eot_OptionsBar_NavRightBound6"
 registers = ["r29", "cr6", "xer"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x88365340
+name = "eot_GalleryTabs_Count"
+registers = ["r3", "r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x88365318
+name = "eot_GalleryTabs_Labels"
+registers = ["r6", "r31"]
 after_instruction = true

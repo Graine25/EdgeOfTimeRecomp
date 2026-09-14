@@ -79,7 +79,28 @@ add_custom_command(
             ${REEOT_MENU_STRINGS}
     COMMENT "Authoring ReeotMenu.pkz from tools/pkz/ReeotMenu.manifest"
     VERBATIM)
-add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}")
+set(REEOT_ACH_STRINGS "${REEOT_MENU_STRINGS_DIR}/reeot_ach_strings.txt")
+add_custom_command(
+    OUTPUT "${REEOT_ACH_STRINGS}"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_ach_strings.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/embed/metadata/achievements.toml" "${REEOT_ACH_STRINGS}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_ach_strings.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/embed/metadata/achievements.toml"
+    COMMENT "Writing the achievement strings from the rexglue dump"
+    VERBATIM)
+set(REEOT_ACH_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotAchievements.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_ACH_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotAchievements.manifest" "${REEOT_ACH_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotAchievements.manifest"
+            "${REEOT_ACH_STRINGS}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/achievement_icons_64.png"
+    COMMENT "Authoring ReeotAchievements.pkz from tools/pkz/ReeotAchievements.manifest"
+    VERBATIM)
+add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
@@ -93,6 +114,13 @@ reeot_embed_generated(
     HEADER      "${REEOT_GEN_DIR}/embedded_menu_package.h"
     SOURCES_VAR REEOT_EMBED_MENU_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_MENU_PACKAGE_SOURCE})
+reeot_embed_generated(
+    INPUT       "${REEOT_ACH_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotAchievements.pkz"
+    ACCESSOR    EmbeddedAchievementsPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_achievements_package.h"
+    SOURCES_VAR REEOT_EMBED_ACH_PACKAGE_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ACH_PACKAGE_SOURCE})
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -213,6 +241,8 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/patches/sd_bonus_suits.cpp
         src/gamelogic/ui/pause_menu.cpp
         src/gamelogic/ui/options_pages.cpp
+        src/gamelogic/ui/gallery_achievements.cpp
+        src/gamelogic/ui/achievements_page.cpp
         src/gamelogic/ui/save_select.cpp
         src/gamelogic/ui/button_prompts.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
