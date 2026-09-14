@@ -34,11 +34,13 @@
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"
 #include "platform/update_check.h"
+#include "installer/uninstall.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "platform/crash_handler.h"
 #include "platform/desktop_shortcut.h"
 #include "platform/fatal_dialog.h"
+#include "platform/language.h"
 #include "platform/process.h"
 #include "ui/theme.h"
 
@@ -48,9 +50,13 @@ REXCVAR_DEFINE_STRING(profile, "default", "EdgeOfTime/Config", "Active profile n
 REXCVAR_DEFINE_BOOL(repair, false, "EdgeOfTime/Config", "Open installer in repair mode");
 REXCVAR_DEFINE_BOOL(eot_no_installer, false, "EdgeOfTime/Config", "Never open the installer");
 #endif
+REXCVAR_DEFINE_BOOL(uninstall, false, "EdgeOfTime/Config", "Uninstall and keep saves");
 
 REXCVAR_DEFINE_BOOL(eot_achievement_notifications, true, "EdgeOfTime/Config", "Show achievement pop-ups");
 REXCVAR_DEFINE_BOOL(eot_background_input, false, "EdgeOfTime/Input", "Controller works in background");
+REXCVAR_DEFINE_STRING(eot_language, "auto", "EdgeOfTime/Config", "Language the game uses")
+    .allowed({"auto", "en", "fr", "it", "de", "es"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace {
 std::filesystem::path g_config_path;
@@ -218,10 +224,24 @@ void ReeotApp::OnPostInitLogging() {
   if (!install_root_.empty())
     EOT_INFO("  profile: {} ({})", active_profile_, profile_root_.string());
 
+  if (REXCVAR_GET(uninstall)) {
+    eot::installer::RunUninstall();
+    rex::FlushLogging();
+    std::_Exit(0);
+  }
+
 #ifdef REEOT_BUILD_INSTALLER
   repair_requested_ = REXCVAR_GET(repair);
   REXCVAR_SET(repair, false);
 #endif
+
+  {
+    const std::string wanted = REXCVAR_GET(eot_language);
+    const uint32_t xlanguage = eot::platform::XLanguageFor(wanted);
+    rex::cvar::SetFlagByName("user_language", std::to_string(xlanguage));
+    EOT_INFO("[language] eot_language {} -> {} (XLanguage {})", wanted, eot::platform::XLanguageName(xlanguage),
+             xlanguage);
+  }
 
   eot::platform::UpdateInstalledCopy(install_root_);
   if (const auto done = eot::platform::LastInstallUpdate())

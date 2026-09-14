@@ -65,7 +65,7 @@ double FovScale() {
 
 std::atomic<int> g_fov_logs{0};
 
-constexpr uint32_t kQualityLevel = 0x824E56D8;
+constexpr uint32_t kActiveLanguage = 0x824E56D8;
 std::atomic<int> g_quality_logs{0};
 
 constexpr uint32_t kShadowCascades = 12;
@@ -115,11 +115,11 @@ REX_HOOK_RAW(eot_RenderComposition_ExecuteChain) {
 REX_HOOK_RAW(eot_PAK_SelectLanguage) {
   const uint32_t record = ctx.r3.u32;
   const int32_t forced = Settings::QualityLevel();
-  if (forced >= 0 && eot::mem::load<uint32_t>(kQualityLevel) != static_cast<uint32_t>(forced)) {
-    eot::mem::store<uint32_t>(kQualityLevel, static_cast<uint32_t>(forced));
-    eot::mem::store<uint32_t>(kQualityLevel + 4, static_cast<uint32_t>(forced));
+  if (forced >= 0 && eot::mem::load<uint32_t>(kActiveLanguage) != static_cast<uint32_t>(forced)) {
+    eot::mem::store<uint32_t>(kActiveLanguage, static_cast<uint32_t>(forced));
+    eot::mem::store<uint32_t>(kActiveLanguage + 4, static_cast<uint32_t>(forced));
   }
-  const uint32_t before = eot::mem::load<uint32_t>(kQualityLevel);
+  const uint32_t before = eot::mem::load<uint32_t>(kActiveLanguage);
   __imp__eot_PAK_SelectLanguage(ctx, base);
   if (!record || g_quality_logs.load(std::memory_order_relaxed) >= 24)
     return;
@@ -139,8 +139,8 @@ REX_HOOK_RAW(eot_PAK_SelectLanguage) {
   std::string levels;
   for (uint32_t i = 0; i < count; ++i)
     levels += std::to_string(key[2 + i]) + (i + 1 < count ? "," : "");
-  EOT_DEBUG("[quality] record {:#x}: levels [{}] quality {} -> {} (selected index {} mask {:#x})",
-           record, levels, before, eot::mem::load<uint32_t>(kQualityLevel),
+  EOT_DEBUG("[language] record {:#x}: languages [{}] active {} -> {} (selected index {} mask {:#x})",
+           record, levels, before, eot::mem::load<uint32_t>(kActiveLanguage),
            eot::mem::load<uint32_t>(record + 500), eot::mem::load<uint32_t>(record + 152));
 }
 
