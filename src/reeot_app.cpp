@@ -8,11 +8,13 @@
 #include <string>
 #include <string_view>
 
+#include <SDL3/SDL.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/perf/counter.h>
 #include <rex/runtime.h>
 #include <rex/ui/keybinds.h>
+#include <rex/ui/overlay/achievement_toast.h>
 #include <rex/version.h>
 
 #if defined(_WIN32)
@@ -47,8 +49,27 @@ REXCVAR_DEFINE_BOOL(repair, false, "EdgeOfTime/Config", "Open installer in repai
 REXCVAR_DEFINE_BOOL(eot_no_installer, false, "EdgeOfTime/Config", "Never open the installer");
 #endif
 
+REXCVAR_DEFINE_BOOL(eot_achievement_notifications, true, "EdgeOfTime/Config", "Show achievement pop-ups");
+REXCVAR_DEFINE_BOOL(eot_background_input, false, "EdgeOfTime/Input", "Controller works in background");
+
 namespace {
 std::filesystem::path g_config_path;
+
+void ApplyBackgroundInput(bool on) {
+  SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, on ? "1" : "0");
+  EOT_INFO("[input] controller input in the background: {}", on ? "on" : "off");
+}
+
+class GatedAchievementToast final : public rex::ui::AchievementToastDialog {
+public:
+  using AchievementToastDialog::AchievementToastDialog;
+  void Push(const rex::system::AchievementEvent &event) override {
+    if (REXCVAR_GET(eot_achievement_notifications))
+      AchievementToastDialog::Push(event);
+    else
+      EOT_INFO("[achievements] unlocked with the notifications off");
+  }
+};
 }
 
 REXCVAR_DEFINE_COMMAND(
@@ -406,8 +427,18 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
 }
 #endif
 
+std::unique_ptr<rex::ui::AchievementNotificationDialog> ReeotApp::CreateAchievementNotificationDialog() {
+  if (!imgui_drawer() || !immediate_drawer() || !runtime())
+    return nullptr;
+  return std::make_unique<GatedAchievementToast>(imgui_drawer(), immediate_drawer(), runtime());
+}
+
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   eot::goliath::InstallPcControls();
+  ApplyBackgroundInput(REXCVAR_GET(eot_background_input));
+  rex::cvar::RegisterChangeCallback("eot_background_input", [](std::string_view, std::string_view value) {
+    ApplyBackgroundInput(value == "true" || value == "1");
+  });
   if (rex::cvar::Query<bool>("eot_debug_mode"))
     SetCvarValue("mnk_mode", "false");
 

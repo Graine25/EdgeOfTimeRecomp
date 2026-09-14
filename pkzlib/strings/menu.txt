@@ -1,8 +1,11 @@
 # NAME<TAB>text: the menu strings, English for every language.
 REEOT_VIDEO	Video
 REEOT_GRAPHICS	Graphics
+REEOT_AUDIO_TITLE	AUDIO
 REEOT_VIDEO_TITLE	VIDEO
 REEOT_GRAPHICS_TITLE	GRAPHICS
+REEOT_GAME_TITLE	GAME
+REEOT_CONTROLS_TITLE	CONTROLS
 REEOT_OPT_FULLSCREEN	Fullscreen
 REEOT_OPT_RESOLUTION	Resolution
 REEOT_OPT_ASPECT	Aspect Ratio
@@ -81,6 +84,40 @@ REEOT_DESC_HEAT	Heat vision and the shimmer of hot air.
 REEOT_DESC_FILM_GRAIN	A fine grain over the whole picture.
 REEOT_DESC_HALO	Light bleeding from the brightest parts of the picture.
 REEOT_DESC_COLOR_GRADING	The game's own colour grade. Off shows the ungraded image.
+REEOT_OPT_SFX_VOLUME	FX Volume
+REEOT_OPT_VOICE_VOLUME	Voice Volume
+REEOT_OPT_MUSIC_VOLUME	Music Volume
+REEOT_OPT_SUBTITLES	Subtitles
+REEOT_OPT_SPATIAL_AUDIO	Spatial Audio
+REEOT_OPT_BATTLE_THEME	Battle Theme
+REEOT_OPT_VIBRATION	Vibration
+REEOT_OPT_CAMERA_Y	Camera Y-Axis
+REEOT_OPT_CAMERA_X	Camera X-Axis
+REEOT_OPT_DEBUG_MODE	Debug Mode
+REEOT_OPT_ACHIEVEMENT_TOASTS	Achievement Notifications
+REEOT_OPT_GLYPHS	Button Glyphs
+REEOT_OPT_MNK	Keyboard and Mouse
+REEOT_OPT_MOUSE_SENSITIVITY	Mouse Sensitivity
+REEOT_OPT_BACKGROUND_INPUT	Background Input
+REEOT_VAL_NORMAL	Normal
+REEOT_VAL_INVERTED	Inverted
+REEOT_VAL_XBOX	Xbox
+REEOT_VAL_PLAYSTATION	PlayStation
+REEOT_DESC_SFX_VOLUME	How loud the sound effects are.
+REEOT_DESC_VOICE_VOLUME	How loud the dialogue is.
+REEOT_DESC_MUSIC_VOLUME	How loud the music is.
+REEOT_DESC_SUBTITLES	Shows what is said as text.
+REEOT_DESC_SPATIAL_AUDIO	Places sounds around the listener. Not wired to anything yet.
+REEOT_DESC_BATTLE_THEME	Plays the battle music over fights. Not wired to anything yet.
+REEOT_DESC_VIBRATION	Rumbles the controller.
+REEOT_DESC_CAMERA_Y	Inverted pushes the camera down when the stick goes up.
+REEOT_DESC_CAMERA_X	Inverted turns the camera left when the stick goes right.
+REEOT_DESC_DEBUG_MODE	Opens the game's own developer level selector from the front screen instead of the retail one. B returns to the front screen.
+REEOT_DESC_ACHIEVEMENT_TOASTS	Shows a notification when an achievement is unlocked. Off keeps the unlock and skips the pop-up.
+REEOT_DESC_GLYPHS	Which controller's buttons the prompts show. Auto follows the controller in hand. Only the Xbox art exists yet.
+REEOT_DESC_MNK	Plays with the keyboard as the controller and the mouse as the right stick.
+REEOT_DESC_MOUSE_SENSITIVITY	How far the camera turns for a mouse movement, while Keyboard and Mouse is on.
+REEOT_DESC_BACKGROUND_INPUT	Keeps reading the controller while another window has the focus.
 REEOT_DESC_RESTART	Takes effect after a restart.
 REEOT_RESTART_TITLE	Restart now?
 REEOT_RESTART_BODY	Some of these settings take effect after a restart. Restart the game now?
