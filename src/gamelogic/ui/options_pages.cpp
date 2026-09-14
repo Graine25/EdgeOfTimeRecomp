@@ -269,6 +269,8 @@ uint32_t LayoutIndex(const Layout *layout) { return layout == &kNarrow ? 1 : 0; 
 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
 constexpr Choice kOnOffSwapped[] = {{"REEOT_VAL_ON", "false"}, {"REEOT_VAL_OFF", "true"}};
+constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
+                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"}};
 constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL_INVERTED", "true"}};
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
@@ -286,8 +288,6 @@ constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_B
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"}, {"REEOT_VAL_XBOX", "xbox"},
                               {"REEOT_VAL_PLAYSTATION", "playstation"}};
-constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
-                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"}};
 
 bool RenderScaleApplies() {
   return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "native";
@@ -310,6 +310,8 @@ constexpr Setting kAudioSettings[] = {
      .choices = kOnOff},
     {.label = "REEOT_OPT_BATTLE_THEME", .description = "REEOT_DESC_BATTLE_THEME", .cvar = "eot_battle_theme",
      .choices = kOnOff},
+    {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
+     .choices = kLanguages, .restart = true},
 };
 
 constexpr Setting kVideoSettings[] = {
@@ -374,8 +376,6 @@ constexpr Setting kGameSettings[] = {
      .choices = kOnOff, .restart = true},
     {.label = "REEOT_OPT_ACHIEVEMENT_TOASTS", .description = "REEOT_DESC_ACHIEVEMENT_TOASTS",
      .cvar = "eot_achievement_notifications", .choices = kOnOff},
-    {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
-     .choices = kLanguages, .restart = true},
 };
 
 constexpr Setting kControlsSettings[] = {
