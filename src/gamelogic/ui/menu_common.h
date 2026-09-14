@@ -62,6 +62,26 @@ inline void ConsumeEvent(uint32_t event) {
     eot::mem::store<uint8_t>(event + kEvtConsumed, 0);
 }
 
+inline constexpr uint32_t kSoundApiPtr = 0x883CA204;
+inline constexpr uint32_t kSoundCommitPtr = 0x883CA1DC;
+inline constexpr uint32_t kSoundPlaySlot = 20;
+inline constexpr uint32_t kSoundBank = 12;
+inline constexpr uint32_t kCueAccept = 0x226397BB;
+inline constexpr uint32_t kCueBack = 0xDDD5DB45;
+inline constexpr uint32_t kCueUp = 0x1B325446;
+inline constexpr uint32_t kCueDown = 0x46DE054A;
+inline constexpr uint32_t kCueChange = 0xF4D03DBA;
+inline constexpr uint32_t kCueDenied = 0x6C688CC5;
+
+inline void PlayCue(const PPCContext &ctx, uint8_t *base, uint32_t cue) {
+  const uint32_t api = eot::mem::load<uint32_t>(kSoundApiPtr);
+  const uint32_t commit = eot::mem::load<uint32_t>(kSoundCommitPtr);
+  if (!api || !commit)
+    return;
+  const uint32_t sound = hud::CallAt(ctx, base, eot::mem::load<uint32_t>(api + kSoundPlaySlot), kSoundBank, cue);
+  hud::CallAt(ctx, base, eot::mem::load<uint32_t>(commit), sound);
+}
+
 inline constexpr uint32_t kMMMemoryMgrAlloc = 0x820820A8;
 inline uint32_t AllocGuest(const PPCContext &ctx, uint8_t *base, uint32_t size) {
   const uint32_t block = hud::CallAt(ctx, base, kMMMemoryMgrAlloc, size, 16, 0xFFFFFFFFu, 0);
