@@ -34,6 +34,7 @@
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"
 #include "platform/update_check.h"
+#include "installer/uninstall.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "platform/crash_handler.h"
@@ -54,6 +55,9 @@ REXCVAR_DEFINE_BOOL(eot_no_installer, false, "EdgeOfTime/Config",
                     "Never open the installer: with no recorded install and no game folder "
                     "given, quit with a message instead.");
 #endif
+REXCVAR_DEFINE_BOOL(uninstall, false, "EdgeOfTime/Config",
+                    "Uninstall: remove the EdgeOfTimeRecompiled install after copying the saves "
+                    "into the Downloads folder, then quit. (reeot.exe --uninstall)");
 
 REXCVAR_DEFINE_BOOL(eot_achievement_notifications, true, "EdgeOfTime/Config",
                     "Show a notification when an achievement is unlocked. Off keeps the unlock "
@@ -226,6 +230,12 @@ void ReeotApp::OnPostInitLogging() {
   EOT_INFO("  sdk:     rexglue-v" REXGLUE_VERSION_STRING " " REXGLUE_BUILD_PLATFORM " @" REXGLUE_BUILD_TIMESTAMP);
   if (!install_root_.empty())
     EOT_INFO("  profile: {} ({})", active_profile_, profile_root_.string());
+
+  if (REXCVAR_GET(uninstall)) {
+    eot::installer::RunUninstall();
+    rex::FlushLogging();
+    std::_Exit(0);
+  }
 
 #ifdef REEOT_BUILD_INSTALLER
   repair_requested_ = REXCVAR_GET(repair);
