@@ -40,6 +40,7 @@
 #include "platform/crash_handler.h"
 #include "platform/desktop_shortcut.h"
 #include "platform/fatal_dialog.h"
+#include "platform/language.h"
 #include "platform/process.h"
 #include "ui/theme.h"
 
@@ -64,6 +65,11 @@ REXCVAR_DEFINE_BOOL(eot_achievement_notifications, true, "EdgeOfTime/Config",
                     "and skips the pop-up.");
 REXCVAR_DEFINE_BOOL(eot_background_input, false, "EdgeOfTime/Input",
                     "Keep reading the controller while another window has the focus.");
+REXCVAR_DEFINE_STRING(eot_language, "auto", "EdgeOfTime/Config",
+                      "The language the game boots in: auto follows the Windows display language "
+                      "(English when it is not one the game ships), or en, fr, it, de, es.")
+    .allowed({"auto", "en", "fr", "it", "de", "es"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace {
 std::filesystem::path g_config_path;
@@ -241,6 +247,14 @@ void ReeotApp::OnPostInitLogging() {
   repair_requested_ = REXCVAR_GET(repair);
   REXCVAR_SET(repair, false);
 #endif
+
+  {
+    const std::string wanted = REXCVAR_GET(eot_language);
+    const uint32_t xlanguage = eot::platform::XLanguageFor(wanted);
+    rex::cvar::SetFlagByName("user_language", std::to_string(xlanguage));
+    EOT_INFO("[language] eot_language {} -> {} (XLanguage {})", wanted, eot::platform::XLanguageName(xlanguage),
+             xlanguage);
+  }
 
   eot::platform::UpdateInstalledCopy(install_root_);
   if (const auto done = eot::platform::LastInstallUpdate())

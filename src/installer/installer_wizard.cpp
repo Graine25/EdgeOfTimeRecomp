@@ -79,6 +79,14 @@ void BuildRows(const eot::platform::Display &display) {
   frame_rate.values.push_back({"Unlimited", "0"});
   g_rows.push_back(std::move(frame_rate));
   g_rows.push_back({"Vsync", "eot_vsync", {{"Off", "false"}, {"On", "true"}}});
+  g_rows.push_back({"Language",
+                    "eot_language",
+                    {{"Auto", "auto"},
+                     {"English", "en"},
+                     {"Fran\xc3\xa7" "ais", "fr"},
+                     {"Italiano", "it"},
+                     {"Deutsch", "de"},
+                     {"Espa\xc3\xb1" "ol", "es"}}});
 }
 
 int RowSelected(const SettingRow &row) {

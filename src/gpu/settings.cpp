@@ -93,10 +93,10 @@ REXCVAR_DEFINE_DOUBLE(eot_shadow_distance_scale, 1.0, "EdgeOfTime/Graphics",
                       "Multiplier on the level's shadow distance (1 = as the level asks; "
                       "2 casts shadows twice as far at the same map resolution).");
 REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "EdgeOfTime/Debug",
-                     "Reverse-engineering aid: force the content quality level the pak loader "
-                     "matches against each resource's level list (-1 = the game's own, 1 on the "
-                     "console; the paks carry 1,2,3,4,5,8,9). Not a user option until the levels "
-                     "are understood.");
+                     "Reverse-engineering aid, named before the dword was understood: force the "
+                     "game's own language id the pak loader matches against each package's list "
+                     "(-1 = what the boot resolved; 1 English, 2 French, 3 Italian, 4 German, 5 "
+                     "Spanish). The setting is eot_language.");
 REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
                      "Shadow map size per cascade in texels: 0 = follow the render resolution "
                      "(the console's 1024 scaled like the frame, 1750 at 1080p), or 1024 / 2048 / "

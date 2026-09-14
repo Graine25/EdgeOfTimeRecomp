@@ -286,6 +286,8 @@ constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_B
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"}, {"REEOT_VAL_XBOX", "xbox"},
                               {"REEOT_VAL_PLAYSTATION", "playstation"}};
+constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
+                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"}};
 
 bool RenderScaleApplies() {
   return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "native";
@@ -372,6 +374,8 @@ constexpr Setting kGameSettings[] = {
      .choices = kOnOff, .restart = true},
     {.label = "REEOT_OPT_ACHIEVEMENT_TOASTS", .description = "REEOT_DESC_ACHIEVEMENT_TOASTS",
      .cvar = "eot_achievement_notifications", .choices = kOnOff},
+    {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
+     .choices = kLanguages, .restart = true},
 };
 
 constexpr Setting kControlsSettings[] = {
