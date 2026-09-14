@@ -95,7 +95,8 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
   EOT_DEBUG("[pkg] mount id {} '{}' -> flags {:#x} openFlags {:#x}", id, GuestString(record),
            package ? eot::mem::load<uint32_t>(package + 160) : 0u,
            package ? eot::mem::load<uint32_t>(package + 164) : 0u);
-  if (id != eot::ui::kReeotPackageId && id != eot::ui::kReeotMenuPackageId)
+  if (id != eot::ui::kReeotPackageId && id != eot::ui::kReeotMenuPackageId &&
+      id != eot::ui::kReeotAchievementsPackageId)
     return;
   if (package) {
     const uint32_t flags = eot::mem::load<uint32_t>(package + 160);
@@ -122,6 +123,7 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
   static constexpr Package kPackages[] = {
       {kReeotPackageId, kReeotPackageName},
       {kReeotMenuPackageId, kReeotMenuPackageName},
+      {kReeotAchievementsPackageId, kReeotAchievementsPackageName},
   };
   for (const Package &p : kPackages) {
     if (eot::mem::load<uint32_t>(kPackageMgr + kMgrPackages + p.id * 4)) {

@@ -40,6 +40,7 @@ protected:
   std::optional<rex::PathConfig> OnFinalizePaths(const rex::PathConfig &defaults,
                                                  std::function<void(rex::PathConfig)> resume) override;
   std::unique_ptr<rex::ui::ImmediateDrawer> OnCreateImmediateDrawer() override;
+  std::unique_ptr<rex::ui::AchievementNotificationDialog> CreateAchievementNotificationDialog() override;
   void OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) override;
   void OnConfigureFonts(ImFontAtlas *atlas) override;
   void OnConfigureStyle(ImGuiStyle &imgui_style, rex::ui::Style &ui_style) override;
