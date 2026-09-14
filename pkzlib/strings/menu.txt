@@ -118,6 +118,13 @@ REEOT_DESC_GLYPHS	Which controller's buttons the prompts show. Auto follows the 
 REEOT_DESC_MNK	Plays with the keyboard as the controller and the mouse as the right stick.
 REEOT_DESC_MOUSE_SENSITIVITY	How far the camera turns for a mouse movement, while Keyboard and Mouse is on.
 REEOT_DESC_BACKGROUND_INPUT	Keeps reading the controller while another window has the focus.
+REEOT_OPT_LANGUAGE	Language
+REEOT_VAL_ENGLISH	English
+REEOT_VAL_FRENCH	Français
+REEOT_VAL_ITALIAN	Italiano
+REEOT_VAL_GERMAN	Deutsch
+REEOT_VAL_SPANISH	Español
+REEOT_DESC_LANGUAGE	The language of the text and, where the game has it, the speech. Auto follows the Windows display language. Read when the game starts.
 REEOT_DESC_RESTART	Takes effect after a restart.
 REEOT_RESTART_TITLE	Restart now?
 REEOT_RESTART_BODY	Some of these settings take effect after a restart. Restart the game now?

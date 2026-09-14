@@ -138,12 +138,14 @@ set(REEOT_SOURCES
     src/platform/desktop_shortcut.cpp
     src/platform/process.cpp
     src/platform/display.cpp
+    src/platform/language.cpp
     src/platform/fatal_dialog.cpp
     src/platform/crash_handler.cpp
     src/ui/theme.cpp
     src/ui/watermark.cpp
     src/platform/update_check.cpp
     src/installer/install_registry.cpp
+    src/installer/uninstall.cpp
     src/installer/self_install.cpp
     src/installer/dlc_publish.cpp
     ${REEOT_EMBED_SOURCES}
@@ -181,6 +183,7 @@ set(REEOT_SOURCES
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
+    src/goliath/ui/hud_copy_guard.cpp
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
     src/gpu/shaders/guest_shaders.cpp

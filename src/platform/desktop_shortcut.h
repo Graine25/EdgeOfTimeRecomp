@@ -16,4 +16,6 @@ namespace eot::platform {
 bool CreateDesktopShortcut(const std::filesystem::path &target, std::string_view name,
                            std::string &error);
 
+bool RemoveDesktopShortcut(std::string_view name);
+
 }

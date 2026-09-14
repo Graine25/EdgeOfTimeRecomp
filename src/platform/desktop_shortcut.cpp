@@ -84,6 +84,19 @@ bool CreateDesktopShortcut(const std::filesystem::path &target, std::string_view
   return ok;
 }
 
+bool RemoveDesktopShortcut(std::string_view name) {
+  const std::wstring file = ShortcutFileName(name);
+  if (file.empty())
+    return false;
+  PWSTR desktop = nullptr;
+  if (FAILED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &desktop)))
+    return false;
+  const std::filesystem::path lnk = std::filesystem::path(desktop) / (file + L".lnk");
+  CoTaskMemFree(desktop);
+  std::error_code ec;
+  return std::filesystem::remove(lnk, ec);
+}
+
 }
 
 #else
@@ -94,6 +107,8 @@ bool CreateDesktopShortcut(const std::filesystem::path &, std::string_view, std:
   error = "desktop shortcuts are only made on Windows";
   return false;
 }
+
+bool RemoveDesktopShortcut(std::string_view) { return false; }
 
 }
 
