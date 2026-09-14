@@ -149,6 +149,7 @@ set(REEOT_SOURCES
     src/platform/desktop_shortcut.cpp
     src/platform/process.cpp
     src/platform/display.cpp
+    src/platform/language.cpp
     src/platform/fatal_dialog.cpp
     src/platform/crash_handler.cpp
     src/ui/theme.cpp
