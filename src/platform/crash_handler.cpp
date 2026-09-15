@@ -71,6 +71,31 @@ const char *AvOperationName(rex::arch::Exception::AccessViolationOperation op) {
 
 bool InModule(u64 address, u64 base) { return base && address >= base && address - base < kHostImageSpan; }
 
+std::string ForeignModuleAt(u64 address) {
+#if defined(_WIN32)
+  HMODULE module = nullptr;
+  if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                          reinterpret_cast<LPCWSTR>(address), &module) ||
+      !module)
+    return {};
+  wchar_t path[MAX_PATH] = {};
+  const DWORD n = GetModuleFileNameW(module, path, MAX_PATH);
+  if (!n)
+    return fmt::format("{:#018x}+{:#x}", reinterpret_cast<u64>(module), address - reinterpret_cast<u64>(module));
+  const wchar_t *name = path;
+  for (const wchar_t *p = path; *p; ++p)
+    if (*p == L'\\' || *p == L'/')
+      name = p + 1;
+  std::string narrow;
+  for (const wchar_t *p = name; *p; ++p)
+    narrow.push_back(*p < 0x80 ? static_cast<char>(*p) : '?');
+  return fmt::format("{}+{:#x}", narrow, address - reinterpret_cast<u64>(module));
+#else
+  (void)address;
+  return {};
+#endif
+}
+
 void LogBacktrace(u64 base) {
 #if defined(_WIN32)
   void *frames[32] = {};
@@ -83,7 +108,7 @@ void LogBacktrace(u64 base) {
     if (InModule(a, base))
       EOT_CRITICAL("    [{:>2}] {:#018x}  ({}+{:#010x})", i, a, HostModuleName(), a - base);
     else
-      EOT_CRITICAL("    [{:>2}] {:#018x}", i, a);
+      EOT_CRITICAL("    [{:>2}] {:#018x}  ({})", i, a, ForeignModuleAt(a));
   }
 #else
   (void)base;
@@ -140,6 +165,8 @@ bool CrashHandler(rex::arch::Exception *ex, void *) {
   EOT_CRITICAL("exception: {} @ host pc {:#018x}", ExceptionCodeName(ex->code()), ex->pc());
   if (InModule(ex->pc(), host_base))
     EOT_CRITICAL("faulting RVA: {}+{:#010x}", HostModuleName(), ex->pc() - host_base);
+  else
+    EOT_CRITICAL("faulting module: {}", ForeignModuleAt(ex->pc()));
 
   if (ex->code() == rex::arch::Exception::Code::kAccessViolation) {
     const u64 fa = ex->fault_address();
