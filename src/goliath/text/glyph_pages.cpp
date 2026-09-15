@@ -146,7 +146,7 @@ uint32_t InstallIconPage(const PPCContext &ctx, uint8_t *base, uint32_t font, ui
     StoreF(rec + kRecV1, cell.v1);
     StoreF(rec + kRecAdvance, cell.aspect > 0 ? height * (kUnitsY / kUnitsX) * cell.aspect : LoadF(src + kRecAdvance));
     StoreF(rec + kRecHeight, height);
-    StoreF(rec + kRecTop, LoadF(src + kRecTop));
+    StoreF(rec + kRecTop, LoadF(src + kRecTop) + cell.lift / kUnitsY);
     eot::mem::store<uint32_t>(rec + kRecFlags, kFlagLive);
   }
   return at;

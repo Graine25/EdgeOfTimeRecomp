@@ -14,6 +14,7 @@ OUT_DDS = os.path.join(ROOT, "res", "textures", "Reeot_Icons.dds")
 OUT_TABLE = os.path.join(HERE, "icons.txt")
 
 SCALE = 3
+CAP_FILL = 0.86
 SHEET_WIDTH = 1024
 PAD = 2
 
@@ -98,6 +99,12 @@ def fit(image, width, height):
     return cell
 
 
+def inset(image, width, height):
+    cell = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    cell.alpha_composite(image, ((width - image.width) // 2, (height - image.height) // 2))
+    return cell
+
+
 def cluster(name, key):
     if name == "MOUSE":
         return art("Mouse_Simple_Key_Light")
@@ -155,11 +162,12 @@ def main():
             missing.append(name)
             continue
         width = min(2 * key, max(key, round(key * image.width / image.height)))
-        x0, y0, x1, y1 = shelf.put(fit(image, width, key))
+        x0, y0, x1, y1 = shelf.put(inset(fit(image, round(width * CAP_FILL), round(key * CAP_FILL)), width, key))
         lines.append(f"cap {name} {x0} {y0} {x1} {y1}")
     for name in CLUSTERS:
         image = cluster(name, key)
-        cell = fit(image, key * 3 // 2, key) if name != "MOUSE" else fit(image, key, key)
+        width = key * 3 // 2 if name != "MOUSE" else key
+        cell = inset(fit(image, round(width * CAP_FILL), round(key * CAP_FILL)), width, key)
         x0, y0, x1, y1 = shelf.put(cell)
         lines.append(f"cap {name} {x0} {y0} {x1} {y1}")
 
