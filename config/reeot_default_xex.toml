@@ -2800,6 +2800,7 @@ strcpy_s           = 0x8233E498
 0x821839C8 = { name = "eot_HUD2DObject_BuildDrawRecord" }
 0x82186448 = { name = "eot_HUDWindowBC_BuildDrawRecords" }
 0x821AADD0 = { name = "eot_PKPackage_FindString" }
+0x8208CC00 = { name = "eot_StringTable_FindSlotLine", size = 0x68 }
 0x821AAEF0 = { name = "eot_PAK_LoadStringTableLibrary" }
 0x821AB250 = { name = "eot_PAK_SelectLanguage" }
 0x821AB378 = { name = "eot_PAK_StoreStringTable" }
