@@ -100,7 +100,8 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
            package ? eot::mem::load<uint32_t>(package + 160) : 0u,
            package ? eot::mem::load<uint32_t>(package + 164) : 0u);
   if (id != eot::ui::kReeotPackageId && id != eot::ui::kReeotMenuPackageId &&
-      id != eot::ui::kReeotAchievementsPackageId && id != eot::ui::kReeotRussianPackageId)
+      id != eot::ui::kReeotAchievementsPackageId && id != eot::ui::kReeotRussianPackageId &&
+      id != eot::ui::kReeotIconsPackageId)
     return;
   if (package) {
     const uint32_t flags = eot::mem::load<uint32_t>(package + 160);
@@ -131,6 +132,7 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
       {kReeotPackageId, kReeotPackageName, nullptr},
       {kReeotMenuPackageId, kReeotMenuPackageName, nullptr},
       {kReeotAchievementsPackageId, kReeotAchievementsPackageName, nullptr},
+      {kReeotIconsPackageId, kReeotIconsPackageName, nullptr},
       {kReeotRussianPackageId, kReeotRussianPackageName, "ru"},
   };
   const std::string language = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));

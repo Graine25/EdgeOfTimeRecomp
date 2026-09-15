@@ -1,4 +1,4 @@
-#include "goliath/input/pc_controls.h"
+#include "goliath/controller/pc_controls.h"
 
 #include <cstdint>
 #include <vector>
@@ -14,6 +14,7 @@ REXCVAR_DEFINE_STRING(eot_key_light_attack, "LMB", EOT_KEYS, "Light attack (X)")
 REXCVAR_DEFINE_STRING(eot_key_heavy_attack, "MMB", EOT_KEYS, "Heavy attack (Y)");
 REXCVAR_DEFINE_STRING(eot_key_web, "E", EOT_KEYS, "Web / interact (B)");
 REXCVAR_DEFINE_STRING(eot_key_grab, "Q", EOT_KEYS, "Grab (RB)");
+REXCVAR_DEFINE_STRING(eot_key_special_attack, "V", EOT_KEYS, "Special attack / throw object (LB)");
 REXCVAR_DEFINE_STRING(eot_key_web_swing, "RMB", EOT_KEYS, "Web swing, hold (RT)");
 REXCVAR_DEFINE_STRING(eot_key_hyper_sense, "Shift", EOT_KEYS,
                       "Hyper-Sense / Accelerated Decoy (LT)");
@@ -58,6 +59,7 @@ void InstallPcControls() {
       Button("heavy_attack", "eot_key_heavy_attack", X_INPUT_GAMEPAD_Y),
       Button("web", "eot_key_web", X_INPUT_GAMEPAD_B),
       Button("grab", "eot_key_grab", X_INPUT_GAMEPAD_RIGHT_SHOULDER),
+      Button("special_attack", "eot_key_special_attack", X_INPUT_GAMEPAD_LEFT_SHOULDER),
       Trigger("web_swing", "eot_key_web_swing", false),
       Trigger("hyper_sense", "eot_key_hyper_sense", true),
       Button("time_stop", "eot_key_time_stop",

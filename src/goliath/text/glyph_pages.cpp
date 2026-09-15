@@ -107,6 +107,51 @@ void NoteGlyphPackage(uint32_t package) {
 
 bool GlyphTableReady(const char *table) { return !TableLines(table).empty(); }
 
+std::vector<std::string> GlyphTableLines(const char *table) { return TableLines(table); }
+
+uint32_t InstallIconPage(const PPCContext &ctx, uint8_t *base, uint32_t font, uint32_t page, uint32_t texture,
+                         const std::vector<IconCell> &cells) {
+  constexpr uint32_t kButtons = 3;
+  const uint32_t pages = eot::mem::load<uint32_t>(font + kFontPages);
+  const uint32_t pageCount = eot::mem::load<uint32_t>(font + kFontPageCount);
+  const uint32_t buttons = Page(font, kButtons << 8);
+  if (!pages || !buttons || page >= pageCount || page <= kButtons)
+    return 0;
+  uint32_t at = eot::mem::load<uint32_t>(pages + page * 4);
+  if (!at) {
+    PPCContext call = ctx;
+    call.r3.u32 = kPageBytes;
+    call.r4.u32 = 16;
+    call.r5.u32 = 0xFFFFFFFFu;
+    call.r6.u32 = 0;
+    __imp__eot_MMMemoryMgr_Alloc(call, base);
+    at = call.r3.u32;
+    if (!at)
+      return 0;
+    eot::mem::store<uint32_t>(pages + page * 4, at);
+  }
+  for (uint32_t off = 0; off < kPageBytes; off += 4)
+    eot::mem::store<uint32_t>(at + off, 0);
+  for (const IconCell &cell : cells) {
+    const uint32_t src = buttons + cell.slot * kRecordSize;
+    if (!(eot::mem::load<uint16_t>(src + kRecFlags + 2) & kFlagLive))
+      continue;
+    const uint32_t rec = at + cell.slot * kRecordSize;
+    const float height = LoadF(src + kRecHeight);
+    eot::mem::store<uint32_t>(rec + kRecTexture, texture);
+    eot::mem::store<uint32_t>(rec + 4, 0);
+    StoreF(rec + kRecU0, cell.u0);
+    StoreF(rec + kRecV0, cell.v0);
+    StoreF(rec + kRecU1, cell.u1);
+    StoreF(rec + kRecV1, cell.v1);
+    StoreF(rec + kRecAdvance, cell.aspect > 0 ? height * (kUnitsY / kUnitsX) * cell.aspect : LoadF(src + kRecAdvance));
+    StoreF(rec + kRecHeight, height);
+    StoreF(rec + kRecTop, LoadF(src + kRecTop));
+    eot::mem::store<uint32_t>(rec + kRecFlags, kFlagLive);
+  }
+  return at;
+}
+
 bool InstallGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font, const char *table, const char *name) {
   for (const uint32_t done : g_done)
     if (done == font)
@@ -143,11 +188,14 @@ bool InstallGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font, const ch
       if (width <= 0 || oldHeight <= 0 || newHeight <= 0)
         return false;
       const float scale = oldHeight / newHeight;
+      const uint32_t atlas = eot::mem::load<uint32_t>(reference + kRecTexture);
       for (uint32_t p = 0; p < pageCount; ++p) {
         const uint32_t pg = eot::mem::load<uint32_t>(pages + p * 4);
         for (uint32_t i = 0; pg && i < kPageRecords; ++i) {
           const uint32_t rec = pg + i * kRecordSize;
           if (!(eot::mem::load<uint16_t>(rec + kRecFlags + 2) & kFlagLive))
+            continue;
+          if (eot::mem::load<uint32_t>(rec + kRecTexture) != atlas)
             continue;
           StoreF(rec + kRecV0, LoadF(rec + kRecV0) * scale);
           StoreF(rec + kRecV1, LoadF(rec + kRecV1) * scale);
