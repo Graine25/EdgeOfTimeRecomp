@@ -150,6 +150,11 @@ REXCVAR_DEFINE_INT32(eot_diag_hitch, 0, "EdgeOfTime/Debug",
                      "or past this guest frame that the hitch reporter flags (40% over its "
                      "running average): the passes and transfers of a slow frame, once per "
                      "run (0 = off).");
+REXCVAR_DEFINE_BOOL(eot_record, false, "EdgeOfTime/Debug",
+                    "Record the view: while on, the one-frame GPU diagnostic runs every 120th "
+                    "frame (draw lines without their textures) and [record] marks the start "
+                    "and end, so tools/perf/record_report.py can sum what one view costs by "
+                    "target, sample count and shader. Toggle it from the overlay.");
 REXCVAR_DEFINE_BOOL(eot_diag_hitch_any, false, "EdgeOfTime/Debug",
                     "With eot_diag_hitch: arm on any flagged frame, not only those whose "
                     "largest categories are the twin transfers.");
@@ -212,6 +217,7 @@ i32 Settings::DiagSceneFrom() { return REXCVAR_GET(eot_diag_scene_from); }
 bool Settings::DiagDump() { return REXCVAR_GET(eot_diag_dump); }
 i32 Settings::DiagHitch() { return REXCVAR_GET(eot_diag_hitch); }
 bool Settings::DiagHitchAny() { return REXCVAR_GET(eot_diag_hitch_any); }
+bool Settings::Record() { return REXCVAR_GET(eot_record); }
 bool Settings::D3D12Debug() { return REXCVAR_GET(eot_d3d12_debug); }
 void Settings::ArmDiagFrame(i32 frame) { g_diag_frame_armed.store(frame, std::memory_order_relaxed); }
 i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }

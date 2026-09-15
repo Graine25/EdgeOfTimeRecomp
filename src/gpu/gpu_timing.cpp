@@ -256,7 +256,37 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
     }
     average = average > 0.0 ? average * 0.98 + total * 0.02 : total;
   }
-  if (st.diag) {
+  if (st.diag && Settings::Record()) {
+    struct Sum {
+      f64 us = 0.0;
+      u32 count = 0;
+      f64 max = 0.0;
+    };
+    std::map<std::string, Sum> sums;
+    f64 tagged = 0;
+    u32 items = 0;
+    for (size_t i = 1; i < n && i < st.tags.size(); ++i) {
+      if (st.tags[i].empty())
+        continue;
+      const f64 us = r[i] > r[i - 1] ? (r[i] - r[i - 1]) * 1e-3 : 0.0;
+      tagged += us;
+      items++;
+      Sum &sum = sums[st.tags[i]];
+      sum.us += us;
+      sum.count++;
+      sum.max = std::max(sum.max, us);
+    }
+    std::vector<std::pair<std::string, Sum>> order(sums.begin(), sums.end());
+    std::sort(order.begin(), order.end(),
+              [](const auto &a, const auto &b) { return a.second.us > b.second.us; });
+    EOT_INFO("[record] frame {}: {:.3f} ms of items, {} items, {} tags{}", s.guest_frames,
+             tagged * 1e-3, items, order.size(), st.used >= kQueryCount ? " (saturated)" : "");
+    for (size_t i = 0; i < order.size() && i < 80; ++i)
+      EOT_INFO("[record]   {:.1f} us x{} max {:.1f}: {}", order[i].second.us, order[i].second.count,
+               order[i].second.max, order[i].first);
+    st.diag = false;
+    st.tags.clear();
+  } else if (st.diag) {
     std::string untagged_note;
     f64 tagged = 0;
     u32 items = 0;
