@@ -84,7 +84,8 @@ void BuildRows(const eot::platform::Display &display) {
                      {"Fran\xc3\xa7" "ais", "fr"},
                      {"Italiano", "it"},
                      {"Deutsch", "de"},
-                     {"Espa\xc3\xb1" "ol", "es"}}});
+                     {"Espa\xc3\xb1" "ol", "es"},
+                     {"Russkij", "ru"}}});
 }
 
 int RowSelected(const SettingRow &row) {

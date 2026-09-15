@@ -1,12 +1,15 @@
 #include "goliath/loading/texture_overrides.h"
 
 #include <cstdint>
+#include <string>
 
 #include <rex/cvar.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
+#include "platform/language.h"
 
 REX_EXTERN(__imp__eot_GLAPIResource_FindResourceFromCRC);      // (type r3, nameCRC r4) -> handle or -1
 REX_EXTERN(__imp__eot_RZResourceMgrBC_GetResourceByHandle);    // (handle r3) -> record, referenced
@@ -31,24 +34,49 @@ struct Override {
   const char *retail;
   const char *replacement;
   const char *font;
+  const char *language;
   uint32_t retailCrc;
   uint32_t replacementCrc;
   uint32_t fontCrc;
 };
 
-constexpr Override Make(const char *retail, const char *replacement, const char *font) {
-  return {retail, replacement, font, eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
+constexpr Override Make(const char *retail, const char *replacement, const char *font,
+                        const char *language = nullptr) {
+  return {retail,   replacement,       font, language, eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
           font ? eot::ui::NameCrc(font) : 0u};
 }
 
 constexpr Override kOverrides[] = {
     Make("TempusGothic_texture_0", "Reeot_Font_TempusGothic_4x", "TempusGothic"),
     Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_4x", "SansaCon"),
+    Make("TempusGothic_texture_0", "Reeot_Font_TempusGothic_RU", "TempusGothic", "ru"),
+    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_RU", "SansaCon", "ru"),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");
 
-uint32_t g_pending = (1u << kOverrideCount) - 1;
+uint32_t WantedMask() {
+  const std::string tag = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));
+  uint32_t mask = 0;
+  for (uint32_t i = 0; i < kOverrideCount; ++i) {
+    const Override &o = kOverrides[i];
+    if (o.language) {
+      if (tag == o.language)
+        mask |= 1u << i;
+      continue;
+    }
+    bool specific = false;
+    for (uint32_t k = 0; k < kOverrideCount; ++k)
+      specific = specific || (kOverrides[k].language && tag == kOverrides[k].language &&
+                              kOverrides[k].retailCrc == o.retailCrc);
+    if (!specific)
+      mask |= 1u << i;
+  }
+  return mask;
+}
+
+uint32_t g_pending = 0;
+bool g_pending_chosen = false;
 uint32_t g_requested = 0;
 uint32_t g_ticks = 0;
 constexpr uint32_t kMaxTicks = 6000;
@@ -119,6 +147,8 @@ void RepointFontAtlas(const PPCContext &ctx, uint8_t *base, const Override &o, u
     if (ptr >= 0xE0000000u && ptr < 0xF0000000u)
       rewrite(ptr);
   }
+  if (o.language)
+    eot::text::InstallShippedGlyphs(ctx, base, font, o.font);
   Release(ctx, base, font);
   EOT_INFO("[tex] {}'s atlas reference now names {} ({} word(s))", o.font, o.replacement, patched);
 }
@@ -142,6 +172,10 @@ bool TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
     Release(ctx, base, replacement);
     return false;
   }
+  if (o.language && o.font && !eot::text::ShippedGlyphsReady(o.font)) {
+    Release(ctx, base, replacement);
+    return false;
+  }
 
   const uint32_t retail = Acquire(ctx, base, retailHandle);
   if (retail) {
@@ -162,10 +196,13 @@ bool TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
 }
 
 void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
-  if (!REXCVAR_GET(eot_texture_overrides)) {
-    g_pending = 0;
-    return;
+  if (!g_pending_chosen) {
+    g_pending_chosen = true;
+    g_pending = REXCVAR_GET(eot_texture_overrides) ? WantedMask() : 0;
+    EOT_INFO("[tex] overrides wanted: {:#x} of {}", g_pending, kOverrideCount);
   }
+  if (!g_pending)
+    return;
   for (uint32_t i = 0; i < kOverrideCount; ++i)
     if ((g_pending & (1u << i)) && TryApply(ctx, base, i))
       g_pending &= ~(1u << i);
@@ -176,7 +213,7 @@ void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
 REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   __imp__eot_PKPackageMgrBC_Update(ctx, base);
   using namespace eot::loading;
-  if (!g_pending)
+  if (g_pending_chosen && !g_pending)
     return;
   if (++g_ticks > kMaxTicks) {
     EOT_WARN("[tex] {} override(s) never became ready; giving up", __builtin_popcount(g_pending));
