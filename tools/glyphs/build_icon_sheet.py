@@ -42,10 +42,6 @@ SETS = (
                 "switch_button_zr", "switch_button_zl", None, None,
                 "switch_button_minus", "switch_button_plus", "switch_button_r", "switch_button_l",
                 None, None)),
-    ("steamdeck", (None, None, None, None,
-                   "steamdeck_button_r2", "steamdeck_button_l2", None, None,
-                   "steamdeck_button_view", "steamdeck_button_options",
-                   "steamdeck_button_r1", "steamdeck_button_l1", None, None)),
 )
 
 KEYS = ("F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12 A B C D E F G H I J K L M N O P Q R S T U V W "
