@@ -230,8 +230,6 @@ uint32_t WantedPage(const std::string &setting, PadBrand pad) {
     return kKeyboardPage;
   case PadBrand::Switch:
     return PageFor("switch");
-  case PadBrand::SteamDeck:
-    return PageFor("steamdeck");
   default:
     return kRetailPage;
   }

@@ -42,7 +42,7 @@ REX_EXTERN(__imp__eot_Subtitles_SetEnabled); // (shown r3)
 REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input",
                       "Which controller's buttons the prompts draw: auto follows the device that last "
                       "produced input (the pad's own art, or the bound keys on a keyboard).")
-    .allowed({"auto", "xbox", "switch", "steamdeck", "keyboard"});
+    .allowed({"auto", "xbox", "switch", "keyboard"});
 REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio", "Spatial audio. Not wired to anything yet.");
 REXCVAR_DEFINE_BOOL(eot_battle_theme, true, "EdgeOfTime/Audio",
                     "The battle music over fights. Not wired to anything yet.");
@@ -290,7 +290,6 @@ constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_B
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
                               {"REEOT_VAL_XBOX", "xbox"},
                               {"REEOT_VAL_SWITCH", "switch"},
-                              {"REEOT_VAL_STEAM_DECK", "steamdeck"},
                               {"REEOT_VAL_KEYBOARD", "keyboard"}};
 
 bool RenderScaleApplies() {
