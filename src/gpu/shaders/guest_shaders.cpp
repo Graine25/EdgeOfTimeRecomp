@@ -40,19 +40,36 @@ CacheState &cache() {
   return c;
 }
 
-const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size) {
+const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size,
+                     VsVariant variant = VsVariant::Trimmed) {
   auto &c = cache();
   if (c.blob.empty()) {
     *size = 0;
     return nullptr;
   }
+  u32 offset = 0;
 #if defined(EOT_D3D12)
+  offset = e.dxilOffset;
   *size = e.dxilSize;
-  return c.blob.data() + e.dxilOffset;
+  if (variant == VsVariant::Full && e.fullDxilSize) {
+    offset = e.fullDxilOffset;
+    *size = e.fullDxilSize;
+  } else if (variant == VsVariant::PositionOnly && e.posDxilSize) {
+    offset = e.posDxilOffset;
+    *size = e.posDxilSize;
+  }
 #else
+  offset = e.spirvOffset;
   *size = e.spirvSize;
-  return c.blob.data() + e.spirvOffset;
+  if (variant == VsVariant::Full && e.fullSpirvSize) {
+    offset = e.fullSpirvOffset;
+    *size = e.fullSpirvSize;
+  } else if (variant == VsVariant::PositionOnly && e.posSpirvSize) {
+    offset = e.posSpirvOffset;
+    *size = e.posSpirvSize;
+  }
 #endif
+  return c.blob.data() + offset;
 }
 
 std::vector<u8> SpecLib(u32 value) {
@@ -356,14 +373,25 @@ void VertexInputsFromEntry(const ShaderCacheEntry &e, std::vector<VertexInput> &
   }
 }
 
+VsVariant VsVariantFor(const ShaderCacheEntry *vs, const ShaderCacheEntry *ps, bool null_ps) {
+  if (null_ps)
+    return VsVariant::PositionOnly;
+  if (!vs || !ps)
+    return VsVariant::Trimmed;
+  return (ps->interpolantMask & ~vs->interpolantMask) ? VsVariant::Full : VsVariant::Trimmed;
+}
+
 plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask, bool is_pixel,
-                                         bool worker) {
+                                         bool worker, VsVariant variant) {
   auto &c = cache();
   const ShaderCacheEntry *entry = FindShaderCacheEntry(hash);
   if (!entry || !s.device)
     return nullptr;
+  if (is_pixel)
+    variant = VsVariant::Trimmed;
   const u32 effective = spec_mask & entry->specConstantsMask;
-  const u64 key = hash ^ ((u64(effective) + 1) * 0x9E3779B97F4A7C15ull) ^ (is_pixel ? 1u : 0u);
+  const u64 salt = (u64(effective) << 3) | (u64(variant) << 1) | 1u;
+  const u64 key = hash ^ (salt * 0x9E3779B97F4A7C15ull) ^ (is_pixel ? 1u : 0u);
   {
     std::lock_guard lock(c.host_mutex);
     auto it = c.host.find(key);
@@ -371,7 +399,7 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
       return it->second.get();
   }
   u32 size = 0;
-  const u8 *bytes = EntryBytes(*entry, &size);
+  const u8 *bytes = EntryBytes(*entry, &size, variant);
   std::unique_ptr<plume::RenderShader> host;
   if (bytes && size) {
     if (entry->specConstantsMask == 0) {
@@ -408,7 +436,8 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
   return it->second.get();
 }
 
-plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask) {
+plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask,
+                                       VsVariant variant) {
   if (!shader.entry) {
     if (!shader.cacheMissLogged) {
       shader.cacheMissLogged = true;
@@ -417,11 +446,15 @@ plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 s
     }
     return nullptr;
   }
-  if (shader.lastHost && shader.lastSpecMask == spec_mask)
+  if (shader.isPixel)
+    variant = VsVariant::Trimmed;
+  if (shader.lastHost && shader.lastSpecMask == spec_mask && static_cast<VsVariant>(shader.lastVariant) == variant)
     return shader.lastHost;
-  plume::RenderShader *host = GetHostShaderByHash(s, shader.hash, spec_mask, shader.isPixel);
+  plume::RenderShader *host =
+      GetHostShaderByHash(s, shader.hash, spec_mask, shader.isPixel, false, variant);
   if (host) {
     shader.lastSpecMask = spec_mask;
+    shader.lastVariant = static_cast<u8>(variant);
     shader.lastHost = host;
   }
   return host;

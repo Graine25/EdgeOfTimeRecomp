@@ -2263,7 +2263,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     spec = layout->spec;
     FillPipelineState(dev, targets, st, &spec, &a2c);
     spec |= layout->spec;
-    st.vs = ResolveHostShader(s, *vs, spec);
+    st.vs = ResolveHostShader(s, *vs, spec,
+                              VsVariantFor(vs->entry, ps ? ps->entry : nullptr, ps == nullptr));
     st.ps = ps ? ResolveHostShader(s, *ps, spec) : nullptr;
     if (!st.vs || (ps && !st.ps)) {
       Dropped("host shader unavailable (link failure)", 0x6007);
