@@ -109,6 +109,8 @@ add_custom_command(
     DEPENDS pkztool
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotRussian.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/ru.tsv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/TempusGothic_ru.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/SansaCon_ru.txt"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0_ru.png"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SansaCon-UltraBlack_texture_0_ru.png"
     COMMENT "Authoring ReeotRussian.pkz from tools/pkz/ReeotRussian.manifest"
@@ -225,6 +227,7 @@ set(REEOT_SOURCES
     src/goliath/ui/hud_copy_guard.cpp
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
+    src/goliath/text/glyph_pages.cpp
     src/goliath/text/translation.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp

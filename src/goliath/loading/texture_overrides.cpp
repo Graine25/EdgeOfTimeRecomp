@@ -7,6 +7,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
 #include "platform/language.h"
 
@@ -147,6 +148,8 @@ void RepointFontAtlas(const PPCContext &ctx, uint8_t *base, const Override &o, u
     if (ptr >= 0xE0000000u && ptr < 0xF0000000u)
       rewrite(ptr);
   }
+  if (o.language)
+    eot::text::InstallShippedGlyphs(ctx, base, font, o.font);
   Release(ctx, base, font);
   EOT_INFO("[tex] {}'s atlas reference now names {} ({} word(s))", o.font, o.replacement, patched);
 }
@@ -167,6 +170,10 @@ bool TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
       RequestLoad(ctx, base, replacement);
       EOT_INFO("[tex] {} asked to load; the swap waits for its data", o.replacement);
     }
+    Release(ctx, base, replacement);
+    return false;
+  }
+  if (o.language && o.font && !eot::text::ShippedGlyphsReady(o.font)) {
     Release(ctx, base, replacement);
     return false;
   }
