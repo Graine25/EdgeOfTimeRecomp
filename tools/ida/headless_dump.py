@@ -80,5 +80,20 @@ elif mode == "xrefs":
                 if fe is not None:
                     callers.add(dname(fe))
             w.writerow([f"{ea:#x}", dname(ea), " | ".join(sorted(callers))])
+elif mode == "vtable":
+    ok = ida_hexrays.init_hexrays_plugin()
+    base = int(argv[3], 16)
+    n = int(argv[4]) if len(argv) > 4 else 24
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(f"hexrays: {ok}  vtable {base:#x}\n")
+        for i in range(n):
+            ea = idc.get_wide_dword(base + 4 * i)
+            f.write(f"\n// ===== slot {i} @ {base + 4 * i:#x} -> {ea:#x} {dname(ea)} =====\n")
+            if not ok or ida_funcs.get_func(ea) is None:
+                continue
+            try:
+                f.write(str(ida_hexrays.decompile(ea)) + "\n")
+            except Exception as e:  # noqa
+                f.write(f"// decompile failed: {e}\n")
 print("done", mode, out)
 idc.qexit(0)
