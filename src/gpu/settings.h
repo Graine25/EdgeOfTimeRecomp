@@ -51,6 +51,7 @@ struct Settings {
   static bool DiagDump();
   static i32 DiagHitch();
   static bool DiagHitchAny();
+  static bool Record();
   static bool D3D12Debug();
   static void ArmDiagFrame(i32 frame);
   static i32 RenderDocFrame();

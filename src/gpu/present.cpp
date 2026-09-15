@@ -483,6 +483,28 @@ void LogPerfLocked(VideoState &s) {
                s.guest_frames, s.guest_frames + 2, armed);
     }
   }
+  {
+    static bool was_recording = false;
+    static u64 next_record = 0;
+    static u32 recorded = 0;
+    const bool recording = Settings::Record();
+    if (recording != was_recording) {
+      was_recording = recording;
+      if (recording) {
+        next_record = s.guest_frames;
+        recorded = 0;
+        EOT_INFO("[record] on at guest frame {}", s.guest_frames);
+      } else {
+        EOT_INFO("[record] off at guest frame {} ({} diagnostic frames)", s.guest_frames, recorded);
+      }
+    }
+    if (recording && s.guest_frames >= next_record &&
+        Settings::DiagFrame() < static_cast<i32>(s.guest_frames)) {
+      next_record = s.guest_frames + 120;
+      recorded++;
+      Settings::ArmDiagFrame(static_cast<i32>(s.guest_frames + 2));
+    }
+  }
   CollectRenderWorkLocked(s, every > 0);
   EvictStaleGuestSurfaces(s);
   {
