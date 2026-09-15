@@ -1919,7 +1919,7 @@ out_directory_path = "generated/default_xex"
 0x820BF910 = { size = 0xC8 }
 0x820C3730 = { size = 0x48 }
 0x820C4750 = { size = 0x6C }
-0x820C4BF0 = { size = 0x80 }
+0x820C4BF0 = { name = "eot_HUD_RegisterGlyphTag", size = 0x80 }
 0x820C55E8 = { size = 0x40 }
 0x820CBE88 = { size = 0xB4 }
 0x820CBF40 = { size = 0xE4 }

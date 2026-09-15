@@ -1,0 +1,6 @@
+package 0x7EA ReeotIcons
+languages 1 2 5 3 4
+texture Reeot_Icons dds ../res/textures/Reeot_Icons.dds nomips
+strings strings/icons.txt GlyphsIcons lang=0x1F
+window Reeot_TextureHolder_Icons type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Icons
+compress true
