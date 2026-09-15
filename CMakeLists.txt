@@ -204,6 +204,7 @@ set(REEOT_SOURCES
     src/goliath/ui/hud_copy_guard.cpp
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
+    src/goliath/text/translation.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp

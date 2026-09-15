@@ -31,6 +31,7 @@
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
 #include "goliath/input/pc_controls.h"
+#include "goliath/text/translation.h"
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"
 #include "platform/update_check.h"
@@ -66,9 +67,9 @@ REXCVAR_DEFINE_BOOL(eot_achievement_notifications, true, "EdgeOfTime/Config",
 REXCVAR_DEFINE_BOOL(eot_background_input, false, "EdgeOfTime/Input",
                     "Keep reading the controller while another window has the focus.");
 REXCVAR_DEFINE_STRING(eot_language, "auto", "EdgeOfTime/Config",
-                      "The language the game boots in: auto follows the Windows display language "
-                      "(English when it is not one the game ships), or en, fr, it, de, es.")
-    .allowed({"auto", "en", "fr", "it", "de", "es"})
+                      "The language the game boots in: auto follows the Windows display language, "
+                      "or en, fr, it, de, es. Any other code boots the game in English and loads "
+                      "the translation Data/custom/lang/<code>.tsv when there is one.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 
 namespace {
@@ -269,12 +270,20 @@ void ReeotApp::OnPostInitLogging() {
   }
 }
 
+void ReeotApp::LoadTranslation(const std::filesystem::path &game) {
+  const std::string tag = eot::platform::TranslationTag(REXCVAR_GET(eot_language));
+  if (eot::text::LoadTranslation(game, tag))
+    EOT_INFO("[language] the {} translation is in: {} lines over the game's text", tag,
+             eot::text::TranslatedLines());
+}
+
 rex::PathConfig ReeotApp::PathsForInstall(const rex::PathConfig &defaults,
                                           const eot::installer::InstallConfig &cfg) {
   rex::PathConfig paths = defaults;
   UseInstallRoot(cfg.install_root, paths);
   paths.game_data_root = cfg.game_data_path();
   eot::installer::WritePortFiles(paths.game_data_root);
+  LoadTranslation(paths.game_data_root);
   eot::installer::PublishDlc(cfg.install_root / eot::installer::kDlcFolderName, paths.game_data_root,
                              profile_root_);
   EOT_INFO("[install] using the install at {} (recorded by {}; profile {})", cfg.install_root.string(),
@@ -287,6 +296,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
   if (auto named = NamedGameFolder()) {
     EOT_INFO("[install] game folder {}", named->string());
     eot::installer::WritePortFiles(*named);
+    LoadTranslation(*named);
     eot::installer::PublishDlc(install_root_ / eot::installer::kDlcFolderName, *named, profile_root_);
     rex::PathConfig paths = defaults;
     paths.game_data_root = *named;

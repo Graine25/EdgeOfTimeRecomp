@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 namespace eot::platform {
@@ -16,5 +17,9 @@ uint32_t XLanguageFor(std::string_view eot_language);
 uint32_t SystemXLanguage();
 
 const char *XLanguageName(uint32_t xlanguage);
+
+std::string SystemLanguageTag();
+
+std::string TranslationTag(std::string_view eot_language);
 
 }
