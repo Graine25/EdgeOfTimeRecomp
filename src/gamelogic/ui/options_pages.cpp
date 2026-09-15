@@ -40,7 +40,7 @@ REX_EXTERN(__imp__eot_Audio_SetVoiceVolume);
 REX_EXTERN(__imp__eot_Subtitles_SetEnabled); // (shown r3)
 
 REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input", "Which button prompts show")
-    .allowed({"auto", "xbox", "playstation"});
+    .allowed({"auto", "xbox", "switch", "keyboard"});
 REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio", "Sounds fade with distance");
 REXCVAR_DEFINE_BOOL(eot_battle_theme, true, "EdgeOfTime/Audio", "Play the battle music");
 
@@ -284,8 +284,10 @@ constexpr Choice kShadowSize[] = {{"REEOT_VAL_AUTO", "0"},     {"REEOT_VAL_1024"
                                   {"REEOT_VAL_2048", "2048"}, {"REEOT_VAL_4096", "4096"}};
 constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_BICUBIC", "bicubic"},
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
-constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"}, {"REEOT_VAL_XBOX", "xbox"},
-                              {"REEOT_VAL_PLAYSTATION", "playstation"}};
+constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
+                              {"REEOT_VAL_XBOX", "xbox"},
+                              {"REEOT_VAL_SWITCH", "switch"},
+                              {"REEOT_VAL_KEYBOARD", "keyboard"}};
 
 bool RenderScaleApplies() {
   return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "native";
