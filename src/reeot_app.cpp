@@ -30,7 +30,7 @@
 #include "gpu/device.h"
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
-#include "goliath/input/pc_controls.h"
+#include "goliath/controller/pc_controls.h"
 #include "goliath/text/translation.h"
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"

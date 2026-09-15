@@ -40,9 +40,9 @@ REX_EXTERN(__imp__eot_Audio_SetVoiceVolume);
 REX_EXTERN(__imp__eot_Subtitles_SetEnabled); // (shown r3)
 
 REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input",
-                      "Which controller's buttons the prompts draw: auto follows the pad in hand. Only "
-                      "the Xbox art exists yet, so every value draws that.")
-    .allowed({"auto", "xbox", "playstation"});
+                      "Which controller's buttons the prompts draw: auto follows the device that last "
+                      "produced input (the pad's own art, or the bound keys on a keyboard).")
+    .allowed({"auto", "xbox", "xboxseries", "playstation", "switch", "steamdeck", "keyboard"});
 REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio", "Spatial audio. Not wired to anything yet.");
 REXCVAR_DEFINE_BOOL(eot_battle_theme, true, "EdgeOfTime/Audio",
                     "The battle music over fights. Not wired to anything yet.");
@@ -287,8 +287,13 @@ constexpr Choice kShadowSize[] = {{"REEOT_VAL_AUTO", "0"},     {"REEOT_VAL_1024"
                                   {"REEOT_VAL_2048", "2048"}, {"REEOT_VAL_4096", "4096"}};
 constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_BICUBIC", "bicubic"},
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
-constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"}, {"REEOT_VAL_XBOX", "xbox"},
-                              {"REEOT_VAL_PLAYSTATION", "playstation"}};
+constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
+                              {"REEOT_VAL_XBOX", "xbox"},
+                              {"REEOT_VAL_XBOX_SERIES", "xboxseries"},
+                              {"REEOT_VAL_PLAYSTATION", "playstation"},
+                              {"REEOT_VAL_SWITCH", "switch"},
+                              {"REEOT_VAL_STEAM_DECK", "steamdeck"},
+                              {"REEOT_VAL_KEYBOARD", "keyboard"}};
 
 bool RenderScaleApplies() {
   return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "native";

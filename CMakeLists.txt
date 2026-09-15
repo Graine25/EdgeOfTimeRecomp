@@ -102,6 +102,18 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/achievement_icons_64.png"
     COMMENT "Authoring ReeotAchievements.pkz from tools/pkz/ReeotAchievements.manifest"
     VERBATIM)
+set(REEOT_ICONS_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotIcons.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_ICONS_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotIcons.manifest" "${REEOT_ICONS_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotIcons.manifest"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/glyphs/icons.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/Reeot_Icons.dds"
+    COMMENT "Authoring ReeotIcons.pkz from tools/pkz/ReeotIcons.manifest"
+    VERBATIM)
 set(REEOT_RU_PORT_STRINGS "${REEOT_MENU_STRINGS_DIR}/reeot_port_strings.ru.tsv")
 add_custom_command(
     OUTPUT "${REEOT_RU_PORT_STRINGS}"
@@ -129,7 +141,7 @@ add_custom_command(
     COMMENT "Authoring ReeotRussian.pkz from tools/pkz/ReeotRussian.manifest"
     VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}"
-                                        "${REEOT_RU_PKZ_OUTPUT}")
+                                        "${REEOT_ICONS_PKZ_OUTPUT}" "${REEOT_RU_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
@@ -150,6 +162,13 @@ reeot_embed_generated(
     HEADER      "${REEOT_GEN_DIR}/embedded_achievements_package.h"
     SOURCES_VAR REEOT_EMBED_ACH_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ACH_PACKAGE_SOURCE})
+reeot_embed_generated(
+    INPUT       "${REEOT_ICONS_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotIcons.pkz"
+    ACCESSOR    EmbeddedIconsPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_icons_package.h"
+    SOURCES_VAR REEOT_EMBED_ICONS_PACKAGE_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ICONS_PACKAGE_SOURCE})
 reeot_embed_generated(
     INPUT       "${REEOT_RU_PKZ_OUTPUT}"
     NAME        "pkz/ReeotRussian.pkz"
@@ -231,7 +250,9 @@ set(REEOT_SOURCES
     src/gpu/patches/movie_aspect.cpp
     src/gpu/patches/post_effects.cpp
     src/gpu/patches/present_effects.cpp
-    src/goliath/input/pc_controls.cpp
+    src/goliath/controller/pc_controls.cpp
+    src/goliath/controller/pad_identity.cpp
+    src/goliath/controller/button_glyphs.cpp
     src/goliath/debug/scene_pause.cpp
     src/goliath/debug/freecam.cpp
     src/goliath/ui/aspect_policy.cpp

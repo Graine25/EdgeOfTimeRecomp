@@ -1,0 +1,318 @@
+#include "goliath/controller/button_glyphs.h"
+
+#include <cstdint>
+#include <cstdio>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <rex/cvar.h>
+
+#include "core/logging.h"
+#include "core/memory_helpers.h"
+#include "goliath/controller/pad_identity.h"
+#include "goliath/loading/resources.h"
+#include "goliath/text/glyph_pages.h"
+#include "goliath/ui/name_crc.h"
+
+REX_EXTERN(__imp__eot_HUD_RegisterGlyphTag); // (name r3, replacement r4): GLAPIHUD slot 47
+
+namespace eot::controller {
+
+namespace {
+
+constexpr uint32_t kTagCount = 0x824A18FC;
+constexpr uint32_t kTagText = 0x824A5900;
+constexpr uint32_t kTagStride = 256;
+constexpr uint32_t kMaxTags = 64;
+constexpr uint32_t kTagChars = 128;
+
+constexpr uint32_t kRetailPage = 3;
+constexpr uint32_t kFirstPage = 5;
+constexpr uint32_t kKeyboardPage = 9;
+constexpr uint32_t kPageCount = 10;
+
+constexpr const char *kTable = "GlyphsIcons";
+constexpr const char *kSheet = "Reeot_Icons";
+constexpr uint32_t kPollTicks = 30;
+
+struct Box {
+  float x0, y0, x1, y1;
+};
+
+struct Set {
+  std::string name;
+  uint32_t page;
+  std::vector<eot::text::IconCell> cells;
+};
+
+struct Font {
+  const char *name;
+  uint32_t crc;
+};
+constexpr Font kFonts[] = {{"TempusGothic", eot::ui::NameCrc("TempusGothic")}, {"SansaCon", eot::ui::NameCrc("SansaCon")}};
+
+struct KeySlot {
+  uint8_t slot;
+  const char *cvar;
+  const char *cluster;
+};
+constexpr KeySlot kKeySlots[] = {
+    {0x00, "eot_key_jump", nullptr},          {0x01, "eot_key_web", nullptr},
+    {0x02, "eot_key_heavy_attack", nullptr},  {0x03, "eot_key_light_attack", nullptr},
+    {0x04, "eot_key_web_swing", nullptr},     {0x05, "eot_key_hyper_sense", nullptr},
+    {0x06, nullptr, "MOUSE"},                 {0x07, nullptr, "WASD"},
+    {0x08, "eot_key_upgrades", nullptr},      {0x09, "eot_key_pause", nullptr},
+    {0x0A, "eot_key_grab", nullptr},          {0x0B, "eot_key_special_attack", nullptr},
+    {0x1B, "keybind_lstick_down", nullptr},   {0x1E, "eot_key_spider_sense", nullptr},
+};
+
+float g_sheet_w = 0, g_sheet_h = 0;
+std::vector<Set> g_sets;
+std::vector<std::pair<std::string, Box>> g_caps;
+uint32_t g_have[kPageCount] = {};
+bool g_parsed = false;
+
+uint32_t g_texture = 0;
+bool g_requested = false;
+bool g_installed = false;
+bool g_gave_up = false;
+uint32_t g_ticks = 0;
+constexpr uint32_t kMaxTicks = 12000;
+
+uint32_t g_applied_page = kRetailPage;
+uint32_t g_applied_count = 0;
+std::string g_applied_setting;
+PadBrand g_applied_pad = PadBrand::Unknown;
+size_t g_keys_hash = 0;
+
+Box Normalised(const Box &b) { return {b.x0 / g_sheet_w, b.y0 / g_sheet_h, b.x1 / g_sheet_w, b.y1 / g_sheet_h}; }
+
+bool Parse() {
+  const std::vector<std::string> lines = eot::text::GlyphTableLines(kTable);
+  if (lines.empty())
+    return false;
+  size_t set = SIZE_MAX;
+  bool caps = false;
+  uint32_t page = kFirstPage;
+  for (const std::string &line : lines) {
+    char name[64];
+    float a = 0, b = 0, c = 0, d = 0;
+    unsigned slot = 0;
+    if (std::sscanf(line.c_str(), "sheet %f %f", &a, &b) == 2) {
+      g_sheet_w = a;
+      g_sheet_h = b;
+    } else if (std::sscanf(line.c_str(), "set %63s", name) == 1) {
+      if (page >= kKeyboardPage) {
+        EOT_WARN("[glyphs] more icon sets than pages; {} dropped", name);
+        set = SIZE_MAX;
+        continue;
+      }
+      g_sets.push_back({name, page++, {}});
+      set = g_sets.size() - 1;
+      caps = false;
+    } else if (line == "caps") {
+      caps = true;
+      set = SIZE_MAX;
+    } else if (std::sscanf(line.c_str(), "cell %x %f %f %f %f", &slot, &a, &b, &c, &d) == 5) {
+      if (set == SIZE_MAX || !g_sheet_w || slot > 31)
+        continue;
+      const Box uv = Normalised({a, b, c, d});
+      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f});
+      g_have[g_sets[set].page] |= 1u << slot;
+    } else if (std::sscanf(line.c_str(), "cap %63s %f %f %f %f", name, &a, &b, &c, &d) == 5) {
+      if (caps)
+        g_caps.emplace_back(name, Box{a, b, c, d});
+    }
+  }
+  g_parsed = g_sheet_w > 0 && !g_sets.empty();
+  return g_parsed;
+}
+
+const Box *Cap(std::string_view key) {
+  for (const auto &[name, box] : g_caps)
+    if (name == key)
+      return &box;
+  return nullptr;
+}
+
+std::string BoundKey(const char *cvar) {
+  std::string value = rex::cvar::GetFlagByName(cvar);
+  if (const size_t comma = value.find(','); comma != std::string::npos)
+    value.resize(comma);
+  if (const size_t plus = value.rfind('+'); plus != std::string::npos)
+    value.erase(0, plus + 1);
+  while (!value.empty() && value.back() == ' ')
+    value.pop_back();
+  while (!value.empty() && value.front() == ' ')
+    value.erase(0, 1);
+  return value;
+}
+
+size_t KeysHash() {
+  size_t h = 1469598103934665603ull;
+  for (const KeySlot &k : kKeySlots)
+    if (k.cvar)
+      for (const char c : BoundKey(k.cvar))
+        h = (h ^ static_cast<uint8_t>(c)) * 1099511628211ull;
+  return h;
+}
+
+std::vector<eot::text::IconCell> KeyboardCells() {
+  std::vector<eot::text::IconCell> cells;
+  g_have[kKeyboardPage] = 0;
+  for (const KeySlot &k : kKeySlots) {
+    const Box *box = k.cluster ? Cap(k.cluster) : nullptr;
+    if (!box && k.cvar) {
+      const std::string key = BoundKey(k.cvar);
+      box = key.empty() ? nullptr : Cap(key);
+    }
+    if (!box)
+      continue;
+    const Box uv = Normalised(*box);
+    const float aspect = (box->x1 - box->x0) / (box->y1 - box->y0);
+    cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect});
+    g_have[kKeyboardPage] |= 1u << k.slot;
+  }
+  return cells;
+}
+
+bool InstallInto(const PPCContext &ctx, uint8_t *base, const Font &font, const std::vector<eot::text::IconCell> &keys,
+                 bool keys_only) {
+  using namespace eot::loading;
+  const uint32_t record = AcquireResource(ctx, base, FindResource(ctx, base, kTypeFont, font.crc));
+  if (!record)
+    return false;
+  bool ok = true;
+  if (!keys_only)
+    for (const Set &set : g_sets)
+      ok = eot::text::InstallIconPage(ctx, base, record, set.page, g_texture, set.cells) && ok;
+  ok = eot::text::InstallIconPage(ctx, base, record, kKeyboardPage, g_texture, keys) && ok;
+  ReleaseResource(ctx, base, record);
+  return ok;
+}
+
+void ApplyPage(uint32_t page) {
+  const uint32_t count = eot::mem::load<uint32_t>(kTagCount);
+  for (uint32_t i = 0; i < count && i < kMaxTags; ++i) {
+    const uint32_t text = kTagText + i * kTagStride;
+    for (uint32_t k = 0; k < kTagChars; ++k) {
+      const uint16_t c = eot::mem::load<uint16_t>(text + k * 2);
+      if (!c)
+        break;
+      const uint32_t high = c >> 8;
+      if (high != kRetailPage && (high < kFirstPage || high >= kPageCount))
+        continue;
+      const uint32_t slot = c & 0xFF;
+      const uint32_t to = (page != kRetailPage && slot < 32 && (g_have[page] & (1u << slot))) ? page : kRetailPage;
+      eot::mem::store<uint16_t>(text + k * 2, static_cast<uint16_t>((to << 8) | slot));
+    }
+  }
+  g_applied_page = page;
+  g_applied_count = count;
+}
+
+uint32_t PageFor(std::string_view set) {
+  for (const Set &s : g_sets)
+    if (set == s.name)
+      return s.page;
+  return kRetailPage;
+}
+
+uint32_t WantedPage(const std::string &setting, PadBrand pad) {
+  if (setting == "keyboard")
+    return kKeyboardPage;
+  if (setting != "auto")
+    return PageFor(setting);
+  switch (pad) {
+  case PadBrand::Keyboard:
+    return kKeyboardPage;
+  case PadBrand::XboxSeries:
+    return PageFor("xboxseries");
+  case PadBrand::PlayStation:
+    return PageFor("playstation");
+  case PadBrand::Switch:
+    return PageFor("switch");
+  case PadBrand::SteamDeck:
+    return PageFor("steamdeck");
+  default:
+    return kRetailPage;
+  }
+}
+
+}
+
+void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
+  using namespace eot::loading;
+  if (g_gave_up)
+    return;
+  if (!g_installed) {
+    if (++g_ticks > kMaxTicks) {
+      g_gave_up = true;
+      EOT_WARN("[glyphs] the button icons never became ready; the prompts keep the Xbox art");
+      return;
+    }
+    if (g_ticks % 8 != 0)
+      return;
+    if (!g_parsed && !Parse())
+      return;
+    if (!g_texture) {
+      const uint32_t record = AcquireResource(ctx, base, FindResource(ctx, base, kTypeTexture, eot::ui::NameCrc(kSheet)));
+      if (!record)
+        return;
+      if (!ResourceResident(record) || !TextureDescriptor(ctx, base, record)) {
+        if (!g_requested) {
+          g_requested = true;
+          RequestResourceLoad(ctx, base, record);
+          EOT_INFO("[glyphs] {} asked to load; the icon pages wait for its data", kSheet);
+        }
+        ReleaseResource(ctx, base, record);
+        return;
+      }
+      g_texture = record;
+    }
+    g_keys_hash = KeysHash();
+    const std::vector<eot::text::IconCell> keys = KeyboardCells();
+    for (const Font &font : kFonts)
+      if (!InstallInto(ctx, base, font, keys, false))
+        return;
+    g_installed = true;
+    EOT_INFO("[glyphs] button icons: {} set(s) and {} key cap(s) on {}x{}, pages {}..{} of both fonts", g_sets.size(),
+             g_caps.size(), g_sheet_w, g_sheet_h, kFirstPage, kKeyboardPage);
+  }
+
+  if (++g_ticks % kPollTicks == 0) {
+    const size_t hash = KeysHash();
+    if (hash != g_keys_hash) {
+      g_keys_hash = hash;
+      const std::vector<eot::text::IconCell> keys = KeyboardCells();
+      for (const Font &font : kFonts)
+        InstallInto(ctx, base, font, keys, true);
+      EOT_INFO("[glyphs] key caps refilled for the binds as they are now");
+      if (g_applied_page == kKeyboardPage)
+        ApplyPage(kKeyboardPage);
+    }
+    const std::string setting = rex::cvar::GetFlagByName("eot_button_glyphs");
+    const PadBrand pad = setting == "auto" ? ActivePad() : PadBrand::Unknown;
+    if (setting != g_applied_setting || pad != g_applied_pad) {
+      g_applied_setting = setting;
+      g_applied_pad = pad;
+      const uint32_t page = WantedPage(setting, pad);
+      ApplyPage(page);
+      EOT_INFO("[glyphs] prompts draw page {} ({}{}{})", page, setting, setting == "auto" ? ": " : "",
+               setting == "auto" ? ToString(pad) : "");
+      return;
+    }
+  }
+  if (eot::mem::load<uint32_t>(kTagCount) != g_applied_count)
+    ApplyPage(g_applied_page);
+}
+
+}
+
+REX_HOOK_RAW(eot_HUD_RegisterGlyphTag) {
+  __imp__eot_HUD_RegisterGlyphTag(ctx, base);
+  using namespace eot::controller;
+  if (g_installed && g_applied_page != kRetailPage)
+    ApplyPage(g_applied_page);
+}
