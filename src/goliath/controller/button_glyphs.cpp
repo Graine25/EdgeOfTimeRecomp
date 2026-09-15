@@ -35,7 +35,7 @@ constexpr uint32_t kPageCount = 10;
 constexpr const char *kTable = "GlyphsIcons";
 constexpr const char *kSheet = "Reeot_Icons";
 constexpr uint32_t kPollTicks = 30;
-constexpr float kCapLift = 2.0f;
+constexpr float kCapLift = 0.0f;
 
 struct Box {
   float x0, y0, x1, y1;
@@ -228,10 +228,6 @@ uint32_t WantedPage(const std::string &setting, PadBrand pad) {
   switch (pad) {
   case PadBrand::Keyboard:
     return kKeyboardPage;
-  case PadBrand::XboxSeries:
-    return PageFor("xboxseries");
-  case PadBrand::PlayStation:
-    return PageFor("playstation");
   case PadBrand::Switch:
     return PageFor("switch");
   case PadBrand::SteamDeck:
