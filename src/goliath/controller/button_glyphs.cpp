@@ -35,6 +35,7 @@ constexpr uint32_t kPageCount = 10;
 constexpr const char *kTable = "GlyphsIcons";
 constexpr const char *kSheet = "Reeot_Icons";
 constexpr uint32_t kPollTicks = 30;
+constexpr float kCapLift = 2.0f;
 
 struct Box {
   float x0, y0, x1, y1;
@@ -118,7 +119,7 @@ bool Parse() {
       if (set == SIZE_MAX || !g_sheet_w || slot > 31)
         continue;
       const Box uv = Normalised({a, b, c, d});
-      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f});
+      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f, 0.0f});
       g_have[g_sets[set].page] |= 1u << slot;
     } else if (std::sscanf(line.c_str(), "cap %63s %f %f %f %f", name, &a, &b, &c, &d) == 5) {
       if (caps)
@@ -171,7 +172,7 @@ std::vector<eot::text::IconCell> KeyboardCells() {
       continue;
     const Box uv = Normalised(*box);
     const float aspect = (box->x1 - box->x0) / (box->y1 - box->y0);
-    cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect});
+    cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect, kCapLift});
     g_have[kKeyboardPage] |= 1u << k.slot;
   }
   return cells;
