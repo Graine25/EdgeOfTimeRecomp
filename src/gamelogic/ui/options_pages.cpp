@@ -498,7 +498,8 @@ constexpr uint32_t kBlockControls = 0;
 constexpr uint32_t kBlockHandles = kBlockControls + kLayoutCount * kLayoutBlock;
 constexpr uint32_t kBlockColour = kBlockHandles + 16;
 constexpr uint32_t kBlockText = kBlockColour + 16;
-constexpr uint32_t kBlockSize = kBlockText + 64;
+constexpr uint32_t kBlockLine = kBlockText + 64;
+constexpr uint32_t kBlockSize = kBlockLine + 512;
 
 namespace tcr {
 constexpr uint32_t kTweenStart = 76;
@@ -513,6 +514,7 @@ constexpr float kStartScale = 0.1f;
 constexpr float kTextScale = 1.1f;
 constexpr uint32_t kTextWndSetScale = 18;
 constexpr uint32_t kTextWndGetXYScale = 67;
+constexpr uint32_t kInfoTitleFits = 20;
 
 constexpr float kTextBoxY = 0.03f;
 constexpr float kTextBoxH = 0.50f;
@@ -542,6 +544,7 @@ struct Windows {
   uint32_t info_text = hud::kNoWindow;
   uint32_t info_value = hud::kNoWindow;
   uint32_t info_note = hud::kNoWindow;
+  float info_title_scale = 0.0f;
   bool found = false;
   bool built = false;
 };
@@ -832,9 +835,43 @@ void ShowRowKind(const PPCContext &ctx, uint8_t *base, uint32_t row, bool slider
   __imp__eot_SliderControl_Show(call, base);
 }
 
+uint32_t StringLength(const PPCContext &ctx, uint8_t *base, uint32_t string_handle) {
+  if (!string_handle)
+    return 0;
+  constexpr uint32_t kStringTableResolveHandle = 0x821813A8;
+  const uint32_t line = g_block + kBlockLine;
+  eot::mem::store<uint16_t>(line, 0);
+  hud::CallAt(ctx, base, kStringTableResolveHandle, line, string_handle, 0, 0, 0, 0);
+  uint32_t n = 0;
+  while (n < 250 && eot::mem::load<uint16_t>(line + n * 2))
+    ++n;
+  return n;
+}
+
+void FitInfoTitle(const PPCContext &ctx, uint8_t *base, uint32_t length) {
+  Windows &w = CurrentWindows();
+  if (w.info_title == hud::kNoWindow)
+    return;
+  if (w.info_title_scale <= 0.0f) {
+    const uint32_t scratch = g_block + kBlockColour;
+    eot::mem::store<uint32_t>(scratch, 0);
+    eot::mem::store<uint32_t>(scratch + 4, 0);
+    hud::Call(ctx, base, kTextWndGetXYScale, w.info_title, scratch, scratch + 4);
+    w.info_title_scale = std::bit_cast<float>(eot::mem::load<uint32_t>(scratch));
+    if (w.info_title_scale <= 0.0f)
+      return;
+  }
+  const float factor =
+      length > kInfoTitleFits ? static_cast<float>(kInfoTitleFits) / static_cast<float>(length) : 1.0f;
+  CallWithFloat(ctx, base, hud::Entry(kTextWndSetScale), w.info_title,
+                factor < 1.0f ? w.info_title_scale * factor : 0.0f);
+}
+
 void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   const Windows &w = CurrentWindows();
-  SetStringHandle(ctx, base, w.info_title, StringHandle(ctx, base, s.label));
+  const uint32_t label = StringHandle(ctx, base, s.label);
+  FitInfoTitle(ctx, base, StringLength(ctx, base, label));
+  SetStringHandle(ctx, base, w.info_title, label);
   SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, s.description));
   hud::Activate(ctx, base, w.info_value, s.IsSlider());
   if (s.IsSlider()) {
