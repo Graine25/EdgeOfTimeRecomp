@@ -44,18 +44,16 @@ constexpr uint32_t kEntryLines = 8;
 constexpr float kUnitsX = 640.0f;
 constexpr float kUnitsY = 480.0f;
 
-uint32_t g_package = 0;
+std::vector<uint32_t> g_packages;
 std::vector<uint32_t> g_done;
 
 float LoadF(uint32_t at) { return std::bit_cast<float>(eot::mem::load<uint32_t>(at)); }
 void StoreF(uint32_t at, float v) { eot::mem::store<uint32_t>(at, std::bit_cast<uint32_t>(v)); }
 
-std::vector<std::string> TableLines(uint32_t crc) {
+std::vector<std::string> TableLines(uint32_t package, uint32_t crc) {
   std::vector<std::string> lines;
-  if (!g_package)
-    return lines;
-  const uint32_t tables = eot::mem::load<uint32_t>(g_package + kPackageTables);
-  const uint32_t count = eot::mem::load<uint32_t>(g_package + kPackageTableCount);
+  const uint32_t tables = eot::mem::load<uint32_t>(package + kPackageTables);
+  const uint32_t count = eot::mem::load<uint32_t>(package + kPackageTableCount);
   for (uint32_t t = 0; tables && t < count; ++t) {
     const uint32_t record = tables + t * kTableRecordSize;
     if (eot::mem::load<uint32_t>(record + kTableNameCrc) != crc)
@@ -80,6 +78,16 @@ std::vector<std::string> TableLines(uint32_t crc) {
   return lines;
 }
 
+std::vector<std::string> TableLines(const char *table) {
+  const uint32_t crc = eot::ui::NameCrc(table);
+  for (const uint32_t package : g_packages) {
+    std::vector<std::string> lines = TableLines(package, crc);
+    if (!lines.empty())
+      return lines;
+  }
+  return {};
+}
+
 uint32_t Page(uint32_t font, uint32_t cp) {
   if ((cp >> 8) >= eot::mem::load<uint32_t>(font + kFontPageCount))
     return 0;
@@ -88,19 +96,24 @@ uint32_t Page(uint32_t font, uint32_t cp) {
 
 }
 
-void SetGlyphPackage(uint32_t package) { g_package = package; }
-
-bool ShippedGlyphsReady(const char *name) {
-  return !TableLines(eot::ui::NameCrc((std::string("RussianGlyphs") + name).c_str())).empty();
+void NoteGlyphPackage(uint32_t package) {
+  if (!package)
+    return;
+  for (const uint32_t p : g_packages)
+    if (p == package)
+      return;
+  g_packages.push_back(package);
 }
 
-bool InstallShippedGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font, const char *name) {
+bool GlyphTableReady(const char *table) { return !TableLines(table).empty(); }
+
+bool InstallGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font, const char *table, const char *name) {
   for (const uint32_t done : g_done)
     if (done == font)
       return true;
-  const std::vector<std::string> lines = TableLines(eot::ui::NameCrc((std::string("RussianGlyphs") + name).c_str()));
+  const std::vector<std::string> lines = TableLines(table);
   if (lines.empty()) {
-    EOT_WARN("[glyphs] no RussianGlyphs{} table in the language package yet; {} keeps its Latin-1", name, name);
+    EOT_WARN("[glyphs] no {} table in any mounted package yet; {} keeps its Latin-1", table, name);
     return false;
   }
   const uint32_t pages = eot::mem::load<uint32_t>(font + kFontPages);

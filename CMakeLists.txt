@@ -50,6 +50,7 @@ add_custom_command(
     DEPENDS pkztool
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotUI.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/TempusGothic_cyrillic.txt"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0.dds"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SteelworksBook_texture_0.dds"
     COMMENT "Authoring ReeotUI.pkz from tools/pkz/ReeotUI.manifest"
@@ -109,9 +110,7 @@ add_custom_command(
     DEPENDS pkztool
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotRussian.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/ru.tsv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/TempusGothic_ru.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/SansaCon_ru.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0_ru.png"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/SansaCon_cyrillic.txt"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SansaCon-UltraBlack_texture_0_ru.png"
     COMMENT "Authoring ReeotRussian.pkz from tools/pkz/ReeotRussian.manifest"
     VERBATIM)

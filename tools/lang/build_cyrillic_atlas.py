@@ -117,7 +117,7 @@ def build(font, spec, pkztool, pak):
     check.save(out_path[:-4] + ".boxes.png")
 
     prefix = spec["prefix"]
-    lines = [f"# {font}: the Russian glyph table, written by tools/lang/build_cyrillic_atlas.py -- do not edit.",
+    lines = [f"# {font}: the Cyrillic glyph table, written by tools/lang/build_cyrillic_atlas.py -- do not edit.",
              f"{prefix}_0000\tsize {width} {retail_h} {new_h}"]
     n = 1
     for cp, letter, shape, base, box in cells:
