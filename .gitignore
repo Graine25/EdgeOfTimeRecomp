@@ -75,3 +75,6 @@ Testing/
 /out
 /tools/pkz/generated
 /tools/lang/generated
+
+# Python bytecode from the tools
+__pycache__/
