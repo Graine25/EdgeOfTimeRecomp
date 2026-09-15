@@ -38,7 +38,7 @@ SLOTS = (
 )
 
 SETS = (
-    ("switch", (None, None, None, None,
+    ("switch", ("switch_button_b", "switch_button_a", "switch_button_x", "switch_button_y",
                 "switch_button_zr", "switch_button_zl", None, None,
                 "switch_button_minus", "switch_button_plus", "switch_button_r", "switch_button_l",
                 None, None)),
