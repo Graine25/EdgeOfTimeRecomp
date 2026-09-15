@@ -12,6 +12,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/ui/menu_handles.h"
+#include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_PKPackage_FindString);
 REX_EXTERN(__imp__eot_MMMemoryMgr_Alloc);
@@ -26,6 +27,7 @@ constexpr uint32_t kTableRecordSize = 24;
 constexpr uint32_t kTableEntries = 0;
 constexpr uint32_t kTableText = 8;
 constexpr uint32_t kTableEntryCount = 12;
+constexpr uint32_t kTableNameCrc = 20;
 constexpr uint32_t kEntrySize = 12;
 constexpr uint32_t kEntryLineCount = 4;
 constexpr uint32_t kEntryLines = 8;
@@ -34,11 +36,11 @@ constexpr uint32_t kLineSize = 12;
 struct Shipped {
   const char *language;
   uint32_t package;
+  uint32_t table;
   uint32_t salt;
-  bool fold;
 };
 constexpr Shipped kShipped[] = {
-    {"ru", eot::ui::kReeotRussianPackageId, 0x52555353u, true},
+    {"ru", eot::ui::kReeotRussianPackageId, eot::ui::NameCrc("Russian"), 0x52555353u},
 };
 
 struct Line {
@@ -58,26 +60,6 @@ uint32_t g_shipped_object = 0;
 
 uint64_t Key(uint32_t package, uint32_t crc, uint32_t line) {
   return (static_cast<uint64_t>(package & 0xFFF) << 40) | (static_cast<uint64_t>(crc) << 8) | (line & 0xFF);
-}
-
-char16_t FoldCyrillic(char16_t c) {
-  static constexpr char16_t kUpper[] = u"\u0410\u0412\u0415\u041A\u041C\u041D\u041E\u0420\u0421\u0422\u0425";
-  static constexpr char16_t kUpperLatin[] = u"ABEKMHOPCTX";
-  static constexpr char16_t kLower[] = u"\u0430\u0435\u043E\u0440\u0441\u0443\u0445";
-  static constexpr char16_t kLowerLatin[] = u"aeopcyx";
-  for (size_t i = 0; kUpper[i]; ++i)
-    if (c == kUpper[i])
-      return kUpperLatin[i];
-  for (size_t i = 0; kLower[i]; ++i)
-    if (c == kLower[i])
-      return kLowerLatin[i];
-  if (c >= 0x0410 && c <= 0x044F)
-    return static_cast<char16_t>(0xC0 + (c - 0x0410));
-  if (c == 0x0401)
-    return 0xA8;
-  if (c == 0x0451)
-    return 0xB8;
-  return c;
 }
 
 std::u16string Decode(std::string_view escaped) {
@@ -172,7 +154,7 @@ bool IndexShipped() {
     const uint32_t entries = eot::mem::load<uint32_t>(record + kTableEntries);
     const uint32_t text = eot::mem::load<uint32_t>(record + kTableText);
     const uint32_t n = eot::mem::load<uint32_t>(record + kTableEntryCount);
-    if (!entries || !text)
+    if (!entries || !text || eot::mem::load<uint32_t>(record + kTableNameCrc) != g_shipped->table)
       continue;
     for (uint32_t s = 0; s < n; ++s) {
       const uint32_t entry = entries + s * kEntrySize;
@@ -188,8 +170,7 @@ bool IndexShipped() {
     }
   }
   g_key_by_package = false;
-  EOT_INFO("[text] {} translation: {} lines from package {:#x} ({} table(s))", g_language, lines, g_shipped->package,
-           count);
+  EOT_INFO("[text] {} translation: {} lines from package {:#x}", g_language, lines, g_shipped->package);
   g_shipped = nullptr;
   g_shipped_object = 0;
   return lines > 0;
@@ -240,12 +221,8 @@ bool LoadTranslation(const std::filesystem::path &game, std::string_view languag
     const uint32_t package = static_cast<uint32_t>(std::strtoul(std::string(cols[0]).c_str(), nullptr, 10));
     const uint32_t line = static_cast<uint32_t>(std::strtoul(std::string(cols[4]).c_str(), nullptr, 10));
     const uint32_t crc = static_cast<uint32_t>(std::strtoul(std::string(cols[5]).c_str(), nullptr, 16));
-    std::u16string text = Decode(std::string_view(row).substr(from));
-    if (shipped && shipped->fold)
-      for (char16_t &c : text)
-        c = FoldCyrillic(c);
     g_index[Key(package, crc, line)] = static_cast<uint32_t>(g_lines.size());
-    g_lines.push_back({std::move(text), 0});
+    g_lines.push_back({Decode(std::string_view(row).substr(from)), 0});
     ++rows;
   }
   if (bad)

@@ -8,6 +8,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/loading/texture_overrides.h"
+#include "goliath/text/glyph_pages.h"
 #include "goliath/text/translation.h"
 #include "goliath/ui/menu_handles.h"
 #include "platform/language.h"
@@ -106,8 +107,10 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
     eot::mem::store<uint32_t>(package + 160, flags | 0x8);
     EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", GuestString(record), flags, flags | 0x8);
   }
-  eot::loading::ApplyTextureOverrides(ctx, base);
   eot::text::PackageMounted(id, package);
+  if (id == eot::ui::kReeotRussianPackageId)
+    eot::text::SetGlyphPackage(package);
+  eot::loading::ApplyTextureOverrides(ctx, base);
 }
 
 REX_HOOK_RAW(eot_Stream_Open) {
