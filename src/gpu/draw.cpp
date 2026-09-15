@@ -2261,7 +2261,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     spec = layout->spec;
     FillPipelineState(dev, targets, st, &spec, &a2c);
     spec |= layout->spec;
-    st.vs = ResolveHostShader(s, *vs, spec);
+    st.vs = ResolveHostShader(s, *vs, spec,
+                              VsVariantFor(vs->entry, ps ? ps->entry : nullptr, ps == nullptr));
     st.ps = ps ? ResolveHostShader(s, *ps, spec) : nullptr;
     if (!st.vs || (ps && !st.ps)) {
       Dropped("host shader unavailable (link failure)", 0x6007);
@@ -2414,7 +2415,20 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   }
   lap(s.perf.const_ms);
 
-  if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame())) {
+  const bool diag_now =
+      Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame());
+  if (diag_now && Settings::Record()) {
+    GpuTimingDiagMark(s, s.command_list,
+                      std::format("draw rt0={:#x} {}x{} f{} smp{}{} ps={:016x} vs={:016x}",
+                                  targets.colorCount ? targets.color[0]->va : 0, targets.width,
+                                  targets.height,
+                                  targets.colorCount ? targets.color[0]->colorFormat : 99,
+                                  targets.samples,
+                                  targets.depth && targets.depthImage == &targets.depth->single
+                                      ? " twin"
+                                      : "",
+                                  ps ? ps->hash : 0, vs->hash));
+  } else if (diag_now) {
     static u32 k = 0;
     const u32 vte = dev.U32(dev::kVteControl);
     GpuTimingDiagMark(s, s.command_list, std::format("draw {}", k));
@@ -2443,7 +2457,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
              layout->streamMask, pk.strides[0], dev.U32(dev::kTextureObject0),
              vp.posScale[0], vp.posScale[1], vp.posScale[2], vp.posOffset[0], vp.posOffset[1],
              vp.posOffset[2]);
-    for (u32 slot = 0; slot < 16; ++slot) {
+    for (u32 slot = 0; slot < 16 && !Settings::Record(); ++slot) {
       const u32 tex_va = dev.U32(dev::kTextureObject0 + 4 * slot);
       if (!tex_va)
         continue;

@@ -53,6 +53,8 @@ add_custom_command(
     DEPENDS pkztool
             "${REEOT_PKZ_DATA}/ReeotUI.manifest"
             "${REEOT_PKZ_DATA}/strings/ui.txt"
+            "${REEOT_PKZ_DATA}/strings/TempusGothic_cyrillic.txt"
+            "${REEOT_PKZ_DATA}/strings/SansaCon_cyrillic.txt"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0.dds"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SteelworksBook_texture_0.dds"
     COMMENT "Authoring ReeotUI.pkz from pkzlib/ReeotUI.manifest"
@@ -98,10 +100,6 @@ add_custom_command(
     DEPENDS pkztool
             "${REEOT_PKZ_DATA}/ReeotRussian.manifest"
             "${REEOT_PKZ_DATA}/strings/ru.tsv"
-            "${REEOT_PKZ_DATA}/strings/TempusGothic_ru.txt"
-            "${REEOT_PKZ_DATA}/strings/SansaCon_ru.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0_ru.png"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SansaCon-UltraBlack_texture_0_ru.png"
     COMMENT "Authoring ReeotRussian.pkz from pkzlib/ReeotRussian.manifest"
     VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}"
@@ -232,6 +230,7 @@ add_custom_command(
 list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
 
 if(WIN32)
+    list(APPEND REEOT_SOURCES src/core/sleep.cpp)
     enable_language(RC)
     set(REEOT_ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/res/reeot.ico")
     configure_file(res/reeot.rc.in "${REEOT_GEN_DIR}/reeot.rc" @ONLY)

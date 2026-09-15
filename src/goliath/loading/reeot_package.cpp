@@ -1,9 +1,14 @@
+#include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <string>
 
 #include <rex/cvar.h>
+#include <rex/filesystem/entry.h>
+#include <rex/filesystem/vfs.h>
 #include <rex/hook.h>
+#include <rex/runtime.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
@@ -18,6 +23,7 @@ REX_EXTERN(__imp__eot_MMMemoryMgr_Alloc);
 REX_EXTERN(__imp__eot_PKPackageMgrBC_Load);
 REX_EXTERN(__imp__eot_PKPackage_Mount); // PKPackage_Mount(package r3)
 REX_EXTERN(__imp__eot_Stream_Open);
+REX_EXTERN(__imp__eot_XContentCreateEx);
 
 namespace {
 
@@ -108,8 +114,7 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
     EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", GuestString(record), flags, flags | 0x8);
   }
   eot::text::PackageMounted(id, package);
-  if (id == eot::ui::kReeotRussianPackageId)
-    eot::text::SetGlyphPackage(package);
+  eot::text::NoteGlyphPackage(package);
   eot::loading::ApplyTextureOverrides(ctx, base);
 }
 
@@ -148,4 +153,65 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
     EOT_INFO("[pkg] queued {} as package id {:#x}: object {:#x}, handles {:#010x}+", p.name, p.id, package,
              p.id << 20);
   }
+}
+
+namespace {
+
+// The root name lives on the caller's stack, and an overlapped create reads it later.
+constexpr uint32_t kRootNameSlots = 16;
+constexpr uint32_t kRootNameSize = 64;
+std::mutex g_root_names_mutex;
+uint32_t g_root_names = 0;
+std::atomic<uint32_t> g_root_next{0};
+
+uint32_t RootNameSlot(const PPCContext &ctx, uint8_t *base) {
+  std::lock_guard<std::mutex> lock(g_root_names_mutex);
+  if (!g_root_names)
+    g_root_names = GuestAlloc(ctx, base, kRootNameSlots * kRootNameSize);
+  if (!g_root_names)
+    return 0;
+  return g_root_names + (g_root_next.fetch_add(1, std::memory_order_relaxed) % kRootNameSlots) * kRootNameSize;
+}
+
+}
+
+REX_HOOK_RAW(eot_XContentCreateEx) {
+  const uint32_t name = ctx.r4.u32;
+  if (name) {
+    if (const uint32_t slot = RootNameSlot(ctx, base)) {
+      const std::string copy = GuestString(name, kRootNameSize - 1);
+      for (size_t i = 0; i < copy.size(); ++i)
+        eot::mem::store<uint8_t>(slot + static_cast<uint32_t>(i), static_cast<uint8_t>(copy[i]));
+      eot::mem::store<uint8_t>(slot + static_cast<uint32_t>(copy.size()), 0);
+      ctx.r4.u32 = slot;
+    }
+  }
+  __imp__eot_XContentCreateEx(ctx, base);
+}
+
+// The game's GetFileAttributesExA(name, level, info), answered from the runtime's file system.
+REX_HOOK_RAW(eot_GetFileAttributesExA) {
+  const std::string path = GuestString(ctx.r3.u32, 1024);
+  const uint32_t info = ctx.r5.u32;
+  rex::Runtime *runtime = rex::Runtime::instance();
+  rex::filesystem::VirtualFileSystem *vfs = runtime ? runtime->file_system() : nullptr;
+  rex::filesystem::Entry *entry = vfs && !path.empty() ? vfs->ResolvePath(path) : nullptr;
+  if (!entry || !info) {
+    ctx.r3.u64 = 0;
+    return;
+  }
+  const uint32_t words[9] = {
+      entry->attributes(),
+      static_cast<uint32_t>(entry->create_timestamp()),
+      static_cast<uint32_t>(entry->create_timestamp() >> 32),
+      static_cast<uint32_t>(entry->access_timestamp()),
+      static_cast<uint32_t>(entry->access_timestamp() >> 32),
+      static_cast<uint32_t>(entry->write_timestamp()),
+      static_cast<uint32_t>(entry->write_timestamp() >> 32),
+      static_cast<uint32_t>(static_cast<uint64_t>(entry->size()) >> 32),
+      static_cast<uint32_t>(entry->size()),
+  };
+  for (uint32_t i = 0; i < 9; ++i)
+    eot::mem::store<uint32_t>(info + 4 * i, words[i]);
+  ctx.r3.u64 = 1;
 }

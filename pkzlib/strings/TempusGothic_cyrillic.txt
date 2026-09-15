@@ -1,4 +1,4 @@
-# TempusGothic: the Russian glyph table, written by tools/lang/build_cyrillic_atlas.py -- do not edit.
+# TempusGothic: the Cyrillic glyph table, written by tools/lang/build_cyrillic_atlas.py -- do not edit.
 TG_0000	size 448 440 512
 TG_0001	cell 0401 1 441 10 468 27
 TG_0002	cell 0411 11 441 21 464 23
