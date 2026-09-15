@@ -839,9 +839,21 @@ uint32_t StringLength(const PPCContext &ctx, uint8_t *base, uint32_t string_hand
   if (!string_handle)
     return 0;
   constexpr uint32_t kStringTableResolveHandle = 0x821813A8;
+  PPCFunc *fn = rex::runtime::ResolveIndirectFunction(kStringTableResolveHandle);
+  if (!fn)
+    return 0;
   const uint32_t line = g_block + kBlockLine;
   eot::mem::store<uint16_t>(line, 0);
-  hud::CallAt(ctx, base, kStringTableResolveHandle, line, string_handle, 0, 0, 0, 0);
+  PPCContext call = ctx;
+  call.r3.u32 = line;
+  call.r4.u32 = string_handle;
+  call.r5.u32 = 0;
+  call.r6.u32 = 0;
+  call.r7.u32 = 0;
+  call.r8.u32 = 0;
+  call.r9.u32 = 0;
+  call.r10.u32 = 0;
+  fn(call, base);
   uint32_t n = 0;
   while (n < 250 && eot::mem::load<uint16_t>(line + n * 2))
     ++n;

@@ -7,9 +7,11 @@ namespace eot::ui {
 inline constexpr uint32_t kReeotPackageId = 0x7EE;
 inline constexpr uint32_t kReeotMenuPackageId = 0x7ED;
 inline constexpr uint32_t kReeotAchievementsPackageId = 0x7EC;
+inline constexpr uint32_t kReeotRussianPackageId = 0x7EB;
 inline constexpr const char *kReeotPackageName = "L:/custom/ReeotUI.pak";
 inline constexpr const char *kReeotMenuPackageName = "L:/custom/ReeotMenu.pak";
 inline constexpr const char *kReeotAchievementsPackageName = "L:/custom/ReeotAchievements.pak";
+inline constexpr const char *kReeotRussianPackageName = "L:/custom/ReeotRussian.pak";
 inline constexpr const char *kReeotPackageFolder = "custom";
 inline constexpr uint32_t kReeotPackageDependency = 2;
 inline constexpr uint32_t kReeotHandleBase = kReeotPackageId << 20;

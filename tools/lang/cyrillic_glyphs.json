@@ -1,0 +1,55 @@
+{
+  "_": [
+    "The paint plan for the Russian font atlases: which Cyrillic letter goes",
+    "into which glyph cell of the retail font, and where its shape comes from.",
+    "Cells are the retail glyph table's (pkztool font Main.pak <font>); the",
+    "slot for a letter is its Windows-1251 code, which lands on an accented",
+    "Latin letter's cell (the runtime folds Cyrillic to those codes, and the",
+    "letters that look like Latin ones -- А В Е К М Н О Р С Т Х, а е о р с у х --",
+    "to the Latin letters, so those need no cell). A source is a box in the",
+    "Shattered Dimensions PC atlas (res/textures/SDPC_*), which has the same",
+    "typefaces with Cyrillic drawn, or the retail atlas's own glyph, sometimes",
+    "with the crossbar erased (Л from A). ref is the retail glyph whose height",
+    "the pasted shape is scaled to. Only the letters of the test text and their",
+    "capitals are painted so far; the rest of the alphabet still shows the",
+    "accented Latin letter its slot holds."
+  ],
+  "fonts": {
+    "TempusGothic": {
+      "atlas": "res/textures/TempusGothic_texture_0.png",
+      "source": "res/textures/SDPC_TempusGothic_texture_0.png",
+      "out": "res/textures/TempusGothic_texture_0_ru.png",
+      "glyphs": {
+        "0xE1": {"letter": "б", "box": [199, 171, 209, 194], "ref": "b"},
+        "0xEA": {"letter": "к", "box": [205, 199, 215, 216], "ref": "a"},
+        "0xEB": {"letter": "л", "box": [139, 181, 151, 198], "ref": "a"},
+        "0xF2": {"letter": "т", "from": "T", "ref": "a"},
+        "0xFC": {"letter": "ь", "box": [64, 217, 74, 233], "ref": "a"},
+        "0xFF": {"letter": "я", "box": [36, 62, 48, 85], "ref": "a"},
+        "0xC1": {"letter": "Б", "box": [51, 90, 62, 113], "ref": "A"},
+        "0xCB": {"letter": "Л", "box": [139, 181, 151, 198], "ref": "A"},
+        "0xD3": {"letter": "У", "box": [34, 90, 46, 112], "ref": "A"},
+        "0xDC": {"letter": "Ь", "box": [64, 217, 74, 233], "ref": "A"},
+        "0xDF": {"letter": "Я", "box": [36, 62, 48, 85], "ref": "A"}
+      }
+    },
+    "SansaCon-UltraBlack": {
+      "atlas": "res/textures/SansaCon-UltraBlack_texture_0.png",
+      "source": "res/textures/SDPC_SansaCon-UltraBlack_texture_0.png",
+      "out": "res/textures/SansaCon-UltraBlack_texture_0_ru.png",
+      "glyphs": {
+        "0xE1": {"letter": "б", "box": [343, 154, 365, 178], "ref": "A"},
+        "0xEA": {"letter": "к", "from": "K", "ref": "A"},
+        "0xEB": {"letter": "л", "from": "A", "erase_bar": true, "ref": "A"},
+        "0xF2": {"letter": "т", "from": "T", "ref": "A"},
+        "0xFC": {"letter": "ь", "box": [235, 346, 257, 370], "ref": "A"},
+        "0xFF": {"letter": "я", "box": [302, 58, 324, 82], "ref": "A"},
+        "0xC1": {"letter": "Б", "box": [343, 154, 365, 178], "ref": "A"},
+        "0xCB": {"letter": "Л", "from": "A", "erase_bar": true, "ref": "A"},
+        "0xD3": {"letter": "У", "box": [35, 306, 57, 330], "ref": "A"},
+        "0xDC": {"letter": "Ь", "box": [235, 346, 257, 370], "ref": "A"},
+        "0xDF": {"letter": "Я", "box": [302, 58, 324, 82], "ref": "A"}
+      }
+    }
+  }
+}

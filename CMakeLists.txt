@@ -100,7 +100,21 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/achievement_icons_64.png"
     COMMENT "Authoring ReeotAchievements.pkz from tools/pkz/ReeotAchievements.manifest"
     VERBATIM)
-add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}")
+set(REEOT_RU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotRussian.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_RU_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotRussian.manifest" "${REEOT_RU_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotRussian.manifest"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/ru.tsv"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0_ru.png"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SansaCon-UltraBlack_texture_0_ru.png"
+    COMMENT "Authoring ReeotRussian.pkz from tools/pkz/ReeotRussian.manifest"
+    VERBATIM)
+add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}"
+                                        "${REEOT_RU_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
@@ -121,6 +135,13 @@ reeot_embed_generated(
     HEADER      "${REEOT_GEN_DIR}/embedded_achievements_package.h"
     SOURCES_VAR REEOT_EMBED_ACH_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ACH_PACKAGE_SOURCE})
+reeot_embed_generated(
+    INPUT       "${REEOT_RU_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotRussian.pkz"
+    ACCESSOR    EmbeddedRussianPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_russian_package.h"
+    SOURCES_VAR REEOT_EMBED_RU_PACKAGE_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_RU_PACKAGE_SOURCE})
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
