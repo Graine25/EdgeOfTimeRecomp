@@ -38,7 +38,8 @@ def export(template, out):
 def import_(sheet, template, out):
     rows = read_template(template)
     translations = {}
-    with open(sheet, encoding="utf-8", newline="") as f:
+    in_place = 0
+    with open(sheet, encoding="utf-8-sig", newline="") as f:
         header = None
         for line in f:
             line = line.rstrip("\r\n")
@@ -50,11 +51,14 @@ def import_(sheet, template, out):
                 if "id" not in header or "Translation" not in header:
                     sys.exit("the sheet needs an id and a Translation column")
                 continue
-            if len(cols) <= header["Translation"]:
-                continue
-            t = cols[header["Translation"]].strip()
+            i = int(cols[header["id"]])
+            t = cols[header["Translation"]].strip() if len(cols) > header["Translation"] else ""
+            if not t and "English" in header and len(cols) > header["English"] and 0 < i <= len(rows):
+                if cols[header["English"]] != rows[i - 1][8]:
+                    t = cols[header["English"]]
+                    in_place += 1
             if t:
-                translations[int(cols[header["id"]])] = t
+                translations[i] = t
     by_english = {}
     for i, row in enumerate(rows, 1):
         if i in translations:
@@ -78,8 +82,8 @@ def import_(sheet, template, out):
         f.write("\n".join(lines) + "\n")
     for p in problems[:50]:
         print(p)
-    print(f"{out}: {len(rows)} rows, {done} translated ({same} by matching English), {len(rows) - done} English, "
-          f"{len(problems)} marker problem(s)")
+    print(f"{out}: {len(rows)} rows, {done} translated ({same} by matching English, {in_place} written over the "
+          f"English column), {len(rows) - done} English, {len(problems)} marker problem(s)")
 
 
 def main():

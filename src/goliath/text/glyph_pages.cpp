@@ -123,6 +123,10 @@ bool InstallGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font, const ch
     EOT_WARN("[glyphs] {}: no page table to extend ({} pages)", name, pageCount);
     return false;
   }
+  if (eot::mem::load<uint32_t>(pages + 4 * 4)) {
+    g_done.push_back(font);
+    return true;
+  }
   const uint32_t reference = page0 + kReference * kRecordSize;
   const float refTop = LoadF(reference + kRecTop);
 

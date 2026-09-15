@@ -51,6 +51,7 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotUI.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/TempusGothic_cyrillic.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/SansaCon_cyrillic.txt"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0.dds"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SteelworksBook_texture_0.dds"
     COMMENT "Authoring ReeotUI.pkz from tools/pkz/ReeotUI.manifest"
@@ -101,6 +102,20 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/achievement_icons_64.png"
     COMMENT "Authoring ReeotAchievements.pkz from tools/pkz/ReeotAchievements.manifest"
     VERBATIM)
+set(REEOT_RU_PORT_STRINGS "${REEOT_MENU_STRINGS_DIR}/reeot_port_strings.ru.tsv")
+add_custom_command(
+    OUTPUT "${REEOT_RU_PORT_STRINGS}"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/make_port_translation.py"
+            ru "${REEOT_RU_PORT_STRINGS}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/make_port_translation.py"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_strings.py"
+            "${REEOT_MENU_STRINGS_TOML}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.ru.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ach_strings.ru.txt"
+            "${REEOT_ACH_STRINGS}"
+    COMMENT "Writing the port's own strings in Russian as translation rows"
+    VERBATIM)
 set(REEOT_RU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotRussian.pkz")
 add_custom_command(
     OUTPUT "${REEOT_RU_PKZ_OUTPUT}"
@@ -110,8 +125,7 @@ add_custom_command(
     DEPENDS pkztool
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotRussian.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/ru.tsv"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/glyphs/SansaCon_cyrillic.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SansaCon-UltraBlack_texture_0_ru.png"
+            "${REEOT_RU_PORT_STRINGS}"
     COMMENT "Authoring ReeotRussian.pkz from tools/pkz/ReeotRussian.manifest"
     VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}"

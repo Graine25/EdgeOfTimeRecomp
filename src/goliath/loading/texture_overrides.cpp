@@ -1,6 +1,7 @@
 #include "goliath/loading/texture_overrides.h"
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 #include <rex/cvar.h>
@@ -50,8 +51,7 @@ constexpr Override Make(const char *retail, const char *replacement, const char 
 
 constexpr Override kOverrides[] = {
     Make("TempusGothic_texture_0", "Reeot_Font_TempusGothic_4x", "TempusGothic", "GlyphsTempusGothic"),
-    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_4x", "SansaCon"),
-    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_RU", "SansaCon", "GlyphsSansaCon", "ru"),
+    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_4x", "SansaCon", "GlyphsSansaCon"),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");
@@ -78,6 +78,7 @@ uint32_t WantedMask() {
 
 uint32_t g_pending = 0;
 bool g_pending_chosen = false;
+std::recursive_mutex g_apply_mutex;
 uint32_t g_requested = 0;
 uint32_t g_ticks = 0;
 constexpr uint32_t kMaxTicks = 6000;
@@ -197,6 +198,7 @@ bool TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
 }
 
 void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
+  std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
   if (!g_pending_chosen) {
     g_pending_chosen = true;
     g_pending = REXCVAR_GET(eot_texture_overrides) ? WantedMask() : 0;
@@ -216,6 +218,7 @@ REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   using namespace eot::loading;
   if (g_pending_chosen && !g_pending)
     return;
+  std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
   if (++g_ticks > kMaxTicks) {
     EOT_WARN("[tex] {} override(s) never became ready; giving up", __builtin_popcount(g_pending));
     g_pending = 0;

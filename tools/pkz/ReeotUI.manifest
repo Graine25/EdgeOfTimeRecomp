@@ -4,6 +4,7 @@ strings reeot_ui_strings.txt
 texture Reeot_Font_TempusGothic_4x dds ../../res/textures/TempusGothic_texture_0.dds nomips
 texture Reeot_Font_SansaCon_4x dds ../../res/textures/SteelworksBook_texture_0.dds nomips
 strings ../lang/glyphs/TempusGothic_cyrillic.txt GlyphsTempusGothic lang=0x1F
+strings ../lang/glyphs/SansaCon_cyrillic.txt GlyphsSansaCon lang=0x1F
 font TempusGothic from Main.pak TempusGothic atlas=Reeot_Font_TempusGothic_4x
 font SansaCon from Main.pak SansaCon-UltraBlack atlas=Reeot_Font_SansaCon_4x
 window Reeot_TextureHolder_TempusGothic type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Font_TempusGothic_4x

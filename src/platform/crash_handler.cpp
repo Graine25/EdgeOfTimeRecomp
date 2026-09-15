@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <csignal>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -220,12 +221,56 @@ bool CrashHandler(rex::arch::Exception *ex, void *) {
   std::abort();
 }
 
+void AbortHandler(int) {
+  if (s_reporting.test_and_set(std::memory_order_acq_rel))
+    std::_Exit(3);
+  EOT_CRITICAL("================ reeot host crash ================");
+  EOT_CRITICAL("build: reeot " REEOT_VERSION_STRING " " REEOT_GIT_COMMIT " " REXGLUE_BUILD_TITLE);
+  EOT_CRITICAL("abort() called (a CRT assert, an invalid parameter, or a library giving up)");
+  LogBacktrace(HostModuleBase());
+  EOT_CRITICAL("===================================================");
+  rex::FlushLogging();
+  ShowFatalError("reeot crashed", "reeot hit a fatal error and has to close.\n\nabort() was called; the log has the stack.");
+  std::_Exit(3);
+}
+
+#if defined(_WIN32)
+void InvalidParameterHandler(const wchar_t *expression, const wchar_t *function, const wchar_t *file, unsigned line,
+                             uintptr_t) {
+  std::string what = "a CRT function was given an invalid parameter";
+  if (function || file) {
+    what += " (";
+    for (const wchar_t *p = function ? function : L""; *p; ++p)
+      what.push_back(*p < 0x80 ? static_cast<char>(*p) : '?');
+    what += " at ";
+    for (const wchar_t *p = file ? file : L""; *p; ++p)
+      what.push_back(*p < 0x80 ? static_cast<char>(*p) : '?');
+    what += ":" + std::to_string(line) + ")";
+  }
+  (void)expression;
+  if (!s_reporting.test_and_set(std::memory_order_acq_rel)) {
+    EOT_CRITICAL("================ reeot host crash ================");
+    EOT_CRITICAL("build: reeot " REEOT_VERSION_STRING " " REEOT_GIT_COMMIT " " REXGLUE_BUILD_TITLE);
+    EOT_CRITICAL("{}", what);
+    LogBacktrace(HostModuleBase());
+    EOT_CRITICAL("===================================================");
+    rex::FlushLogging();
+    ShowFatalError("reeot crashed", "reeot hit a fatal error and has to close.\n\n" + what);
+  }
+  std::_Exit(3);
+}
+#endif
+
 }
 
 void InstallTerminateHandler() {
   if (g_host_module_name.empty())
     g_host_module_name = rex::filesystem::GetExecutablePath().filename().string();
   std::set_terminate(&TerminateHandler);
+  std::signal(SIGABRT, &AbortHandler);
+#if defined(_WIN32)
+  _set_invalid_parameter_handler(&InvalidParameterHandler);
+#endif
 }
 
 void InstallCrashHandler() {
