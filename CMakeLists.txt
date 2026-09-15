@@ -265,6 +265,7 @@ add_custom_command(
 list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
 
 if(WIN32)
+    list(APPEND REEOT_SOURCES src/core/sleep.cpp)
     enable_language(RC)
     set(REEOT_ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/res/reeot.ico")
     configure_file(res/reeot.rc.in "${REEOT_GEN_DIR}/reeot.rc" @ONLY)
