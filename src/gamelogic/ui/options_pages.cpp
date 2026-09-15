@@ -270,7 +270,8 @@ uint32_t LayoutIndex(const Layout *layout) { return layout == &kNarrow ? 1 : 0; 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
 constexpr Choice kOnOffSwapped[] = {{"REEOT_VAL_ON", "false"}, {"REEOT_VAL_OFF", "true"}};
 constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
-                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"}};
+                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"},
+                                 {"REEOT_VAL_RUSSIAN", "ru"}};
 constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL_INVERTED", "true"}};
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
