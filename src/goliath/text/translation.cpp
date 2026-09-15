@@ -15,6 +15,7 @@
 #include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_PKPackage_FindString);
+REX_EXTERN(__imp__eot_StringTable_FindSlotLine);
 REX_EXTERN(__imp__eot_MMMemoryMgr_Alloc);
 
 namespace eot::text {
@@ -36,12 +37,22 @@ constexpr uint32_t kLineSize = 12;
 struct Shipped {
   const char *language;
   uint32_t package;
-  uint32_t table;
+  uint32_t tables[2];
   uint32_t salt;
 };
 constexpr Shipped kShipped[] = {
-    {"ru", eot::ui::kReeotRussianPackageId, eot::ui::NameCrc("Russian"), 0x52555353u},
+    {"ru",
+     eot::ui::kReeotRussianPackageId,
+     {eot::ui::NameCrc("Russian"), eot::ui::NameCrc("RussianPort")},
+     0x52555353u},
 };
+
+bool ShippedTable(const Shipped &shipped, uint32_t nameCrc) {
+  for (const uint32_t table : shipped.tables)
+    if (table == nameCrc)
+      return true;
+  return false;
+}
 
 struct Line {
   std::u16string text;
@@ -58,8 +69,81 @@ bool g_key_by_package = true;
 const Shipped *g_shipped = nullptr;
 uint32_t g_shipped_object = 0;
 
+std::unordered_map<uint64_t, uint32_t> g_by_text;
+uint64_t g_by_text_set = 0;
+constexpr uint32_t kPackageMgr = 0x824C8DE8;
+constexpr uint32_t kMgrPackages = 8;
+constexpr uint32_t kMaxPackageId = 4096;
+constexpr uint32_t kMaxTables = 64;
+constexpr uint32_t kMaxEntries = 65536;
+constexpr uint32_t kMaxLineChars = 512;
+
+bool GuestHeap(uint32_t va) { return va >= 0x10000u && va < 0xFFF00000u; }
+
 uint64_t Key(uint32_t package, uint32_t crc, uint32_t line) {
   return (static_cast<uint64_t>(package & 0xFFF) << 40) | (static_cast<uint64_t>(crc) << 8) | (line & 0xFF);
+}
+
+uint64_t HashGuestLine(uint32_t at) {
+  uint64_t h = 1469598103934665603ull;
+  for (uint32_t n = 0; n < kMaxLineChars; ++n, at += 2) {
+    const uint16_t c = eot::mem::load<uint16_t>(at);
+    if (!c)
+      break;
+    h = (h ^ c) * 1099511628211ull;
+  }
+  return h;
+}
+
+void BuildByText() {
+  uint64_t set = 1469598103934665603ull;
+  uint32_t loaded[kMaxPackageId];
+  uint32_t n = 0;
+  for (uint32_t id = 0; id < kMaxPackageId; ++id) {
+    const uint32_t package = eot::mem::load<uint32_t>(kPackageMgr + kMgrPackages + id * 4);
+    if (!GuestHeap(package))
+      continue;
+    loaded[n++] = package;
+    set = (set ^ package) * 1099511628211ull;
+  }
+  if (set == g_by_text_set)
+    return;
+  g_by_text_set = set;
+  g_by_text.clear();
+  for (uint32_t k = 0; k < n; ++k) {
+    const uint32_t package = loaded[k];
+    const uint32_t tables = eot::mem::load<uint32_t>(package + kPackageTables);
+    const uint32_t count = eot::mem::load<uint32_t>(package + kPackageTableCount);
+    if (!GuestHeap(tables) || count > kMaxTables)
+      continue;
+    const uint32_t id = g_key_by_package ? eot::mem::load<uint32_t>(package + kPackageId) : 0;
+    for (uint32_t t = 0; t < count; ++t) {
+      const uint32_t record = tables + t * kTableRecordSize;
+      const uint32_t entries = eot::mem::load<uint32_t>(record + kTableEntries);
+      const uint32_t text = eot::mem::load<uint32_t>(record + kTableText);
+      const uint32_t entryCount = eot::mem::load<uint32_t>(record + kTableEntryCount);
+      if (!GuestHeap(entries) || !GuestHeap(text) || entryCount > kMaxEntries)
+        continue;
+      for (uint32_t s = 0; s < entryCount; ++s) {
+        const uint32_t entry = entries + s * kEntrySize;
+        const uint32_t crc = eot::mem::load<uint32_t>(entry);
+        const uint32_t lineCount = eot::mem::load<uint32_t>(entry + kEntryLineCount);
+        const uint32_t lineRecords = eot::mem::load<uint32_t>(entry + kEntryLines);
+        if (!GuestHeap(lineRecords) || lineCount > 256)
+          continue;
+        for (uint32_t l = 0; l < lineCount; ++l) {
+          const auto it = g_index.find(Key(id, crc, l));
+          if (it == g_index.end())
+            continue;
+          const uint32_t at = text + 2 * eot::mem::load<uint32_t>(lineRecords + l * kLineSize);
+          if (GuestHeap(at))
+            g_by_text.emplace(HashGuestLine(at), it->second);
+        }
+      }
+    }
+  }
+  EOT_INFO("[text] {} lines of the loaded packages' tables matched to the translation, for the stream subtitles",
+           g_by_text.size());
 }
 
 std::u16string Decode(std::string_view escaped) {
@@ -154,7 +238,7 @@ bool IndexShipped() {
     const uint32_t entries = eot::mem::load<uint32_t>(record + kTableEntries);
     const uint32_t text = eot::mem::load<uint32_t>(record + kTableText);
     const uint32_t n = eot::mem::load<uint32_t>(record + kTableEntryCount);
-    if (!entries || !text || eot::mem::load<uint32_t>(record + kTableNameCrc) != g_shipped->table)
+    if (!entries || !text || !ShippedTable(*g_shipped, eot::mem::load<uint32_t>(record + kTableNameCrc)))
       continue;
     for (uint32_t s = 0; s < n; ++s) {
       const uint32_t entry = entries + s * kEntrySize;
@@ -282,4 +366,22 @@ REX_HOOK_RAW(eot_PKPackage_FindString) {
     return;
   }
   ctx.r3.u32 = guest;
+}
+
+REX_HOOK_RAW(eot_StringTable_FindSlotLine) {
+  using namespace eot::text;
+  __imp__eot_StringTable_FindSlotLine(ctx, base);
+  const uint32_t english = ctx.r3.u32;
+  if (!english || g_block_failed || (g_index.empty() && !(g_shipped_object && IndexShipped())))
+    return;
+  if (!eot::mem::load<uint16_t>(english))
+    return;
+  BuildByText();
+  const auto it = g_by_text.find(HashGuestLine(english));
+  if (it == g_by_text.end())
+    return;
+  if (!g_lines[it->second].guest)
+    CopyIntoGuest(ctx, base);
+  if (const uint32_t guest = g_lines[it->second].guest)
+    ctx.r3.u32 = guest;
 }

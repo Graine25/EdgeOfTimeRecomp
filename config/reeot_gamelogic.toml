@@ -8,13 +8,6 @@ project_name = "reeot"
 file_path = "assets/Data/GameLogic.dll"
 out_directory_path = "generated/gamelogic"
 
-# [rexcrt]
-# Heap
-# RtlAllocateHeap    = 0x883B42E0
-# RtlFreeHeap        = 0x883B4BD8
-# RtlSizeHeap        = 0x883B3558
-# RtlReAllocateHeap  = 0x883B4ED0
-
 [functions]
 # Branch Fixes
 0x883AF9CC = {}

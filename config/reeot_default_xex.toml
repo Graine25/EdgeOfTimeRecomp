@@ -9,40 +9,6 @@ project_name = "reeot"
 file_path = "assets/default.xex"
 out_directory_path = "generated/default_xex"
 
-[rexcrt]
-# Heap
-RtlAllocateHeap    = 0x82256040
-RtlFreeHeap        = 0x82256938
-RtlSizeHeap        = 0x822552B8
-RtlReAllocateHeap  = 0x82256C30
-
-# Memory
-memcpy             = 0x82247D30
-memmove            = 0x8233ED10
-# memset           = Not found
-memchr             = 0x8233E400
-XMemCpy            = 0x82247D30
-# XMemSet          = Not found
-XMemSet128         = 0x82247C30
-# memset_vmx       = Not found
-# memcpy_s         = Not found
-# memmove_s        = Not found
-
-# String
-strncmp            = 0x8233DDE0
-strncpy            = 0x8233C1C8
-strchr             = 0x82341960
-strstr             = 0x8233C228
-strrchr            = 0x8233E440
-# strtok           = Not found
-_stricmp           = 0x823419A0
-strcpy_s           = 0x8233E498
-# lstrlenA         = Not found
-# lstrcpyA         = Not found
-# lstrcpynA        = Not found
-# lstrcatA         = Not found
-# lstrcmpiA        = Not found
-
 [functions]
 # Real Functions Identified
 # -------------------------------------------------
@@ -1606,6 +1572,8 @@ strcpy_s           = 0x8233E498
 # -------------------------------------------------
 0x820DFC68 = { name = "eot_Engine_BuildDLLInterfaceTable" }
 0x820DDDC0 = { name = "eot_Engine_CollectAsyncResults" }
+#
+0x82247460 = { name = "eot_Sleep", size = 0x8 }
 0x82247468 = { name = "eot_Engine_CreateEventPump" }
 0x821B56A0 = { name = "eot_Engine_CreateMainObject" }
 0x820DAE70 = { name = "eot_Engine_DispatchEvent" }
@@ -1887,6 +1855,7 @@ strcpy_s           = 0x8233E498
 0x8224A418 = { name = "eot_XContentCalculateSize" }
 0x8224A498 = { name = "eot_XContentCreate" }
 0x8224A358 = { name = "eot_XContentCreateEx" }
+0x82249DE8 = { name = "eot_GetFileAttributesExA" }
 0x82248880 = { name = "eot_XEnumerate" }
 0x8224AD40 = { name = "eot_XEnumerateCrossTitle" }
 0x82248760 = { name = "eot_XexLoadImage_Wrapper" }
@@ -2800,6 +2769,7 @@ strcpy_s           = 0x8233E498
 0x821839C8 = { name = "eot_HUD2DObject_BuildDrawRecord" }
 0x82186448 = { name = "eot_HUDWindowBC_BuildDrawRecords" }
 0x821AADD0 = { name = "eot_PKPackage_FindString" }
+0x8208CC00 = { name = "eot_StringTable_FindSlotLine", size = 0x68 }
 0x821AAEF0 = { name = "eot_PAK_LoadStringTableLibrary" }
 0x821AB250 = { name = "eot_PAK_SelectLanguage" }
 0x821AB378 = { name = "eot_PAK_StoreStringTable" }

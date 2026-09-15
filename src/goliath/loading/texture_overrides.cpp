@@ -1,6 +1,7 @@
 #include "goliath/loading/texture_overrides.h"
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 #include <rex/cvar.h>
@@ -34,23 +35,22 @@ struct Override {
   const char *retail;
   const char *replacement;
   const char *font;
+  const char *glyphs;
   const char *language;
   uint32_t retailCrc;
   uint32_t replacementCrc;
   uint32_t fontCrc;
 };
 
-constexpr Override Make(const char *retail, const char *replacement, const char *font,
+constexpr Override Make(const char *retail, const char *replacement, const char *font, const char *glyphs = nullptr,
                         const char *language = nullptr) {
-  return {retail,   replacement,       font, language, eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
+  return {retail,   replacement,       font, glyphs, language, eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
           font ? eot::ui::NameCrc(font) : 0u};
 }
 
 constexpr Override kOverrides[] = {
-    Make("TempusGothic_texture_0", "Reeot_Font_TempusGothic_4x", "TempusGothic"),
-    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_4x", "SansaCon"),
-    Make("TempusGothic_texture_0", "Reeot_Font_TempusGothic_RU", "TempusGothic", "ru"),
-    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_RU", "SansaCon", "ru"),
+    Make("TempusGothic_texture_0", "Reeot_Font_TempusGothic_4x", "TempusGothic", "GlyphsTempusGothic"),
+    Make("SansaCon-UltraBlack_texture_0", "Reeot_Font_SansaCon_4x", "SansaCon", "GlyphsSansaCon"),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");
@@ -77,6 +77,7 @@ uint32_t WantedMask() {
 
 uint32_t g_pending = 0;
 bool g_pending_chosen = false;
+std::recursive_mutex g_apply_mutex;
 uint32_t g_requested = 0;
 uint32_t g_ticks = 0;
 constexpr uint32_t kMaxTicks = 6000;
@@ -147,8 +148,8 @@ void RepointFontAtlas(const PPCContext &ctx, uint8_t *base, const Override &o, u
     if (ptr >= 0xE0000000u && ptr < 0xF0000000u)
       rewrite(ptr);
   }
-  if (o.language)
-    eot::text::InstallShippedGlyphs(ctx, base, font, o.font);
+  if (o.glyphs)
+    eot::text::InstallGlyphs(ctx, base, font, o.glyphs, o.font);
   Release(ctx, base, font);
   EOT_INFO("[tex] {}'s atlas reference now names {} ({} word(s))", o.font, o.replacement, patched);
 }
@@ -172,7 +173,7 @@ bool TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
     Release(ctx, base, replacement);
     return false;
   }
-  if (o.language && o.font && !eot::text::ShippedGlyphsReady(o.font)) {
+  if (o.glyphs && !eot::text::GlyphTableReady(o.glyphs)) {
     Release(ctx, base, replacement);
     return false;
   }
@@ -196,6 +197,7 @@ bool TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
 }
 
 void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
+  std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
   if (!g_pending_chosen) {
     g_pending_chosen = true;
     g_pending = REXCVAR_GET(eot_texture_overrides) ? WantedMask() : 0;
@@ -215,6 +217,7 @@ REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   using namespace eot::loading;
   if (g_pending_chosen && !g_pending)
     return;
+  std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
   if (++g_ticks > kMaxTicks) {
     EOT_WARN("[tex] {} override(s) never became ready; giving up", __builtin_popcount(g_pending));
     g_pending = 0;

@@ -181,6 +181,7 @@ struct GuestShader {
   u32 textureFetchMask = 0xFFFFu;
   u32 floatConstantRegs = 256;
   u32 lastSpecMask = ~0u;
+  u8 lastVariant = 0;
   plume::RenderShader *lastHost = nullptr;
   u32 lastDeclVa = 0;
   u32 lastDeclCount = 0;

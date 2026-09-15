@@ -14,6 +14,15 @@ struct ShaderCacheEntry {
   uint32_t vertexLayoutCount;
   uint32_t vfetchCodeOffset;
   uint32_t usesFloatConstants;
+  uint32_t interpolantMask;
+  uint32_t fullDxilOffset;
+  uint32_t fullDxilSize;
+  uint32_t fullSpirvOffset;
+  uint32_t fullSpirvSize;
+  uint32_t posDxilOffset;
+  uint32_t posDxilSize;
+  uint32_t posSpirvOffset;
+  uint32_t posSpirvSize;
 };
 
 extern ShaderCacheEntry g_shaderCacheEntries[];

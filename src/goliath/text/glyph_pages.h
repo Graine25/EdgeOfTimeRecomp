@@ -6,10 +6,11 @@
 
 namespace eot::text {
 
-void SetGlyphPackage(uint32_t package);
+void NoteGlyphPackage(uint32_t package);
 
-bool ShippedGlyphsReady(const char *font);
+bool GlyphTableReady(const char *table);
 
-bool InstallShippedGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font_record, const char *font);
+bool InstallGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font_record, const char *table,
+                   const char *font);
 
 }

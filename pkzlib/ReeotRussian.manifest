@@ -1,10 +1,4 @@
 package 0x7EB ReeotRussian
 languages 1 2 5 3 4
 translation strings/ru.tsv Russian salt=0x52555353 lang=0x1
-texture Reeot_Font_TempusGothic_RU png ../res/textures/TempusGothic_texture_0_ru.png
-texture Reeot_Font_SansaCon_RU png ../res/textures/SansaCon-UltraBlack_texture_0_ru.png
-strings strings/TempusGothic_ru.txt RussianGlyphsTempusGothic lang=0x1
-strings strings/SansaCon_ru.txt RussianGlyphsSansaCon lang=0x1
-window Reeot_Ru_TextureHolder0 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Font_TempusGothic_RU
-window Reeot_Ru_TextureHolder1 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Font_SansaCon_RU
 compress true

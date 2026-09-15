@@ -1,0 +1,37 @@
+[rexcrt]
+CreateFileA          = 0x82249BF0
+ReadFile             = 0x8224A070
+WriteFile            = 0x8224A1F0
+SetFilePointer       = 0x82249F00
+GetFileSize          = 0x82249E98
+GetFileSizeEx        = 0x82253BA8
+SetEndOfFile         = 0x8237ADF0
+FlushFileBuffers     = 0x8237B6E8
+DeleteFileA          = 0x8224A5E8
+CloseHandle          = 0x82246F50
+FindFirstFileA       = 0x8224AED8
+FindNextFileA        = 0x8224AF68
+CreateDirectoryA     = 0x8237B070
+GetFileAttributesA   = 0x82247568
+CompareFileTime      = 0x8237B358
+
+RtlAllocateHeap    = 0x82256040
+RtlFreeHeap        = 0x82256938
+RtlSizeHeap        = 0x822552B8
+RtlReAllocateHeap  = 0x82256C30
+
+memcpy             = 0x8233E660
+memmove            = 0x8233ED10
+memset             = 0x8233EC70
+memchr             = 0x8233E400
+XMemCpy            = 0x82247D30
+XMemSet128         = 0x82247C30
+memcpy_s           = 0x82348840
+
+strncmp            = 0x8233DDE0
+strncpy            = 0x8233C1C8
+strchr             = 0x82341960
+strstr             = 0x8233C228
+strrchr            = 0x8233E440
+_stricmp           = 0x823419A0
+strcpy_s           = 0x8233E498

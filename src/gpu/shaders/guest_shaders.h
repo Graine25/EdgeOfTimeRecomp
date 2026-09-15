@@ -28,9 +28,14 @@ void DrainShaderGraveyardLocked(VideoState &s);
 const ShaderCacheEntry *FindShaderCacheEntry(u64 hash);
 u64 CanonicalShaderHash(u64 hash);
 void VertexInputsFromEntry(const ShaderCacheEntry &e, std::vector<VertexInput> &out);
-plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask, bool is_pixel,
-                                         bool worker = false);
+enum class VsVariant : u8 { Trimmed = 0, Full = 1, PositionOnly = 2 };
+VsVariant VsVariantFor(const ShaderCacheEntry *vs, const ShaderCacheEntry *ps, bool null_ps);
 
-plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask);
+plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask, bool is_pixel,
+                                         bool worker = false,
+                                         VsVariant variant = VsVariant::Trimmed);
+
+plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 spec_mask,
+                                       VsVariant variant = VsVariant::Trimmed);
 
 }
