@@ -1,4 +1,4 @@
-# SansaCon-UltraBlack: the Russian glyph table, written by tools/lang/build_cyrillic_atlas.py -- do not edit.
+# SansaCon-UltraBlack: the Cyrillic glyph table, written by tools/lang/build_cyrillic_atlas.py -- do not edit.
 SC_0000	size 504 496 576
 SC_0001	cell 0401 1 497 22 528 31
 SC_0002	cell 0411 23 497 45 521 24

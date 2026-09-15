@@ -108,8 +108,7 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
     EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", GuestString(record), flags, flags | 0x8);
   }
   eot::text::PackageMounted(id, package);
-  if (id == eot::ui::kReeotRussianPackageId)
-    eot::text::SetGlyphPackage(package);
+  eot::text::NoteGlyphPackage(package);
   eot::loading::ApplyTextureOverrides(ctx, base);
 }
 
