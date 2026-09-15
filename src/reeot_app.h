@@ -53,6 +53,7 @@ private:
   std::optional<std::filesystem::path> NamedGameFolder() const;
   std::optional<std::filesystem::path> EarlyInstallRoot() const;
   void UseInstallRoot(const std::filesystem::path &root, rex::PathConfig &paths);
+  void LoadTranslation(const std::filesystem::path &game);
   rex::PathConfig PathsForInstall(const rex::PathConfig &defaults, const eot::installer::InstallConfig &cfg);
 
   void InstallOverlayHook();

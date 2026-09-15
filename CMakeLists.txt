@@ -89,7 +89,23 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/achievement_icons_64.png"
     COMMENT "Authoring ReeotAchievements.pkz from pkzlib/ReeotAchievements.manifest"
     VERBATIM)
-add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}")
+set(REEOT_RU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotRussian.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_RU_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${REEOT_PKZ_DATA}/ReeotRussian.manifest" "${REEOT_RU_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${REEOT_PKZ_DATA}/ReeotRussian.manifest"
+            "${REEOT_PKZ_DATA}/strings/ru.tsv"
+            "${REEOT_PKZ_DATA}/strings/TempusGothic_ru.txt"
+            "${REEOT_PKZ_DATA}/strings/SansaCon_ru.txt"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0_ru.png"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SansaCon-UltraBlack_texture_0_ru.png"
+    COMMENT "Authoring ReeotRussian.pkz from pkzlib/ReeotRussian.manifest"
+    VERBATIM)
+add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}"
+                                        "${REEOT_RU_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
@@ -110,6 +126,13 @@ reeot_embed_generated(
     HEADER      "${REEOT_GEN_DIR}/embedded_achievements_package.h"
     SOURCES_VAR REEOT_EMBED_ACH_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ACH_PACKAGE_SOURCE})
+reeot_embed_generated(
+    INPUT       "${REEOT_RU_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotRussian.pkz"
+    ACCESSOR    EmbeddedRussianPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_russian_package.h"
+    SOURCES_VAR REEOT_EMBED_RU_PACKAGE_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_RU_PACKAGE_SOURCE})
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -186,6 +209,8 @@ set(REEOT_SOURCES
     src/goliath/ui/hud_copy_guard.cpp
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
+    src/goliath/text/glyph_pages.cpp
+    src/goliath/text/translation.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp

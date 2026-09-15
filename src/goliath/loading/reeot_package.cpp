@@ -2,12 +2,16 @@
 #include <cstring>
 #include <string>
 
+#include <rex/cvar.h>
 #include <rex/hook.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/loading/texture_overrides.h"
+#include "goliath/text/glyph_pages.h"
+#include "goliath/text/translation.h"
 #include "goliath/ui/menu_handles.h"
+#include "platform/language.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgr_LoadMainPackage);
 REX_EXTERN(__imp__eot_MMMemoryMgr_Alloc);
@@ -96,13 +100,16 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
            package ? eot::mem::load<uint32_t>(package + 160) : 0u,
            package ? eot::mem::load<uint32_t>(package + 164) : 0u);
   if (id != eot::ui::kReeotPackageId && id != eot::ui::kReeotMenuPackageId &&
-      id != eot::ui::kReeotAchievementsPackageId)
+      id != eot::ui::kReeotAchievementsPackageId && id != eot::ui::kReeotRussianPackageId)
     return;
   if (package) {
     const uint32_t flags = eot::mem::load<uint32_t>(package + 160);
     eot::mem::store<uint32_t>(package + 160, flags | 0x8);
     EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", GuestString(record), flags, flags | 0x8);
   }
+  eot::text::PackageMounted(id, package);
+  if (id == eot::ui::kReeotRussianPackageId)
+    eot::text::SetGlyphPackage(package);
   eot::loading::ApplyTextureOverrides(ctx, base);
 }
 
@@ -119,13 +126,18 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
   struct Package {
     uint32_t id;
     const char *name;
+    const char *language;
   };
   static constexpr Package kPackages[] = {
-      {kReeotPackageId, kReeotPackageName},
-      {kReeotMenuPackageId, kReeotMenuPackageName},
-      {kReeotAchievementsPackageId, kReeotAchievementsPackageName},
+      {kReeotPackageId, kReeotPackageName, nullptr},
+      {kReeotMenuPackageId, kReeotMenuPackageName, nullptr},
+      {kReeotAchievementsPackageId, kReeotAchievementsPackageName, nullptr},
+      {kReeotRussianPackageId, kReeotRussianPackageName, "ru"},
   };
+  const std::string language = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));
   for (const Package &p : kPackages) {
+    if (p.language && language != p.language)
+      continue;
     if (eot::mem::load<uint32_t>(kPackageMgr + kMgrPackages + p.id * 4)) {
       EOT_INFO("[pkg] {} (id {:#x}) is already loaded", p.name, p.id);
       continue;
