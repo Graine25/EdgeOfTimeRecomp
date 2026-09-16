@@ -20,7 +20,7 @@
 
 #include "core/logging.h"
 #include "gpu/backend.h"
-#include "gpu/constant_buffers.h"
+#include "gpu/render_thread.h"
 #include "core/profiling.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
@@ -30,7 +30,6 @@
 #include "gpu/patches/movie_aspect.h"
 #include "gpu/patches/present_effects.h"
 #include "gpu/pipeline/pipeline_cache.h"
-#include "gpu/render_thread.h"
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"

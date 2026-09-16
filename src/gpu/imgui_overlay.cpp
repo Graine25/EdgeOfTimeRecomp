@@ -18,7 +18,7 @@
 
 #include "core/logging.h"
 #include "gpu/backend.h"
-#include "gpu/constant_buffers.h"
+#include "gpu/render_thread.h"
 #include "gpu/device.h"
 #include "gpu/resources.h"
 
