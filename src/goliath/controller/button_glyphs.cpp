@@ -12,6 +12,7 @@
 #include "core/memory_helpers.h"
 #include "goliath/controller/pad_identity.h"
 #include "goliath/loading/resources.h"
+#include "goliath/loading/texture_overrides.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
 
@@ -119,7 +120,12 @@ bool Parse() {
       if (set == SIZE_MAX || !g_sheet_w || slot > 31)
         continue;
       const Box uv = Normalised({a, b, c, d});
-      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f, 0.0f});
+      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f, 0.0f, 0xFF});
+      g_have[g_sets[set].page] |= 1u << slot;
+    } else if (unsigned other = 0; std::sscanf(line.c_str(), "alias %x %x", &slot, &other) == 2) {
+      if (set == SIZE_MAX || slot > 31 || other > 31)
+        continue;
+      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), 0, 0, 0, 0, 0.0f, 0.0f, static_cast<uint8_t>(other)});
       g_have[g_sets[set].page] |= 1u << slot;
     } else if (std::sscanf(line.c_str(), "cap %63s %f %f %f %f", name, &a, &b, &c, &d) == 5) {
       if (caps)
@@ -172,7 +178,7 @@ std::vector<eot::text::IconCell> KeyboardCells() {
       continue;
     const Box uv = Normalised(*box);
     const float aspect = (box->x1 - box->x0) / (box->y1 - box->y0);
-    cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect, kCapLift});
+    cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect, kCapLift, 0xFF});
     g_have[kKeyboardPage] |= 1u << k.slot;
   }
   return cells;
@@ -248,6 +254,8 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       return;
     }
     if (g_ticks % 8 != 0)
+      return;
+    if (!TextureOverridesSettled())
       return;
     if (!g_parsed && !Parse())
       return;
