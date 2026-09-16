@@ -12,7 +12,7 @@
 #endif
 
 #include "core/logging.h"
-#include "gpu/constant_buffers.h"
+#include "gpu/render_thread.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
 #include "gpu/gpu_profiling.h"

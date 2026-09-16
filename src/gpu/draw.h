@@ -2,7 +2,7 @@
 
 #include <rex/types.h>
 
-#include "gpu/render_packets.h"
+#include "gpu/render_thread.h"
 
 namespace eot::gpu {
 
