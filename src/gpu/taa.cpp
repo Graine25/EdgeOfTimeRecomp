@@ -51,18 +51,31 @@ struct alignas(16) Constants {
 };
 static_assert(sizeof(Constants) == 112);
 
-struct State {
-  std::unique_ptr<plume::RenderShader> ps;
-  std::unique_ptr<plume::RenderPipeline> pso;
-  plume::RenderFormat psoFormat = plume::RenderFormat::UNKNOWN;
+struct View {
+  u32 mirrorVa = 0;
   HostTexture history[2];
   u32 write = 0;
   bool historyValid = false;
   float prevViewProjection[16] = {};
   bool prevValid = false;
   u64 lastFrame = ~0ull;
-  u32 lastWidth = 0, lastHeight = 0;
+  u64 lastUseFrame = 0;
+  u32 width = 0, height = 0;
+};
+
+struct State {
+  std::unique_ptr<plume::RenderShader> ps;
+  std::unique_ptr<plume::RenderPipeline> pso;
+  plume::RenderFormat psoFormat = plume::RenderFormat::UNKNOWN;
+  static constexpr u32 kMaxViews = 4;
+  View views[kMaxViews];
+  u64 lastFrame = ~0ull;
   bool shaderFailed = false;
+  u64 jitteredFrame = ~0ull;
+  u64 framesResolved = 0, framesJitteredUnresolved = 0, framesPassThrough = 0;
+  u64 lastReport = 0;
+  u64 consumerHash = 0;
+  bool lastHadDepth = false;
 };
 
 State &state() {
@@ -171,8 +184,8 @@ bool EnsureShader(VideoState &s, State &st, plume::RenderFormat format) {
   return true;
 }
 
-bool EnsureHistory(VideoState &s, State &st, const HostTexture &scene) {
-  if (st.lastWidth == scene.width && st.lastHeight == scene.height && st.history[0].valid() &&
+bool EnsureHistory(VideoState &s, View &st, const HostTexture &scene) {
+  if (st.width == scene.width && st.height == scene.height && st.history[0].valid() &&
       st.history[1].valid())
     return true;
   for (HostTexture &h : st.history)
@@ -197,13 +210,37 @@ bool EnsureHistory(VideoState &s, State &st, const HostTexture &scene) {
       return false;
     }
   }
-  st.lastWidth = scene.width;
-  st.lastHeight = scene.height;
+  st.width = scene.width;
+  st.height = scene.height;
   st.historyValid = false;
   st.prevValid = false;
-  EOT_INFO("[taa] history {}x{} ({} phases, feedback {:.2f})", desc.width, desc.height,
-           kJitterPhases, Settings::TaaFeedback());
+  EOT_INFO("[taa] history {}x{} for scene {:#x} ({} phases, feedback {:.2f})", desc.width,
+           desc.height, st.mirrorVa, kJitterPhases, Settings::TaaFeedback());
   return true;
+}
+
+View &ViewFor(VideoState &s, State &st, const GuestTexture &scene) {
+  for (View &v : st.views)
+    if (v.mirrorVa == scene.va)
+      return v;
+  View *pick = nullptr;
+  for (View &v : st.views)
+    if (!v.mirrorVa) {
+      pick = &v;
+      break;
+    }
+  if (!pick) {
+    pick = &st.views[0];
+    for (View &v : st.views)
+      if (v.lastUseFrame < pick->lastUseFrame)
+        pick = &v;
+    for (HostTexture &h : pick->history)
+      if (h.valid())
+        ParkHostTexture(s, h);
+  }
+  *pick = View{};
+  pick->mirrorVa = scene.va;
+  return *pick;
 }
 
 void BindConstants(VideoState &s, const UploadAlloc &alloc) {
@@ -242,44 +279,79 @@ void FrameJitter(const VideoState &s, float *jx, float *jy) {
   const u32 phase = static_cast<u32>(s.guest_frames % kJitterPhases);
   *jx = Halton(phase, 2) - 0.5f;
   *jy = Halton(phase, 3) - 0.5f;
+  state().jitteredFrame = s.guest_frames;
+}
+
+void EndFrame(VideoState &s) {
+  State &st = state();
+  if (!Settings::Taa())
+    return;
+  const u64 frame = s.guest_frames;
+  if (st.jitteredFrame == frame) {
+    if (st.lastFrame == frame)
+      st.framesResolved++;
+    else
+      st.framesJitteredUnresolved++;
+  }
+  if (frame - st.lastReport >= 600) {
+    st.lastReport = frame;
+    EOT_DEBUG("[taa] {} frames: {} resolved, {} jittered without a resolve, {} resolved without "
+             "history; last consumer {:#x}{}",
+             600, st.framesResolved, st.framesJitteredUnresolved, st.framesPassThrough,
+             st.consumerHash, st.lastHadDepth ? "" : " (no depth mirror bound)");
+    st.framesResolved = st.framesJitteredUnresolved = st.framesPassThrough = 0;
+  }
 }
 
 void Reset(VideoState &) {
-  State &st = state();
-  st.historyValid = false;
-  st.prevValid = false;
+  for (View &v : state().views) {
+    v.historyValid = false;
+    v.prevValid = false;
+  }
 }
 
 void Shutdown(VideoState &s) {
   State &st = state();
-  for (HostTexture &h : st.history)
-    if (h.valid())
-      ParkHostTexture(s, h);
+  for (View &v : st.views) {
+    for (HostTexture &h : v.history)
+      if (h.valid())
+        ParkHostTexture(s, h);
+    v = View{};
+  }
   st.pso.reset();
   st.ps.reset();
   st.psoFormat = plume::RenderFormat::UNKNOWN;
-  st.lastWidth = st.lastHeight = 0;
-  st.historyValid = false;
-  st.prevValid = false;
 }
 
-void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const float *camera_vp) {
-  State &st = state();
+void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const float *camera_vp,
+                             u64 consumer_hash) {
+  State &state_ = state();
+  state_.consumerHash = consumer_hash;
+  GuestTexture *scene = bound[0];
+  if (camera_vp && scene && Settings::DiagVerbosity() >= 2 && state_.lastFrame != s.guest_frames) {
+    EOT_DEBUG("[taa] frame {} scene {:#x} vp {:.6g} {:.6g} {:.6g} {:.6g} | {:.6g} {:.6g} {:.6g} {:.6g} | "
+              "{:.6g} {:.6g} {:.6g} {:.6g} | {:.6g} {:.6g} {:.6g} {:.6g}",
+              s.guest_frames, scene->va, camera_vp[0], camera_vp[1], camera_vp[2], camera_vp[3],
+              camera_vp[4], camera_vp[5], camera_vp[6], camera_vp[7], camera_vp[8], camera_vp[9],
+              camera_vp[10], camera_vp[11], camera_vp[12], camera_vp[13], camera_vp[14], camera_vp[15]);
+    if (!Settings::Taa())
+      state_.lastFrame = s.guest_frames;
+  }
   if (!Settings::Taa() || !camera_vp) {
-    st.historyValid = false;
-    st.prevValid = false;
+    Reset(s);
     return;
   }
-  if (st.lastFrame == s.guest_frames)
-    return;
-  GuestTexture *scene = bound[0];
   if (!IsFullFrameSceneMirror(scene))
+    return;
+  View &st = ViewFor(s, state_, *scene);
+  st.lastUseFrame = s.guest_frames;
+  if (st.lastFrame == s.guest_frames)
     return;
   GuestTexture *depth = nullptr;
   for (u32 i = 1; i < 16 && !depth; ++i)
     if (IsFullFrameDepthMirror(bound[i]))
       depth = bound[i];
-  if (!s.command_list_open || !EnsureShader(s, st, scene->host.format) ||
+  if (!s.command_list_open || !EnsureShader(s, state_, scene->host.format) ||
       !EnsureHistory(s, st, scene->host))
     return;
 
@@ -297,6 +369,9 @@ void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const
   c.jitter[3] = 1.0f / h;
   c.params[0] = static_cast<float>(Settings::TaaFeedback());
   c.params[1] = st.historyValid && reproject_ok && depth ? 1.0f : 0.0f;
+  state_.lastHadDepth = depth != nullptr;
+  if (c.params[1] == 0.0f)
+    state_.framesPassThrough++;
   c.params[2] = w;
   c.params[3] = h;
 
@@ -333,7 +408,7 @@ void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const
     cmd->setFramebuffer(fb);
     s.bound_framebuffer = fb;
     s.bound_draw_targets_valid = false;
-    cmd->setPipeline(st.pso.get());
+    cmd->setPipeline(state_.pso.get());
     const plume::RenderViewport vp(0.0f, 0.0f, w, h, 0.0f, 1.0f);
     const plume::RenderRect sc(0, 0, static_cast<i32>(scene->host.width),
                                static_cast<i32>(scene->host.height));
@@ -366,6 +441,7 @@ void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const
   std::memcpy(st.prevViewProjection, camera_vp, sizeof(st.prevViewProjection));
   st.prevValid = true;
   st.lastFrame = s.guest_frames;
+  state_.lastFrame = s.guest_frames;
 }
 
 }

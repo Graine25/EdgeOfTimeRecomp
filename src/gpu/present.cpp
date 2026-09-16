@@ -34,6 +34,7 @@
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
+#include "gpu/taa.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
 
@@ -673,6 +674,7 @@ void FrameLimitWait() {
 
 void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   EOT_CPU_ZONE("PresentLocked");
+  taa::EndFrame(s);
   s.guest_frames++;
   if (!s.ready || s.shutting_down.load(std::memory_order_acquire))
     return;

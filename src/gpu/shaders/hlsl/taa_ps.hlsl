@@ -37,6 +37,28 @@ float Luma(float3 c)
     return dot(c, float3(0.299, 0.587, 0.114));
 }
 
+float3 RgbToYCoCg(float3 c)
+{
+    return float3(0.25 * c.r + 0.5 * c.g + 0.25 * c.b,
+                  0.5 * c.r - 0.5 * c.b,
+                  -0.25 * c.r + 0.5 * c.g - 0.25 * c.b);
+}
+
+float3 YCoCgToRgb(float3 c)
+{
+    return float3(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z);
+}
+
+float3 ClipToBox(float3 boxMin, float3 boxMax, float3 p)
+{
+    const float3 centre = 0.5 * (boxMax + boxMin);
+    const float3 extent = 0.5 * (boxMax - boxMin) + 1e-5;
+    const float3 offset = p - centre;
+    const float3 unit = abs(offset / extent);
+    const float maxUnit = max(unit.x, max(unit.y, unit.z));
+    return maxUnit > 1.0 ? centre + offset / maxUnit : p;
+}
+
 float3 SampleHistory(Texture2D<float4> tex, SamplerState linear_sampler, float2 uv, float2 size)
 {
     const float2 sample_pos = uv * size;
@@ -72,28 +94,39 @@ float4 main(in float4 position : SV_Position, in float2 texCoord : TEXCOORD) : S
 
     const int2 size = int2(params.zw);
     const int2 px = int2(position.xy);
-    const float4 current = scene.Load(int3(px, 0));
+    const float4 centre = scene.Load(int3(px, 0));
 
-    if (params.y < 0.5 || (indices.w & 1u) != 0u)
-        return current;
-
-    float3 lo = current.rgb, hi = current.rgb;
+    const float2 jitterPx = jitter.xy * params.zw;
+    float3 m1 = 0.0, m2 = 0.0;
+    float3 filtered = 0.0;
+    float wsum = 0.0;
     [unroll] for (int y = -1; y <= 1; ++y)
     {
         [unroll] for (int x = -1; x <= 1; ++x)
         {
-            if (x == 0 && y == 0)
-                continue;
             const int2 c = clamp(px + int2(x, y), int2(0, 0), size - 1);
             const float3 n = scene.Load(int3(c, 0)).rgb;
-            lo = min(lo, n);
-            hi = max(hi, n);
+            const float3 ycc = RgbToYCoCg(n);
+            m1 += ycc;
+            m2 += ycc * ycc;
+            const float2 d = float2(x, y) - jitterPx;
+            const float w = exp(-2.29 * dot(d, d));
+            filtered += n * w;
+            wsum += w;
         }
     }
+    const float4 current = float4(filtered / max(wsum, 1e-5), centre.a);
+    const float3 mean = m1 / 9.0;
+    const float3 sigma = sqrt(max(m2 / 9.0 - mean * mean, 0.0));
+    const float gamma = 1.25;
+    const float3 boxMin = mean - gamma * sigma;
+    const float3 boxMax = mean + gamma * sigma;
+
+    if (params.y < 0.5 || (indices.w & 1u) != 0u)
+        return current;
 
     const float d = depth.Load(int3(px, 0)).x;
-    const float2 uvUnjittered = texCoord - jitter.xy;
-    const float4 clip = float4(uvUnjittered.x * 2.0 - 1.0, 1.0 - uvUnjittered.y * 2.0, 1.0 - d, 1.0);
+    const float4 clip = float4(texCoord.x * 2.0 - 1.0, 1.0 - texCoord.y * 2.0, 1.0 - d, 1.0);
     float4 prev;
     prev.x = dot(clip, float4(TAA_REPROJECT_ROW(0).x, TAA_REPROJECT_ROW(1).x, TAA_REPROJECT_ROW(2).x, TAA_REPROJECT_ROW(3).x));
     prev.y = dot(clip, float4(TAA_REPROJECT_ROW(0).y, TAA_REPROJECT_ROW(1).y, TAA_REPROJECT_ROW(2).y, TAA_REPROJECT_ROW(3).y));
@@ -107,7 +140,7 @@ float4 main(in float4 position : SV_Position, in float2 texCoord : TEXCOORD) : S
         return current;
 
     float3 hist = SampleHistory(history, g_SamplerDescriptorHeap[kSamplerLinearClamp], prevUv, float2(size));
-    hist = clamp(hist, lo, hi);
+    hist = YCoCgToRgb(ClipToBox(boxMin, boxMax, RgbToYCoCg(hist)));
 
     const float feedback = params.x;
     const float wc = (1.0 - feedback) / (1.0 + Luma(current.rgb));
