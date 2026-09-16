@@ -38,7 +38,7 @@ SLOTS = (
 )
 
 SETS = (
-    ("switch", (None, None, None, None,
+    ("switch", (("alias", 0x01), ("alias", 0x00), ("alias", 0x03), ("alias", 0x02),
                 "switch_button_zr", "switch_button_zl", None, None,
                 "switch_button_minus", "switch_button_plus", "switch_button_r", "switch_button_l",
                 None, None)),
@@ -139,6 +139,9 @@ def main():
         lines.append(f"set {name}")
         for (slot, _, w, h), stem in zip(SLOTS, stems):
             if stem is None:
+                continue
+            if isinstance(stem, tuple):
+                lines.append(f"alias {slot:02X} {stem[1]:02X}")
                 continue
             image = art(stem)
             if image is None:
