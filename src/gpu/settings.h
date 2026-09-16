@@ -15,6 +15,8 @@ struct Settings {
   static i32 SummaryFrames();
   static i32 DiagVerbosity();
   static bool Vsync();
+  static bool Taa();
+  static double TaaFeedback();
   static bool Bloom();
   static bool DepthOfField();
   static bool MotionBlur();
@@ -45,6 +47,7 @@ struct Settings {
   static bool Profiler();
   static i32 PerfFrames();
   static i32 DumpEvery();
+  static i32 DumpBurst();
   static i32 DiagFrame();
   static bool DiagScene();
   static i32 DiagSceneFrom();
