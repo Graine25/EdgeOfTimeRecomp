@@ -97,6 +97,8 @@ struct DrawPacket {
   UploadAlloc zero;
   UploadAlloc vs_consts, ps_consts;
   DeviceWindow window;
+  bool hasCameraVP = false;
+  float cameraVP[16] = {};
 };
 
 struct ClearPacket {

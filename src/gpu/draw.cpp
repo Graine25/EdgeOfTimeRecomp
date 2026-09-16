@@ -37,6 +37,7 @@
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
+#include "gpu/taa.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
 #include "gpu/vertex_layout.h"
@@ -353,7 +354,7 @@ bool BindTargets(VideoState &s, Targets &t) {
   return true;
 }
 
-ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
+ViewportInfo ComputeViewport(DeviceView dev, const Targets &t, float jitter_x, float jitter_y) {
   ViewportInfo v;
   const float rt_w = static_cast<float>(std::max(1u, t.width));
   const float rt_h = static_cast<float>(std::max(1u, t.height));
@@ -406,6 +407,11 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
   if ((dev.U32(dev::kVtxControl) & 1) == 0) {
     v.posOffset[0] += 1.0f / std::max(1.0f, w);
     v.posOffset[1] -= 1.0f / std::max(1.0f, h);
+  }
+  if ((jitter_x != 0.0f || jitter_y != 0.0f) && xs_en && ys_en && t.width == kGuestRenderWidth &&
+      t.height == kGuestRenderHeight) {
+    v.posOffset[0] += jitter_x * 2.0f / std::max(1.0f, w * t.scale);
+    v.posOffset[1] -= jitter_y * 2.0f / std::max(1.0f, h * t.scale);
   }
   const float S = t.scale;
   const float hx0 = std::round(x0 * S), hx1 = std::round((x0 + w) * S);
@@ -1579,6 +1585,8 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
     sc.samplerIndices[i] = kSamplerLinearClamp;
   }
   const u64 generation = s.texture_generation.load(std::memory_order_relaxed);
+  for (u32 slot = 0; slot < 16; ++slot)
+    s.draw_bound_textures[slot] = nullptr;
   for (u32 slot = 0; slot < 16; ++slot) {
     if (!(texture_mask & (1u << slot)))
       continue;
@@ -1667,6 +1675,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       cs.biasedBits = biased_bits;
     }
     gt->perfSamples++;
+    s.draw_bound_textures[slot] = gt;
     switch (static_cast<xe::DataDimension>(dimension)) {
     case xe::DataDimension::k3D:
       sc.texture3DIndices[slot] = index;
@@ -1808,6 +1817,14 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
   }
   pk.vs = vs;
   pk.ps = ps;
+  pk.hasCameraVP = false;
+  if (ps && Settings::Taa() && taa::IsSceneConsumer(ps->hash)) {
+    if (const auto *m = eot::mem::at<eot::be<float>>(taa::kViewProjectionVa)) {
+      for (u32 i = 0; i < 16; ++i)
+        pk.cameraVP[i] = m[i];
+      pk.hasCameraVP = true;
+    }
+  }
   pk.vs_va = vs_va;
   pk.ps_va = ps_va;
 
@@ -2106,6 +2123,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     bool a2c = false;
     plume::RenderPipeline *pipeline = nullptr;
     ViewportInfo vp;
+    u32 jitterIndex = 0;
     SharedConstants fixed;
     UploadAlloc shared;
     u64 sharedRing = ~0ull;
@@ -2117,9 +2135,14 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   static u32 memo_next = 0;
   const u8 *state_block = pk.window.image + DeviceWindow::kBlocks[2].base;
   const u8 *consts_block = pk.window.image + DeviceWindow::kBlocks[1].base;
+  const u32 jitter_index = taa::JitterIndex(s);
+  float jitter_x = 0.0f, jitter_y = 0.0f;
+  if (!pk.rectList)
+    taa::FrameJitter(s, &jitter_x, &jitter_y);
   ReplayMemo *memo = nullptr;
   for (ReplayMemo &m : memos) {
     if (m.valid && m.vs == vs && m.ps == ps && m.layout == layout && m.topology == pk.topology &&
+        m.jitterIndex == jitter_index &&
         m.rectList == pk.rectList && std::memcmp(m.strides, pk.strides, sizeof(pk.strides)) == 0 &&
         std::memcmp(m.state, state_block, sizeof(m.state)) == 0 &&
         std::memcmp(m.consts, consts_block, sizeof(m.consts)) == 0) {
@@ -2327,7 +2350,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
       return;
     }
 
-    vp = ComputeViewport(dev, targets);
+    vp = ComputeViewport(dev, targets, jitter_x, jitter_y);
     for (u32 i = 0; i < 4; ++i) {
       sc.booleans[i] = dev.U32(dev::kVsBoolConstants + 4 * i);
       sc.booleans[4 + i] = dev.U32(dev::kPsBoolConstants + 4 * i);
@@ -2361,6 +2384,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     fill.vs = vs;
     fill.ps = ps;
     fill.layout = layout;
+    fill.jitterIndex = jitter_index;
     for (u32 i = 0; i < 4; ++i)
       fill.images[i] = i < targets.colorCount ? targets.colorImage[i] : nullptr;
     fill.images[4] = targets.depthImage;
@@ -2397,6 +2421,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     const u32 texture_mask = vs->textureFetchMask | (ps ? ps->textureFetchMask : 0u);
     BindTexturesAndSamplers(s, dev, texture_mask, sc);
   }
+  if (pk.hasCameraVP)
+    taa::BeforeSceneConsumerDraw(s, s.draw_bound_textures, pk.cameraVP);
   UploadAlloc shared_alloc;
   const u64 ring_epoch = UploadRingEpoch();
   if (memo->sharedRing == ring_epoch &&

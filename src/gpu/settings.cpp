@@ -68,6 +68,17 @@ REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
 REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug",
                     "Run both the hook's setter and the XDK's on every call and log any "
                     "difference in what they wrote.");
+REXCVAR_DEFINE_BOOL(eot_taa, true, "EdgeOfTime/Graphics",
+                    "Temporal anti-aliasing: every 3D draw is offset by a sub-pixel amount "
+                    "that changes each frame, and the scene is blended with the previous "
+                    "frame's reprojected through the camera before the game's own post "
+                    "chain reads it. Settles the shimmer on distant geometry that "
+                    "multisampling leaves; objects in motion get clamped history rather "
+                    "than reprojection, this engine has no motion vectors.");
+REXCVAR_DEFINE_DOUBLE(eot_taa_feedback, 0.9, "EdgeOfTime/Graphics",
+                      "How much of the previous frame the temporal anti-aliasing keeps "
+                      "(0.8 quick and a little noisier, 0.95 smoother and softer).")
+    .range(0.5, 0.97);
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
                     "Bloom (the HDR glow around bright light). Off keeps the tone curve.");
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics",
@@ -180,6 +191,10 @@ REXCVAR_DEFINE_INT32(eot_dump_every, 0, "EdgeOfTime/Debug",
                      "Write the presented back buffer as logs/frame_<N>.ppm every N "
                      "presented frames (0 = off).")
     .range(0, 1000000);
+REXCVAR_DEFINE_INT32(eot_dump_burst, 1, "EdgeOfTime/Debug",
+                     "How many consecutive frames each eot_dump_every dump writes, so "
+                     "frame-to-frame flicker can be measured.")
+    .range(1, 64);
 
 REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "EdgeOfTime/Video",
                     "Map the presented front buffer through the guest's display gamma "
@@ -205,6 +220,7 @@ i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
+i32 Settings::DumpBurst() { return REXCVAR_GET(eot_dump_burst); }
 namespace {
 std::atomic<i32> g_diag_frame_armed{0};
 }
@@ -224,6 +240,8 @@ i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
+bool Settings::Taa() { return REXCVAR_GET(eot_taa); }
+double Settings::TaaFeedback() { return REXCVAR_GET(eot_taa_feedback); }
 bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
 bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
 bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }
