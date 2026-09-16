@@ -19,10 +19,6 @@ REXCVAR_DEFINE_BOOL(eot_debug_pause, false, "EdgeOfTime/Debug",
                     "nothing moves, animates, thinks or collides. Nothing in the game is told "
                     "it was paused.");
 
-REXCVAR_DEFINE_INT32(eot_debug_pause_at, 0, "EdgeOfTime/Debug",
-                     "Freeze the scene (as eot_debug_pause) from this many main-loop ticks "
-                     "after boot, so a scripted run lands on a still image (0 = never).")
-    .range(0, 100000000);
 REXCVAR_DEFINE_BOOL(eot_debug_pause_hide_hud, true, "EdgeOfTime/Debug",
                     "While the scene is frozen, stop the HUD window tree from drawing, which "
                     "takes the HUD, its text and any subtitle with it. No HUD state is changed.");
@@ -65,11 +61,6 @@ namespace eot::debug {
 bool ScenePauseActive() { return g_frozen.load(std::memory_order_relaxed); }
 
 void ScenePauseTick() {
-  static uint64_t ticks = 0;
-  ++ticks;
-  const int32_t pause_at = REXCVAR_GET(eot_debug_pause_at);
-  if (pause_at > 0 && ticks == static_cast<uint64_t>(pause_at))
-    REXCVAR_SET(eot_debug_pause, true);
   const bool want = REXCVAR_GET(eot_debug_pause);
 
   if (want) {
