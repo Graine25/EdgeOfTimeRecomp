@@ -19,17 +19,13 @@ REXCVAR_DEFINE_STRING(eot_key_web_swing, "RMB", EOT_KEYS, "Web swing, hold (RT)"
 REXCVAR_DEFINE_STRING(eot_key_hyper_sense, "Shift", EOT_KEYS,
                       "Hyper-Sense / Accelerated Decoy (LT)");
 REXCVAR_DEFINE_STRING(eot_key_time_stop, "F", EOT_KEYS, "Time Stop (L3 + R3)");
-REXCVAR_DEFINE_STRING(eot_key_spider_sense, "R,Up", EOT_KEYS, "Spider-Sense (D-pad up)");
+REXCVAR_DEFINE_STRING(eot_key_spider_sense, "R", EOT_KEYS, "Spider-Sense (D-pad up)");
 REXCVAR_DEFINE_STRING(eot_key_center_camera, "Backtick", EOT_KEYS, "Center camera (R3)");
 REXCVAR_DEFINE_STRING(eot_key_upgrades, "Tab", EOT_KEYS, "Upgrades (Back)");
 REXCVAR_DEFINE_STRING(eot_key_pause, "Escape", EOT_KEYS, "Pause (Start)");
-REXCVAR_DEFINE_STRING(eot_key_dpad_down, "C,Down", EOT_KEYS, "D-pad down");
-REXCVAR_DEFINE_STRING(eot_key_dpad_left, "Left", EOT_KEYS, "D-pad left");
-REXCVAR_DEFINE_STRING(eot_key_dpad_right, "Right", EOT_KEYS, "D-pad right");
-REXCVAR_DEFINE_STRING(eot_key_move_forward, "W", EOT_KEYS, "Move forward (left stick up)");
-REXCVAR_DEFINE_STRING(eot_key_move_back, "S", EOT_KEYS, "Move back (left stick down)");
-REXCVAR_DEFINE_STRING(eot_key_move_left, "A", EOT_KEYS, "Move left (left stick left)");
-REXCVAR_DEFINE_STRING(eot_key_move_right, "D", EOT_KEYS, "Move right (left stick right)");
+REXCVAR_DEFINE_STRING(eot_key_dpad_down, "C", EOT_KEYS, "D-pad down");
+REXCVAR_DEFINE_STRING(eot_key_dpad_left, "", EOT_KEYS, "D-pad left");
+REXCVAR_DEFINE_STRING(eot_key_dpad_right, "", EOT_KEYS, "D-pad right");
 
 namespace eot::goliath {
 

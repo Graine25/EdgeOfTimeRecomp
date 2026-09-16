@@ -253,7 +253,6 @@ set(REEOT_SOURCES
     src/goliath/controller/pc_controls.cpp
     src/goliath/controller/pad_identity.cpp
     src/goliath/controller/button_glyphs.cpp
-    src/goliath/controller/native_input.cpp
     src/goliath/debug/scene_pause.cpp
     src/goliath/debug/freecam.cpp
     src/goliath/ui/aspect_policy.cpp
