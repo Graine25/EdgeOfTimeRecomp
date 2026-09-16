@@ -99,6 +99,7 @@ struct DrawPacket {
   DeviceWindow window;
   bool hasCameraVP = false;
   float cameraVP[16] = {};
+  bool taaSkip = false;
 };
 
 struct ClearPacket {

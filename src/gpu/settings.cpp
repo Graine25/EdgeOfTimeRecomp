@@ -75,10 +75,11 @@ REXCVAR_DEFINE_BOOL(eot_taa, true, "EdgeOfTime/Graphics",
                     "chain reads it. Settles the shimmer on distant geometry that "
                     "multisampling leaves; objects in motion get clamped history rather "
                     "than reprojection, this engine has no motion vectors.");
-REXCVAR_DEFINE_DOUBLE(eot_taa_feedback, 0.9, "EdgeOfTime/Graphics",
-                      "How much of the previous frame the temporal anti-aliasing keeps "
-                      "(0.8 quick and a little noisier, 0.95 smoother and softer).")
-    .range(0.5, 0.97);
+REXCVAR_DEFINE_DOUBLE(eot_taa_feedback, 0.5, "EdgeOfTime/Graphics",
+                      "How much of the previous frame the temporal anti-aliasing keeps when "
+                      "nothing moves (0.3 crisp and quick, 0.9 smoother and softer); motion "
+                      "on screen lowers it towards zero on its own.")
+    .range(0.3, 0.95);
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
                     "Bloom (the HDR glow around bright light). Off keeps the tone curve.");
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics",

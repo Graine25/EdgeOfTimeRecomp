@@ -1822,10 +1822,20 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
     struct CameraByTarget {
       u32 rt0 = 0;
       float vp[16] = {};
+      float prevVp[16] = {};
+      bool prevValid = false;
+      u64 frame = ~0ull;
+      bool skip = false;
     };
     static CameraByTarget cameras[4];
     static u32 camera_next = 0;
     static const CameraByTarget *camera_last = nullptr;
+    static u64 capture_frame = 0;
+    static u64 last_present_count = ~0ull;
+    if (s.captured_presents != last_present_count) {
+      last_present_count = s.captured_presents;
+      ++capture_frame;
+    }
     const u32 rt0 = dev.U32(dev::kRenderTarget0);
     const u32 vte = dev.U32(dev::kVteControl);
     const bool projected = (vte & 5) == 5;
@@ -1840,12 +1850,32 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
             slot = &c;
         if (!slot)
           slot = &cameras[camera_next++ % 4];
+        if (slot->rt0 != rt0) {
+          slot->prevValid = false;
+          slot->skip = false;
+        }
         slot->rt0 = rt0;
-        for (u32 i = 0; i < 16; ++i)
-          slot->vp[i] = m[i];
+        if (slot->frame != capture_frame) {
+          if (slot->frame != ~0ull) {
+            std::memcpy(slot->prevVp, slot->vp, sizeof(slot->prevVp));
+            slot->prevValid = true;
+          }
+          slot->frame = capture_frame;
+          for (u32 i = 0; i < 16; ++i)
+            slot->vp[i] = m[i];
+          const float motion =
+              slot->prevValid
+                  ? taa::CameraMotionPixels(slot->prevVp, slot->vp, static_cast<float>(InternalRenderWidth()),
+                                            static_cast<float>(InternalRenderHeight()))
+                  : 0.0f;
+          slot->skip = taa::FastCameraGate(static_cast<u32>(slot - cameras), motion,
+                                           static_cast<float>(InternalRenderWidth()));
+        }
         camera_last = slot;
       }
     }
+    if (camera_last && camera_last->frame == capture_frame)
+      pk.taaSkip = camera_last->skip;
     if (ps && taa::IsSceneConsumer(ps->hash)) {
       const CameraByTarget *pick = nullptr;
       for (const CameraByTarget &c : cameras)
@@ -1856,6 +1886,7 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
       if (pick && pick->rt0) {
         std::memcpy(pk.cameraVP, pick->vp, sizeof(pk.cameraVP));
         pk.hasCameraVP = true;
+        pk.taaSkip = pick->skip;
       }
     }
   }
@@ -2169,9 +2200,9 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   static u32 memo_next = 0;
   const u8 *state_block = pk.window.image + DeviceWindow::kBlocks[2].base;
   const u8 *consts_block = pk.window.image + DeviceWindow::kBlocks[1].base;
-  const u32 jitter_index = taa::JitterIndex(s);
+  const u32 jitter_index = pk.taaSkip ? 0u : taa::JitterIndex(s);
   float jitter_x = 0.0f, jitter_y = 0.0f;
-  if (!pk.rectList)
+  if (!pk.rectList && !pk.taaSkip)
     taa::FrameJitter(s, &jitter_x, &jitter_y);
   ReplayMemo *memo = nullptr;
   for (ReplayMemo &m : memos) {
@@ -2456,7 +2487,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     BindTexturesAndSamplers(s, dev, texture_mask, sc);
   }
   if (pk.hasCameraVP)
-    taa::BeforeSceneConsumerDraw(s, s.draw_bound_textures, pk.cameraVP, ps ? ps->hash : 0);
+    taa::BeforeSceneConsumerDraw(s, s.draw_bound_textures, pk.cameraVP, ps ? ps->hash : 0, pk.taaSkip);
   UploadAlloc shared_alloc;
   const u64 ring_epoch = UploadRingEpoch();
   if (memo->sharedRing == ring_epoch &&

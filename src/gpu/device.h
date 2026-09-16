@@ -225,6 +225,7 @@ struct VideoState {
 
   u64 presented_frames = 0;
   u64 guest_frames = 0;
+  u64 captured_presents = 0;
 
   std::vector<std::unique_ptr<plume::RenderTexture>> texture_graveyard[kNumFrames];
   std::vector<std::unique_ptr<plume::RenderTextureView>> view_graveyard[kNumFrames];
