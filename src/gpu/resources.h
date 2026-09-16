@@ -80,6 +80,7 @@ struct GuestTexture {
   bool uploaded = false;
   u64 uploadedUnlockSeq = 0;
   bool uploadFailed = false;
+  bool synthMips = false;
   bool resolveOwned = false;
   bool storeSwapRB = false;
   u64 contentSerial = 0;

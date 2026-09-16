@@ -89,9 +89,11 @@ plume::RenderTextureAddressMode ConvertClamp(xe::ClampMode mode) {
 
 }
 
-plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6], bool mipmapped_upload) {
+plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6], bool mipmapped_upload,
+                                                bool synthesized_mips) {
   xe::xe_gpu_texture_fetch_t fetch;
   std::memcpy(&fetch, fc, sizeof(fetch));
+  const bool base_map = fetch.mip_filter == xe::TextureFilter::kBaseMap && !synthesized_mips;
 
   plume::RenderSamplerDesc d;
   d.addressU = ConvertClamp(fetch.clamp_x);
@@ -99,12 +101,11 @@ plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6], bool mipmapped_
   d.addressW = ConvertClamp(fetch.clamp_z);
   const bool mag_point = fetch.mag_filter == xe::TextureFilter::kPoint;
   const bool min_point = fetch.min_filter == xe::TextureFilter::kPoint;
-  const bool mip_point = fetch.mip_filter == xe::TextureFilter::kPoint ||
-                         fetch.mip_filter == xe::TextureFilter::kBaseMap;
+  const bool mip_point = fetch.mip_filter == xe::TextureFilter::kPoint || base_map;
   d.magFilter = mag_point ? plume::RenderFilter::NEAREST : plume::RenderFilter::LINEAR;
   d.minFilter = min_point ? plume::RenderFilter::NEAREST : plume::RenderFilter::LINEAR;
   d.mipmapMode = mip_point ? plume::RenderMipmapMode::NEAREST : plume::RenderMipmapMode::LINEAR;
-  if (fetch.mip_filter == xe::TextureFilter::kBaseMap) {
+  if (base_map) {
     d.maxLOD = 0.0f;
   }
   u32 aniso = 0;
@@ -132,7 +133,7 @@ plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6], bool mipmapped_
   const bool aniso_on = aniso > 1 && !mag_point && !min_point;
   d.anisotropyEnabled = aniso_on;
   d.maxAnisotropy = aniso_on ? aniso : 1u;
-  if (aniso_on && fetch.mip_filter != xe::TextureFilter::kBaseMap)
+  if (aniso_on && !base_map)
     d.mipmapMode = plume::RenderMipmapMode::LINEAR;
   d.borderColor = fetch.border_color == xe::BorderColor::k_ABGR_White
                       ? plume::RenderBorderColor::OPAQUE_WHITE
@@ -140,7 +141,7 @@ plume::RenderSamplerDesc DecodeSamplerFromFetch(const u32 fc[6], bool mipmapped_
   d.mipLODBias = static_cast<float>(fetch.lod_bias) / 32.0f;
   d.minLOD = static_cast<float>(fetch.mip_min_level);
   if (d.maxLOD != 0.0f)
-    d.maxLOD = static_cast<float>(fetch.mip_max_level);
+    d.maxLOD = synthesized_mips ? 15.0f : static_cast<float>(fetch.mip_max_level);
   return d;
 }
 
