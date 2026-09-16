@@ -106,8 +106,6 @@ std::string GpuCategoryName(u32 cat) {
     return "resolve-depth";
   case kGpuCatBroadcast:
     return "broadcast";
-  case kGpuCatTaa:
-    return "taa";
   default:
     break;
   }

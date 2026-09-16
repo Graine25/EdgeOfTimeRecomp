@@ -34,7 +34,6 @@
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
-#include "gpu/taa.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
 
@@ -674,7 +673,6 @@ void FrameLimitWait() {
 
 void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   EOT_CPU_ZONE("PresentLocked");
-  taa::EndFrame(s);
   s.guest_frames++;
   if (!s.ready || s.shutting_down.load(std::memory_order_acquire))
     return;
@@ -770,8 +768,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   if (uncovered)
     cmd->clearColor(0, plume::RenderColor(0, 0, 0, 1), nullptr, 0);
   const i32 dump_every = Settings::DumpEvery();
-  const u64 dump_phase = dump_every > 0 ? (s.presented_frames + 1) % static_cast<u64>(dump_every) : 1;
-  if (front && dump_every > 0 && dump_phase < static_cast<u64>(std::max(1, Settings::DumpBurst()))) {
+  if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
     const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
     DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index,
                           SamplingSwizzle(*front, front->fetch[3] >> 1));
@@ -876,7 +873,6 @@ void Video::Present(u32 front_buffer_texture_va) {
     PinThreadToPhysicalCore(1, "the guest's rendering thread");
   }
   trace::EndFrame(s.guest_frames + 1);
-  s.captured_presents++;
   if (s.ready && !s.shutting_down.load(std::memory_order_acquire)) {
     if (RenderThreadActive()) {
       u64 seq = 0;
