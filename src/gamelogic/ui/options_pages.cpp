@@ -299,6 +299,7 @@ bool RenderScaleApplies() {
 bool FullscreenOn() { return rex::cvar::Query<bool>("fullscreen"); }
 
 bool KeyboardMouseOn() { return rex::cvar::Query<bool>("mnk_mode"); }
+bool MouseLookOn() { return KeyboardMouseOn() && FullscreenOn(); }
 
 constexpr Setting kAudioSettings[] = {
     {.label = "REEOT_OPT_SFX_VOLUME", .description = "REEOT_DESC_SFX_VOLUME", .accessor = &kFxVolume,
@@ -387,7 +388,7 @@ constexpr Setting kControlsSettings[] = {
     {.label = "REEOT_OPT_MNK", .description = "REEOT_DESC_MNK", .accessor = &kKeyboardMouse, .choices = kOnOff},
     {.label = "REEOT_OPT_MOUSE_SENSITIVITY", .description = "REEOT_DESC_MOUSE_SENSITIVITY",
      .cvar = "mnk_sensitivity", .slider = {0.25, 10.0, 0.25, Format::kPlain}, .numeric = true,
-     .enabled = KeyboardMouseOn},
+     .enabled = MouseLookOn},
     {.label = "REEOT_OPT_BACKGROUND_INPUT", .description = "REEOT_DESC_BACKGROUND_INPUT",
      .cvar = "eot_background_input", .choices = kOnOff},
 };
