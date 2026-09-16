@@ -78,7 +78,8 @@ inline u32 ScaleDim(u32 v) {
 }
 inline f32 ShadowMapTargetScale() {
   const i32 size = Settings::ShadowMapSize();
-  return size > 0 ? static_cast<f32>(std::clamp(size, 256, 8192)) / 1024.0f : RenderScaleFactor();
+  const f32 want = size > 0 ? static_cast<f32>(size) / 1024.0f : RenderScaleFactor();
+  return static_cast<f32>(std::clamp<i32>(static_cast<i32>(std::lround(want)), 1, 8));
 }
 
 }
