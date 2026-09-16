@@ -1818,11 +1818,45 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
   pk.vs = vs;
   pk.ps = ps;
   pk.hasCameraVP = false;
-  if (ps && Settings::Taa() && taa::IsSceneConsumer(ps->hash)) {
-    if (const auto *m = eot::mem::at<eot::be<float>>(taa::kViewProjectionVa)) {
-      for (u32 i = 0; i < 16; ++i)
-        pk.cameraVP[i] = m[i];
-      pk.hasCameraVP = true;
+  if (Settings::Taa() || Settings::DiagVerbosity() >= 2) {
+    struct CameraByTarget {
+      u32 rt0 = 0;
+      float vp[16] = {};
+    };
+    static CameraByTarget cameras[4];
+    static u32 camera_next = 0;
+    static const CameraByTarget *camera_last = nullptr;
+    const u32 rt0 = dev.U32(dev::kRenderTarget0);
+    const u32 vte = dev.U32(dev::kVteControl);
+    const bool projected = (vte & 5) == 5;
+    const float xs = std::fabs(dev.F32(dev::kVportXScale)), ys = std::fabs(dev.F32(dev::kVportYScale));
+    const bool frame_sized = std::fabs(xs * 2.0f - static_cast<float>(kGuestRenderWidth)) < 1.0f &&
+                             std::fabs(ys * 2.0f - static_cast<float>(kGuestRenderHeight)) < 1.0f;
+    if (projected && !geom.rectList && frame_sized && rt0) {
+      if (const auto *m = eot::mem::at<eot::be<float>>(taa::kViewProjectionVa)) {
+        CameraByTarget *slot = nullptr;
+        for (CameraByTarget &c : cameras)
+          if (c.rt0 == rt0)
+            slot = &c;
+        if (!slot)
+          slot = &cameras[camera_next++ % 4];
+        slot->rt0 = rt0;
+        for (u32 i = 0; i < 16; ++i)
+          slot->vp[i] = m[i];
+        camera_last = slot;
+      }
+    }
+    if (ps && taa::IsSceneConsumer(ps->hash)) {
+      const CameraByTarget *pick = nullptr;
+      for (const CameraByTarget &c : cameras)
+        if (c.rt0 && c.rt0 == rt0)
+          pick = &c;
+      if (!pick)
+        pick = camera_last;
+      if (pick && pick->rt0) {
+        std::memcpy(pk.cameraVP, pick->vp, sizeof(pk.cameraVP));
+        pk.hasCameraVP = true;
+      }
     }
   }
   pk.vs_va = vs_va;
@@ -2422,7 +2456,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     BindTexturesAndSamplers(s, dev, texture_mask, sc);
   }
   if (pk.hasCameraVP)
-    taa::BeforeSceneConsumerDraw(s, s.draw_bound_textures, pk.cameraVP);
+    taa::BeforeSceneConsumerDraw(s, s.draw_bound_textures, pk.cameraVP, ps ? ps->hash : 0);
   UploadAlloc shared_alloc;
   const u64 ring_epoch = UploadRingEpoch();
   if (memo->sharedRing == ring_epoch &&
