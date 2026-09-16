@@ -264,7 +264,6 @@ set(REEOT_SOURCES
     src/goliath/loading/texture_overrides.cpp
     src/goliath/text/glyph_pages.cpp
     src/goliath/text/translation.cpp
-    src/gpu/taa.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
@@ -389,7 +388,7 @@ endif()
 foreach(shader IN ITEMS copy_vs imgui_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
 endforeach()
-foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps taa_ps
+foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps
         resolve_msaa_color_2x_ps resolve_msaa_color_4x_ps resolve_msaa_color_8x_ps
         resolve_msaa_depth_2x_ps resolve_msaa_depth_4x_ps resolve_msaa_depth_8x_ps
         derive_depth_stencil_2x_ps

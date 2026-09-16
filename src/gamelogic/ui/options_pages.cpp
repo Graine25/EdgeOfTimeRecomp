@@ -345,7 +345,6 @@ constexpr Setting kGraphicsSettings[] = {
      .choices = kPreset},
     {.label = "REEOT_OPT_MSAA", .description = "REEOT_DESC_MSAA", .cvar = "eot_msaa", .choices = kMsaa,
      .numeric = true, .restart = true},
-    {.label = "REEOT_OPT_TAA", .description = "REEOT_DESC_TAA", .cvar = "eot_taa", .choices = kOnOff},
     {.label = "REEOT_OPT_ANISOTROPY", .description = "REEOT_DESC_ANISOTROPY", .cvar = "eot_anisotropy",
      .choices = kAnisotropy, .numeric = true},
     {.label = "REEOT_OPT_SHADOW_SIZE", .description = "REEOT_DESC_SHADOW_SIZE", .cvar = "eot_shadow_map_size",

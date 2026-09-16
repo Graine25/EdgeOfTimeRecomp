@@ -225,7 +225,6 @@ struct VideoState {
 
   u64 presented_frames = 0;
   u64 guest_frames = 0;
-  u64 captured_presents = 0;
 
   std::vector<std::unique_ptr<plume::RenderTexture>> texture_graveyard[kNumFrames];
   std::vector<std::unique_ptr<plume::RenderTextureView>> view_graveyard[kNumFrames];
@@ -258,7 +257,6 @@ struct VideoState {
   static constexpr u32 kTextureSlotWays = 4;
   TextureSlotCache slot_cache[16][kTextureSlotWays];
   u8 slot_cache_next[16] = {};
-  GuestTexture *draw_bound_textures[16] = {};
   std::atomic<u64> texture_generation{1};
   std::unordered_map<u64, std::unique_ptr<GuestSurface>> surfaces;
   struct SurfaceWorkStats {
