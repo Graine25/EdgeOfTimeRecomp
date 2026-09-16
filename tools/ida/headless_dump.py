@@ -95,5 +95,31 @@ elif mode == "vtable":
                 f.write(str(ida_hexrays.decompile(ea)) + "\n")
             except Exception as e:  # noqa
                 f.write(f"// decompile failed: {e}\n")
+elif mode == "dword":
+    import ida_bytes
+    import ida_segment
+    values = [int(x, 16) for x in argv[3].split(",")]
+    with open(out, "w", encoding="utf-8") as f:
+        for value in values:
+            pat = value.to_bytes(4, "big")
+            f.write("\n// ===== %#x =====\n" % value)
+            for i in range(ida_segment.get_segm_qty()):
+                seg = ida_segment.getnseg(i)
+                ea = seg.start_ea
+                while ea < seg.end_ea:
+                    ea = ida_bytes.find_bytes(pat, ea, range_end=seg.end_ea)
+                    if ea is None or ea == idaapi.BADADDR:
+                        break
+                    fe = func_of(ea)
+                    around = " ".join("%08x" % idc.get_wide_dword(ea + 4 * k) for k in range(-4, 8))
+                    f.write("%#x seg %s fn %s  [%s]\n" % (ea, ida_segment.get_segm_name(seg), dname(fe) if fe else "-", around))
+                    ea += 1
+elif mode == "drefs":
+    with open(out, "w", encoding="utf-8") as f:
+        for ea in [int(x, 16) for x in argv[3].split(",")]:
+            f.write("\n// ===== refs to %#x %s =====\n" % (ea, idc.get_name(ea)))
+            for x in idautils.XrefsTo(ea):
+                fe = func_of(x.frm)
+                f.write("%#x type %d in %s  %s\n" % (x.frm, x.type, dname(fe) if fe else "-", idc.GetDisasm(x.frm)))
 print("done", mode, out)
 idc.qexit(0)

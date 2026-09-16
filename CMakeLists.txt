@@ -253,6 +253,7 @@ set(REEOT_SOURCES
     src/goliath/controller/pc_controls.cpp
     src/goliath/controller/pad_identity.cpp
     src/goliath/controller/button_glyphs.cpp
+    src/goliath/controller/mouse_input.cpp
     src/goliath/debug/scene_pause.cpp
     src/goliath/debug/freecam.cpp
     src/goliath/ui/aspect_policy.cpp
@@ -307,7 +308,8 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/ui/gallery_achievements.cpp
         src/gamelogic/ui/achievements_page.cpp
         src/gamelogic/ui/save_select.cpp
-        src/gamelogic/ui/button_prompts.cpp)
+        src/gamelogic/ui/button_prompts.cpp
+        src/gamelogic/camera/mouse_look.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 endif()

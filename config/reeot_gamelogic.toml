@@ -607,6 +607,7 @@ out_directory_path = "generated/gamelogic"
 0x88156ED8 = { size = 0x110 }
 0x88157730 = { size = 0x78 }
 0x88158030 = { name = "eot_SiegeRocket_Launch", size = 0x35C }
+0x88201950 = { name = "eot_Camera3rd_ReadStick", size = 0x260 }
 0x881886D8 = { name = "eot_Projectile_Launch" }
 0x88186E48 = { name = "eot_Projectile_CheckRay" }
 0x88186B80 = { name = "eot_Projectile_BackRay" }
