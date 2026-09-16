@@ -137,6 +137,13 @@ uint32_t InstallIconPage(const PPCContext &ctx, uint8_t *base, uint32_t font, ui
     if (!(eot::mem::load<uint16_t>(src + kRecFlags + 2) & kFlagLive))
       continue;
     const uint32_t rec = at + cell.slot * kRecordSize;
+    if (cell.alias != 0xFF) {
+      const uint32_t other = buttons + cell.alias * kRecordSize;
+      if (eot::mem::load<uint16_t>(other + kRecFlags + 2) & kFlagLive)
+        for (uint32_t off = 0; off < kRecordSize; off += 4)
+          eot::mem::store<uint32_t>(rec + off, eot::mem::load<uint32_t>(other + off));
+      continue;
+    }
     const float height = LoadF(src + kRecHeight);
     eot::mem::store<uint32_t>(rec + kRecTexture, texture);
     eot::mem::store<uint32_t>(rec + 4, 0);

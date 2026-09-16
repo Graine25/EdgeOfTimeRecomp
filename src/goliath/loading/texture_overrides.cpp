@@ -161,21 +161,23 @@ void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
       g_pending &= ~(1u << i);
 }
 
+bool TextureOverridesSettled() { return g_pending_chosen && !g_pending; }
+
 }
 
 REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   __imp__eot_PKPackageMgrBC_Update(ctx, base);
   using namespace eot::loading;
-  eot::controller::ButtonGlyphsTick(ctx, base);
-  if (g_pending_chosen && !g_pending)
-    return;
-  std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
-  if (++g_ticks > kMaxTicks) {
-    EOT_WARN("[tex] {} override(s) never became ready; giving up", __builtin_popcount(g_pending));
-    g_pending = 0;
-    return;
+  if (!TextureOverridesSettled()) {
+    std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
+    if (++g_ticks > kMaxTicks) {
+      EOT_WARN("[tex] {} override(s) never became ready; giving up", __builtin_popcount(g_pending));
+      g_pending = 0;
+    } else {
+      ApplyTextureOverrides(ctx, base);
+      if (!g_pending)
+        EOT_DEBUG("[tex] overrides in place after {} manager ticks", g_ticks);
+    }
   }
-  ApplyTextureOverrides(ctx, base);
-  if (!g_pending)
-    EOT_DEBUG("[tex] overrides in place after {} manager ticks", g_ticks);
+  eot::controller::ButtonGlyphsTick(ctx, base);
 }
