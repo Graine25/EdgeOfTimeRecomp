@@ -8,8 +8,6 @@
 #include <rex/input/input_system.h>
 #include <rex/runtime.h>
 
-#include "goliath/controller/native_input.h"
-
 namespace eot::controller {
 
 namespace {
@@ -72,11 +70,6 @@ const char *ToString(PadBrand brand) {
 }
 
 PadBrand ActivePad() {
-  if (NativeInputActive()) {
-    const uint64_t host = LastHostInputPoll();
-    if (host && host >= LastPadInputPoll())
-      return PadBrand::Keyboard;
-  }
   rex::Runtime *runtime = rex::Runtime::instance();
   if (!runtime || !runtime->input_system())
     return PadBrand::Unknown;

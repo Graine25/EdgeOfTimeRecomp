@@ -1590,7 +1590,6 @@ out_directory_path = "generated/default_xex"
 0x82089020 = { name = "eot_Engine_SignalLogicThreads" }
 0x821B0840 = { name = "eot_PKPackageMgrBC_Update" }
 0x82160B30 = { name = "eot_Engine_UpdateInput" }
-0x821605A0 = { name = "eot_Input_ReadPad", size = 0x3C0 }
 0x821C4B68 = { name = "eot_Engine_UpdateNetwork" }
 0x821C45D8 = { name = "eot_Engine_UpdateOnline" }
 0x820DD6B8 = { name = "eot_Engine_UpdateTimerCallbacks" }
