@@ -99,8 +99,10 @@ REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "EdgeOfTime/Debug",
                      "Spanish). The setting is eot_language.");
 REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
                      "Shadow map size per cascade in texels: 0 = follow the render resolution "
-                     "(the console's 1024 scaled like the frame, 1750 at 1080p), or 1024 / 2048 / "
-                     "4096 fixed. Applies to shadow surfaces created after the change.")
+                     "(the console's 1024 at the nearest whole multiple: 2048 at 1080p and "
+                     "1440p, 3072 at 2160p), or 1024 / 2048 / 4096 fixed. Always a multiple of "
+                     "1024, since the game holds its cascades still on a 1024-texel grid. "
+                     "Applies to shadow surfaces created after the change.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_anisotropy, 16, "EdgeOfTime/Graphics",
                      "Anisotropic filtering: 0 = as the game asks per texture (the console "

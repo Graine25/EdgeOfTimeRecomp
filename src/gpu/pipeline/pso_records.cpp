@@ -134,6 +134,11 @@ bool ParseBlend(std::string_view s, plume::RenderBlendDesc *b) {
   return true;
 }
 
+f32 FollowTargetScale(const PipelineState &s) {
+  const bool caster = s.rtCount == 0 && s.dsFormat != plume::RenderFormat::UNKNOWN;
+  return caster ? ShadowMapTargetScale() : RenderScaleFactor();
+}
+
 int HexVal(char c) {
   if (c >= '0' && c <= '9')
     return c - '0';
@@ -245,7 +250,7 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
       s.vsHash, s.psHash, s.spec, s.layoutKey, decl, strides, ei(s.topology), rts, s.rtCount,
       ei(s.dsFormat), s.sampleCount, ei(s.cull), ei(s.frontFace), s.depthBias,
       s.slopeScaledDepthBias,
-      std::fabs(s.targetScale - RenderScaleFactor()) < 0.01f ? 0.0f : s.targetScale,
+      std::fabs(s.targetScale - FollowTargetScale(s)) < 0.01f ? 0.0f : s.targetScale,
       s.depthClip ? 1 : 0, s.depthEnable ? 1 : 0, s.depthWrite ? 1 : 0, ei(s.depthFunc),
       s.stencilEnable ? 1 : 0, static_cast<unsigned>(s.stencilReadMask),
       static_cast<unsigned>(s.stencilWriteMask), static_cast<unsigned>(s.stencilRef),
@@ -348,7 +353,7 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
       !ParseBool(field(cStencilEnable), &s.stencilEnable))
     return false;
   if (s.depthBias || s.slopeScaledDepthBias != 0.0f)
-    s.targetScale = s.targetScale == 0.0f ? RenderScaleFactor() : s.targetScale;
+    s.targetScale = s.targetScale == 0.0f ? FollowTargetScale(s) : s.targetScale;
   else
     s.targetScale = 1.0f;
   i64 m0, m1, m2;

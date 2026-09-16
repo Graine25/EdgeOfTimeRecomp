@@ -118,6 +118,8 @@ def canonicalize(row, masks=None):
     if not biased:
         row["slopeScaledDepthBias"] = "0"
         row["targetScale"] = "1"
+    elif int(row["rtCount"] or "0") == 0 and row["dsFormat"] not in ("", "0"):
+        row["targetScale"] = "0"
     if row["stencilEnable"] == "0":
         row["stencilReadMask"] = row["stencilWriteMask"] = row["stencilRef"] = "0"
         row["stencilFront"] = row["stencilBack"] = DISABLED_STENCIL_FACE
