@@ -7,6 +7,7 @@ struct TaaConstants
     float4 Jitter;
     float4 Params;
     uint4  Indices;
+    float4 Motion;
 };
 
 #ifdef __spirv__
@@ -22,12 +23,14 @@ struct PushConstants
 #define TAA_JITTER  TAA_LOAD(float4, 64)
 #define TAA_PARAMS  TAA_LOAD(float4, 80)
 #define TAA_INDICES TAA_LOAD(uint4, 96)
+#define TAA_MOTION  TAA_LOAD(float4, 112)
 #else
 ConstantBuffer<TaaConstants> g_Taa : register(b0, space4);
 #define TAA_REPROJECT_ROW(r) g_Taa.Reproject[r]
 #define TAA_JITTER  g_Taa.Jitter
 #define TAA_PARAMS  g_Taa.Params
 #define TAA_INDICES g_Taa.Indices
+#define TAA_MOTION  g_Taa.Motion
 #endif
 
 static const uint kSamplerLinearClamp = 0u;
@@ -140,9 +143,15 @@ float4 main(in float4 position : SV_Position, in float2 texCoord : TEXCOORD) : S
         return current;
 
     float3 hist = SampleHistory(history, g_SamplerDescriptorHeap[kSamplerLinearClamp], prevUv, float2(size));
-    hist = YCoCgToRgb(ClipToBox(boxMin, boxMax, RgbToYCoCg(hist)));
+    const float3 histYcc = RgbToYCoCg(hist);
+    const float3 clippedYcc = ClipToBox(boxMin, boxMax, histYcc);
+    hist = YCoCgToRgb(clippedYcc);
 
-    const float feedback = params.x;
+    const float motionPx = length((prevUv - texCoord) * params.zw);
+    const float motionWeight = 1.0 - saturate(motionPx / max(TAA_MOTION.x, 1.0));
+    const float clipDistance = length((histYcc - clippedYcc) / (gamma * sigma + 1e-4));
+    const float clipWeight = 1.0 - 0.5 * saturate(clipDistance);
+    const float feedback = params.x * motionWeight * clipWeight;
     const float wc = (1.0 - feedback) / (1.0 + Luma(current.rgb));
     const float wh = feedback / (1.0 + Luma(hist));
     const float3 blended = (current.rgb * wc + hist * wh) / max(wc + wh, 1e-5);

@@ -17,7 +17,10 @@ void FrameJitter(const VideoState &s, float *jx, float *jy);
 u32 JitterIndex(const VideoState &s);
 
 void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16],
-                             const float *camera_vp, u64 consumer_hash);
+                             const float *camera_vp, u64 consumer_hash, bool skip);
+
+float CameraMotionPixels(const float prev_vp[16], const float cur_vp[16], float width, float height);
+bool FastCameraGate(u32 slot, float motion_px, float width);
 void EndFrame(VideoState &s);
 
 void Reset(VideoState &s);

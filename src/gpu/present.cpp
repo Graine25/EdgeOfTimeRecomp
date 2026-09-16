@@ -876,6 +876,7 @@ void Video::Present(u32 front_buffer_texture_va) {
     PinThreadToPhysicalCore(1, "the guest's rendering thread");
   }
   trace::EndFrame(s.guest_frames + 1);
+  s.captured_presents++;
   if (s.ready && !s.shutting_down.load(std::memory_order_acquire)) {
     if (RenderThreadActive()) {
       u64 seq = 0;

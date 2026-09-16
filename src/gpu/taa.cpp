@@ -48,8 +48,14 @@ struct alignas(16) Constants {
   float jitter[4];
   float params[4];
   u32 indices[4];
+  float motion[4];
 };
-static_assert(sizeof(Constants) == 112);
+static_assert(sizeof(Constants) == 128);
+
+constexpr float kFeedbackZero = 0.012f;
+constexpr float kSkipAbove = 0.02f;
+constexpr float kResumeBelow = 0.01f;
+constexpr u32 kResumeFrames = 4;
 
 struct View {
   u32 mirrorVa = 0;
@@ -72,10 +78,11 @@ struct State {
   u64 lastFrame = ~0ull;
   bool shaderFailed = false;
   u64 jitteredFrame = ~0ull;
-  u64 framesResolved = 0, framesJitteredUnresolved = 0, framesPassThrough = 0;
+  u64 framesResolved = 0, framesJitteredUnresolved = 0, framesPassThrough = 0, framesSkipped = 0;
   u64 lastReport = 0;
   u64 consumerHash = 0;
   bool lastHadDepth = false;
+  bool noConsumer = false;
 };
 
 State &state() {
@@ -135,6 +142,46 @@ void Multiply(const float a[16], const float b[16], float out[16]) {
       out[r * 4 + c] = a[r * 4 + 0] * b[0 * 4 + c] + a[r * 4 + 1] * b[1 * 4 + c] +
                        a[r * 4 + 2] * b[2 * 4 + c] + a[r * 4 + 3] * b[3 * 4 + c];
 }
+
+}
+
+float CameraMotionPixels(const float prev_vp[16], const float cur_vp[16], float width, float height) {
+  float inv[16], r[16];
+  if (!Invert(cur_vp, inv))
+    return 0.0f;
+  Multiply(inv, prev_vp, r);
+  const float clip[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+  float p[4];
+  for (int c = 0; c < 4; ++c)
+    p[c] = clip[0] * r[0 * 4 + c] + clip[1] * r[1 * 4 + c] + clip[2] * r[2 * 4 + c] +
+           clip[3] * r[3 * 4 + c];
+  if (!(p[3] > 1e-6f))
+    return 1e9f;
+  const float dx = p[0] / p[3] * 0.5f * width, dy = p[1] / p[3] * 0.5f * height;
+  return std::sqrt(dx * dx + dy * dy);
+}
+
+bool FastCameraGate(u32 slot, float motion_px, float width) {
+  static struct {
+    bool skipping = false;
+    u32 calm = 0;
+  } gates[4];
+  auto &g = gates[slot & 3];
+  if (g.skipping) {
+    if (motion_px < kResumeBelow * width) {
+      if (++g.calm >= kResumeFrames)
+        g.skipping = false;
+    } else {
+      g.calm = 0;
+    }
+  } else if (motion_px > kSkipAbove * width) {
+    g.skipping = true;
+    g.calm = 0;
+  }
+  return g.skipping;
+}
+
+namespace {
 
 bool IsFullFrameSceneMirror(const GuestTexture *t) {
   return t && t->resolveOwned && !t->host.isDepth && t->host.valid() &&
@@ -266,7 +313,7 @@ bool IsSceneConsumer(u64 ps_hash) {
 }
 
 u32 JitterIndex(const VideoState &s) {
-  if (!Settings::Taa())
+  if (!Settings::Taa() || state().noConsumer)
     return 0;
   return 1u + static_cast<u32>(s.guest_frames % kJitterPhases);
 }
@@ -274,7 +321,7 @@ u32 JitterIndex(const VideoState &s) {
 void FrameJitter(const VideoState &s, float *jx, float *jy) {
   *jx = 0.0f;
   *jy = 0.0f;
-  if (!Settings::Taa())
+  if (!Settings::Taa() || state().noConsumer)
     return;
   const u32 phase = static_cast<u32>(s.guest_frames % kJitterPhases);
   *jx = Halton(phase, 2) - 0.5f;
@@ -288,18 +335,20 @@ void EndFrame(VideoState &s) {
     return;
   const u64 frame = s.guest_frames;
   if (st.jitteredFrame == frame) {
-    if (st.lastFrame == frame)
+    if (st.lastFrame == frame) {
       st.framesResolved++;
-    else
+    } else {
       st.framesJitteredUnresolved++;
+      st.noConsumer = true;
+    }
   }
   if (frame - st.lastReport >= 600) {
     st.lastReport = frame;
     EOT_DEBUG("[taa] {} frames: {} resolved, {} jittered without a resolve, {} resolved without "
-             "history; last consumer {:#x}{}",
-             600, st.framesResolved, st.framesJitteredUnresolved, st.framesPassThrough,
-             st.consumerHash, st.lastHadDepth ? "" : " (no depth mirror bound)");
-    st.framesResolved = st.framesJitteredUnresolved = st.framesPassThrough = 0;
+              "history, {} skipped for a fast camera; last consumer {:#x}{}",
+              600, st.framesResolved, st.framesJitteredUnresolved, st.framesPassThrough,
+              st.framesSkipped, st.consumerHash, st.lastHadDepth ? "" : " (no depth mirror bound)");
+    st.framesResolved = st.framesJitteredUnresolved = st.framesPassThrough = st.framesSkipped = 0;
   }
 }
 
@@ -324,7 +373,7 @@ void Shutdown(VideoState &s) {
 }
 
 void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const float *camera_vp,
-                             u64 consumer_hash) {
+                             u64 consumer_hash, bool skip) {
   State &state_ = state();
   state_.consumerHash = consumer_hash;
   GuestTexture *scene = bound[0];
@@ -343,10 +392,19 @@ void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const
   }
   if (!IsFullFrameSceneMirror(scene))
     return;
+  state_.noConsumer = false;
   View &st = ViewFor(s, state_, *scene);
   st.lastUseFrame = s.guest_frames;
   if (st.lastFrame == s.guest_frames)
     return;
+  if (skip) {
+    st.historyValid = false;
+    st.prevValid = false;
+    st.lastFrame = s.guest_frames;
+    state_.lastFrame = s.guest_frames;
+    state_.framesSkipped++;
+    return;
+  }
   GuestTexture *depth = nullptr;
   for (u32 i = 1; i < 16 && !depth; ++i)
     if (IsFullFrameDepthMirror(bound[i]))
@@ -374,6 +432,7 @@ void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const
     state_.framesPassThrough++;
   c.params[2] = w;
   c.params[3] = h;
+  c.motion[0] = kFeedbackZero * w;
 
   const u32 read = st.write ^ 1u;
   HostTexture &history_in = st.history[read];
