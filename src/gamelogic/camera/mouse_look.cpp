@@ -22,8 +22,8 @@ REX_EXTERN(__imp__eot_Camera3rd_ReadStick);
 REXCVAR_DEFINE_BOOL(eot_mouse_look, true, "EdgeOfTime/Input",
                     "Turn the camera by the mouse's motion directly (so many degrees a pixel, mnk_sensitivity "
                     "scaling it) instead of driving the right stick's turning speed with it.");
-REXCVAR_DEFINE_DOUBLE(eot_mouse_look_degrees, 0.14, "EdgeOfTime/Input",
-                      "Degrees of camera turn per pixel of mouse motion at sensitivity 1.");
+REXCVAR_DEFINE_DOUBLE(eot_mouse_look_degrees, 0.03, "EdgeOfTime/Input",
+                      "Degrees of camera turn per count of mouse motion at sensitivity 1.");
 
 namespace {
 
@@ -49,7 +49,7 @@ using TakeFn = void (*)(float *, float *);
 std::atomic<TakeFn> g_take{nullptr};
 std::atomic<bool> g_resolved{false};
 std::atomic<bool> g_enabled{true};
-std::atomic<float> g_radians_per_pixel{0.14f * kPi / 180.0f};
+std::atomic<float> g_radians_per_pixel{0.03f * kPi / 180.0f};
 std::atomic<bool> g_callbacks{false};
 bool g_announced = false;
 
