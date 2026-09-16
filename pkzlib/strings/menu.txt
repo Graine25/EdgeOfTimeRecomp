@@ -118,7 +118,7 @@ REEOT_DESC_DEBUG_MODE	Opens the game's own developer level selector from the fro
 REEOT_DESC_ACHIEVEMENT_TOASTS	Shows a notification when an achievement is unlocked. Off keeps the unlock and skips the pop-up.
 REEOT_DESC_GLYPHS	Which controller's buttons the prompts show. Auto follows the device in hand: the pad's own buttons, or the bound keys on a keyboard.
 REEOT_DESC_MNK	Plays with the keyboard as the controller and the mouse as the right stick.
-REEOT_DESC_MOUSE_SENSITIVITY	How far the camera turns for a mouse movement, while Keyboard and Mouse is on.
+REEOT_DESC_MOUSE_SENSITIVITY	How far the camera turns for a mouse movement. The mouse is the camera's in fullscreen only; in a window the pointer stays free.
 REEOT_DESC_BACKGROUND_INPUT	Keeps reading the controller while another window has the focus.
 REEOT_OPT_LANGUAGE	Language
 REEOT_VAL_ENGLISH	English
