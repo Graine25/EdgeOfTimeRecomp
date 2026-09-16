@@ -10,8 +10,8 @@
 
 REXCVAR_DEFINE_STRING(eot_quality_preset, "custom", "EdgeOfTime/Graphics",
                       "Quality preset. low: no multisampling, bilinear upscale, the game's own "
-                      "texture filtering, 1024 shadow maps. medium: 4x MSAA, bicubic upscale, 8x "
-                      "anisotropic, 2048 shadow maps. high: 8x MSAA, bicubic upscale, 16x "
+                      "texture filtering, 1024 shadow maps. medium: 2x MSAA, bicubic upscale, 8x "
+                      "anisotropic, 2048 shadow maps. high: 4x MSAA, bicubic upscale, 16x "
                       "anisotropic, 4096 shadow maps (Lanczos costs 0.14 ms more a 4K frame "
                       "for no visible gain over the Catmull-Rom; pick it under custom). "
                       "Choosing one writes those values into "
@@ -30,7 +30,7 @@ struct Gate {
 };
 
 constexpr Gate kGates[] = {
-    {"eot_msaa", "0", "4", "8"},
+    {"eot_msaa", "0", "2", "4"},
     {"eot_upscale", "bilinear", "bicubic", "bicubic"},
     {"eot_anisotropy", "0", "8", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096"},
