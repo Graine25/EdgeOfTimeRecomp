@@ -6,6 +6,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #include <rex/graphics/pipeline/texture/conversion.h>
 #include <rex/graphics/pipeline/texture/info.h>
@@ -80,6 +81,56 @@ u32 InfoWidth(const TextureInfo &info) { return info.width + 1; }
 u32 InfoHeight(const TextureInfo &info) { return info.height + 1; }
 u32 InfoDepth(const TextureInfo &info) { return info.depth + 1; }
 
+bool SynthesizesMips(const TextureInfo &info, const TextureFormatMapping &m) {
+  if (info.dimension != xe::DataDimension::k2DOrStacked || InfoDepth(info) > 1 ||
+      info.mip_min_level != 0 || info.mip_max_level != 0)
+    return false;
+  const u32 w = InfoWidth(info), h = InfoHeight(info);
+  if (w < 128 || h < 128 || (w & (w - 1)) || (h & (h - 1)))
+    return false;
+  return m.format == plume::RenderFormat::R8_UNORM || m.format == plume::RenderFormat::R8G8_UNORM ||
+         m.format == plume::RenderFormat::R8G8B8A8_UNORM;
+}
+
+void SynthesizeMipChain(VideoState &s, HostTexture &host, plume::RenderFormat format,
+                        std::vector<u8> &level0, u32 w, u32 h, u64 pitch, u32 bpb) {
+  std::vector<u8> prev = std::move(level0), cur;
+  for (u32 level = 1; level < host.mipLevels; ++level) {
+    const u32 lw = std::max(1u, w >> 1), lh = std::max(1u, h >> 1);
+    const u64 lpitch = (u64(lw) * bpb + kTextureRowPitchAlignment - 1) /
+                       kTextureRowPitchAlignment * kTextureRowPitchAlignment;
+    const u64 bytes = (lpitch * lh + kTexturePlacementAlignment - 1) /
+                      kTexturePlacementAlignment * kTexturePlacementAlignment;
+    cur.assign(bytes, 0);
+    for (u32 y = 0; y < lh; ++y) {
+      const u8 *r0 = prev.data() + u64(std::min(2 * y, h - 1)) * pitch;
+      const u8 *r1 = prev.data() + u64(std::min(2 * y + 1, h - 1)) * pitch;
+      u8 *dst = cur.data() + y * lpitch;
+      for (u32 x = 0; x < lw; ++x) {
+        const u64 x0 = u64(std::min(2 * x, w - 1)) * bpb, x1 = u64(std::min(2 * x + 1, w - 1)) * bpb;
+        for (u32 c = 0; c < bpb; ++c)
+          dst[x * bpb + c] = static_cast<u8>(
+              (u32(r0[x0 + c]) + r0[x1 + c] + r1[x0 + c] + r1[x1 + c] + 2) >> 2);
+      }
+    }
+    UploadAlloc staging;
+    if (!UploadAllocate(bytes, kTexturePlacementAlignment, &staging))
+      return;
+    std::memcpy(staging.cpu, cur.data(), bytes);
+    GpuTimingMark(s, s.command_list, kGpuCatUpload);
+    s.command_list->copyTextureRegion(
+        plume::RenderTextureCopyLocation::Subresource(host.texture.get(), level, 0),
+        plume::RenderTextureCopyLocation::PlacedFootprint(
+            staging.buffer, format, lw, lh, 1, static_cast<u32>(lpitch / bpb), staging.offset),
+        0, 0, 0);
+    prev.swap(cur);
+    w = lw;
+    h = lh;
+    pitch = lpitch;
+  }
+  host.needsClear = false;
+}
+
 bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   HostTexture &host = t.host;
   const TextureFormatMapping m = MapTextureFormat(info.format);
@@ -130,7 +181,11 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
     w = std::max(1u, w >> 1);
     h = std::max(1u, h >> 1);
   }
-  desc.mipLevels = std::min(info.mip_max_level + 1u, max_levels);
+  t.synthMips = !depth && SynthesizesMips(info, m);
+  desc.mipLevels = t.synthMips ? max_levels : std::min(info.mip_max_level + 1u, max_levels);
+  if (t.synthMips)
+    EOT_DEBUG("[textures] {:#x}: {}x{} fmt {} ships one level; the host carries {}", t.va,
+              desc.width, desc.height, static_cast<u32>(info.format), desc.mipLevels);
 
   if (depth) {
     desc.format = plume::RenderFormat::D32_FLOAT_S8_UINT;
@@ -254,8 +309,11 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
     UploadAlloc staging;
     if (!UploadAllocate(host_slice_bytes * slices, kTexturePlacementAlignment, &staging))
       return;
+    std::vector<u8> scratch;
+    if (t.synthMips && level == 0 && slices == 1 && host.mipLevels > 1)
+      scratch.assign(host_slice_bytes, 0);
     for (u32 slice = 0; slice < slices; ++slice) {
-      u8 *dst = staging.cpu + slice * host_slice_bytes;
+      u8 *dst = scratch.empty() ? staging.cpu + slice * host_slice_bytes : scratch.data();
       const u8 *src = src_base + slice * guest_slice_bytes +
                       (is_3d ? u64(z_blocks) * lvl->row_pitch_bytes * lvl->z_slice_stride_block_rows
                              : 0);
@@ -295,6 +353,8 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
                             u64(bw) * bpb);
         }
       }
+      if (!scratch.empty())
+        std::memcpy(staging.cpu, scratch.data(), host_slice_bytes);
       const u32 row_width_texels = static_cast<u32>(host_pitch / bpb) * fi->block_width;
       GpuTimingMark(s, s.command_list, kGpuCatUpload);
       s.command_list->copyTextureRegion(
@@ -305,6 +365,8 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
               staging.offset + slice * host_slice_bytes),
           0, 0, is_3d ? slice : 0);
     }
+    if (!scratch.empty())
+      SynthesizeMipChain(s, host, m.format, scratch, w, h, host_pitch, bpb);
   }
   t.uploaded = true;
   if (info.mip_min_level == 0 && info.mip_max_level + 1 >= host.mipLevels)
@@ -558,6 +620,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       s.mirror_generation++;
       const bool is_depth = depth_source;
       t.host = HostTexture{};
+      t.synthMips = false;
       plume::RenderTextureDesc desc;
       desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
       desc.width = want_w;

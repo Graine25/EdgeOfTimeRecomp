@@ -1637,7 +1637,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
         continue;
       }
       sampler = ResolveSamplerSlotLocked(DecodeSamplerFromFetch(
-          fc, !gt->resolveOwned && !gt->host.isDepth && gt->host.mipLevels > 1));
+          fc, !gt->resolveOwned && !gt->host.isDepth && gt->host.mipLevels > 1, gt->synthMips));
       dimension = static_cast<u8>(gt->dimension);
       const u32 sign_x = (fc[0] >> 2) & 3;
       const u32 sign_w = (fc[0] >> 8) & 3;
