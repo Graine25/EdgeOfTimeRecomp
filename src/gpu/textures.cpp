@@ -375,11 +375,21 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
 
 }
 
-constexpr u64 kTextureIdleFrames = 120;
+constexpr f64 kTextureIdleSeconds = 30.0;
+constexpr size_t kTextureCap = 4096;
 
 void EvictStaleGuestTextures(VideoState &s) {
   EOT_CPU_ZONE("evict guest textures");
   bool evicted = false;
+  u64 oldest_kept_frame = 0;
+  if (s.textures.size() > kTextureCap) {
+    std::vector<u64> frames;
+    frames.reserve(s.textures.size());
+    for (const auto &kv : s.textures)
+      frames.push_back(kv.second ? kv.second->lastUseFrame : 0);
+    std::nth_element(frames.begin(), frames.end() - kTextureCap, frames.end());
+    oldest_kept_frame = frames[frames.size() - kTextureCap];
+  }
   for (auto it = s.textures.begin(); it != s.textures.end();) {
     const std::shared_ptr<GuestTexture> &slot = it->second;
     if (!slot) {
@@ -389,7 +399,8 @@ void EvictStaleGuestTextures(VideoState &s) {
       evicted = true;
       continue;
     }
-    if (slot->lastUseFrame + kTextureIdleFrames >= s.guest_frames) {
+    if (FrameAgeSeconds(s, slot->lastUseFrame) < kTextureIdleSeconds &&
+        slot->lastUseFrame >= oldest_kept_frame) {
       ++it;
       continue;
     }
