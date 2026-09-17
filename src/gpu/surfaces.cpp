@@ -132,6 +132,9 @@ float SurfaceRenderScale(const GuestSurface &surf) {
     return ShadowMapTargetScale();
   if (surf.width <= 256 || surf.height <= 256)
     return base;
+  if (!surf.isDepth && surf.baseTile == 0 && surf.colorFormat == 1 &&
+      surf.width == kGuestRenderWidth / 2 && surf.height == kGuestRenderHeight / 2)
+    return std::max(1.0f, base * 0.5f);
   for (u32 k = 0; k < 4; ++k)
     if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
       return base;
