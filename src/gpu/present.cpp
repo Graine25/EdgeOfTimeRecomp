@@ -505,7 +505,6 @@ void LogPerfLocked(VideoState &s) {
     }
   }
   CollectRenderWorkLocked(s, every > 0);
-  EvictStaleGuestSurfaces(s);
   {
     const PerfCounters &prev = s.perf_prev_frame;
     EOT_PLOT("host textures created", p.host_textures - prev.host_textures);
@@ -673,6 +672,8 @@ void FrameLimitWait() {
 void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   EOT_CPU_ZONE("PresentLocked");
   s.guest_frames++;
+  s.frame_clock[s.guest_frames % kFrameClockRing] =
+      std::chrono::duration<f64>(std::chrono::steady_clock::now().time_since_epoch()).count();
   if (!s.ready || s.shutting_down.load(std::memory_order_acquire))
     return;
   DrainShaderGraveyardLocked(s);

@@ -117,7 +117,11 @@ bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u3
     clear = plume::RenderClearValue::Color(plume::RenderColor(0, 0, 0, 0), host.format);
     desc.optimizedClearValue = &clear;
   }
-  CreateOrRecycleHostTexture(s, host, desc, tag);
+  host.texture = CreateHostTexture(s.device.get(), desc, tag);
+  host.desc = desc;
+  host.desc.optimizedClearValue = nullptr;
+  host.layout = plume::RenderTextureLayout::UNKNOWN;
+  host.needsClear = host.texture != nullptr;
   host.renderable = host.texture != nullptr;
   return host.texture != nullptr;
 }
@@ -157,41 +161,6 @@ u64 DescriptorKey(const GuestSurface &d) {
   return k;
 }
 
-static bool SurfaceDescriptorReferenced(const VideoState &s, u64 key) {
-  for (const auto &binding : s.surface_key_by_va) {
-    if (binding.second.key == key)
-      return true;
-  }
-  return false;
-}
-
-static void OrphanSurfaceDescriptor(VideoState &s, u64 key) {
-  if (!SurfaceDescriptorReferenced(s, key))
-    s.orphaned_surface_frame.try_emplace(key, s.guest_frames);
-}
-
-static void TrackSurfaceDescriptor(VideoState &s, u32 surface_va, u64 key) {
-  auto [binding, inserted] = s.surface_key_by_va.emplace(
-      surface_va, VideoState::SurfaceHeaderBinding{key, s.guest_frames});
-  s.orphaned_surface_frame.erase(key);
-  if (inserted)
-    return;
-  const u64 old_key = binding->second.key;
-  binding->second = {key, s.guest_frames};
-  if (old_key == key)
-    return;
-  OrphanSurfaceDescriptor(s, old_key);
-}
-
-static void ForgetSurfaceDescriptor(VideoState &s, u32 surface_va) {
-  const auto binding = s.surface_key_by_va.find(surface_va);
-  if (binding == s.surface_key_by_va.end())
-    return;
-  const u64 old_key = binding->second.key;
-  s.surface_key_by_va.erase(binding);
-  OrphanSurfaceDescriptor(s, old_key);
-}
-
 static bool HalvesTo(u32 full, u32 half) {
   return half && (half == full / 2 || half == (full + 1) / 2);
 }
@@ -222,7 +191,6 @@ struct SurfaceLookupEntry {
   u32 words[5] = {};
   u64 key = 0;
   u64 generation = 0;
-  u64 frame = 0;
   GuestSurface *surf = nullptr;
 };
 SurfaceLookupEntry g_surface_lookup[16];
@@ -245,7 +213,6 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va) {
     return nullptr;
   u32 words[5] = {};
   if (!ReadSurfaceHeaderWords(surface_va, words)) {
-    ForgetSurfaceDescriptor(s, surface_va);
     u32 n;
     if (DiagShouldLog(0x5C00 ^ surface_va, &n))
       EOT_WARN("[surfaces] {:#x}: unreadable or absurd header", surface_va);
@@ -264,15 +231,10 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
   if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
       std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
     lookup.surf->va = surface_va;
-    if (lookup.frame != s.guest_frames) {
-      lookup.frame = s.guest_frames;
-      TrackSurfaceDescriptor(s, surface_va, lookup.key);
-    }
     return lookup.surf;
   }
   GuestSurface decoded;
   if (!DecodeHeaderWords(surface_va, words, decoded)) {
-    ForgetSurfaceDescriptor(s, surface_va);
     u32 n;
     if (DiagShouldLog(0x5C00 ^ surface_va, &n))
       EOT_WARN("[surfaces] {:#x}: unreadable or absurd header", surface_va);
@@ -286,7 +248,6 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
     std::memcpy(lookup.words, words, sizeof(words));
     lookup.key = key;
     lookup.generation = s.surface_generation;
-    lookup.frame = s.guest_frames;
     lookup.surf = header ? surf : nullptr;
     return surf;
   };
@@ -299,11 +260,10 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
     slot->width = decoded.width;
     slot->height = decoded.height;
     slot->colorExpBias = decoded.colorExpBias;
-    TrackSurfaceDescriptor(s, surface_va, key);
     return remember(slot.get());
   }
   if (slot) {
-    ParkSurfaceImages(s, *slot);
+    DestroySurfaceImages(s, *slot);
     s.surface_generation++;
   }
   auto surf = std::make_unique<GuestSurface>();
@@ -312,7 +272,6 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
     slot.reset();
     s.surfaces.erase(key);
     s.surface_generation++;
-    ForgetSurfaceDescriptor(s, surface_va);
     return nullptr;
   }
   EOT_DEBUG("[surfaces] {:#x}: {} {}x{} fmt={} msaa={} tile={} -> host fmt {} {}x{}{}{}", surface_va,
@@ -325,40 +284,7 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
                : "",
            surf->host.sampleCount > 1 ? std::format(" {}x samples", surf->host.sampleCount) : "");
   slot = std::move(surf);
-  TrackSurfaceDescriptor(s, surface_va, key);
   return remember(slot.get());
-}
-
-void EvictStaleGuestSurfaces(VideoState &s) {
-  constexpr u64 kSurfaceIdleFrames = 120;
-  for (auto binding = s.surface_key_by_va.begin(); binding != s.surface_key_by_va.end();) {
-    if (binding->second.lastSeenFrame + kSurfaceIdleFrames >= s.guest_frames) {
-      ++binding;
-      continue;
-    }
-    const u64 old_key = binding->second.key;
-    binding = s.surface_key_by_va.erase(binding);
-    OrphanSurfaceDescriptor(s, old_key);
-  }
-
-  for (auto it = s.orphaned_surface_frame.begin(); it != s.orphaned_surface_frame.end();) {
-    if (SurfaceDescriptorReferenced(s, it->first)) {
-      it = s.orphaned_surface_frame.erase(it);
-      continue;
-    }
-    if (it->second >= s.guest_frames) {
-      ++it;
-      continue;
-    }
-    const auto surface = s.surfaces.find(it->first);
-    if (surface != s.surfaces.end()) {
-      if (surface->second)
-        ParkSurfaceImages(s, *surface->second);
-      s.surfaces.erase(surface);
-      s.surface_generation++;
-    }
-    it = s.orphaned_surface_frame.erase(it);
-  }
 }
 
 plume::RenderFramebuffer *GetFramebuffer(VideoState &s, HostTexture *const color[4],
@@ -872,11 +798,11 @@ bool SurfacePropagateDepthSingle(VideoState &s, GuestSurface &surf) {
   return true;
 }
 
-void ParkSurfaceImages(VideoState &s, GuestSurface &surf) {
+void DestroySurfaceImages(VideoState &s, GuestSurface &surf) {
   DropBorrow(surf);
-  ParkHostTexture(s, surf.host);
+  DestroyHostTexture(s, surf.host);
   if (surf.single.valid())
-    ParkHostTexture(s, surf.single);
+    DestroyHostTexture(s, surf.single);
   surf.single = HostTexture{};
   surf.singleDirty = false;
   surf.contentInSingle = false;
