@@ -328,6 +328,17 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       const bool ms_src = src_host->sampleCount > 1;
       const GuestSurface &content_surf = alias_src ? *alias_src : *surf;
       const i32 rect_now[6] = {vx, vy, vw, vh, sx0, sy0};
+      if (s.guest_frames - target.handoffRegretResetFrame >= 128) {
+        target.handoffRegretResetFrame = s.guest_frames;
+        target.handoffRegretMask = 0;
+      }
+      if (target.resolveOrdinalFrame != s.guest_frames) {
+        target.resolveOrdinalFrame = s.guest_frames;
+        target.resolveOrdinal = 0;
+      }
+      const u32 ordinal = std::min(target.resolveOrdinal, 31u);
+      const bool regretted = (target.handoffRegretMask >> ordinal) & 1u;
+      target.resolveOrdinal++;
       if (target.resolvedSurfaceUid == content_surf.uid &&
           target.resolvedSurfaceSerial == content_surf.serial &&
           target.resolvedOwnSerial == target.contentSerial && target.resolvedLevel == level &&
@@ -337,6 +348,15 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
         mark(target, level);
         return true;
       }
+      if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()))
+        EOT_INFO("[diag] resolve {:#x} -> {:#x} not a no-op: uid {}/{} serial {}/{} own {}/{} level {}/{} "
+                 "rect {},{},{},{},{},{}/{},{},{},{},{},{} needsClear {} reorder {} swap {}",
+                 src_va, dest_texture_va, target.resolvedSurfaceUid, content_surf.uid,
+                 target.resolvedSurfaceSerial, content_surf.serial, target.resolvedOwnSerial,
+                 target.contentSerial, target.resolvedLevel, level, target.resolvedRect[0],
+                 target.resolvedRect[1], target.resolvedRect[2], target.resolvedRect[3],
+                 target.resolvedRect[4], target.resolvedRect[5], vx, vy, vw, vh, sx0, sy0,
+                 target.host.needsClear, reorder, target.storeSwapRB);
       TextureReleaseBorrower(s, target);
       target.contentSerial++;
       target.resolvedSurfaceUid = content_surf.uid;
@@ -344,17 +364,6 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       target.resolvedOwnSerial = target.contentSerial;
       target.resolvedLevel = level;
       std::memcpy(target.resolvedRect, rect_now, sizeof(rect_now));
-      if (s.guest_frames - surf->regretResetFrame >= 128) {
-        surf->regretResetFrame = s.guest_frames;
-        surf->regretMask = 0;
-      }
-      if (surf->resolveOrdinalFrame != s.guest_frames) {
-        surf->resolveOrdinalFrame = s.guest_frames;
-        surf->resolveOrdinal = 0;
-      }
-      const u32 ordinal = surf->resolveOrdinal < 32 ? surf->resolveOrdinal : 31;
-      const bool regretted = (surf->regretMask >> ordinal) & 1u;
-      surf->resolveOrdinal++;
       const float k = surf->scale;
       const i32 hx0 = ScalePxBy(vx, k), hy0 = ScalePxBy(vy, k), hx1 = ScalePxBy(vx + vw, k),
                 hy1 = ScalePxBy(vy + vh, k);
@@ -369,6 +378,18 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       const bool whole_host = whole && src_host->width == static_cast<u32>(mip_w_host) &&
                               src_host->height == static_cast<u32>(mip_h_host);
       const bool own_image = src_host == &surf->single || src_host == &surf->host;
+      if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()) &&
+          !depth_source && own_image)
+        EOT_INFO("[diag] resolve {:#x} -> {:#x} hand-off gate: ordinal {} regretted {} (mask {:#x}) dest {} "
+                 "ms {} alias {} fmt {} scale {} level {} whole_host {} covers {} view {} array {} depth {} "
+                 "samples {} flags {}/{} dim {}/{} committed {}/{}",
+                 src_va, dest_texture_va, ordinal, regretted, target.handoffRegretMask, &target == dest && dest_ref,
+                 ms_src, alias_src != nullptr, same_format, scale, level, whole_host, covers_image,
+                 target.host.viewFormat == plume::RenderFormat::UNKNOWN, target.host.arraySize,
+                 target.host.depth, target.host.sampleCount, static_cast<u32>(target.host.desc.flags),
+                 static_cast<u32>(src_host->desc.flags), static_cast<u32>(target.host.desc.dimension),
+                 static_cast<u32>(src_host->desc.dimension), target.host.desc.committed,
+                 src_host->desc.committed);
       if (!regretted && &target == dest && dest_ref && !depth_source &&
           !ms_src && !alias_src && own_image && same_format && scale == 1.0f && level == 0 &&
           whole_host && covers_image && target.host.viewFormat == plume::RenderFormat::UNKNOWN &&
@@ -381,7 +402,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
           target.bindingGeneration++;
         }
         target.host.needsClear = false;
-        surf->handoffOrdinal = ordinal;
+        surf->handoffMirrorOrdinal = ordinal;
         SurfaceTransferToMirror(s, *surf, *src_host, target, dest_ref);
         src_host = &target.host;
         mark(target, level);

@@ -58,15 +58,16 @@ struct KeySlot {
   uint8_t slot;
   const char *cvar;
   const char *cluster;
+  uint8_t size_of;
 };
 constexpr KeySlot kKeySlots[] = {
-    {0x00, "eot_key_jump", nullptr},          {0x01, "eot_key_web", nullptr},
-    {0x02, "eot_key_heavy_attack", nullptr},  {0x03, "eot_key_light_attack", nullptr},
-    {0x04, "eot_key_web_swing", nullptr},     {0x05, "eot_key_hyper_sense", nullptr},
-    {0x06, nullptr, "MOUSE"},                 {0x07, nullptr, "WASD"},
-    {0x08, "eot_key_upgrades", nullptr},      {0x09, "eot_key_pause", nullptr},
-    {0x0A, "eot_key_grab", nullptr},          {0x0B, "eot_key_special_attack", nullptr},
-    {0x1B, "keybind_lstick_down", nullptr},   {0x1E, "eot_key_spider_sense", nullptr},
+    {0x00, "eot_key_jump", nullptr, 0xFF},          {0x01, "eot_key_web", nullptr, 0xFF},
+    {0x02, "eot_key_heavy_attack", nullptr, 0xFF},  {0x03, "eot_key_light_attack", nullptr, 0xFF},
+    {0x04, "eot_key_web_swing", nullptr, 0xFF},     {0x05, "eot_key_hyper_sense", nullptr, 0xFF},
+    {0x06, nullptr, "MOUSE", 0xFF},                 {0x07, nullptr, "WASD", 0xFF},
+    {0x08, "eot_key_upgrades", nullptr, 0xFF},      {0x09, "eot_key_pause", nullptr, 0xFF},
+    {0x0A, "eot_key_grab", nullptr, 0xFF},          {0x0B, "eot_key_special_attack", nullptr, 0xFF},
+    {0x1B, "keybind_lstick_down", nullptr, 0x00},   {0x1E, "eot_key_spider_sense", nullptr, 0xFF},
 };
 
 float g_sheet_w = 0, g_sheet_h = 0;
@@ -120,12 +121,12 @@ bool Parse() {
       if (set == SIZE_MAX || !g_sheet_w || slot > 31)
         continue;
       const Box uv = Normalised({a, b, c, d});
-      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f, 0.0f, 0xFF});
+      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f, 0.0f, 0xFF, 0xFF});
       g_have[g_sets[set].page] |= 1u << slot;
     } else if (unsigned other = 0; std::sscanf(line.c_str(), "alias %x %x", &slot, &other) == 2) {
       if (set == SIZE_MAX || slot > 31 || other > 31)
         continue;
-      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), 0, 0, 0, 0, 0.0f, 0.0f, static_cast<uint8_t>(other)});
+      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), 0, 0, 0, 0, 0.0f, 0.0f, static_cast<uint8_t>(other), 0xFF});
       g_have[g_sets[set].page] |= 1u << slot;
     } else if (std::sscanf(line.c_str(), "cap %63s %f %f %f %f", name, &a, &b, &c, &d) == 5) {
       if (caps)
@@ -178,7 +179,7 @@ std::vector<eot::text::IconCell> KeyboardCells() {
       continue;
     const Box uv = Normalised(*box);
     const float aspect = (box->x1 - box->x0) / (box->y1 - box->y0);
-    cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect, kCapLift, 0xFF});
+    cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect, kCapLift, 0xFF, k.size_of});
     g_have[kKeyboardPage] |= 1u << k.slot;
   }
   return cells;

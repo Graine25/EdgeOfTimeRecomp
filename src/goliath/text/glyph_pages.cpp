@@ -144,7 +144,13 @@ uint32_t InstallIconPage(const PPCContext &ctx, uint8_t *base, uint32_t font, ui
           eot::mem::store<uint32_t>(rec + off, eot::mem::load<uint32_t>(other + off));
       continue;
     }
-    const float height = LoadF(src + kRecHeight);
+    uint32_t size = src;
+    if (cell.size_of != 0xFF) {
+      const uint32_t other = buttons + cell.size_of * kRecordSize;
+      if (eot::mem::load<uint16_t>(other + kRecFlags + 2) & kFlagLive)
+        size = other;
+    }
+    const float height = LoadF(size + kRecHeight);
     eot::mem::store<uint32_t>(rec + kRecTexture, texture);
     eot::mem::store<uint32_t>(rec + 4, 0);
     StoreF(rec + kRecU0, cell.u0);
@@ -153,7 +159,7 @@ uint32_t InstallIconPage(const PPCContext &ctx, uint8_t *base, uint32_t font, ui
     StoreF(rec + kRecV1, cell.v1);
     StoreF(rec + kRecAdvance, cell.aspect > 0 ? height * (kUnitsY / kUnitsX) * cell.aspect : LoadF(src + kRecAdvance));
     StoreF(rec + kRecHeight, height);
-    StoreF(rec + kRecTop, LoadF(src + kRecTop) + cell.lift / kUnitsY);
+    StoreF(rec + kRecTop, LoadF(size + kRecTop) + cell.lift / kUnitsY);
     eot::mem::store<uint32_t>(rec + kRecFlags, kFlagLive);
   }
   return at;
