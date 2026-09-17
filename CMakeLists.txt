@@ -181,6 +181,7 @@ include(cmake/host_shaders.cmake)
 add_custom_target(reeot_shader_cache_regen
     COMMAND $<TARGET_FILE:XenosRecomp>
             "${REEOT_SHADER_INPUT_DIR}" "${REEOT_SHADER_CACHE_CPP}" "${REEOT_SHADER_COMMON_H}"
+            --overrides "${CMAKE_CURRENT_SOURCE_DIR}/src/gpu/shaders/overrides"
     DEPENDS XenosRecomp
     COMMENT "Recompiling EOT Xenos shaders into ${REEOT_SHADER_CACHE_CPP}"
     USES_TERMINAL VERBATIM)
