@@ -126,11 +126,23 @@ bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u3
   return host.texture != nullptr;
 }
 
+float SurfaceRenderScale(const GuestSurface &surf) {
+  const float base = RenderScaleFactor();
+  if (surf.isDepth && surf.width == 1024 && surf.height == 1024)
+    return ShadowMapTargetScale();
+  if (surf.width <= 256 || surf.height <= 256)
+    return base;
+  for (u32 k = 0; k < 4; ++k)
+    if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
+      return base;
+  const float w = static_cast<float>(surf.width) / static_cast<float>(kGuestRenderWidth);
+  const float t = std::clamp((w - 0.8f) / 0.2f, 0.0f, 1.0f);
+  return std::max(1.0f, base * (0.5f + 0.5f * t));
+}
+
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   HostAllocationSize(surf, surf.allocWidth, surf.allocHeight);
-  surf.scale = surf.isDepth && surf.width == 1024 && surf.height == 1024
-                   ? ShadowMapTargetScale()
-                   : RenderScaleFactor();
+  surf.scale = SurfaceRenderScale(surf);
   surf.single = HostTexture{};
   surf.contentInSingle = false;
   surf.content = GuestSurface::Content::Undefined;
