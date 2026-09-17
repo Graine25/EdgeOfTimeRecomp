@@ -154,7 +154,6 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   static u64 next_uid = 1;
   surf.uid = next_uid++;
   surf.serial++;
-  surf.resolveOrdinal = 0;
   return CreateSurfaceImage(s, surf, surf.host, HostSampleCountFor(s, surf),
                             surf.isDepth ? "surface-ds" : "surface-rt");
 }
@@ -425,8 +424,10 @@ void LogTransfer(VideoState &s, const GuestSurface &surf, const char *what) {
 }
 
 void NoteHandoffRegret(const VideoState &s, GuestSurface &surf) {
-  if (surf.handoffFrame == s.guest_frames && surf.handoffOrdinal < 32)
-    surf.regretMask |= 1u << surf.handoffOrdinal;
+  if (surf.handoffFrame != s.guest_frames || surf.handoffMirrorOrdinal >= 32)
+    return;
+  if (std::shared_ptr<GuestTexture> m = surf.handoffMirror.lock())
+    m->handoffRegretMask |= 1u << surf.handoffMirrorOrdinal;
 }
 
 bool ResolveHostToSingle(VideoState &s, GuestSurface &surf) {
@@ -530,6 +531,7 @@ void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src
   surf.contentInSingle = false;
   surf.imagesAgree = false;
   surf.handoffFrame = s.guest_frames;
+  surf.handoffMirror = target_ref;
   DropBorrow(surf);
   if (host_keeps) {
     LogTransfer(s, surf, "hand twin to mirror");
@@ -759,7 +761,8 @@ void NoteSurfaceClearedColor(GuestSurface &surf, const HostTexture &image, const
   surf.drawn = true;
   surf.serial++;
   if (whole) {
-    surf.resolveOrdinal = 0;
+    surf.handoffFrame = ~0ull;
+    surf.handoffMirror.reset();
     DropBorrow(surf);
     surf.content = GuestSurface::Content::Cleared;
     surf.resolvedSinceDraw = false;
@@ -785,7 +788,6 @@ void NoteSurfaceClearedDepth(GuestSurface &surf, float depth, u8 stencil, bool w
   if (both)
     surf.singleDirty = false;
   if (whole) {
-    surf.resolveOrdinal = 0;
     surf.content = GuestSurface::Content::Cleared;
     surf.clearDepth = depth;
     surf.clearStencil = stencil;
