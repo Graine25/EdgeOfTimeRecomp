@@ -18,9 +18,9 @@ REXCVAR_DEFINE_STRING(eot_key_special_attack, "V", EOT_KEYS, "Special attack / t
 REXCVAR_DEFINE_STRING(eot_key_web_swing, "RMB", EOT_KEYS, "Web swing, hold (RT)");
 REXCVAR_DEFINE_STRING(eot_key_hyper_sense, "Shift", EOT_KEYS,
                       "Hyper-Sense / Accelerated Decoy (LT)");
-REXCVAR_DEFINE_STRING(eot_key_time_stop, "F", EOT_KEYS, "Time Stop (L3 + R3)");
+REXCVAR_DEFINE_STRING(eot_key_left_stick_click, "Z", EOT_KEYS, "Left stick click (L3); Time Stop with R3");
+REXCVAR_DEFINE_STRING(eot_key_right_stick_click, "X", EOT_KEYS, "Right stick click (R3): center camera; Time Stop with L3");
 REXCVAR_DEFINE_STRING(eot_key_spider_sense, "R", EOT_KEYS, "Spider-Sense (D-pad up)");
-REXCVAR_DEFINE_STRING(eot_key_center_camera, "Backtick", EOT_KEYS, "Center camera (R3)");
 REXCVAR_DEFINE_STRING(eot_key_upgrades, "Tab", EOT_KEYS, "Upgrades (Back)");
 REXCVAR_DEFINE_STRING(eot_key_pause, "Escape", EOT_KEYS, "Pause (Start)");
 REXCVAR_DEFINE_STRING(eot_key_dpad_down, "C", EOT_KEYS, "D-pad down");
@@ -62,10 +62,9 @@ void InstallPcControls() {
       Button("special_attack", "eot_key_special_attack", X_INPUT_GAMEPAD_LEFT_SHOULDER),
       Trigger("web_swing", "eot_key_web_swing", false),
       Trigger("hyper_sense", "eot_key_hyper_sense", true),
-      Button("time_stop", "eot_key_time_stop",
-             X_INPUT_GAMEPAD_LEFT_THUMB | X_INPUT_GAMEPAD_RIGHT_THUMB),
+      Button("left_stick_click", "eot_key_left_stick_click", X_INPUT_GAMEPAD_LEFT_THUMB),
+      Button("right_stick_click", "eot_key_right_stick_click", X_INPUT_GAMEPAD_RIGHT_THUMB),
       Button("spider_sense", "eot_key_spider_sense", X_INPUT_GAMEPAD_DPAD_UP),
-      Button("center_camera", "eot_key_center_camera", X_INPUT_GAMEPAD_RIGHT_THUMB),
       Button("upgrades", "eot_key_upgrades", X_INPUT_GAMEPAD_BACK),
       Button("pause", "eot_key_pause", X_INPUT_GAMEPAD_START),
       Button("dpad_down", "eot_key_dpad_down", X_INPUT_GAMEPAD_DPAD_DOWN),
