@@ -268,12 +268,9 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/patches/sd_bonus_suits.cpp
-        src/gamelogic/ui/pause_menu.cpp
         src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/gallery_achievements.cpp
         src/gamelogic/ui/achievements_page.cpp
-        src/gamelogic/ui/save_select.cpp
-        src/gamelogic/ui/button_prompts.cpp
         src/gamelogic/camera/mouse_look.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")

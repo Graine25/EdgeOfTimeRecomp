@@ -10,12 +10,14 @@
 #include <vector>
 
 #include <rex/cvar.h>
+#include <rex/hook.h>
 
 #include "core/logging.h"
 #include "core/quit_client.h"
 #include "gamelogic/ui/hud_api.h"
 #include "gamelogic/ui/menu_common.h"
 #include "goliath/ui/name_crc.h"
+#include "core/memory_helpers.h"
 
 REX_EXTERN(__imp__eot_HUDOptionsScreen_BuildBar);         // (this r3)
 REX_EXTERN(__imp__eot_HUDOptionsScreen_HandleInputEvent); // (this r3, event r4)
@@ -1306,4 +1308,134 @@ REX_HOOK_RAW(eot_WindowComponent_Teardown) {
     else if (g_page)
       UndoRestartBound();
   }
+}
+
+REX_EXTERN(__imp__eot_PauseMenu_GetMainMenuBarInfo);
+REX_EXTERN(__imp__eot_PauseMenu_HandleMainMenuSelectOption);
+REX_EXTERN(__imp__eot_PauseMenu_HandleMessage);
+REX_EXTERN(__imp__eot_PauseMenu_EnterOpening);
+
+namespace {
+
+using namespace eot::ui;
+
+constexpr uint32_t kSelectedIndexOff = 40;
+constexpr uint32_t kPauseRetailCount = 7;
+constexpr uint32_t kQuitGameIndex = 6;
+constexpr uint32_t kExitIndex = 7;
+constexpr YesNoLayout kPauseYesNo{76, 152, 160, 184, 80};
+
+bool g_confirm_pending = false;
+
+}
+
+void eot_PauseMenu_NavRightBoundFexit(PPCRegister &r31, PPCCRRegister &cr6, PPCXERRegister &xer) {
+  cr6.compare<int32_t>(r31.s32, static_cast<int32_t>(kPauseRetailCount + 1), xer);
+}
+
+REX_HOOK_RAW(eot_PauseMenu_GetMainMenuBarInfo) {
+  const uint32_t desc = ctx.r4.u32;
+  __imp__eot_PauseMenu_GetMainMenuBarInfo(ctx, base);
+  const uint32_t count = desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0;
+  int slot = -1;
+  if (count == kPauseRetailCount) {
+    eot::mem::store<uint32_t>(DescHandleAddr(desc, kQuitGameIndex), kHandleExitToMenu);
+    slot = AppendEntry(desc, kHandleExitGame);
+  }
+  EOT_INFO("[menu] pause bar {:#x}: count {} -> {}, Exit Game slot {}", desc, count,
+           desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0u, slot);
+}
+
+REX_HOOK_RAW(eot_PauseMenu_HandleMainMenuSelectOption) {
+  const uint32_t self = ctx.r3.u32;
+  if (self && eot::mem::load<uint32_t>(self + kSelectedIndexOff) == kExitIndex) {
+    if (!g_confirm_pending) {
+      OpenExitConfirm(ctx, base, self, kPauseYesNo);
+      g_confirm_pending = true;
+    }
+    return;
+  }
+  __imp__eot_PauseMenu_HandleMainMenuSelectOption(ctx, base);
+}
+
+REX_HOOK_RAW(eot_PauseMenu_HandleMessage) {
+  if (g_confirm_pending && ExitIfConfirmed(ctx.r3.u32, ctx.r4.u32, ctx.r5.u32, kPauseYesNo))
+    g_confirm_pending = false;
+  __imp__eot_PauseMenu_HandleMessage(ctx, base);
+}
+
+REX_HOOK_RAW(eot_PauseMenu_EnterOpening) {
+  g_confirm_pending = false;
+  __imp__eot_PauseMenu_EnterOpening(ctx, base);
+}
+
+REX_EXTERN(__imp__eot_HUDSavegameSelect_HandleInputEvent); // (this r3, event r4)
+REX_EXTERN(__imp__eot_HUDSavegameSelect_HandleMessage);    // (this r3, message r4, payload r5) -> handled
+
+namespace {
+
+using namespace eot::ui;
+
+constexpr YesNoLayout kSaveYesNo{68, 144, 152, 172, 72};
+
+}
+
+REX_HOOK_RAW(eot_HUDSavegameSelect_HandleInputEvent) {
+  const uint32_t self = ctx.r3.u32, event = ctx.r4.u32;
+  if (self && event && eot::mem::load<uint32_t>(event + kEvtType) == kEvtBack && !g_confirm_pending) {
+    ConsumeEvent(event);
+    const uint32_t handle = OpenConfirm(ctx, base, self, kSaveYesNo, kHandleLeaveTitle, kHandleLeaveBody,
+                                        NameCrc("Reeot_LeaveWindow"), NameCrc("Reeot_LeaveYes"), NameCrc("Reeot_LeaveNo"));
+    g_confirm_pending = handle != 0xFFFFFFFFu;
+    EOT_INFO("[menu] save selection: B, leave-the-game window {:#x}", handle);
+    return;
+  }
+  __imp__eot_HUDSavegameSelect_HandleInputEvent(ctx, base);
+}
+
+REX_HOOK_RAW(eot_HUDSavegameSelect_HandleMessage) {
+  if (g_confirm_pending && ExitIfConfirmed(ctx.r3.u32, ctx.r4.u32, ctx.r5.u32, kSaveYesNo)) {
+    g_confirm_pending = false;
+    EOT_INFO("[menu] save selection: leave-the-game window answered");
+    ctx.r3.u32 = 1;
+    return;
+  }
+  __imp__eot_HUDSavegameSelect_HandleMessage(ctx, base);
+}
+
+REX_EXTERN(__imp__eot_HUDSavegameSelect_Construct); // (this r3, ...)
+
+namespace {
+
+constexpr uint32_t kPromptTable = 0x883C9BC8; // uint32 nameCRC[32], filled by 0x8827C3E8
+constexpr uint32_t kPromptCount = 32;
+
+struct Rewrite {
+  uint32_t id;
+  uint32_t retail;
+  const char *replacement;
+};
+
+constexpr Rewrite kRewrites[] = {
+    {22, 0x3A79CC4E, "REEOT_PROMPT_EXIT_GAME"},
+};
+
+void ApplyRewrites() {
+  for (const Rewrite &r : kRewrites) {
+    if (r.id >= kPromptCount)
+      continue;
+    const uint32_t slot = kPromptTable + r.id * 4;
+    if (eot::mem::load<uint32_t>(slot) != r.retail)
+      continue;
+    const uint32_t crc = eot::ui::NameCrc(r.replacement);
+    eot::mem::store<uint32_t>(slot, crc);
+    EOT_INFO("[menu] button prompt {} -> {} (crc {:#010x})", r.id, r.replacement, crc);
+  }
+}
+
+}
+
+REX_HOOK_RAW(eot_HUDSavegameSelect_Construct) {
+  __imp__eot_HUDSavegameSelect_Construct(ctx, base);
+  ApplyRewrites();
 }
