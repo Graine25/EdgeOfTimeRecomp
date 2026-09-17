@@ -36,6 +36,7 @@ struct InputLayout {
   bool anyPacked111110 = false;
   u32 spec = 0;
   u32 streamExtent[16] = {};
+  u32 morphStreams = 0;
   std::vector<u8> declRaw;
 };
 
