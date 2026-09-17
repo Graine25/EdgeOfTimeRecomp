@@ -23,6 +23,7 @@ struct IconCell {
   float aspect;
   float lift;
   uint8_t alias;
+  uint8_t size_of;
 };
 
 uint32_t InstallIconPage(const PPCContext &ctx, uint8_t *base, uint32_t font_record, uint32_t page, uint32_t texture,
