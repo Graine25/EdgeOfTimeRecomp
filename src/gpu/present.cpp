@@ -425,7 +425,8 @@ void LogPerfLocked(VideoState &s) {
   if (hitch_ms > 0 && p.last_present.time_since_epoch().count() != 0) {
     const PerfCounters &q = s.perf_prev_frame;
     const f64 wall = p.frame_ms - q.frame_ms;
-    if (wall > static_cast<f64>(hitch_ms)) {
+    const f64 paced = g_pace_ms - q.pace_ms;
+    if (wall - paced > static_cast<f64>(hitch_ms)) {
       EOT_WARN("[hitch] frame {} threads: capture {:.2f} present-wait {:.2f} worker-idle {:.2f} "
                "blit {:.2f} house {:.2f} | gpu {:.2f} ({} frames collected) | transfers {} "
                "evicted {} vtx-miss {} idx-miss {} pso-binds {} dead-resolves {} | "
@@ -640,11 +641,14 @@ void SleepUntil(std::chrono::steady_clock::time_point when) {
     std::this_thread::yield();
 }
 
+std::atomic<bool> g_movie_presented{false};
+
 void FrameLimitWait() {
   using clock = std::chrono::steady_clock;
   static clock::time_point deadline{};
   static i32 cadence_fps = 0;
-  const i32 fps = Settings::FpsLimit();
+  constexpr i32 kMovieFps = 30;
+  const i32 fps = g_movie_presented.load(std::memory_order_acquire) ? kMovieFps : Settings::FpsLimit();
   if (fps <= 0) {
     deadline = clock::time_point{};
     cadence_fps = 0;
@@ -751,6 +755,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   if (src_index != kInvalidDescriptorIndex) {
     ApplyAspectRatio();
     const bool movie = TakeMovieDrawnFlag();
+    g_movie_presented.store(movie, std::memory_order_release);
     const float aspect =
         movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
     fit_h = out_w / aspect;
