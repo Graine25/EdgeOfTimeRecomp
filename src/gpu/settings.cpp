@@ -76,10 +76,6 @@ REXCVAR_DEFINE_BOOL(eot_motion_blur, true, "EdgeOfTime/Graphics",
                     "Motion blur (object and camera).");
 REXCVAR_DEFINE_BOOL(eot_radial_blur, true, "EdgeOfTime/Graphics",
                     "Radial blur (the speed streaks of free falls and dashes).");
-REXCVAR_DEFINE_BOOL(eot_heat_effects, true, "EdgeOfTime/Graphics",
-                    "Heat vision and heat haze distortion.");
-REXCVAR_DEFINE_BOOL(eot_film_grain, true, "EdgeOfTime/Graphics", "Film grain overlay.");
-REXCVAR_DEFINE_BOOL(eot_halo, true, "EdgeOfTime/Graphics", "Halo (light bleed) effect.");
 REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics",
                     "The scene colour grade (3D LUT colorization). Off shows the ungraded image.");
 REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics",
@@ -124,9 +120,10 @@ REXCVAR_DEFINE_INT32(eot_msaa, 0, "EdgeOfTime/Graphics",
     })
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video",
-                      "Display brightness offset applied at present (-0.5 .. 0.5, 0 = off).");
+                      "Display brightness offset applied at present (-0.25 .. 0.25 in the menu, "
+                      "0 = off).");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video",
-                      "Display contrast applied at present (0.5 .. 2.0, 1 = off).");
+                      "Display contrast applied at present (0.5 .. 1.5 in the menu, 1 = off).");
 REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video",
                       "Display saturation applied at present (0 = greyscale, 1 = off, 2 = vivid).");
 REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video",
@@ -230,9 +227,6 @@ bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
 bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
 bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }
 bool Settings::RadialBlur() { return REXCVAR_GET(eot_radial_blur); }
-bool Settings::HeatEffects() { return REXCVAR_GET(eot_heat_effects); }
-bool Settings::FilmGrain() { return REXCVAR_GET(eot_film_grain); }
-bool Settings::Halo() { return REXCVAR_GET(eot_halo); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
