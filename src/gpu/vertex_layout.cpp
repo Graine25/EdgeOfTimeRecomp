@@ -263,6 +263,8 @@ const InputLayout *BuildInputLayout(u64 vs_hash, const std::vector<VertexInput> 
     layout->elements.emplace_back(semantic, in.usageIndex, location++, t.format, match->stream,
                                   match->offset);
     layout->streamMask |= 1u << match->stream;
+    if (in.usage == static_cast<u32>(DeclUsage::Position) && in.usageIndex == 1)
+      layout->morphStreams |= 1u << match->stream;
     const u32 extent = match->offset + t.byteSize;
     if (extent > layout->streamExtent[match->stream])
       layout->streamExtent[match->stream] = extent;

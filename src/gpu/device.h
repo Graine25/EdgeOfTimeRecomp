@@ -100,6 +100,8 @@ struct PerfCounters {
   std::chrono::steady_clock::time_point last_present{};
 };
 
+constexpr u32 kFrameClockRing = 8192;
+
 inline u64 PerfNow() { return __rdtsc(); }
 inline f64 g_perf_ms_per_tick = 0.0;
 f64 PerfMsPerTickSlow();
@@ -241,6 +243,7 @@ struct VideoState {
   PerfCounters perf;
   PerfCounters perf_prev_frame;
   std::vector<f32> frame_walls;
+  f64 frame_clock[kFrameClockRing] = {};
 
   struct TextureSlotCache {
     u32 texVa = 0;
@@ -279,12 +282,6 @@ struct VideoState {
   u64 resolve_alias_candidates_generation = 0;
   u64 mirror_generation = 1;
   u32 root_cbv_index[3] = {~0u, ~0u, ~0u};
-  struct SurfaceHeaderBinding {
-    u64 key = 0;
-    u64 lastSeenFrame = 0;
-  };
-  std::unordered_map<u32, SurfaceHeaderBinding> surface_key_by_va;
-  std::unordered_map<u64, u64> orphaned_surface_frame;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
   std::mutex shaders_mutex;
   std::vector<std::unique_ptr<GuestShader>> shader_graveyard;
@@ -408,7 +405,16 @@ bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
 void EvictHostTexturePool(VideoState &s);
 void EvictStaleGuestTextures(VideoState &s);
 
+inline f64 FrameAgeSeconds(const VideoState &s, u64 frame) {
+  if (frame >= s.guest_frames)
+    return 0.0;
+  if (s.guest_frames - frame >= kFrameClockRing)
+    return 1e9;
+  return s.frame_clock[s.guest_frames % kFrameClockRing] - s.frame_clock[frame % kFrameClockRing];
+}
+
 void ParkHostTexture(VideoState &s, HostTexture &host);
+void DestroyHostTexture(VideoState &s, HostTexture &host);
 
 u32 AllocateDescriptorSlot(VideoState &s);
 u32 BindTextureSRVLocked(VideoState &s, HostTexture &host);

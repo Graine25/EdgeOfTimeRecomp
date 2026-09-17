@@ -26,11 +26,7 @@ using eot::gpu::Settings;
 constexpr uint32_t kPostFxDepthOfField = 1u << 1;
 constexpr uint32_t kPostFxMotionBlur = 1u << 2;
 constexpr uint32_t kPostFxRadialBlur = 1u << 3;
-constexpr uint32_t kPostFxHeatVision = 1u << 5;
-constexpr uint32_t kPostFxHeatHaze = 1u << 6;
 constexpr uint32_t kPostFxColorization = 1u << 8;
-constexpr uint32_t kPostFxGrain = 1u << 10;
-constexpr uint32_t kPostFxHalo = 1u << 12;
 constexpr uint32_t kPostFxCameraMotionBlur = 1u << 14;
 constexpr uint32_t kPostFxBokeh = 1u << 15;
 
@@ -45,14 +41,8 @@ uint32_t DisabledStages() {
     mask |= kPostFxMotionBlur | kPostFxCameraMotionBlur;
   if (!Settings::RadialBlur())
     mask |= kPostFxRadialBlur;
-  if (!Settings::HeatEffects())
-    mask |= kPostFxHeatVision | kPostFxHeatHaze;
   if (!Settings::ColorGrading())
     mask |= kPostFxColorization;
-  if (!Settings::FilmGrain())
-    mask |= kPostFxGrain;
-  if (!Settings::Halo())
-    mask |= kPostFxHalo;
   return mask;
 }
 

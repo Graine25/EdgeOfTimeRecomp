@@ -1,5 +1,9 @@
 #include "gpu/draw.h"
 
+#include <unordered_map>
+
+#include <xxhash.h>
+
 #include "core/profiling.h"
 
 #include "gpu/settings.h"
@@ -1151,6 +1155,39 @@ const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st, u64 fir
   return &c.map.emplace(key, m).first->second;
 }
 
+void NoteMorphStream(VideoState &s, const StreamInfo &st, u64 first, u64 bytes) {
+  struct Seen {
+    u64 sample = 0, full = 0;
+  };
+  static std::unordered_map<u64, Seen> seen;
+  static u64 frames = 0, last_frame = ~0ull, draws = 0, changed = 0, stale = 0;
+  if (!st.data || !bytes || bytes > kVertexMirrorMaxBytes)
+    return;
+  const u64 key = (u64(st.dataVa + static_cast<u32>(first)) << 32) ^ bytes;
+  const u64 sample = SampleHostBytes(st.data + first, static_cast<u32>(bytes));
+  const u64 full = XXH3_64bits(st.data + first, static_cast<size_t>(bytes));
+  auto [it, inserted] = seen.emplace(key, Seen{sample, full});
+  if (!inserted) {
+    if (it->second.full != full) {
+      changed++;
+      if (it->second.sample == sample)
+        stale++;
+    }
+    it->second = Seen{sample, full};
+  }
+  draws++;
+  if (last_frame != s.guest_frames) {
+    last_frame = s.guest_frames;
+    if (++frames % 600 == 0) {
+      EOT_DEBUG("[morph] {} draws over {} frames: {} ranges, {} rewrites, {} of them under an "
+                "unchanged fingerprint",
+                draws, frames, seen.size(), changed, stale);
+      if (seen.size() > 4096)
+        seen.clear();
+    }
+  }
+}
+
 const CachedIndexRange *GetCachedIndexRange(VideoState &s, u32 ib_va, u32 prim, u32 start_index,
                                             u32 count) {
   if (!ib_va || !count || prim == kPrimRectList)
@@ -1971,7 +2008,10 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
       Dropped("vertex range implausibly large", 0x600F);
       return false;
     }
-    if (const VertexMirror *mirror = GetVertexMirror(s, st_info, first, bytes)) {
+    const bool morph = (layout->morphStreams >> S) & 1u;
+    if (morph)
+      NoteMorphStream(s, st_info, first, bytes);
+    if (const VertexMirror *mirror = morph ? nullptr : GetVertexMirror(s, st_info, first, bytes)) {
       auto &pool = vertex_mirrors().pool;
       const u64 epoch = pool.flushEpoch.load(std::memory_order_acquire);
       if (mirror->residentEpoch != epoch || !mirror->resident) {

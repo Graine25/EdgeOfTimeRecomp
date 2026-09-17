@@ -19,9 +19,6 @@ struct Settings {
   static bool DepthOfField();
   static bool MotionBlur();
   static bool RadialBlur();
-  static bool HeatEffects();
-  static bool FilmGrain();
-  static bool Halo();
   static bool ColorGrading();
   static double FovScale();
   static i32 Anisotropy();
