@@ -26,7 +26,7 @@ bool SameTextureShape(const HostTexture &pooled, const HostTexture &want,
          pooled.isDepth == want.isDepth;
 }
 
-constexpr u64 kHostTexturePoolFrames = 120;
+constexpr f64 kHostTexturePoolSeconds = 10.0;
 constexpr size_t kHostTexturePoolMax = 192;
 
 }
@@ -216,8 +216,7 @@ bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
 void EvictHostTexturePool(VideoState &s) {
   size_t i = 0;
   while (i < s.host_texture_pool.size()) {
-    const bool idle =
-        s.host_texture_pool[i].freedFrame + kHostTexturePoolFrames < s.guest_frames;
+    const bool idle = FrameAgeSeconds(s, s.host_texture_pool[i].freedFrame) > kHostTexturePoolSeconds;
     const bool over = s.host_texture_pool.size() > kHostTexturePoolMax;
     if (!idle && !over) {
       ++i;

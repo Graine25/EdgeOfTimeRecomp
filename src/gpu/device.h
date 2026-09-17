@@ -100,6 +100,8 @@ struct PerfCounters {
   std::chrono::steady_clock::time_point last_present{};
 };
 
+constexpr u32 kFrameClockRing = 8192;
+
 inline u64 PerfNow() { return __rdtsc(); }
 inline f64 g_perf_ms_per_tick = 0.0;
 f64 PerfMsPerTickSlow();
@@ -241,6 +243,7 @@ struct VideoState {
   PerfCounters perf;
   PerfCounters perf_prev_frame;
   std::vector<f32> frame_walls;
+  f64 frame_clock[kFrameClockRing] = {};
 
   struct TextureSlotCache {
     u32 texVa = 0;
@@ -401,6 +404,14 @@ bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
                                 const plume::RenderTextureDesc &desc, const char *tag);
 void EvictHostTexturePool(VideoState &s);
 void EvictStaleGuestTextures(VideoState &s);
+
+inline f64 FrameAgeSeconds(const VideoState &s, u64 frame) {
+  if (frame >= s.guest_frames)
+    return 0.0;
+  if (s.guest_frames - frame >= kFrameClockRing)
+    return 1e9;
+  return s.frame_clock[s.guest_frames % kFrameClockRing] - s.frame_clock[frame % kFrameClockRing];
+}
 
 void ParkHostTexture(VideoState &s, HostTexture &host);
 void DestroyHostTexture(VideoState &s, HostTexture &host);
