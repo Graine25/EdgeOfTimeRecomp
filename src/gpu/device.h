@@ -279,12 +279,6 @@ struct VideoState {
   u64 resolve_alias_candidates_generation = 0;
   u64 mirror_generation = 1;
   u32 root_cbv_index[3] = {~0u, ~0u, ~0u};
-  struct SurfaceHeaderBinding {
-    u64 key = 0;
-    u64 lastSeenFrame = 0;
-  };
-  std::unordered_map<u32, SurfaceHeaderBinding> surface_key_by_va;
-  std::unordered_map<u64, u64> orphaned_surface_frame;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
   std::mutex shaders_mutex;
   std::vector<std::unique_ptr<GuestShader>> shader_graveyard;
@@ -409,6 +403,7 @@ void EvictHostTexturePool(VideoState &s);
 void EvictStaleGuestTextures(VideoState &s);
 
 void ParkHostTexture(VideoState &s, HostTexture &host);
+void DestroyHostTexture(VideoState &s, HostTexture &host);
 
 u32 AllocateDescriptorSlot(VideoState &s);
 u32 BindTextureSRVLocked(VideoState &s, HostTexture &host);

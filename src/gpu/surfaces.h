@@ -12,8 +12,6 @@ GuestSurface *GetGuestSurface(VideoState &s, u32 surface_va);
 bool ReadSurfaceHeaderWords(u32 surface_va, u32 words[5]);
 GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 words[5]);
 
-void EvictStaleGuestSurfaces(VideoState &s);
-
 plume::RenderFormat SurfaceHostFormat(const GuestSurface &surface);
 
 GuestSurface *FindMultisampleAliasSource(VideoState &s, const GuestSurface &alias);
@@ -41,7 +39,7 @@ void NoteSurfaceClearedDepth(GuestSurface &surf, float depth, u8 stencil, bool w
 inline bool SurfaceHasSingle(const GuestSurface &surf) { return surf.single.valid(); }
 inline bool SurfaceIsMultisampled(const GuestSurface &surf) { return surf.host.sampleCount > 1; }
 
-void ParkSurfaceImages(VideoState &s, GuestSurface &surf);
+void DestroySurfaceImages(VideoState &s, GuestSurface &surf);
 
 void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src,
                              GuestTexture &target, const std::shared_ptr<GuestTexture> &target_ref);

@@ -506,7 +506,6 @@ void LogPerfLocked(VideoState &s) {
     }
   }
   CollectRenderWorkLocked(s, every > 0);
-  EvictStaleGuestSurfaces(s);
   {
     const PerfCounters &prev = s.perf_prev_frame;
     EOT_PLOT("host textures created", p.host_textures - prev.host_textures);
