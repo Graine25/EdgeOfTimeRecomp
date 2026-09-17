@@ -5,7 +5,7 @@
 #
 
 cmake_minimum_required(VERSION 3.25)
-project(reeot VERSION 0.1 LANGUAGES C CXX)
+project(reeot VERSION 0.02 LANGUAGES C CXX)
 if(NOT DEFINED PROJECT_VERSION_PATCH OR PROJECT_VERSION_PATCH STREQUAL "")
     set(PROJECT_VERSION_PATCH 0)
 endif()
@@ -249,6 +249,7 @@ set(REEOT_SOURCES
     src/gpu/patches/physics_step.cpp
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/movie_aspect.cpp
+    src/gpu/patches/movie_decode.cpp
     src/gpu/patches/post_effects.cpp
     src/gpu/patches/present_effects.cpp
     src/goliath/controller/pc_controls.cpp
