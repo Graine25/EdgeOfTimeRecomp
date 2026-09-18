@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include <SDL3/SDL.h>
+#include <imgui_internal.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/perf/counter.h>
@@ -543,6 +544,12 @@ void ReeotApp::InstallOverlayHook() {
     app_context().CallInUIThreadSynchronous([&] {
       eot::gpu::OverlayDrawContext ctx(width, height, cmd, framebuffer);
       imgui_drawer()->Draw(ctx);
+      bool wants_pointer = false;
+      if (ImGuiContext *g = ImGui::GetCurrentContext())
+        for (ImGuiWindow *w : g->Windows)
+          if (w->Active && !(w->Flags & (ImGuiWindowFlags_ChildWindow | ImGuiWindowFlags_NoInputs)))
+            wants_pointer = true;
+      eot::controller::MouseCursorTick(wants_pointer);
     });
   });
 }
