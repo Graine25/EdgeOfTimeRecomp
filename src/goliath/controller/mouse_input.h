@@ -8,6 +8,10 @@ namespace eot::controller {
 
 void AttachMouseInput(rex::ui::Window *window);
 
+void MouseCursorTick(bool overlay_wants_pointer);
+
+void NoteMenuBarShown();
+
 }
 
 extern "C" {

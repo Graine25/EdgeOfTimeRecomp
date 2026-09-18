@@ -13,6 +13,7 @@
 #include <rex/hook.h>
 
 #include "core/logging.h"
+#include "goliath/controller/mouse_input.h"
 #include "core/memory_helpers.h"
 #include "gpu/patches/aspect_ratio.h"
 
@@ -35,6 +36,10 @@ constexpr uint32_t kWndComputedW = 100;
 constexpr uint32_t kWndClippedX = 108;
 constexpr uint32_t kWndClippedW = 116;
 constexpr uint32_t kWndCrc = 292;
+constexpr uint32_t kMenuBarSpacerCrc = 0xAB5BEFB8u;
+constexpr uint32_t kMenuBarMoreLeftCrc = 0xE790340Cu;
+constexpr uint32_t kMenuBarMoreRightCrc = 0x2500B415u;
+constexpr uint32_t kMenuBarSelectZoneCrc = 0xFFC59AA9u;
 
 constexpr uint32_t kFlagScreenSpace = 0x2;
 
@@ -218,4 +223,10 @@ REX_HOOK_RAW(eot_HUDWindowBC_ComputePos) {
   const uint32_t window = ctx.r3.u32;
   __imp__eot_HUDWindowBC_ComputePos(ctx, base);
   ApplyAspectPolicy(window);
+  if (window) {
+    const uint32_t crc = eot::mem::load<uint32_t>(window + kWndCrc);
+    if (crc == kMenuBarSpacerCrc || crc == kMenuBarMoreLeftCrc || crc == kMenuBarMoreRightCrc ||
+        crc == kMenuBarSelectZoneCrc)
+      eot::controller::NoteMenuBarShown();
+  }
 }
