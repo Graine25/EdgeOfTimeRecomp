@@ -1,5 +1,6 @@
 #include "reeot_app.h"
 
+#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -45,6 +46,7 @@
 #include "platform/fatal_dialog.h"
 #include "platform/language.h"
 #include "platform/process.h"
+#include "platform/user_dirs.h"
 #include "ui/theme.h"
 
 REXCVAR_DEFINE_STRING(profile, "default", "EdgeOfTime/Config",
@@ -110,7 +112,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-constexpr const char *kExecutable = "reeot.exe";
+constexpr const char *kExecutable = eot::platform::kExecutableFileName;
 
 bool GameFolderHolds(const fs::path &folder) {
   std::error_code ec;
@@ -155,6 +157,17 @@ void ApplyReeotCvarDefaults() {
                  (rex::filesystem::GetExecutableFolder() / "gamecontrollerdb.txt").generic_string());
   SetCvarDefault("log_flush_interval", "1");
   SetCvarDefault("license_mask", "1");
+#if defined(__linux__)
+  if (const char *appimage = std::getenv("APPIMAGE"); appimage && *appimage) {
+    if (const fs::path state = eot::platform::StateHome(); !state.empty()) {
+      const fs::path logs = state / "reeot" / "logs";
+      std::error_code ec;
+      fs::create_directories(logs, ec);
+      if (!ec)
+        SetCvarDefault("log_file", (logs / "reeot.log").generic_string());
+    }
+  }
+#endif
 }
 
 std::string SanitizeProfileName(const std::string &raw) {
@@ -229,6 +242,30 @@ void ReeotApp::OnConfigurePaths(rex::PathConfig &paths) {
     return;
   }
   UseInstallRoot(*root, paths);
+}
+
+void ReeotApp::OnLoadXexImage(std::string &xex_image) {
+  fs::path game;
+  if (auto named = NamedGameFolder())
+    game = *named;
+  else if (!install_root_.empty())
+    game = install_root_ / "game";
+  if (game.empty())
+    return;
+  std::error_code ec;
+  if (fs::is_regular_file(game / "default.xex", ec))
+    return;
+  for (const auto &entry : fs::directory_iterator(game, ec)) {
+    std::string name = entry.path().filename().string();
+    std::string lowered = name;
+    for (char &c : lowered)
+      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (lowered == "default.xex" && entry.is_regular_file(ec)) {
+      xex_image = "game:\\" + name;
+      EOT_INFO("[boot] entry xex is {}", name);
+      return;
+    }
+  }
 }
 
 void ReeotApp::OnPostInitLogging() {
@@ -416,7 +453,11 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
 
   const fs::path install_root = cfg.install_root;
   const fs::path program_dir = eot::platform::ProgramDir();
+#if defined(_WIN32)
   const bool in_place = SamePlace(program_dir, install_root);
+#else
+  const bool in_place = true;
+#endif
 
   if (!in_place) {
     std::string copy_error;
@@ -455,7 +496,12 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
 
   if (choices.create_shortcut) {
     std::string shortcut_error;
-    if (!eot::platform::CreateDesktopShortcut(install_root / kExecutable, "reeot", shortcut_error))
+#if defined(_WIN32)
+    const fs::path shortcut_target = install_root / kExecutable;
+#else
+    const fs::path shortcut_target = eot::platform::LaunchPath();
+#endif
+    if (!eot::platform::CreateDesktopShortcut(shortcut_target, "reeot", shortcut_error))
       EOT_WARN("[install] could not create the desktop shortcut: {}", shortcut_error);
   }
 

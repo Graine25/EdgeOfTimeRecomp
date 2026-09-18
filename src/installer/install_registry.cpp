@@ -128,12 +128,135 @@ bool ClearInstallRegistry() {
 
 #else
 
-namespace eot::installer {
+#include <fstream>
+#include <string_view>
+#include <system_error>
 
-std::optional<InstallConfig> ReadInstallRegistry() { return std::nullopt; }
-bool WriteInstallRegistry(const InstallConfig &) { return false; }
-bool ClearInstallRegistry() { return true; }
-bool InstallIsPresent(const InstallConfig &) { return false; }
+#include "platform/user_dirs.h"
+
+namespace eot::installer {
+namespace {
+
+namespace fs = std::filesystem;
+
+fs::path InstallRecordPath() {
+  const fs::path config = platform::ConfigHome();
+  return config.empty() ? fs::path() : config / "reeot" / "install.toml";
+}
+
+std::string Quote(std::string_view text) {
+  std::string out = "\"";
+  for (char c : text) {
+    if (c == '\\' || c == '"')
+      out.push_back('\\');
+    out.push_back(c);
+  }
+  out.push_back('"');
+  return out;
+}
+
+bool ParseLine(std::string_view line, std::string &key, std::string &value) {
+  const auto trim = [](std::string_view v) {
+    while (!v.empty() && (v.front() == ' ' || v.front() == '\t'))
+      v.remove_prefix(1);
+    while (!v.empty() && (v.back() == ' ' || v.back() == '\t' || v.back() == '\r'))
+      v.remove_suffix(1);
+    return v;
+  };
+  line = trim(line);
+  if (line.empty() || line.front() == '#')
+    return false;
+  const size_t eq = line.find('=');
+  if (eq == std::string_view::npos)
+    return false;
+  key = std::string(trim(line.substr(0, eq)));
+  std::string_view raw = trim(line.substr(eq + 1));
+  if (raw.size() >= 2 && raw.front() == '"' && raw.back() == '"') {
+    raw = raw.substr(1, raw.size() - 2);
+    value.clear();
+    for (size_t i = 0; i < raw.size(); ++i) {
+      if (raw[i] == '\\' && i + 1 < raw.size())
+        ++i;
+      value.push_back(raw[i]);
+    }
+  } else {
+    value = std::string(raw);
+  }
+  return !key.empty();
+}
+
+}
+
+std::optional<InstallConfig> ReadInstallRegistry() {
+  const fs::path path = InstallRecordPath();
+  if (path.empty())
+    return std::nullopt;
+  std::ifstream in(path);
+  if (!in)
+    return std::nullopt;
+  InstallConfig cfg;
+  std::string line, key, value;
+  while (std::getline(in, line)) {
+    if (!ParseLine(line, key, value))
+      continue;
+    if (key == "install_root")
+      cfg.install_root = value;
+    else if (key == "disc_fingerprint")
+      cfg.disc_fingerprint = value;
+    else if (key == "app_version")
+      cfg.app_version = value;
+    else if (key == "schema_version")
+      cfg.schema_version = std::atoi(value.c_str());
+  }
+  if (cfg.install_root.empty())
+    return std::nullopt;
+  return cfg;
+}
+
+bool InstallIsPresent(const InstallConfig &config) {
+  std::error_code ec;
+  return fs::is_regular_file(config.game_data_path() / "Default.xex", ec);
+}
+
+bool WriteInstallRegistry(const InstallConfig &config) {
+  const fs::path path = InstallRecordPath();
+  if (path.empty()) {
+    EOT_ERROR("[install] no HOME or XDG_CONFIG_HOME to keep the install record in");
+    return false;
+  }
+  std::error_code ec;
+  fs::create_directories(path.parent_path(), ec);
+  const fs::path tmp = path.string() + ".tmp";
+  {
+    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+    out << "# Where reeot is installed for this user; written by the installer.\n"
+        << "install_root = " << Quote(config.install_root.string()) << "\n"
+        << "disc_fingerprint = " << Quote(config.disc_fingerprint) << "\n"
+        << "schema_version = " << kInstallSchemaVersion << "\n"
+        << "app_version = " << Quote(REEOT_VERSION_STRING) << "\n";
+    if (!out) {
+      EOT_ERROR("[install] could not write {}", tmp.string());
+      fs::remove(tmp, ec);
+      return false;
+    }
+  }
+  fs::rename(tmp, path, ec);
+  if (ec) {
+    EOT_ERROR("[install] could not move the install record into place: {}", ec.message());
+    fs::remove(tmp, ec);
+    return false;
+  }
+  return true;
+}
+
+bool ClearInstallRegistry() {
+  const fs::path path = InstallRecordPath();
+  if (path.empty())
+    return true;
+  std::error_code ec;
+  fs::remove(path, ec);
+  return !ec || ec == std::errc::no_such_file_or_directory;
+}
 
 }
 

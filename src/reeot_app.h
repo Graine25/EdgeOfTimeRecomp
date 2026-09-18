@@ -35,6 +35,7 @@ public:
 
 protected:
   void OnConfigurePaths(rex::PathConfig &paths) override;
+  void OnLoadXexImage(std::string &xex_image) override;
   void OnPostInitLogging() override;
   void OnPreSetup(rex::RuntimeConfig &config) override;
   std::optional<rex::PathConfig> OnFinalizePaths(const rex::PathConfig &defaults,
