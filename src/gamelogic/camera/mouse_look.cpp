@@ -6,14 +6,10 @@
 #include <cstdlib>
 #include <string_view>
 
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-
 #include <rex/cvar.h>
 #include <rex/hook.h>
 
+#include "core/export.h"
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 
@@ -66,11 +62,7 @@ void ReadSettings() {
 
 TakeFn Resolve() {
   if (!g_resolved.exchange(true)) {
-#if defined(_WIN32)
-    if (HMODULE host = ::GetModuleHandleW(nullptr))
-      g_take.store(reinterpret_cast<TakeFn>(reinterpret_cast<void *>(::GetProcAddress(host, "eot_mouse_take"))),
-                   std::memory_order_release);
-#endif
+    g_take.store(reinterpret_cast<TakeFn>(eot::HostEntryPoint("eot_mouse_take")), std::memory_order_release);
     if (!g_take.load())
       EOT_WARN("[camera] no eot_mouse_take in the host; mouse look stays on the stick");
     for (const char *name : {"eot_mouse_look", "eot_mouse_look_degrees", "mnk_sensitivity"})

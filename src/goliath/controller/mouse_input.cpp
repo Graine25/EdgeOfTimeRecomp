@@ -181,4 +181,4 @@ void NoteMenuBarShown() {
 
 }
 
-extern "C" __declspec(dllexport) void eot_mouse_take(float *dx, float *dy) { eot::controller::g_mouse.Take(dx, dy); }
+extern "C" EOT_EXPORT void eot_mouse_take(float *dx, float *dy) { eot::controller::g_mouse.Take(dx, dy); }

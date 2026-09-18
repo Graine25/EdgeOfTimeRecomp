@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/export.h"
+
 namespace rex::ui {
 class Window;
 }
@@ -15,5 +17,5 @@ void NoteMenuBarShown();
 }
 
 extern "C" {
-__declspec(dllexport) void eot_mouse_take(float *dx, float *dy);
+EOT_EXPORT void eot_mouse_take(float *dx, float *dy);
 }
