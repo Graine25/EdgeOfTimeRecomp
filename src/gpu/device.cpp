@@ -985,6 +985,8 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   {
     const eot::platform::Display display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
     SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
+    if (display.refresh_hz)
+      s.display_refresh_hz = display.refresh_hz;
     EOT_INFO("[gpu] display {}x{} at {} Hz, {}: a window renders at {}p", display.width, display.height,
              display.refresh_hz, Settings::Fullscreen() ? "fullscreen" : "windowed",
              eot::platform::AutoRenderHeight(display));
