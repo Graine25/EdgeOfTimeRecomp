@@ -37,7 +37,6 @@ struct HostTexture {
   std::unordered_map<u32, SwizzledSrv> swizzledSrvs;
   plume::RenderTextureLayout layout = plume::RenderTextureLayout::UNKNOWN;
   plume::RenderFormat format = plume::RenderFormat::UNKNOWN;
-  plume::RenderFormat viewFormat = plume::RenderFormat::UNKNOWN;
   plume::RenderTextureViewDimension viewDimension =
       plume::RenderTextureViewDimension::TEXTURE_2D;
   u32 width = 0;

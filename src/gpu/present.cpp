@@ -188,7 +188,6 @@ u32 EnsureGammaLutLocked(VideoState &s) {
     if (!lut.valid())
       return kInvalidDescriptorIndex;
     lut.format = desc.format;
-    lut.viewFormat = plume::RenderFormat::UNKNOWN;
     lut.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
     lut.width = desc.width;
     lut.height = desc.height;
