@@ -13,6 +13,8 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
 #endif
 
 REX_EXTERN(__imp__eot_GRMainCamera_ViewBegin);
@@ -89,11 +91,84 @@ void ExpireCameras() {
   g_cam_count = keep;
 }
 
-bool KeyDown(int vk) {
+enum class Key { Shift, Control, Left, Right, Up, Down, W, A, S, D, Q, E };
+
 #if defined(_WIN32)
-  return (GetAsyncKeyState(vk) & 0x8000) != 0;
+int NativeKey(Key key) {
+  switch (key) {
+  case Key::Shift:
+    return VK_SHIFT;
+  case Key::Control:
+    return VK_CONTROL;
+  case Key::Left:
+    return VK_LEFT;
+  case Key::Right:
+    return VK_RIGHT;
+  case Key::Up:
+    return VK_UP;
+  case Key::Down:
+    return VK_DOWN;
+  case Key::W:
+    return 'W';
+  case Key::A:
+    return 'A';
+  case Key::S:
+    return 'S';
+  case Key::D:
+    return 'D';
+  case Key::Q:
+    return 'Q';
+  case Key::E:
+    return 'E';
+  }
+  return 0;
+}
 #else
-  (void)vk;
+SDL_Scancode NativeKey(Key key) {
+  switch (key) {
+  case Key::Shift:
+    return SDL_SCANCODE_LSHIFT;
+  case Key::Control:
+    return SDL_SCANCODE_LCTRL;
+  case Key::Left:
+    return SDL_SCANCODE_LEFT;
+  case Key::Right:
+    return SDL_SCANCODE_RIGHT;
+  case Key::Up:
+    return SDL_SCANCODE_UP;
+  case Key::Down:
+    return SDL_SCANCODE_DOWN;
+  case Key::W:
+    return SDL_SCANCODE_W;
+  case Key::A:
+    return SDL_SCANCODE_A;
+  case Key::S:
+    return SDL_SCANCODE_S;
+  case Key::D:
+    return SDL_SCANCODE_D;
+  case Key::Q:
+    return SDL_SCANCODE_Q;
+  case Key::E:
+    return SDL_SCANCODE_E;
+  }
+  return SDL_SCANCODE_UNKNOWN;
+}
+#endif
+
+bool KeyDown(Key key) {
+#if defined(_WIN32)
+  return (GetAsyncKeyState(NativeKey(key)) & 0x8000) != 0;
+#else
+  const bool *state = SDL_GetKeyboardState(nullptr);
+  const SDL_Scancode code = NativeKey(key);
+  if (!state || code == SDL_SCANCODE_UNKNOWN)
+    return false;
+  if (state[code])
+    return true;
+  if (code == SDL_SCANCODE_LSHIFT)
+    return state[SDL_SCANCODE_RSHIFT];
+  if (code == SDL_SCANCODE_LCTRL)
+    return state[SDL_SCANCODE_RCTRL];
   return false;
 #endif
 }
@@ -104,11 +179,12 @@ bool WindowHasFocus() {
   GetWindowThreadProcessId(GetForegroundWindow(), &pid);
   return pid == GetCurrentProcessId();
 #else
-  return false;
+  SDL_Window *focused = SDL_GetKeyboardFocus();
+  return focused != nullptr;
 #endif
 }
 
-double Axis(int positive, int negative) {
+double Axis(Key positive, Key negative) {
   return (KeyDown(positive) ? 1.0 : 0.0) - (KeyDown(negative) ? 1.0 : 0.0);
 }
 
@@ -182,22 +258,22 @@ void FreecamTick() {
     return;
 
   double speed = REXCVAR_GET(eot_freecam_speed);
-  if (KeyDown(VK_SHIFT))
+  if (KeyDown(Key::Shift))
     speed *= 5.0;
-  if (KeyDown(VK_CONTROL))
+  if (KeyDown(Key::Control))
     speed /= 5.0;
 
   const double turn = REXCVAR_GET(eot_freecam_turn_speed) * (kPi / 180.0) * dt;
-  g_yaw += Axis(VK_RIGHT, VK_LEFT) * turn;
-  g_pitch = std::clamp(g_pitch + Axis(VK_UP, VK_DOWN) * turn, -kPitchLimit, kPitchLimit);
+  g_yaw += Axis(Key::Right, Key::Left) * turn;
+  g_pitch = std::clamp(g_pitch + Axis(Key::Up, Key::Down) * turn, -kPitchLimit, kPitchLimit);
 
   Vec3 right, up, forward;
   Basis(right, up, forward);
 
   const double move = speed * dt;
-  const double f = Axis('W', 'S') * move;
-  const double s = Axis('D', 'A') * move;
-  const double u = Axis('E', 'Q') * move;
+  const double f = Axis(Key::W, Key::S) * move;
+  const double s = Axis(Key::D, Key::A) * move;
+  const double u = Axis(Key::E, Key::Q) * move;
 
   g_pos.x += forward.x * f + right.x * s;
   g_pos.y += forward.y * f + right.y * s + u;
