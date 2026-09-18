@@ -6,16 +6,21 @@
 #include <system_error>
 #include <vector>
 
+#if defined(_WIN32)
 #include <windows.h>
 #include <initguid.h>
 #include <knownfolders.h>
 #include <shlobj.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "core/logging.h"
 #include "installer/install_registry.h"
 #include "platform/desktop_shortcut.h"
 #include "platform/fatal_dialog.h"
 #include "platform/process.h"
+#include "platform/user_dirs.h"
 
 namespace eot::installer {
 
@@ -23,6 +28,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
+#if defined(_WIN32)
 fs::path DownloadsFolder() {
   PWSTR p = nullptr;
   fs::path out;
@@ -35,6 +41,9 @@ fs::path DownloadsFolder() {
       out = fs::path(home) / L"Downloads";
   return out;
 }
+#else
+fs::path DownloadsFolder() { return platform::UserDir("XDG_DOWNLOAD_DIR", "Downloads"); }
+#endif
 
 fs::path UniqueDir(const fs::path &parent, const std::string &base) {
   std::error_code ec;
@@ -69,6 +78,7 @@ size_t CopySaves(const fs::path &profiles, const fs::path &dest) {
 }
 
 void SpawnDeferredDelete(const fs::path &root) {
+#if defined(_WIN32)
   const std::wstring q = L"\"" + root.wstring() + L"\"";
   std::wstring cmd = L"cmd.exe /c \"for /l %i in (1,1,30) do (rmdir /s /q " + q + L" 2>nul & if not exist " +
                      q + L" exit & ping 127.0.0.1 -n 2 >nul)\"";
@@ -82,6 +92,17 @@ void SpawnDeferredDelete(const fs::path &root) {
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
   }
+#else
+  const pid_t pid = ::fork();
+  if (pid < 0)
+    return;
+  if (pid == 0) {
+    ::setsid();
+    const std::string script = "for i in $(seq 1 30); do rm -rf \"$0\" 2>/dev/null; [ -e \"$0\" ] || exit 0; sleep 1; done";
+    ::execl("/bin/sh", "sh", "-c", script.c_str(), root.c_str(), static_cast<char *>(nullptr));
+    ::_exit(127);
+  }
+#endif
 }
 
 }

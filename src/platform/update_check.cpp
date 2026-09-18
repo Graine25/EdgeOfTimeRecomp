@@ -8,7 +8,9 @@
 #include <string>
 #include <vector>
 
+#if defined(_WIN32)
 #include <windows.h>
+#endif
 
 #include <rex/cvar.h>
 
@@ -29,6 +31,7 @@ namespace fs = std::filesystem;
 std::mutex g_mutex;
 std::optional<InstallUpdate> g_updated;
 
+#if defined(_WIN32)
 std::string WideToUtf8(const std::wstring &w) {
   if (w.empty())
     return {};
@@ -61,6 +64,20 @@ std::string ResourceString(const std::vector<uint8_t> &res, const wchar_t *key) 
   return WideToUtf8(std::wstring(static_cast<const wchar_t *>(value), len - 1));
 }
 
+std::string InstalledBuildStamp(const fs::path &exe) {
+  return ResourceString(ReadVersionResource(exe), L"BuildStamp");
+}
+#else
+std::string InstalledBuildStamp(const fs::path &exe) {
+  std::ifstream in(exe.parent_path() / "build_stamp.txt");
+  std::string stamp;
+  std::getline(in, stamp);
+  while (!stamp.empty() && (stamp.back() == '\r' || stamp.back() == ' ' || stamp.back() == '\t'))
+    stamp.pop_back();
+  return stamp;
+}
+#endif
+
 std::vector<std::string> ProgramFiles(const fs::path &dir) {
   std::vector<std::string> files;
   std::ifstream in(dir / "program_files.txt");
@@ -71,9 +88,15 @@ std::vector<std::string> ProgramFiles(const fs::path &dir) {
     if (!line.empty())
       files.push_back(line);
   }
-  if (files.empty())
+  if (files.empty()) {
+#if defined(_WIN32)
     files = {"reeot.exe",      "rexruntimerd.dll", "reeot_GameLogic.dll",
              "dxcompiler.dll", "dxil.dll",         "gamecontrollerdb.txt"};
+#else
+    files = {"reeot", "librexruntime.so", "libreeot_GameLogic.so", "gamecontrollerdb.txt", "build_stamp.txt",
+             "reeot_icon.png"};
+#endif
+  }
   return files;
 }
 
@@ -122,6 +145,10 @@ bool ReplaceFile(const fs::path &src, const fs::path &dst, const fs::path &aside
 }
 
 void UpdateInstalledCopy(const fs::path &install_root) {
+#if !defined(_WIN32)
+  (void)install_root;
+  return;
+#else
   if (!REXCVAR_GET(eot_update_apply) || install_root.empty())
     return;
   std::error_code ec;
@@ -132,11 +159,11 @@ void UpdateInstalledCopy(const fs::path &install_root) {
 
   if (fs::equivalent(prog, install_root, ec))
     return;
-  const fs::path installed_exe = install_root / "reeot.exe";
+  const fs::path installed_exe = install_root / kExecutableFileName;
   if (!fs::is_regular_file(installed_exe, ec))
     return;
 
-  const std::string installed = ResourceString(ReadVersionResource(installed_exe), L"BuildStamp");
+  const std::string installed = InstalledBuildStamp(installed_exe);
   if (!installed.empty() && installed >= std::string(REEOT_BUILD_TIMESTAMP))
     return;
 
@@ -159,6 +186,7 @@ void UpdateInstalledCopy(const fs::path &install_root) {
   }
   EOT_INFO("[update] updated the install at {} to v{} build {} ({} file(s))", install_root.string(),
            REEOT_VERSION_STRING, REEOT_BUILD_TIMESTAMP, pushed);
+#endif
 }
 
 std::optional<InstallUpdate> LastInstallUpdate() {

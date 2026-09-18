@@ -251,7 +251,7 @@ InstallerWizard::InstallerWizard(rex::ui::ImGuiDrawer *drawer, rex::ui::Immediat
 std::string InstallerWizard::MissingProgramFilesLine() const {
   if (missing_program_files_.empty())
     return {};
-  std::string line = "Missing beside reeot.exe: ";
+  std::string line = std::string("Missing beside ") + eot::platform::kExecutableFileName + ": ";
   for (size_t i = 0; i < missing_program_files_.size(); ++i)
     line += (i ? ", " : "") + missing_program_files_[i];
   return line + ". Copy the whole release folder.";
@@ -712,7 +712,7 @@ void InstallerWizard::DrawSettings() {
     ImGui::EndTable();
   }
 
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__linux__)
   ImGui::Spacing();
   if (ImGui::Checkbox("Create a desktop shortcut", &create_shortcut_))
     choices_.create_shortcut = create_shortcut_;
