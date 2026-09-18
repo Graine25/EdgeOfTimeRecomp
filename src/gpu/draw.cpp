@@ -1681,9 +1681,9 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       if (sign_x == 2)
         biased_bits |= 1;
       if (sign_x == 3) {
-        const bool srgb_view = gt->host.viewFormat == plume::RenderFormat::BC1_UNORM_SRGB ||
-                               gt->host.viewFormat == plume::RenderFormat::BC2_UNORM_SRGB ||
-                               gt->host.viewFormat == plume::RenderFormat::BC3_UNORM_SRGB;
+        const bool srgb_view = gt->host.format == plume::RenderFormat::BC1_UNORM_SRGB ||
+                               gt->host.format == plume::RenderFormat::BC2_UNORM_SRGB ||
+                               gt->host.format == plume::RenderFormat::BC3_UNORM_SRGB;
         if (!srgb_view)
           biased_bits |= 2;
       }

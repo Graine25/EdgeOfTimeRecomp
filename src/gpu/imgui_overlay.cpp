@@ -225,7 +225,6 @@ OverlayDrawer::CreateTexture(u32 width, u32 height, rex::ui::ImmediateTextureFil
     return nullptr;
   host.desc = desc;
   host.format = desc.format;
-  host.viewFormat = plume::RenderFormat::UNKNOWN;
   host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
   host.width = width;
   host.height = height;

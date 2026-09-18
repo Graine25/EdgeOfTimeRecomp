@@ -22,7 +22,7 @@ bool SameTextureShape(const HostTexture &pooled, const HostTexture &want,
          p.depth == d.depth && p.mipLevels == d.mipLevels && p.arraySize == d.arraySize &&
          p.format == d.format && p.flags == d.flags &&
          p.multisampling.sampleCount == d.multisampling.sampleCount &&
-         pooled.viewFormat == want.viewFormat && pooled.viewDimension == want.viewDimension &&
+         pooled.viewDimension == want.viewDimension &&
          pooled.isDepth == want.isDepth;
 }
 

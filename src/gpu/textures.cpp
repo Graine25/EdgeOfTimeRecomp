@@ -63,20 +63,6 @@ bool ReadFetch(u32 header_va, u32 out[6]) {
   return any;
 }
 
-plume::RenderFormat TypelessFor(plume::RenderFormat f) {
-  using F = plume::RenderFormat;
-  switch (f) {
-  case F::BC1_UNORM:
-    return F::BC1_TYPELESS;
-  case F::BC2_UNORM:
-    return F::BC2_TYPELESS;
-  case F::BC3_UNORM:
-    return F::BC3_TYPELESS;
-  default:
-    return f;
-  }
-}
-
 u32 InfoWidth(const TextureInfo &info) { return info.width + 1; }
 u32 InfoHeight(const TextureInfo &info) { return info.height + 1; }
 u32 InfoDepth(const TextureInfo &info) { return info.depth + 1; }
@@ -190,13 +176,9 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   if (depth) {
     desc.format = plume::RenderFormat::D32_FLOAT_S8_UINT;
     desc.flags = desc.flags | plume::RenderTextureFlag::DEPTH_TARGET;
-    host.viewFormat = plume::RenderFormat::UNKNOWN;
     host.isDepth = true;
   } else {
-    const bool srgb_capable = m.srgbFormat != plume::RenderFormat::UNKNOWN;
-    desc.format = srgb_capable ? TypelessFor(m.format) : m.format;
-    host.viewFormat = srgb_capable ? (t.gammaSigned ? m.srgbFormat : m.format)
-                                   : plume::RenderFormat::UNKNOWN;
+    desc.format = t.gammaSigned && m.srgbFormat != plume::RenderFormat::UNKNOWN ? m.srgbFormat : m.format;
     if (!m.blockCompressed && desc.dimension != plume::RenderTextureDimension::TEXTURE_3D)
       desc.flags = desc.flags | plume::RenderTextureFlag::RENDER_TARGET;
     host.isDepth = false;
@@ -612,8 +594,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
     t.bindingGeneration++;
   }
   if (!t.resolveOwned &&
-      (!t.host.texture || (depth_source == t.host.isDepth && t.host.renderable &&
-                           t.host.viewFormat == plume::RenderFormat::UNKNOWN))) {
+      (!t.host.texture || (depth_source == t.host.isDepth && t.host.renderable))) {
     const plume::RenderFormat want = ResolveDestinationFormat(t.format, depth_source);
     if (want == plume::RenderFormat::UNKNOWN)
       return false;
@@ -652,7 +633,6 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
                             : plume::RenderTextureFlag::RENDER_TARGET;
       desc.committed = false;
       t.host.format = want;
-      t.host.viewFormat = plume::RenderFormat::UNKNOWN;
       t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
       t.host.width = desc.width;
       t.host.height = desc.height;
@@ -695,9 +675,7 @@ plume::RenderFramebuffer *GetMipFramebuffer(VideoState &s, GuestTexture &t, u32 
   if (host.mipFramebuffers[mip])
     return host.mipFramebuffers[mip].get();
   plume::RenderTextureViewDesc vd;
-  vd.format = host.isDepth ? host.format
-              : host.viewFormat != plume::RenderFormat::UNKNOWN ? host.viewFormat
-                                                                  : host.format;
+  vd.format = host.format;
   vd.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
   vd.mipSlice = mip;
   vd.mipLevels = 1;
