@@ -44,9 +44,7 @@ u32 NullIndexFor(const HostTexture &host) {
 
 plume::RenderTextureViewDesc SamplingViewDesc(const HostTexture &host) {
   plume::RenderTextureViewDesc view_desc;
-  view_desc.format = host.viewFormat != plume::RenderFormat::UNKNOWN
-                         ? host.viewFormat
-                         : SampledViewFormat(host.format);
+  view_desc.format = SampledViewFormat(host.format);
   view_desc.dimension = host.viewDimension;
   view_desc.mipLevels = host.mipLevels ? host.mipLevels : 1;
   return view_desc;
