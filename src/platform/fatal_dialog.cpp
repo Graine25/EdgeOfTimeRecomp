@@ -37,17 +37,34 @@ void ShowInfoModal(std::string_view title, std::string_view body) {
 
 #else
 
+bool PrepareMessageBox() {
+  const bool owned = !SDL_WasInit(SDL_INIT_VIDEO);
+  if (owned && !SDL_InitSubSystem(SDL_INIT_VIDEO)) {
+    EOT_WARN("[dialog] no usable dialog backend ({}); the message above is log-only", SDL_GetError());
+    return false;
+  }
+  if (const char *driver = SDL_GetCurrentVideoDriver())
+    SDL_SetHint(SDL_HINT_VIDEO_DRIVER, driver);
+  return owned;
+}
+
 void ShowModal(std::string_view title, std::string_view body, bool warning) {
+  const bool owned = PrepareMessageBox();
   const std::string t(title);
   const std::string b(body);
   SDL_ShowSimpleMessageBox(warning ? SDL_MESSAGEBOX_WARNING : SDL_MESSAGEBOX_ERROR, t.c_str(), b.c_str(),
                            nullptr);
+  if (owned)
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
 void ShowInfoModal(std::string_view title, std::string_view body) {
+  const bool owned = PrepareMessageBox();
   const std::string t(title);
   const std::string b(body);
   SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, t.c_str(), b.c_str(), nullptr);
+  if (owned)
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
 #endif

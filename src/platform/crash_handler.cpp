@@ -24,6 +24,10 @@
 #include <windows.h>
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
+#else
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <signal.h>
 #endif
 
 namespace eot::platform {
@@ -36,7 +40,12 @@ constexpr u64 kHostImageSpan = 0x20000000ull;
 #if defined(_WIN32)
 u64 HostModuleBase() { return reinterpret_cast<u64>(&__ImageBase); }
 #else
-u64 HostModuleBase() { return 0; }
+u64 HostModuleBase() {
+  Dl_info info{};
+  if (::dladdr(reinterpret_cast<const void *>(&HostModuleBase), &info) && info.dli_fbase)
+    return reinterpret_cast<u64>(info.dli_fbase);
+  return 0;
+}
 #endif
 
 std::string g_host_module_name;
@@ -92,8 +101,17 @@ std::string ForeignModuleAt(u64 address) {
     narrow.push_back(*p < 0x80 ? static_cast<char>(*p) : '?');
   return fmt::format("{}+{:#x}", narrow, address - reinterpret_cast<u64>(module));
 #else
-  (void)address;
-  return {};
+  Dl_info info{};
+  if (!::dladdr(reinterpret_cast<const void *>(address), &info) || !info.dli_fbase)
+    return {};
+  const char *name = info.dli_fname ? info.dli_fname : "";
+  for (const char *p = name; *p; ++p)
+    if (*p == '/')
+      name = p + 1;
+  if (!*name)
+    return fmt::format("{:#018x}+{:#x}", reinterpret_cast<u64>(info.dli_fbase),
+                       address - reinterpret_cast<u64>(info.dli_fbase));
+  return fmt::format("{}+{:#x}", name, address - reinterpret_cast<u64>(info.dli_fbase));
 #endif
 }
 
@@ -112,7 +130,18 @@ void LogBacktrace(u64 base) {
       EOT_CRITICAL("    [{:>2}] {:#018x}  ({})", i, a, ForeignModuleAt(a));
   }
 #else
-  (void)base;
+  void *frames[32] = {};
+  const int n = ::backtrace(frames, 32);
+  if (n <= 0)
+    return;
+  EOT_CRITICAL("backtrace ({} frames, top frames are the crash handler):", n);
+  for (int i = 0; i < n; ++i) {
+    const u64 a = reinterpret_cast<u64>(frames[i]);
+    if (InModule(a, base))
+      EOT_CRITICAL("    [{:>2}] {:#018x}  ({}+{:#010x})", i, a, HostModuleName(), a - base);
+    else
+      EOT_CRITICAL("    [{:>2}] {:#018x}  ({})", i, a, ForeignModuleAt(a));
+  }
 #endif
 }
 
@@ -193,6 +222,9 @@ bool CrashHandler(rex::arch::Exception *ex, void *) {
   ShowFatalError("reeot crashed",
                  fmt::format("reeot hit a fatal error and has to close.\n\n{} at {}", ExceptionCodeName(ex->code()),
                              where));
+#if !defined(_WIN32)
+  std::_Exit(3);
+#endif
   return false;
 }
 
@@ -259,6 +291,21 @@ void InvalidParameterHandler(const wchar_t *expression, const wchar_t *function,
   }
   std::_Exit(3);
 }
+#else
+void InstallAlternateSignalStack() {
+  constexpr size_t kAltStackSize = 128 * 1024;
+  static thread_local void *s_alt_stack = nullptr;
+  if (s_alt_stack)
+    return;
+  s_alt_stack = std::malloc(kAltStackSize);
+  if (!s_alt_stack)
+    return;
+  stack_t ss{};
+  ss.ss_sp = s_alt_stack;
+  ss.ss_size = kAltStackSize;
+  ss.ss_flags = 0;
+  ::sigaltstack(&ss, nullptr);
+}
 #endif
 
 }
@@ -267,9 +314,16 @@ void InstallTerminateHandler() {
   if (g_host_module_name.empty())
     g_host_module_name = rex::filesystem::GetExecutablePath().filename().string();
   std::set_terminate(&TerminateHandler);
-  std::signal(SIGABRT, &AbortHandler);
 #if defined(_WIN32)
+  std::signal(SIGABRT, &AbortHandler);
   _set_invalid_parameter_handler(&InvalidParameterHandler);
+#else
+  InstallAlternateSignalStack();
+  struct sigaction sa{};
+  sa.sa_handler = &AbortHandler;
+  sa.sa_flags = SA_ONSTACK;
+  sigemptyset(&sa.sa_mask);
+  ::sigaction(SIGABRT, &sa, nullptr);
 #endif
 }
 
@@ -278,6 +332,15 @@ void InstallCrashHandler() {
   if (g_crash_handler_installed)
     return;
   rex::arch::ExceptionHandler::Install(&CrashHandler, nullptr);
+#if !defined(_WIN32)
+  for (const int sig : {SIGSEGV, SIGILL, SIGBUS}) {
+    struct sigaction current{};
+    if (::sigaction(sig, nullptr, &current) == 0 && !(current.sa_flags & SA_ONSTACK)) {
+      current.sa_flags |= SA_ONSTACK;
+      ::sigaction(sig, &current, nullptr);
+    }
+  }
+#endif
   g_crash_handler_installed = true;
   EOT_DEBUG("[crash] last-chance handler installed");
 }

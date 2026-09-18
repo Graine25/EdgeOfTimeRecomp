@@ -7,6 +7,8 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <SDL3/SDL.h>
 #endif
 
 namespace eot::platform {
@@ -57,6 +59,24 @@ Display DisplayFor(void *native_window) {
     display.width = static_cast<uint32_t>(info.rcMonitor.right - info.rcMonitor.left);
     display.height = static_cast<uint32_t>(info.rcMonitor.bottom - info.rcMonitor.top);
     display.refresh_hz = RefreshRateOf(info.szDevice);
+  }
+#else
+  SDL_Window *sdl_window = static_cast<SDL_Window *>(native_window);
+  if (!sdl_window) {
+    int count = 0;
+    SDL_Window **windows = SDL_GetWindows(&count);
+    sdl_window = (windows && count > 0) ? windows[0] : nullptr;
+    SDL_free(windows);
+  }
+  SDL_DisplayID id = sdl_window ? SDL_GetDisplayForWindow(sdl_window) : 0;
+  if (!id)
+    id = SDL_GetPrimaryDisplay();
+  if (const SDL_DisplayMode *mode = id ? SDL_GetDesktopDisplayMode(id) : nullptr) {
+    const float density = mode->pixel_density > 0.0f ? mode->pixel_density : 1.0f;
+    display.width = static_cast<uint32_t>(std::lround(mode->w * density));
+    display.height = static_cast<uint32_t>(std::lround(mode->h * density));
+    if (mode->refresh_rate > 1.0f)
+      display.refresh_hz = static_cast<uint32_t>(std::lround(mode->refresh_rate));
   }
 #endif
   return display;
