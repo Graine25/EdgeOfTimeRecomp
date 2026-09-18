@@ -13,7 +13,15 @@
 
 namespace eot::platform {
 
+#if defined(_WIN32)
+constexpr const char *kExecutableFileName = "reeot.exe";
+#else
+constexpr const char *kExecutableFileName = "reeot";
+#endif
+
 std::filesystem::path ProgramDir();
+
+std::filesystem::path LaunchPath();
 
 bool AcquireInstanceLock();
 

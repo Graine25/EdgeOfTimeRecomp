@@ -274,6 +274,10 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/camera/mouse_look.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    # Named as the SDK opens it, so the copy preloaded beside the executable answers its dlopen.
+    if(NOT WIN32)
+        set_target_properties(reeot_GameLogic PROPERTIES PREFIX "" SUFFIX "")
+    endif()
 endif()
 
 target_include_directories(reeot PRIVATE
