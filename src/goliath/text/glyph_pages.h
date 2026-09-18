@@ -5,6 +5,9 @@
 #include <vector>
 
 #include <rex/hook.h>
+#include <cstddef>
+#include <filesystem>
+#include <string_view>
 
 namespace eot::text {
 
@@ -28,5 +31,15 @@ struct IconCell {
 
 uint32_t InstallIconPage(const PPCContext &ctx, uint8_t *base, uint32_t font_record, uint32_t page, uint32_t texture,
                          const std::vector<IconCell> &cells);
+
+}
+
+namespace eot::text {
+
+bool LoadTranslation(const std::filesystem::path &game, std::string_view language);
+
+void PackageMounted(uint32_t id, uint32_t package);
+
+size_t TranslatedLines();
 
 }

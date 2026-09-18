@@ -14,7 +14,6 @@
 #include "core/memory_helpers.h"
 #include "goliath/loading/texture_overrides.h"
 #include "goliath/text/glyph_pages.h"
-#include "goliath/text/translation.h"
 #include "goliath/ui/menu_handles.h"
 #include "platform/language.h"
 

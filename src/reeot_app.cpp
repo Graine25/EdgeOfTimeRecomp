@@ -32,7 +32,7 @@
 #include "gpu/imgui_overlay.h"
 #include "goliath/controller/mouse_input.h"
 #include "goliath/controller/pc_controls.h"
-#include "goliath/text/translation.h"
+#include "goliath/text/glyph_pages.h"
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"
 #include "platform/update_check.h"
