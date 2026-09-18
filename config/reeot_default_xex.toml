@@ -2733,6 +2733,8 @@ out_directory_path = "generated/default_xex"
 
 0x82120C98 = { name = "eot_RenderCommand_DrawMovie" }
 0x8211DE60 = { name = "eot_Movie_DrawFrame" }
+0x82317448 = { name = "eot_CriMvEasyPlayer_SetUsableProcessors" }
+0x82086298 = { name = "eot_MovieTimer_GetTime" }
 
 0x82182200 = { name = "eot_HUDWindowBC_ComputePos" }
 0x8217EA38 = { name = "eot_HUDText_BuildLayout" }

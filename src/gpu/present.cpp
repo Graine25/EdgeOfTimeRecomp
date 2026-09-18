@@ -641,14 +641,21 @@ void SleepUntil(std::chrono::steady_clock::time_point when) {
     std::this_thread::yield();
 }
 
-std::atomic<bool> g_movie_presented{false};
+std::atomic<i64> g_movie_presented_ns{0};
+constexpr auto kMovieHold = std::chrono::milliseconds(500);
 
-void FrameLimitWait() {
+void FrameLimitWait(const VideoState &s) {
   using clock = std::chrono::steady_clock;
   static clock::time_point deadline{};
   static i32 cadence_fps = 0;
-  constexpr i32 kMovieFps = 30;
-  const i32 fps = g_movie_presented.load(std::memory_order_acquire) ? kMovieFps : Settings::FpsLimit();
+  const auto now = clock::now();
+  const i64 movie_ns = g_movie_presented_ns.load(std::memory_order_acquire);
+  const bool movie = movie_ns != 0 && now.time_since_epoch().count() - movie_ns <= kMovieHold.count() * 1000000;
+  i32 fps = Settings::FpsLimit();
+  if (movie) {
+    const i32 refresh = static_cast<i32>(s.display_refresh_hz);
+    fps = fps > 0 ? std::min(fps, refresh) : refresh;
+  }
   if (fps <= 0) {
     deadline = clock::time_point{};
     cadence_fps = 0;
@@ -656,7 +663,6 @@ void FrameLimitWait() {
   }
   const auto period =
       std::chrono::duration_cast<clock::duration>(std::chrono::duration<f64>(1.0 / fps));
-  const auto now = clock::now();
   if (deadline == clock::time_point{} || cadence_fps != fps) {
     cadence_fps = fps;
     deadline = now + period;
@@ -755,7 +761,9 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   if (src_index != kInvalidDescriptorIndex) {
     ApplyAspectRatio();
     const bool movie = TakeMovieDrawnFlag();
-    g_movie_presented.store(movie, std::memory_order_release);
+    if (movie)
+      g_movie_presented_ns.store(std::chrono::steady_clock::now().time_since_epoch().count(),
+                                 std::memory_order_release);
     const float aspect =
         movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
     fit_h = out_w / aspect;
@@ -895,7 +903,7 @@ void Video::Present(u32 front_buffer_texture_va) {
       PresentLocked(s, front_buffer_texture_va);
     }
   }
-  FrameLimitWait();
+  FrameLimitWait(s);
   EOT_FRAME_MARK();
 }
 
@@ -905,7 +913,7 @@ void Video::PresentOverlayOnly() {
     std::lock_guard lock(s.mutex);
     PresentLocked(s, 0);
   }
-  FrameLimitWait();
+  FrameLimitWait(s);
 }
 
 }
