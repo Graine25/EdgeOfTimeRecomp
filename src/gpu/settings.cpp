@@ -26,7 +26,9 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "EdgeOfTime/Debug",
                      "and unmapped resources (rate limited), 2 verbose.")
     .range(0, 2);
 
-REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Present with vsync.");
+REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video",
+                    "Present in step with the display: no tearing, and the frame rate held to the "
+                    "display's refresh rate (a lower eot_fps_limit still applies).");
 REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug",
                     "Start the Tracy profiler at boot so a viewer can attach. Zones are compiled "
                     "into every non-Release build (a Release one only with -DREEOT_PROFILING=ON) "
