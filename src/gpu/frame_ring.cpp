@@ -32,7 +32,7 @@ bool SameTextureShape(const HostTexture &pooled, const HostTexture &want,
          p.depth == d.depth && p.mipLevels == d.mipLevels && p.arraySize == d.arraySize &&
          p.format == d.format && p.flags == d.flags &&
          p.multisampling.sampleCount == d.multisampling.sampleCount &&
-         pooled.viewFormat == want.viewFormat && pooled.viewDimension == want.viewDimension &&
+         pooled.viewDimension == want.viewDimension &&
          pooled.isDepth == want.isDepth;
 }
 
@@ -445,9 +445,7 @@ u32 NullIndexFor(const HostTexture &host) {
 
 plume::RenderTextureViewDesc SamplingViewDesc(const HostTexture &host) {
   plume::RenderTextureViewDesc view_desc;
-  view_desc.format = host.viewFormat != plume::RenderFormat::UNKNOWN
-                         ? host.viewFormat
-                         : SampledViewFormat(host.format);
+  view_desc.format = SampledViewFormat(host.format);
   view_desc.dimension = host.viewDimension;
   view_desc.mipLevels = host.mipLevels ? host.mipLevels : 1;
   return view_desc;

@@ -381,19 +381,19 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       if (Settings::DiagFrame() > 0 && s.guest_frames + 1 == static_cast<u64>(Settings::DiagFrame()) &&
           !depth_source && own_image)
         EOT_INFO("[diag] resolve {:#x} -> {:#x} hand-off gate: ordinal {} regretted {} (mask {:#x}) dest {} "
-                 "ms {} alias {} fmt {} scale {} level {} whole_host {} covers {} view {} array {} depth {} "
+                 "ms {} alias {} fmt {} scale {} level {} whole_host {} covers {} array {} depth {} "
                  "samples {} flags {}/{} dim {}/{} committed {}/{}",
                  src_va, dest_texture_va, ordinal, regretted, target.handoffRegretMask, &target == dest && dest_ref,
                  ms_src, alias_src != nullptr, same_format, scale, level, whole_host, covers_image,
-                 target.host.viewFormat == plume::RenderFormat::UNKNOWN, target.host.arraySize,
+                 target.host.arraySize,
                  target.host.depth, target.host.sampleCount, static_cast<u32>(target.host.desc.flags),
                  static_cast<u32>(src_host->desc.flags), static_cast<u32>(target.host.desc.dimension),
                  static_cast<u32>(src_host->desc.dimension), target.host.desc.committed,
                  src_host->desc.committed);
       if (!regretted && &target == dest && dest_ref && !depth_source &&
           !ms_src && !alias_src && own_image && same_format && scale == 1.0f && level == 0 &&
-          whole_host && covers_image && target.host.viewFormat == plume::RenderFormat::UNKNOWN &&
-          target.host.arraySize == 1 && target.host.depth == 1 && target.host.sampleCount == 1 &&
+          whole_host && covers_image && target.host.arraySize == 1 && target.host.depth == 1 &&
+          target.host.sampleCount == 1 &&
           target.host.desc.flags == src_host->desc.flags &&
           target.host.desc.dimension == src_host->desc.dimension &&
           target.host.desc.committed == src_host->desc.committed) {
@@ -494,9 +494,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
         s.bound_framebuffer = fb;
       }
       s.bound_draw_targets_valid = false;
-      const plume::RenderFormat color_fmt = target.host.viewFormat != plume::RenderFormat::UNKNOWN
-                                                ? target.host.viewFormat
-                                                : target.host.format;
+      const plume::RenderFormat color_fmt = target.host.format;
       plume::RenderPipeline *pso =
           ms_src ? GetResolveMsaaPipeline(s, depth_source ? target.host.format : color_fmt,
                                           src_host->sampleCount, depth_source)

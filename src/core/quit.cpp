@@ -12,6 +12,7 @@
 
 #include <rex/logging.h>
 
+#include "core/export.h"
 #include "core/logging.h"
 #include "gpu/device.h"
 #include "platform/process.h"
@@ -75,5 +76,5 @@ void RestartProcess() {
 
 }
 
-extern "C" __declspec(dllexport) void eot_quit_process(int code) { eot::QuitProcess(code); }
-extern "C" __declspec(dllexport) void eot_restart_process() { eot::RestartProcess(); }
+extern "C" EOT_EXPORT void eot_quit_process(int code) { eot::QuitProcess(code); }
+extern "C" EOT_EXPORT void eot_restart_process() { eot::RestartProcess(); }
