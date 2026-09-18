@@ -2,34 +2,19 @@
 
 #include <cstdlib>
 
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
+#include "core/export.h"
 
 namespace eot {
 
 [[noreturn]] inline void QuitProcessFromModule(int code = 0) {
-#if defined(_WIN32)
-  if (HMODULE host = ::GetModuleHandleW(nullptr)) {
-    auto *quit = reinterpret_cast<void (*)(int)>(
-        reinterpret_cast<void *>(::GetProcAddress(host, "eot_quit_process")));
-    if (quit)
-      quit(code);
-  }
-#endif
+  if (auto *quit = reinterpret_cast<void (*)(int)>(HostEntryPoint("eot_quit_process")))
+    quit(code);
   std::_Exit(code);
 }
 
 [[noreturn]] inline void RestartProcessFromModule() {
-#if defined(_WIN32)
-  if (HMODULE host = ::GetModuleHandleW(nullptr)) {
-    auto *restart = reinterpret_cast<void (*)()>(
-        reinterpret_cast<void *>(::GetProcAddress(host, "eot_restart_process")));
-    if (restart)
-      restart();
-  }
-#endif
+  if (auto *restart = reinterpret_cast<void (*)()>(HostEntryPoint("eot_restart_process")))
+    restart();
   QuitProcessFromModule(0);
 }
 
