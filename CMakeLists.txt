@@ -216,6 +216,7 @@ set(REEOT_SOURCES
     src/gpu/patches/physics_step.cpp
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/movie_aspect.cpp
+    src/gpu/patches/movie_decode.cpp
     src/gpu/patches/post_effects.cpp
     src/gpu/patches/present_effects.cpp
     src/goliath/controller/pc_controls.cpp

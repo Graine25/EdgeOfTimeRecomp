@@ -204,6 +204,7 @@ struct VideoState {
   std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> blit_pipelines;
   std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> depth_copy_pipelines;
   u32 host_msaa_samples = 1;
+  u32 display_refresh_hz = 60;
   std::unique_ptr<plume::RenderShader> resolve_msaa_color_ps[3];
   std::unique_ptr<plume::RenderShader> resolve_msaa_depth_ps[3];
   std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> resolve_msaa_pipelines;
