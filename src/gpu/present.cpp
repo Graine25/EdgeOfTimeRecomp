@@ -652,10 +652,11 @@ void FrameLimitWait(const VideoState &s) {
   const i64 movie_ns = g_movie_presented_ns.load(std::memory_order_acquire);
   const bool movie = movie_ns != 0 && now.time_since_epoch().count() - movie_ns <= kMovieHold.count() * 1000000;
   i32 fps = Settings::FpsLimit();
-  if (movie) {
-    const i32 refresh = static_cast<i32>(s.display_refresh_hz);
+  const i32 refresh = static_cast<i32>(s.display_refresh_hz);
+  if (movie)
     fps = fps > 0 ? std::min(fps, refresh) : refresh;
-  }
+  if (Settings::Vsync() && fps >= refresh)
+    fps = 0;
   if (fps <= 0) {
     deadline = clock::time_point{};
     cadence_fps = 0;
