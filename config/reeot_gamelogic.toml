@@ -2292,6 +2292,8 @@ out_directory_path = "generated/gamelogic"
 0x88270130 = { name = "eot_SaveGame_ApplyLoadedData", size = 0x1AC }
 0x88296C78 = { name = "eot_TextPopup_InitConfig", size = 0x160 }
 0x88296DD8 = { name = "eot_TextPopup_SetBody", size = 0xF8 }
+0x883114E8 = { name = "eot_SM2099_Activate", size = 0x530 }
+0x881A9618 = { name = "eot_SM2099HealthFX_HandleMessage", size = 0x62C }
 
 [[midasm_hook]]
 address = 0x882314D4
