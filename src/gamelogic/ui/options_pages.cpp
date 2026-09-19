@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <format>
 #include <span>
 #include <string>
 #include <string_view>
@@ -15,6 +16,7 @@
 #include "core/quit_client.h"
 #include "gamelogic/ui/hud_api.h"
 #include "gamelogic/ui/menu_common.h"
+#include "gamelogic/ui/mods_client.h"
 #include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_HUDOptionsScreen_BuildBar);         // (this r3)
@@ -196,17 +198,32 @@ struct Setting {
   bool restart = false;
   bool (*enabled)() = nullptr;
   const char *disabled_text = nullptr;
+  int slot = -1;
 
   bool IsSlider() const { return choices.empty(); }
 };
 
-std::string Value(const Setting &s) { return s.accessor ? s.accessor->get() : rex::cvar::GetFlagByName(s.cvar); }
+constexpr const char *kActionImport = "import";
+constexpr const char *kActionRestore = "restore";
+std::string g_slot_action[EOT_MOD_SLOT_COUNT];
+
+std::string Value(const Setting &s) {
+  if (s.slot >= 0)
+    return g_slot_action[s.slot].empty() ? kActionImport : g_slot_action[s.slot];
+  return s.accessor ? s.accessor->get() : rex::cvar::GetFlagByName(s.cvar);
+}
 
 bool SetValue(const Setting &s, std::string_view value) {
+  if (s.slot >= 0) {
+    g_slot_action[s.slot] = value;
+    return true;
+  }
   return s.accessor ? s.accessor->set(value) : rex::cvar::SetFlagByName(s.cvar, value);
 }
 
 void ResetValue(const Setting &s) {
+  if (s.slot >= 0)
+    return;
   if (!s.accessor) {
     rex::cvar::ResetToDefault(s.cvar);
     return;
@@ -238,6 +255,7 @@ struct Page {
   const char *label;
   std::span<const Setting> settings;
   const Layout *layout;
+  bool list = false;
 };
 
 constexpr Layout kWide = {"Reeot_OptionsPanel",
@@ -395,6 +413,45 @@ constexpr Page kGraphicsPage = {"REEOT_GRAPHICS_TITLE", "Graphics", kGraphicsSet
 constexpr Page kGamePage = {"REEOT_GAME_TITLE", "Game", kGameSettings, &kWide};
 constexpr Page kControlsPage = {"REEOT_CONTROLS_TITLE", "Controls", kControlsSettings, &kNarrow};
 
+constexpr Choice kImportOnly[] = {{"REEOT_VAL_IMPORT", "import"}};
+constexpr Choice kImportRestore[] = {{"REEOT_VAL_IMPORT", "import"}, {"REEOT_VAL_RESTORE", "restore"}};
+struct SlotRow {
+  const char *label;
+  const char *description;
+};
+constexpr SlotRow kSlotRows[EOT_MOD_SLOT_COUNT] = {{"REEOT_OPT_PAK", "REEOT_DESC_PAK"},
+                                                   {"REEOT_OPT_MODEL", "REEOT_DESC_MODEL"},
+                                                   {"REEOT_OPT_BINARY", "REEOT_DESC_BINARY"}};
+eot_mod_slot_info g_slot_info[EOT_MOD_SLOT_COUNT] = {};
+std::vector<Setting> g_mod_rows;
+Page g_mods_page = {"REEOT_MODS_TITLE", "Mods", {}, &kNarrow, true};
+int32_t g_import_state = EOT_MODS_IDLE;
+int32_t g_import_slot = -1;
+std::string g_import_message;
+int32_t g_message_slot = -1;
+bool g_mods_changed = false;
+
+bool ImportIdle() { return g_import_state == EOT_MODS_IDLE; }
+
+void RebuildSlotRows() {
+  const mods::Host &api = mods::Api();
+  g_mod_rows.clear();
+  for (int32_t i = 0; i < EOT_MOD_SLOT_COUNT; ++i) {
+    if (!api.slot || !api.slot(i, &g_slot_info[i]))
+      g_slot_info[i] = eot_mod_slot_info{};
+    if (g_slot_action[i].empty() || (g_slot_action[i] == kActionRestore && !g_slot_info[i].installed))
+      g_slot_action[i] = kActionImport;
+    g_mod_rows.push_back({.label = kSlotRows[i].label,
+                          .description = kSlotRows[i].description,
+                          .choices = g_slot_info[i].installed ? std::span<const Choice>(kImportRestore)
+                                                              : std::span<const Choice>(kImportOnly),
+                          .restart = true,
+                          .enabled = ImportIdle,
+                          .slot = i});
+  }
+  g_mods_page.settings = g_mod_rows;
+}
+
 constexpr uint32_t kRetailCount = 5;
 constexpr uint32_t kAudioIndex = 0;
 constexpr uint32_t kVideoIndex = 1;
@@ -402,8 +459,11 @@ constexpr uint32_t kGraphicsIndex = 2;
 constexpr uint32_t kGameIndex = 3;
 constexpr uint32_t kDifficultyIndex = 4;
 constexpr uint32_t kControlsIndex = 5;
-constexpr uint32_t kLastIndex = kRetailCount;
+constexpr uint32_t kModsIndex = 6;
 constexpr uint32_t kScreenCursorOff = 84;
+
+bool ModsOnBar() { return rex::cvar::Query<bool>("eot_debug_mode"); }
+uint32_t LastBarIndex() { return ModsOnBar() ? kModsIndex : kControlsIndex; }
 
 const Page *PageAt(uint32_t cursor) {
   switch (cursor) {
@@ -417,6 +477,8 @@ const Page *PageAt(uint32_t cursor) {
     return &kGamePage;
   case kControlsIndex:
     return &kControlsPage;
+  case kModsIndex:
+    return ModsOnBar() ? &g_mods_page : nullptr;
   default:
     return nullptr;
   }
@@ -498,8 +560,10 @@ constexpr uint32_t kBlockControls = 0;
 constexpr uint32_t kBlockHandles = kBlockControls + kLayoutCount * kLayoutBlock;
 constexpr uint32_t kBlockColour = kBlockHandles + 16;
 constexpr uint32_t kBlockText = kBlockColour + 16;
-constexpr uint32_t kBlockLine = kBlockText + 64;
-constexpr uint32_t kBlockSize = kBlockLine + 512;
+constexpr uint32_t kBlockTextSize = 640;
+constexpr uint32_t kBlockLine = kBlockText + kBlockTextSize;
+constexpr uint32_t kBlockLineChars = 1024;
+constexpr uint32_t kBlockSize = kBlockLine + kBlockLineChars * 2;
 
 namespace tcr {
 constexpr uint32_t kTweenStart = 76;
@@ -559,6 +623,7 @@ bool g_retail_tween_saved = false;
 
 uint32_t g_video_label = 0;
 uint32_t g_graphics_label = 0;
+uint32_t g_mods_label = 0;
 
 uint32_t ChoiceControl(uint32_t row) {
   return g_block + kBlockControls + LayoutIndex(g_page->layout) * kLayoutBlock + row * ctl::kChoiceSize;
@@ -665,7 +730,7 @@ void SetLine(const PPCContext &ctx, uint8_t *base, uint32_t window, const char *
     return;
   const uint32_t text = g_block + kBlockText;
   uint32_t n = 0;
-  for (uint32_t i = 0; line[i] && n < 62; ++i) {
+  for (uint32_t i = 0; line[i] && n < kBlockTextSize - 2; ++i) {
     eot::mem::store<uint8_t>(text + n++, static_cast<uint8_t>(line[i]));
     if (line[i] == '%')
       eot::mem::store<uint8_t>(text + n++, static_cast<uint8_t>('%'));
@@ -703,11 +768,26 @@ int NearestChoice(const Setting &s) {
   return best;
 }
 
+const char *ImportValueText(const Setting &s) {
+  if (s.slot < 0 || s.slot != g_import_slot)
+    return nullptr;
+  switch (g_import_state) {
+  case EOT_MODS_CHOOSING:
+    return "REEOT_VAL_CHOOSING";
+  case EOT_MODS_IMPORTING:
+    return "REEOT_VAL_IMPORTING";
+  default:
+    return nullptr;
+  }
+}
+
 void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, const Setting &s) {
   const int index = CurrentChoice(s);
-  const char *text = !Enabled(s) && s.disabled_text ? s.disabled_text
-                     : index >= 0                    ? s.choices[static_cast<size_t>(index)].text
-                                                    : nullptr;
+  const char *busy = ImportValueText(s);
+  const char *text = busy                             ? busy
+                     : !Enabled(s) && s.disabled_text ? s.disabled_text
+                     : index >= 0                     ? s.choices[static_cast<size_t>(index)].text
+                                                      : nullptr;
   if (text) {
     PPCContext call = ctx;
     call.r3.u32 = control + ctl::kChoiceValue;
@@ -724,6 +804,8 @@ void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Set
   call.r3.u32 = control;
   call.r4.u32 = StringHandle(ctx, base, s.label);
   __imp__eot_MultiValueControl_SetLabel(call, base);
+  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceLeft), s.choices.size() > 1);
+  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceRight), s.choices.size() > 1);
   const uint32_t count = std::min<uint32_t>(static_cast<uint32_t>(s.choices.size()), ctl::kChoiceHandleSlots);
   for (uint32_t i = 0; i < count; ++i)
     eot::mem::store<uint32_t>(control + ctl::kChoiceHandles + i * 4, StringHandle(ctx, base, s.choices[i].text));
@@ -855,9 +937,20 @@ uint32_t StringLength(const PPCContext &ctx, uint8_t *base, uint32_t string_hand
   call.r10.u32 = 0;
   fn(call, base);
   uint32_t n = 0;
-  while (n < 250 && eot::mem::load<uint16_t>(line + n * 2))
+  while (n < kBlockLineChars - 1 && eot::mem::load<uint16_t>(line + n * 2))
     ++n;
   return n;
+}
+
+std::string ResolveText(const PPCContext &ctx, uint8_t *base, uint32_t string_handle) {
+  std::string text;
+  const uint32_t n = StringLength(ctx, base, string_handle);
+  const uint32_t line = g_block + kBlockLine;
+  for (uint32_t i = 0; i < n; ++i) {
+    const uint16_t c = eot::mem::load<uint16_t>(line + i * 2);
+    text.push_back(c < 0x100 ? static_cast<char>(c) : '?');
+  }
+  return text;
 }
 
 void FitInfoTitle(const PPCContext &ctx, uint8_t *base, uint32_t length) {
@@ -879,12 +972,26 @@ void FitInfoTitle(const PPCContext &ctx, uint8_t *base, uint32_t length) {
                 factor < 1.0f ? w.info_title_scale * factor : 0.0f);
 }
 
+std::string SlotInfoText(const PPCContext &ctx, uint8_t *base, const Setting &s) {
+  std::string text = s.slot == g_message_slot && !g_import_message.empty()
+                         ? g_import_message
+                         : ResolveText(ctx, base, StringHandle(ctx, base, s.description));
+  const eot_mod_slot_info &info = g_slot_info[s.slot];
+  text += "\n\n";
+  text += info.installed ? ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_IN_PLACE")) + " " + info.files
+                         : ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_NOTHING"));
+  return text;
+}
+
 void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   const Windows &w = CurrentWindows();
   const uint32_t label = StringHandle(ctx, base, s.label);
   FitInfoTitle(ctx, base, StringLength(ctx, base, label));
   SetStringHandle(ctx, base, w.info_title, label);
-  SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, s.description));
+  if (s.slot >= 0)
+    SetLine(ctx, base, w.info_text, SlotInfoText(ctx, base, s).c_str());
+  else
+    SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, s.description));
   hud::Activate(ctx, base, w.info_value, s.IsSlider());
   if (s.IsSlider()) {
     char now[32];
@@ -1018,6 +1125,17 @@ void FillConfig(uint32_t c, uint32_t window, uint32_t title) {
 void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   CallScope scope(ctx, base);
   g_page = &page;
+  if (page.list) {
+    g_import_message.clear();
+    g_message_slot = -1;
+    g_mods_changed = false;
+    g_import_state = mods::Api().import_state ? mods::Api().import_state(nullptr, 0) : EOT_MODS_IDLE;
+    for (std::string &action : g_slot_action)
+      action = kActionImport;
+    RebuildSlotRows();
+    if (!mods::Api().Bound())
+      EOT_WARN("[menu] the host has no mods entry points; the Mods page can do nothing");
+  }
   if (!g_config)
     g_config = AllocGuest(ctx, base, cfg::kSize);
   if (!g_block)
@@ -1049,6 +1167,8 @@ void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
 }
 
 bool RestartDue() {
+  if (g_page->list)
+    return g_mods_changed;
   for (size_t i = 0; i < g_page->settings.size() && i < g_opened_with.size(); ++i)
     if (g_page->settings[i].restart && Value(g_page->settings[i]) != g_opened_with[i])
       return true;
@@ -1110,7 +1230,7 @@ void Close(const PPCContext &ctx, uint8_t *base, bool accept) {
       EOT_WARN("[menu] eot_save_settings is not registered; the settings hold until exit");
   }
   eot::mem::store<uint32_t>(g_config + cfg::kResult, result);
-  PlayCue(ctx, base, accept ? kCueAccept : kCueBack);
+  PlayCue(ctx, base, accept && !g_page->list ? kCueAccept : kCueBack);
   if (restart)
     AskRestart(ctx, base);
 }
@@ -1148,6 +1268,62 @@ void ChangeValue(const PPCContext &ctx, uint8_t *base, int step) {
   ShowRows(ctx, base);
 }
 
+void ActivateRow(const PPCContext &ctx, uint8_t *base) {
+  const Setting &s = g_page->settings[g_cursor];
+  const mods::Host &api = mods::Api();
+  if (s.slot < 0 || !ImportIdle() || !api.Bound()) {
+    PlayCue(ctx, base, kCueDenied);
+    return;
+  }
+  if (Value(s) == kActionRestore) {
+    char message[512];
+    const bool ok = api.restore(s.slot, message, sizeof(message)) != 0;
+    g_import_message = message;
+    g_message_slot = s.slot;
+    g_mods_changed = g_mods_changed || ok;
+    PlayCue(ctx, base, ok ? kCueAccept : kCueDenied);
+    EOT_INFO("[menu] mods: {}", g_import_message);
+    RebuildSlotRows();
+    ShowRows(ctx, base);
+    return;
+  }
+  if (!api.import_begin(s.slot)) {
+    PlayCue(ctx, base, kCueDenied);
+    return;
+  }
+  g_import_message.clear();
+  g_message_slot = -1;
+  g_import_state = EOT_MODS_CHOOSING;
+  g_import_slot = s.slot;
+  PlayCue(ctx, base, kCueAccept);
+  EOT_INFO("[menu] mods: the file browser is up for slot {}", s.slot);
+  ShowRows(ctx, base);
+}
+
+void PollImport(const PPCContext &ctx, uint8_t *base) {
+  if (!mods::Api().import_state)
+    return;
+  char message[512];
+  const int32_t state = mods::Api().import_state(message, sizeof(message));
+  if (state == g_import_state)
+    return;
+  g_import_state = state;
+  if (state == EOT_MODS_DONE || state == EOT_MODS_FAILED) {
+    g_import_message = message;
+    g_message_slot = g_import_slot;
+    g_mods_changed = g_mods_changed || state == EOT_MODS_DONE;
+    mods::Api().import_acknowledge();
+    g_import_state = EOT_MODS_IDLE;
+    g_import_slot = -1;
+    RebuildSlotRows();
+    PlayCue(ctx, base, state == EOT_MODS_DONE ? kCueAccept : kCueDenied);
+    EOT_INFO("[menu] mods: {}", g_import_message);
+  } else if (state == EOT_MODS_IDLE) {
+    g_import_slot = -1;
+  }
+  ShowRows(ctx, base);
+}
+
 void PollHorizontal(const PPCContext &ctx, uint8_t *base, double dt) {
   const double axis = Axis(ctx, base, kInputAxisX);
   const int dir = axis > kAxisHeld ? 1 : axis < -kAxisHeld ? -1 : 0;
@@ -1174,6 +1350,7 @@ void PollHorizontal(const PPCContext &ctx, uint8_t *base, double dt) {
 REX_HOOK_RAW(eot_HUDOptionsScreen_BuildBar) {
   g_video_label = StringHandle(ctx, base, "REEOT_VIDEO");
   g_graphics_label = StringHandle(ctx, base, "REEOT_GRAPHICS");
+  g_mods_label = ModsOnBar() ? StringHandle(ctx, base, "REEOT_MODS") : 0;
   __imp__eot_HUDOptionsScreen_BuildBar(ctx, base);
 }
 
@@ -1196,11 +1373,13 @@ void eot_OptionsBar_AddGraphics(PPCRegister &r6, PPCRegister &r31) {
   eot::mem::store<uint32_t>(desc + kDescSelected, 0);
   if (r31.u32)
     eot::mem::store<uint32_t>(r31.u32 + kScreenCursorOff, 0);
-  EOT_INFO("[menu] options bar {:#x}: Video in slot {}, Graphics in slot {}", desc, kVideoIndex, kGraphicsIndex);
+  const int mods_slot = g_mods_label ? AppendEntry(desc, g_mods_label) : -1;
+  EOT_INFO("[menu] options bar {:#x}: Video in slot {}, Graphics in slot {}{}", desc, kVideoIndex, kGraphicsIndex,
+           mods_slot >= 0 ? std::format(", Mods in slot {}", mods_slot) : std::string());
 }
 
 void eot_OptionsBar_NavRightBound6(PPCRegister &r29, PPCCRRegister &cr6, PPCXERRegister &xer) {
-  cr6.compare<uint32_t>(r29.u32, kLastIndex, xer);
+  cr6.compare<uint32_t>(r29.u32, LastBarIndex(), xer);
 }
 
 REX_HOOK_RAW(eot_HUDOptionsScreen_HandleInputEvent) {
@@ -1275,17 +1454,25 @@ REX_HOOK_RAW(eot_GameOptionsPopup_OnUpdate) {
   CallScope scope(ctx, base);
   const double dt = ctx.f1.f64;
   ctx.r3.u32 = 0;
+  if (g_page->list)
+    PollImport(ctx, base);
   if (Pressed(ctx, base, kInputAccept)) {
-    Close(ctx, base, true);
-    ctx.r3.u32 = 1;
+    if (g_page->list) {
+      ActivateRow(ctx, base);
+    } else {
+      Close(ctx, base, true);
+      ctx.r3.u32 = 1;
+    }
   } else if (Pressed(ctx, base, kInputBack)) {
-    Close(ctx, base, false);
+    Close(ctx, base, g_page->list);
     ctx.r3.u32 = 1;
   } else if (Pressed(ctx, base, kInputReset)) {
-    for (const Setting &s : g_page->settings)
-      ResetValue(s);
-    PlayCue(ctx, base, kCueChange);
-    ShowRows(ctx, base);
+    if (!g_page->list) {
+      for (const Setting &s : g_page->settings)
+        ResetValue(s);
+      PlayCue(ctx, base, kCueChange);
+      ShowRows(ctx, base);
+    }
   } else if (Pressed(ctx, base, kInputAxisY)) {
     MoveCursor(ctx, base, Axis(ctx, base, kInputAxisY) > 0.0 ? 1 : -1);
   } else {
