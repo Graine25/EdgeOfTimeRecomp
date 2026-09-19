@@ -56,6 +56,67 @@ Huge thanks to everyone who's put time into this. EdgeOfTime-Recompiled wouldn't
 * **[UnleashedRecompiled](https://github.com/hedge-dev/unleashedrecomp/)** for setting the bar on how incredible a Static Recompilation can be, and proving to a wider audience that 360 titles can be relived on modern computers. 
 * The wider **Xbox 360 emulation scene**. A lot of the hardest problems were solved by them long before this project started.
 
+## Building
+
+The build needs a ReXGlue SDK install (its `rexglue` codegen tool on PATH),
+CMake 3.25+, Ninja, Python 3 and clang. Every platform builds through the
+presets in `CMakePresets.json`; `scripts/build.bat` and `scripts/build.sh`
+run codegen, configure and build in one go.
+
+### Windows
+
+```
+scripts\build.bat
+```
+
+D3D12 is the renderer (`REEOT_D3D12=ON`, the default on Windows). The
+preset names the SDK source tree through `REXSDK_DIR`.
+
+### Linux (including Steam Deck)
+
+```
+scripts/build.sh                      # linux-amd64-relwithdebinfo
+scripts/build.sh linux-amd64-release
+```
+
+Vulkan is the renderer; the window and its surface come from SDL3, so X11
+and Wayland both work without being named. Needs clang and lld (LLVM 19 or
+newer), the Vulkan loader (`libvulkan1` on Debian and Ubuntu,
+`vulkan-icd-loader` on Arch; SteamOS has it), and the `rexglue-sdk-dll`
+checkout beside this repository, the same sibling the Windows preset names:
+the SDK builds inside this tree, its vendored Vulkan headers stand in when
+the system has none, and its codegen runs as part of the build. The result
+is `out/build/<preset>/reeot` with `librexruntime.so`,
+`libreeot_GameLogic.so`, `gamecontrollerdb.txt`, `build_stamp.txt` and
+`reeot_icon.png` beside it; that folder is what the first-run installer
+copies into `EdgeOfTimeRecompiled`. The install record lives in
+`~/.config/reeot/install.toml`; the desktop entry the installer offers goes
+to the desktop and to `~/.local/share/applications`.
+
+To run against an existing game folder without installing:
+
+```
+out/build/linux-amd64-relwithdebinfo/reeot --game_data_root /path/to/EdgeOfTimeRecompiled/game
+```
+
+#### Playtest package (AppImage)
+
+```
+scripts/package-appimage.sh
+```
+
+Stages the build's program files into an AppImage (`dist/reeot-v<version>-<stamp>-x86_64.AppImage`,
+copied to `~/Downloads` as the Windows zip is), after checking that nothing
+bundled needs a glibc or libstdc++ newer than the host's (`MAX_GLIBC` and
+`MAX_GLIBCXX` set the ceiling for a package meant for older systems; SteamOS
+3.6 is glibc 2.38). The AppImage is the program, as reblue's is: its first
+run is the installer, which unpacks the game into `EdgeOfTimeRecompiled`,
+records it in `~/.config/reeot/install.toml` and carries on into the game
+in the same process; nothing is copied beside the game and nothing restarts.
+Every later run of the AppImage reads the record and boots. Its log goes to
+`~/.local/state/reeot/logs`, since the mount is read-only; profiles and
+saves live under the install folder.
+
 ## License
 
 See [LICENSE](LICENSE).

@@ -78,3 +78,6 @@ Testing/
 
 # Python bytecode from the tools
 __pycache__/
+
+# Linux playtest packages (scripts/package-appimage.sh)
+/dist/
