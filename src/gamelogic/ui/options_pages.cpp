@@ -977,6 +977,8 @@ std::string SlotInfoText(const PPCContext &ctx, uint8_t *base, const Setting &s)
                          ? g_import_message
                          : ResolveText(ctx, base, StringHandle(ctx, base, s.description));
   const eot_mod_slot_info &info = g_slot_info[s.slot];
+  if (info.note[0])
+    text += std::string("\n\n") + info.note;
   text += "\n\n";
   text += info.installed ? ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_IN_PLACE")) + " " + info.files
                          : ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_NOTHING"));
