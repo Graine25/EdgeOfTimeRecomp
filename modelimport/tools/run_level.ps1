@@ -1,4 +1,4 @@
-param([int]$settle = 30)
+param([int]$settle = 30, [string]$extra = "")
 $ErrorActionPreference = 'Continue'
 $exe = 'C:\Users\rieng\Documents\GitHub\reeot-dni\out\build\win-amd64-relwithdebinfo\reeot.exe'
 $tools = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -6,7 +6,7 @@ $logDir = Join-Path (Split-Path -Parent $exe) 'logs'
 Get-Process reeot -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 $before = (Get-ChildItem "$logDir\reeot_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName
-$p = Start-Process -FilePath $exe -ArgumentList "--eot_update_apply=false" -WorkingDirectory (Split-Path -Parent $exe) -PassThru
+$p = Start-Process -FilePath $exe -ArgumentList "--eot_update_apply=false $extra" -WorkingDirectory (Split-Path -Parent $exe) -PassThru
 function LatestLog { (Get-ChildItem "$logDir\reeot_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName }
 $deadline = (Get-Date).AddSeconds(150); $log = $null
 while ((Get-Date) -lt $deadline) {
