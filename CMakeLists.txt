@@ -282,7 +282,6 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/patches/sd_bonus_suits.cpp
         src/gamelogic/patches/sm2099_body_pulse.cpp
         src/gamelogic/ui/options_pages.cpp
-        src/gamelogic/ui/gallery_achievements.cpp
         src/gamelogic/ui/achievements_page.cpp
         src/gamelogic/camera/mouse_look.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
