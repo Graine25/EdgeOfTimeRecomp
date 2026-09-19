@@ -60,6 +60,8 @@ std::atomic<float> g_camera_ratio{16.0f / 9.0f};
 
 constexpr float kWidescreenThreshold = 1.6f;
 
+std::atomic<int> g_table_holds{0};
+
 float CameraRatioFor(float ratio) {
   return std::fabs(ratio - kWidescreenThreshold) < 0.01f ? std::nextafter(kWidescreenThreshold, 0.0f)
                                                         : ratio;
@@ -75,6 +77,23 @@ bool LayoutIsWidescreen() {
   return g_camera_ratio.load(std::memory_order_relaxed) >= kWidescreenThreshold;
 }
 
+bool MacWide() {
+  return std::fabs(g_ratio.load(std::memory_order_relaxed) - kWidescreenThreshold) < 0.01f &&
+         g_camera_ratio.load(std::memory_order_relaxed) < kWidescreenThreshold;
+}
+
+CameraRatioHold::CameraRatioHold(float value, unsigned screen)
+    : address_(kCameraAspectRatio + 4u * (screen < 4 ? screen : 0)),
+      saved_(eot::mem::load<uint32_t>(address_)) {
+  g_table_holds.fetch_add(1, std::memory_order_acq_rel);
+  eot::mem::store<uint32_t>(address_, std::bit_cast<uint32_t>(value));
+}
+
+CameraRatioHold::~CameraRatioHold() {
+  eot::mem::store<uint32_t>(address_, saved_);
+  g_table_holds.fetch_sub(1, std::memory_order_acq_rel);
+}
+
 void ApplyAspectRatio() {
   const float ratio = PresetRatio(Settings::EffectiveAspectRatio());
   if (!Plausible(ratio))
@@ -84,6 +103,8 @@ void ApplyAspectRatio() {
   g_camera_ratio.store(camera, std::memory_order_relaxed);
 
   const uint32_t bits = std::bit_cast<uint32_t>(camera);
+  if (g_table_holds.load(std::memory_order_acquire) > 0)
+    return;
   const uint32_t live = eot::mem::load<uint32_t>(kCameraAspectRatio);
   if (live == bits)
     return;
