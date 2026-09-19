@@ -49,7 +49,7 @@ constexpr uint32_t kMenuBarSelectZoneCrc = 0xFFC59AA9u;
 
 constexpr uint32_t kFlagScreenSpace = 0x2;
 
-constexpr float kUiAspect = 16.0f / 9.0f;
+float LayoutAspect() { return eot::gpu::LayoutIsWidescreen() ? 16.0f / 9.0f : 4.0f / 3.0f; }
 constexpr float kAspectEpsilon = 0.01f;
 
 enum class Policy { Lock, Stretch, LockText, HugLeft, HugRight };
@@ -136,7 +136,8 @@ void ApplyAspectPolicy(uint32_t wnd) {
     return;
 
   const float display_aspect = eot::gpu::ConfiguredAspectRatio();
-  if (display_aspect <= kUiAspect + kAspectEpsilon)
+  const float ui_aspect = LayoutAspect();
+  if (display_aspect <= ui_aspect + kAspectEpsilon)
     return;
 
   const uint32_t flags = eot::mem::load<uint32_t>(wnd + kWndFlags);
@@ -164,7 +165,7 @@ void ApplyAspectPolicy(uint32_t wnd) {
     return;
   }
 
-  const float scale = kUiAspect / display_aspect;
+  const float scale = ui_aspect / display_aspect;
   const float offset = canvas_w * (1.0f - scale) * 0.5f;
 
   const bool trace =
@@ -214,13 +215,13 @@ namespace eot::goliath {
 bool UiAspectLogEnabled() { return REXCVAR_GET(eot_ui_aspect_log); }
 
 bool UiAspectLockActive() {
-  return LockRequested() && eot::gpu::ConfiguredAspectRatio() > kUiAspect + kAspectEpsilon;
+  return LockRequested() && eot::gpu::ConfiguredAspectRatio() > LayoutAspect() + kAspectEpsilon;
 }
 
 float TextScaleFactor() {
   if (!UiAspectLockActive())
     return 0.0f;
-  return kUiAspect / eot::gpu::ConfiguredAspectRatio();
+  return LayoutAspect() / eot::gpu::ConfiguredAspectRatio();
 }
 
 }

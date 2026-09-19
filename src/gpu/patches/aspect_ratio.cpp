@@ -56,6 +56,14 @@ float PresetRatio(const std::string &preset) {
 }
 
 std::atomic<float> g_ratio{16.0f / 9.0f};
+std::atomic<float> g_camera_ratio{16.0f / 9.0f};
+
+constexpr float kWidescreenThreshold = 1.6f;
+
+float CameraRatioFor(float ratio) {
+  return std::fabs(ratio - kWidescreenThreshold) < 0.01f ? std::nextafter(kWidescreenThreshold, 0.0f)
+                                                        : ratio;
+}
 
 }
 
@@ -63,26 +71,33 @@ namespace eot::gpu {
 
 float ConfiguredAspectRatio() { return g_ratio.load(std::memory_order_relaxed); }
 
+bool LayoutIsWidescreen() {
+  return g_camera_ratio.load(std::memory_order_relaxed) >= kWidescreenThreshold;
+}
+
 void ApplyAspectRatio() {
   const float ratio = PresetRatio(Settings::EffectiveAspectRatio());
   if (!Plausible(ratio))
     return;
   g_ratio.store(ratio, std::memory_order_relaxed);
+  const float camera = CameraRatioFor(ratio);
+  g_camera_ratio.store(camera, std::memory_order_relaxed);
 
-  const uint32_t bits = std::bit_cast<uint32_t>(ratio);
+  const uint32_t bits = std::bit_cast<uint32_t>(camera);
   const uint32_t live = eot::mem::load<uint32_t>(kCameraAspectRatio);
   if (live == bits)
     return;
 
   eot::mem::store<uint32_t>(kCameraAspectRatio, bits);
   eot::mem::store<uint32_t>(kDisplayAspectRatio, bits);
-  eot::mem::store<uint32_t>(kAspectClass, AspectClassOf(ratio));
+  eot::mem::store<uint32_t>(kAspectClass, AspectClassOf(camera));
 
   static int corrections = 0;
   if (corrections < 8) {
     ++corrections;
-    EOT_INFO("[patch] aspect ratio {} = {:.4f} (class {}); guest held {:.4f}",
-             Settings::EffectiveAspectRatio(), ratio, AspectClassOf(ratio),
+    EOT_INFO("[patch] aspect ratio {} = {:.4f} (camera {:.7f}, {} layout, class {}); guest held {:.4f}",
+             Settings::EffectiveAspectRatio(), ratio, camera,
+             camera >= kWidescreenThreshold ? "wide" : "4:3", AspectClassOf(camera),
              std::bit_cast<float>(live));
   }
 }
