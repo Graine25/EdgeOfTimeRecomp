@@ -279,6 +279,12 @@ void InstallerWizard::RecordSettings() {
   choices_.settings.clear();
   for (const SettingRow &row : g_rows)
     choices_.settings.push_back({row.cvar, rex::cvar::GetFlagByName(row.cvar)});
+  std::string pip = rex::cvar::GetFlagByName("eot_pip_scale");
+  if (rex::cvar::GetFlagSource("eot_pip_scale") == rex::cvar::Source::kDefault) {
+    const std::string resolution = rex::cvar::GetFlagByName("eot_resolution");
+    pip = (resolution == "720p" || resolution == "native") ? "66" : "50";
+  }
+  choices_.settings.push_back({"eot_pip_scale", pip});
 }
 
 void InstallerWizard::Prefill() {
