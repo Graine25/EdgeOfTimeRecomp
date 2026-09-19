@@ -76,7 +76,7 @@
 0xBA67BB61 = { policy = "lock", name = "HUDObjectiveCounter", type = "sprite" }
 0x0D62739D = { policy = "lock", name = "HUDObjectiveCounter_Count", type = "sprite" }
 0xC5D4C2AA = { policy = "lock", name = "HUDObjectiveCounter_Picture", type = "sprite" }
-0x40DC6348 = { policy = "stretch", name = "HUDPiP", type = "sprite", wide = true }
+0x40DC6348 = { policy = "stretch", name = "HUDPiP", type = "sprite", wide = true, macwide = "hug_right" }
 0x76B01033 = { policy = "lock", name = "HUDPiP_InfiniteLoadingPrompt", type = "sprite", wide = true }
 0x42433A25 = { policy = "lock", name = "HUDPiPTimeLine", type = "sprite", wide = true }
 0x60AE3905 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay", type = "sprite", wide = true }
