@@ -1600,9 +1600,33 @@ struct SamplerBindings {
   SharedConstants shared;
 };
 
+bool RefreshResolvedMirror(VideoState &s, GuestTexture &mirror, const Targets &t) {
+  if (!mirror.resolveOwned || mirror.host.isDepth || !mirror.lastResolve)
+    return false;
+  GuestSurface *surf = nullptr;
+  for (u32 i = 0; i < t.colorCount; ++i) {
+    if (t.color[i] && t.color[i]->uid == mirror.resolvedSurfaceUid) {
+      surf = t.color[i];
+      break;
+    }
+  }
+  if (!surf || surf->serial == mirror.resolvedSurfaceSerial ||
+      mirror.resolvedSurfaceSerial < surf->wholeClearSerial)
+    return false;
+  ResolvePacket pk = *mirror.lastResolve;
+  pk.refresh = true;
+  pk.flags &= ~0x300u;
+  const bool defer = s.defer_shader_read_transitions;
+  s.defer_shader_read_transitions = false;
+  ReplayResolveLocked(s, pk);
+  s.defer_shader_read_transitions = defer;
+  return s.command_list_open;
+}
+
 void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
-                             SharedConstants &sc) {
+                             SharedConstants &sc, const Targets *refresh_targets) {
   const u32 sampler_policy = static_cast<u32>(Settings::Anisotropy());
+  const bool refresh_copies = refresh_targets && Settings::SceneCopyRefresh();
   struct DeferGuard {
     VideoState &s;
     explicit DeferGuard(VideoState &state) : s(state) { s.defer_shader_read_transitions = true; }
@@ -1644,6 +1668,8 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       gt = hit->texture;
       gt->lastUseFrame = s.guest_frames;
       gt->lastSampledFrame = s.guest_frames;
+      if (refresh_copies && gt->lastResolve)
+        RefreshResolvedMirror(s, *gt, *refresh_targets);
       TransitionLocked(s, gt->host, plume::RenderTextureLayout::SHADER_READ);
       index = hit->index;
       sampler = hit->sampler;
@@ -1664,6 +1690,8 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       }
       const u32 swizzle = (fc[3] >> 1) & 0xFFF;
       gt->lastSampledFrame = s.guest_frames;
+      if (refresh_copies && gt->lastResolve)
+        RefreshResolvedMirror(s, *gt, *refresh_targets);
       index = PrepareTextureForSampling(s, *gt, swizzle);
       if (index == kInvalidDescriptorIndex) {
         u32 n;
@@ -2435,7 +2463,11 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   {
     PerfScope bind_scope(s.perf.bind_ms);
     const u32 texture_mask = vs->textureFetchMask | (ps ? ps->textureFetchMask : 0u);
-    BindTexturesAndSamplers(s, dev, texture_mask, sc);
+    const u32 dc = dev.U32(dev::kDepthControl);
+    const u32 zfunc = (dc >> 4) & 7;
+    const bool scene_draw = !pk.rectList && (dc & 2) &&
+                            (zfunc == 1 || zfunc == 3 || zfunc == 4 || zfunc == 6);
+    BindTexturesAndSamplers(s, dev, texture_mask, sc, scene_draw ? &targets : nullptr);
   }
   UploadAlloc shared_alloc;
   const u64 ring_epoch = UploadRingEpoch();

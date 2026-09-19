@@ -126,6 +126,7 @@ struct ResolvePacket {
   float clearZ = 0.0f;
   u32 dsVa = 0;
   u32 dsWords[5] = {};
+  bool refresh = false;
 };
 
 }
