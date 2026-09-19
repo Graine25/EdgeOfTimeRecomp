@@ -194,6 +194,7 @@ set(REEOT_SOURCES
     src/installer/uninstall.cpp
     src/installer/self_install.cpp
     src/installer/dlc_publish.cpp
+    src/mods/mod_manager.cpp
     ${REEOT_EMBED_SOURCES}
     ${REEOT_EMBED_PACKAGE_SOURCE}
     src/core/critical_section.cpp
@@ -237,6 +238,7 @@ set(REEOT_SOURCES
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
     src/goliath/body_pulse_materials.cpp
+    src/goliath/web_color.cpp
     src/goliath/text/glyph_pages.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/hooks/stubs.cpp
