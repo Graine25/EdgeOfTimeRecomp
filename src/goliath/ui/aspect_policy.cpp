@@ -185,16 +185,20 @@ void ApplyAspectPolicy(uint32_t wnd) {
   const Entry *entry = LookUp(crc);
   const bool wide_on_macwide = entry && entry->wide && eot::gpu::MacWide();
   const Policy policy = wide_on_macwide ? Policy::Lock : PolicyForCrc(entry);
-  if (wide_on_macwide)
-    NoteWideWindowRect(crc, wnd);
+  const auto note_wide = [&] {
+    if (wide_on_macwide)
+      NoteWideWindowRect(crc, wnd);
+  };
   const bool hug = policy == Policy::HugLeft || policy == Policy::HugRight;
   const bool width_only = policy == Policy::LockWidth && !self_laid_out;
   const bool hide = policy == Policy::Hide && !self_laid_out;
   Census(crc, entry, parent, self_laid_out, ReadGuestF32(wnd + kWndComputedX),
          ReadGuestF32(wnd + kWndComputedW),
          static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth)), policy);
-  if (!hug && !width_only && !hide && self_laid_out == (policy == Policy::Stretch))
+  if (!hug && !width_only && !hide && self_laid_out == (policy == Policy::Stretch)) {
+    note_wide();
     return;
+  }
   const bool inverse = !self_laid_out && !hug && !width_only && !hide;
 
   const float canvas_w = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth));
@@ -255,6 +259,7 @@ void ApplyAspectPolicy(uint32_t wnd) {
   remap(kWndComputedX, kWndComputedW);
   remap(kWndClippedX, kWndClippedW);
   g_remapped.fetch_add(1, std::memory_order_relaxed);
+  note_wide();
 
   if (trace)
     EOT_INFO("[ui] window {:#010x} {} {} {} canvas {}x{} ar {:.4f} scale {:.4f}: x {:.1f}->{:.1f} "
@@ -304,44 +309,18 @@ bool HudWindowLoadsWide(uint32_t crc) {
 
 }
 
-REX_EXTERN(__imp__eot_PAK_BuildHUDWindow);   // (hud r3, pak r4, stream r5, index r6, r7)
+REX_EXTERN(__imp__eot_PAK_BuildHUDWindow);
 REX_EXTERN(__imp__eot_RenderCommand_Wnd3D);  // (renderer r3, command r4, r5)
 
-namespace {
-
-constexpr uint32_t kPakChunkOffset = 24;
-constexpr uint32_t kStreamBuffer = 24, kStreamEnd = 28, kStreamKind = 38;
-constexpr uint32_t kHudRecordTag = 0x138Eu;
-constexpr uint32_t kRecordWideBit = 0x10u;
-
-uint32_t PeekWindowRecordCrc(uint32_t pak, uint32_t stream, uint32_t *screen) {
-  if (!pak || !stream || eot::mem::load<uint16_t>(stream + kStreamKind) != 0)
-    return 0;
-  const uint32_t buffer = eot::mem::load<uint32_t>(stream + kStreamBuffer);
-  const uint32_t end = eot::mem::load<uint32_t>(stream + kStreamEnd);
-  const uint64_t chunk = eot::mem::load<uint64_t>(pak + kPakChunkOffset);
-  if (!buffer || chunk + 12 + 132 > end)
-    return 0;
-  const uint32_t record = buffer + static_cast<uint32_t>(chunk) + 12;
-  if (eot::mem::load<uint32_t>(record) != kHudRecordTag)
-    return 0;
-  *screen = eot::mem::load<uint32_t>(record + 128);
-  return eot::mem::load<uint32_t>(record + 12);
-}
-
-}
-
 REX_HOOK_RAW(eot_PAK_BuildHUDWindow) {
-  if (eot::gpu::MacWide()) {
-    uint32_t screen = 0;
-    const uint32_t crc = PeekWindowRecordCrc(ctx.r4.u32, ctx.r5.u32, &screen);
-    if (crc && eot::goliath::HudWindowLoadsWide(crc)) {
-      eot::gpu::CameraRatioHold hold(1.6f, screen);
-      __imp__eot_PAK_BuildHUDWindow(ctx, base);
-      if (eot::goliath::UiAspectLogEnabled())
-        EOT_INFO("[ui] macwide: window {:#010x} built from its wide layout -> {:#x}", crc, ctx.r3.u32);
-      return;
-    }
+  const uint32_t crc = ctx.r7.u32;
+  if (crc && eot::gpu::MacWide() && eot::goliath::HudWindowLoadsWide(crc)) {
+    eot::gpu::CameraRatioHold hold(1.6f);
+    __imp__eot_PAK_BuildHUDWindow(ctx, base);
+    if (eot::goliath::UiAspectLogEnabled())
+      EOT_INFO("[ui] macwide: window {:#010x} offered a record under the wide test -> {}", crc,
+               ctx.r3.u32 ? "kept" : "refused");
+    return;
   }
   __imp__eot_PAK_BuildHUDWindow(ctx, base);
 }
@@ -349,15 +328,25 @@ REX_HOOK_RAW(eot_PAK_BuildHUDWindow) {
 REX_HOOK_RAW(eot_RenderCommand_Wnd3D) {
   const uint32_t cmd = ctx.r4.u32;
   if (eot::gpu::MacWide() && cmd) {
-    const float x = ReadGuestF32(cmd + 12), y = ReadGuestF32(cmd + 16);
-    const float w = ReadGuestF32(cmd + 20), h = ReadGuestF32(cmd + 24);
+    const float x = ReadGuestF32(cmd + 28), y = ReadGuestF32(cmd + 32);
+    const float w = ReadGuestF32(cmd + 36), h = ReadGuestF32(cmd + 40);
     const float canvas_w = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth));
     const float canvas_h = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasHeight));
     if (w > 0.0f && h > 0.0f && canvas_w > 0.0f && canvas_h > 0.0f && IsWideWindowRect(x, y, w, h)) {
-      const float held = (16.0f / 9.0f) * (canvas_w / canvas_h) / (w / h);
-      eot::gpu::CameraRatioHold hold(held);
-      __imp__eot_RenderCommand_Wnd3D(ctx, base);
-      return;
+      const float scale = eot::gpu::ConfiguredAspectRatio() / (canvas_w / canvas_h) * (w / h);
+      const float shift = 1.0f - (9.0f / 16.0f) * scale;
+      if (shift > 0.001f) {
+        const float before = ReadGuestF32(cmd + 68);
+        WriteGuestF32(cmd + 68, before - shift);
+        static std::atomic<int> logged{0};
+        if (eot::goliath::UiAspectLogEnabled() && logged.fetch_add(1) < 4)
+          EOT_INFO("[ui] macwide: 3D window {:.1f},{:.1f} {:.1f}x{:.1f}: scale {:.3f}, object moved down "
+                   "{:.3f} (clip) from {:.3f}",
+                   x, y, w, h, scale, shift, before);
+        __imp__eot_RenderCommand_Wnd3D(ctx, base);
+        WriteGuestF32(cmd + 68, before);
+        return;
+      }
     }
   }
   __imp__eot_RenderCommand_Wnd3D(ctx, base);
