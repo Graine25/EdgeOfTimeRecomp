@@ -327,8 +327,8 @@
 0x3C1A70B8 = { policy = "lock", name = "HUDMiniLoading_Icon", type = "sprite" }
 0x2880F8D8 = { policy = "lock", name = "HUDMiniLoading_Text", type = "sprite" }
 0xC5553CE7 = { policy = "lock", name = "HUDMovieBackground", type = "sprite" }
-0xC9430D6D = { policy = "lock", name = "HUDMovieBackground_Bottom", type = "sprite" }
-0x816F2A1B = { policy = "lock", name = "HUDMovieBackground_Top", type = "sprite" }
+0xC9430D6D = { policy = "hide", name = "HUDMovieBackground_Bottom", type = "sprite" }
+0x816F2A1B = { policy = "hide", name = "HUDMovieBackground_Top", type = "sprite" }
 0xFD28013B = { policy = "lock", name = "HUDMultiValueControl", type = "sprite" }
 0xCD79EA99 = { policy = "lock", name = "HUDMultiValueControl_Label", type = "sprite" }
 0x721E9207 = { policy = "lock", name = "HUDMultiValueControl_LeftArrow", type = "sprite" }
