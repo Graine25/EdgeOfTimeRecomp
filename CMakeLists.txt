@@ -39,7 +39,12 @@ reeot_embed_directory(
 
 add_subdirectory(thirdparty)
 
-set(REEOT_REFERENCE_PAKS "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/reference_pak" CACHE PATH
+set(_reeot_default_paks "${CMAKE_CURRENT_SOURCE_DIR}/../reeot/reference_pak")
+if(NOT EXISTS "${_reeot_default_paks}/Main.pak"
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/shader_notes/EOT_pak/Main.pak")
+    set(_reeot_default_paks "${CMAKE_CURRENT_SOURCE_DIR}/shader_notes/EOT_pak")
+endif()
+set(REEOT_REFERENCE_PAKS "${_reeot_default_paks}" CACHE PATH
     "Directory holding the retail Main.pak / Common.pak the content package copies textures from")
 set(REEOT_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotUI.pkz")
 add_custom_command(
@@ -203,6 +208,7 @@ set(REEOT_SOURCES
     src/platform/file_dialog.cpp
     src/platform/desktop_shortcut.cpp
     src/platform/process.cpp
+    src/platform/user_dirs.cpp
     src/platform/display.cpp
     src/platform/language.cpp
     src/platform/fatal_dialog.cpp
@@ -266,7 +272,6 @@ set(REEOT_SOURCES
     src/goliath/text/glyph_pages.cpp
     src/goliath/text/translation.cpp
     src/gpu/shaders/guest_shaders.cpp
-    src/gpu/shaders/dxc_link.cpp
     src/gpu/hooks/stubs.cpp
     src/gpu/hooks/device.cpp
     src/gpu/hooks/state.cpp
@@ -286,6 +291,12 @@ add_custom_command(
     COMMENT "Compiling the HUD aspect policy"
     VERBATIM)
 list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
+
+if(REEOT_D3D12)
+    list(APPEND REEOT_SOURCES src/gpu/shaders/dxc_link.cpp)
+else()
+    list(APPEND REEOT_SOURCES thirdparty/XenosRecomp/thirdparty/smol-v/source/smolv.cpp)
+endif()
 
 if(WIN32)
     list(APPEND REEOT_SOURCES src/core/sleep.cpp)
@@ -321,6 +332,7 @@ target_include_directories(reeot PRIVATE
     "${REXSDK_DIR}/thirdparty/stb"
     "${REEOT_SHADER_COMMON_DIR}"
     thirdparty/renderdoc
+    $<$<NOT:$<BOOL:${REEOT_D3D12}>>:${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/smol-v/source>
     "${REXGLUE_ENTRYPOINT_INCLUDE_DIR}")
 
 if(REEOT_BUILD_INSTALLER)
@@ -334,6 +346,9 @@ set(reeot_program_files
     "$<TARGET_FILE_NAME:reeot>"
     "$<TARGET_FILE_NAME:rex::runtime>"
     "gamecontrollerdb.txt")
+if(NOT WIN32)
+    list(APPEND reeot_program_files "build_stamp.txt" "reeot_icon.png")
+endif()
 if(TARGET reeot_GameLogic)
     list(APPEND reeot_program_files "$<TARGET_FILE_NAME:reeot_GameLogic>")
 endif()
@@ -366,6 +381,26 @@ add_custom_command(TARGET reeot POST_BUILD
         "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/gamecontrollerdb/gamecontrollerdb.txt"
         $<TARGET_FILE_DIR:reeot>
     VERBATIM)
+
+if(UNIX)
+    set(reeot_unix_runtime_libs "$<TARGET_FILE:rex::runtime>")
+    if(TARGET TracyClient)
+        list(APPEND reeot_unix_runtime_libs "$<TARGET_FILE:TracyClient>")
+    elseif(TARGET rex::TracyClient)
+        list(APPEND reeot_unix_runtime_libs "$<TARGET_FILE:rex::TracyClient>")
+    endif()
+    add_custom_command(TARGET reeot POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${reeot_unix_runtime_libs}
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/icon/reeot_icon.png"
+            $<TARGET_FILE_DIR:reeot>
+        VERBATIM)
+    file(GENERATE OUTPUT "$<TARGET_FILE_DIR:reeot>/build_stamp.txt"
+         CONTENT "${REEOT_BUILD_TIMESTAMP}\n")
+    set_target_properties(reeot PROPERTIES ENABLE_EXPORTS ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(reeot PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+endif()
 
 target_compile_definitions(reeot PRIVATE
     _ITERATOR_DEBUG_LEVEL=0
@@ -407,6 +442,11 @@ if(REEOT_D3D12)
             $<TARGET_FILE_DIR:reeot>
         VERBATIM)
 else()
+    if(REXSDK_DIR AND NOT Vulkan_INCLUDE_DIR
+       AND EXISTS "${REXSDK_DIR}/thirdparty/vulkan-headers/include/vulkan/vulkan.h")
+        set(Vulkan_INCLUDE_DIR "${REXSDK_DIR}/thirdparty/vulkan-headers/include" CACHE PATH
+            "Vulkan headers (the SDK tree's vendored copy)" FORCE)
+    endif()
     find_package(Vulkan REQUIRED)
     target_link_libraries(reeot PRIVATE Vulkan::Vulkan)
 endif()
