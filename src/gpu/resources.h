@@ -56,6 +56,8 @@ struct HostTexture {
 
 struct GuestSurface;
 
+struct ResolvePacket;
+
 struct GuestTexture {
   u32 va = 0;
   u32 fetch[6] = {};
@@ -101,6 +103,7 @@ struct GuestTexture {
   u64 perfSamples = 0;
   u64 perfResolves = 0;
   u64 perfDeadResolves = 0;
+  std::shared_ptr<ResolvePacket> lastResolve;
 };
 
 struct GuestSurface {
@@ -133,6 +136,7 @@ struct GuestSurface {
   u64 borrowedSerial = 0;
   u64 uid = 0;
   u64 serial = 1;
+  u64 wholeClearSerial = 0;
   u64 handoffFrame = ~0ull;
   std::weak_ptr<GuestTexture> handoffMirror;
   u32 handoffMirrorOrdinal = 0;

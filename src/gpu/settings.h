@@ -20,6 +20,7 @@ struct Settings {
   static bool MotionBlur();
   static bool RadialBlur();
   static bool ColorGrading();
+  static bool SceneCopyRefresh();
   static double FovScale();
   static i32 Anisotropy();
   static i32 Msaa();

@@ -84,6 +84,12 @@ REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
                     "Bloom (the HDR glow around bright light). Off keeps the tone curve.");
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics",
                     "Depth of field, including the bokeh variant cutscenes use.");
+REXCVAR_DEFINE_BOOL(eot_scene_copy_refresh, true, "EdgeOfTime/Graphics",
+                    "Re-take the scene-colour copy a distortion material reads (glass panels, "
+                    "screens, heat haze) right before the draw, when the scene was drawn into "
+                    "since the game took it. The game takes that copy once, before the "
+                    "transparent effects, so on the console a pane of glass repaints away any "
+                    "effect drawn before it. Off matches the console.");
 REXCVAR_DEFINE_BOOL(eot_motion_blur, true, "EdgeOfTime/Graphics",
                     "Motion blur (object and camera).");
 REXCVAR_DEFINE_BOOL(eot_radial_blur, true, "EdgeOfTime/Graphics",
@@ -241,6 +247,7 @@ bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
 bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }
 bool Settings::RadialBlur() { return REXCVAR_GET(eot_radial_blur); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
+bool Settings::SceneCopyRefresh() { return REXCVAR_GET(eot_scene_copy_refresh); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
 i32 Settings::Msaa() { return REXCVAR_GET(eot_msaa); }
