@@ -6,4 +6,6 @@ float ConfiguredAspectRatio();
 
 void ApplyAspectRatio();
 
+bool LayoutIsWidescreen();
+
 }
