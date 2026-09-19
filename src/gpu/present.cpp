@@ -765,12 +765,10 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   float fit_w = out_w, fit_h = out_h, fit_x = 0.0f, fit_y = 0.0f;
   if (src_index != kInvalidDescriptorIndex) {
     ApplyAspectRatio();
-    const bool movie = TakeMovieDrawnFlag();
-    if (movie)
+    if (TakeMovieDrawnFlag())
       g_movie_presented_ns.store(std::chrono::steady_clock::now().time_since_epoch().count(),
                                  std::memory_order_release);
-    const float aspect =
-        movie ? 16.0f / 9.0f : std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
+    const float aspect = std::clamp(ConfiguredAspectRatio(), 0.5f, 4.5f);
     fit_h = out_w / aspect;
     if (fit_h > out_h) {
       fit_h = out_h;

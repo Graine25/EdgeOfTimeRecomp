@@ -26,6 +26,7 @@ REEOT_OPT_ASPECT	Aspect Ratio
 REEOT_OPT_FPS_LIMIT	Frame Rate Limit
 REEOT_OPT_VSYNC	VSync
 REEOT_OPT_RENDER_SCALE	Render Scale
+REEOT_OPT_PIP_SCALE	Picture-in-Picture Resolution
 REEOT_OPT_BRIGHTNESS	Brightness
 REEOT_OPT_CONTRAST	Contrast
 REEOT_OPT_SATURATION	Saturation
@@ -54,9 +55,12 @@ REEOT_VAL_720P	720p
 REEOT_VAL_1080P	1080p
 REEOT_VAL_1440P	1440p
 REEOT_VAL_2160P	2160p
+REEOT_VAL_100_PERCENT	100%
+REEOT_VAL_66_PERCENT	66%
+REEOT_VAL_50_PERCENT	50%
 REEOT_VAL_4_3	4:3
 REEOT_VAL_16_9	16:9
-REEOT_VAL_16_10	16:10
+REEOT_VAL_16_10	16:10 (MacWide)
 REEOT_VAL_21_9	21:9
 REEOT_VAL_32_9	32:9
 REEOT_VAL_LOW	Low
@@ -79,6 +83,7 @@ REEOT_DESC_ASPECT	The shape the game builds its picture for in fullscreen. Wider
 REEOT_DESC_FPS_LIMIT	The most frames per second the game will run at. The game runs one step per frame, so this paces everything, not just the display.
 REEOT_DESC_VSYNC	Waits for the display before showing a frame, which stops tearing and caps the rate at the display's.
 REEOT_DESC_RENDER_SCALE	How much larger or smaller than the console's own resolution to render, when Resolution is Native.
+REEOT_DESC_PIP_SCALE	The resolution of the picture-in-picture window the abilities open, as a share of the main picture's. It is a second scene with its own lights and effects; at 50% it costs a quarter of the pixels. Takes effect on restart.
 REEOT_DESC_BRIGHTNESS	Lifts or lowers the whole picture. Applied at the end, on top of the game's own display curve.
 REEOT_DESC_CONTRAST	Stretches or flattens the picture around its middle grey.
 REEOT_DESC_SATURATION	How strong the colours are: 0% is greyscale, 100% is the game's own.

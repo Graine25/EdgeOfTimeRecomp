@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <bit>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <mutex>
@@ -32,7 +33,9 @@ constexpr uint32_t kHudCanvasHeight = 0x824AB94C;
 constexpr uint32_t kWndFlags = 52;
 constexpr uint32_t kWndParent = 80;
 constexpr uint32_t kWndComputedX = 92;
+constexpr uint32_t kWndComputedY = 96;
 constexpr uint32_t kWndComputedW = 100;
+constexpr uint32_t kWndComputedH = 104;
 constexpr uint32_t kWndClippedX = 108;
 constexpr uint32_t kWndClippedW = 116;
 constexpr uint32_t kWndCrc = 292;
@@ -43,15 +46,16 @@ constexpr uint32_t kMenuBarSelectZoneCrc = 0xFFC59AA9u;
 
 constexpr uint32_t kFlagScreenSpace = 0x2;
 
-constexpr float kUiAspect = 16.0f / 9.0f;
+float LayoutAspect() { return eot::gpu::LayoutIsWidescreen() ? 16.0f / 9.0f : 4.0f / 3.0f; }
 constexpr float kAspectEpsilon = 0.01f;
 
-enum class Policy { Lock, Stretch, LockText, HugLeft, HugRight };
+enum class Policy { Lock, Stretch, LockText, HugLeft, HugRight, LockWidth, Hide };
 
 struct Entry {
   uint32_t crc;
   Policy policy;
   const char *name;
+  bool wide;
 };
 
 constexpr Entry kWindows[] = {
@@ -89,6 +93,10 @@ const char *PolicyName(Policy p) {
     return "hug_left";
   case Policy::HugRight:
     return "hug_right";
+  case Policy::LockWidth:
+    return "lock_width";
+  case Policy::Hide:
+    return "hide";
   }
   return "?";
 }
@@ -125,12 +133,42 @@ void Census(uint32_t crc, const Entry *entry, uint32_t parent, bool root, float 
            parent_entry && parent_entry->name[0] ? parent_entry->name : (parent ? "?" : "-"));
 }
 
+struct WideRect {
+  uint32_t crc = 0;
+  float x = 0, y = 0, w = 0, h = 0;
+};
+std::mutex g_wide_rects_mutex;
+std::array<WideRect, 16> g_wide_rects{};
+
+void NoteWideWindowRect(uint32_t crc, uint32_t wnd) {
+  const WideRect now{crc, ReadGuestF32(wnd + kWndComputedX), ReadGuestF32(wnd + kWndComputedY),
+                     ReadGuestF32(wnd + kWndComputedW), ReadGuestF32(wnd + kWndComputedH)};
+  std::lock_guard lock(g_wide_rects_mutex);
+  for (WideRect &r : g_wide_rects) {
+    if (r.crc == crc || r.crc == 0) {
+      r = now;
+      return;
+    }
+  }
+}
+
+bool IsWideWindowRect(float x, float y, float w, float h) {
+  std::lock_guard lock(g_wide_rects_mutex);
+  for (const WideRect &r : g_wide_rects) {
+    if (r.crc && std::fabs(r.x - x) < 1.0f && std::fabs(r.y - y) < 1.0f && std::fabs(r.w - w) < 1.0f &&
+        std::fabs(r.h - h) < 1.0f)
+      return true;
+  }
+  return false;
+}
+
 void ApplyAspectPolicy(uint32_t wnd) {
   if (!wnd || !LockRequested())
     return;
 
   const float display_aspect = eot::gpu::ConfiguredAspectRatio();
-  if (display_aspect <= kUiAspect + kAspectEpsilon)
+  const float ui_aspect = LayoutAspect();
+  if (display_aspect <= ui_aspect + kAspectEpsilon)
     return;
 
   const uint32_t flags = eot::mem::load<uint32_t>(wnd + kWndFlags);
@@ -139,14 +177,23 @@ void ApplyAspectPolicy(uint32_t wnd) {
 
   const uint32_t crc = eot::mem::load<uint32_t>(wnd + kWndCrc);
   const Entry *entry = LookUp(crc);
-  const Policy policy = PolicyForCrc(entry);
+  const bool wide_on_macwide = entry && entry->wide && eot::gpu::MacWide();
+  const Policy policy = wide_on_macwide ? Policy::Lock : PolicyForCrc(entry);
+  const auto note_wide = [&] {
+    if (wide_on_macwide)
+      NoteWideWindowRect(crc, wnd);
+  };
   const bool hug = policy == Policy::HugLeft || policy == Policy::HugRight;
+  const bool width_only = policy == Policy::LockWidth && !self_laid_out;
+  const bool hide = policy == Policy::Hide && !self_laid_out;
   Census(crc, entry, parent, self_laid_out, ReadGuestF32(wnd + kWndComputedX),
          ReadGuestF32(wnd + kWndComputedW),
          static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth)), policy);
-  if (!hug && self_laid_out == (policy == Policy::Stretch))
+  if (!hug && !width_only && !hide && self_laid_out == (policy == Policy::Stretch)) {
+    note_wide();
     return;
-  const bool inverse = !self_laid_out && !hug;
+  }
+  const bool inverse = !self_laid_out && !hug && !width_only && !hide;
 
   const float canvas_w = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth));
   const float canvas_h = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasHeight));
@@ -158,11 +205,11 @@ void ApplyAspectPolicy(uint32_t wnd) {
     return;
   }
 
-  const float scale = kUiAspect / display_aspect;
+  const float scale = ui_aspect / display_aspect;
   const float offset = canvas_w * (1.0f - scale) * 0.5f;
 
-  const bool trace =
-      eot::goliath::UiAspectLogEnabled() && g_remapped.load(std::memory_order_relaxed) < 24;
+  const bool trace = eot::goliath::UiAspectLogEnabled() &&
+                     (width_only || hide || g_remapped.load(std::memory_order_relaxed) < 24);
   const float before_x = ReadGuestF32(wnd + kWndComputedX);
   const float before_w = ReadGuestF32(wnd + kWndComputedW);
 
@@ -178,8 +225,23 @@ void ApplyAspectPolicy(uint32_t wnd) {
     }
   };
   const auto anchored_width = [&](float w) { return hug && !self_laid_out ? w : w * scale; };
+  float centre = offset + canvas_w * scale * 0.5f;
+  if (width_only) {
+    const uint32_t grand = parent ? eot::mem::load<uint32_t>(parent + kWndParent) : 0;
+    if (grand)
+      centre = ReadGuestF32(grand + kWndComputedX) + ReadGuestF32(grand + kWndComputedW) * 0.5f;
+  }
   const auto remap = [&](uint32_t x_field, uint32_t w_field) {
     const float x = ReadGuestF32(wnd + x_field), w = ReadGuestF32(wnd + w_field);
+    if (hide) {
+      WriteGuestF32(wnd + x_field, canvas_w * 8.0f);
+      return;
+    }
+    if (width_only) {
+      WriteGuestF32(wnd + x_field, centre + (x - centre) * scale);
+      WriteGuestF32(wnd + w_field, w * scale);
+      return;
+    }
     if (inverse) {
       WriteGuestF32(wnd + x_field, (x - offset) / scale);
       WriteGuestF32(wnd + w_field, w / scale);
@@ -191,6 +253,7 @@ void ApplyAspectPolicy(uint32_t wnd) {
   remap(kWndComputedX, kWndComputedW);
   remap(kWndClippedX, kWndClippedW);
   g_remapped.fetch_add(1, std::memory_order_relaxed);
+  note_wide();
 
   if (trace)
     EOT_INFO("[ui] window {:#010x} {} {} {} canvas {}x{} ar {:.4f} scale {:.4f}: x {:.1f}->{:.1f} "
@@ -208,13 +271,13 @@ namespace eot::goliath {
 bool UiAspectLogEnabled() { return REXCVAR_GET(eot_ui_aspect_log); }
 
 bool UiAspectLockActive() {
-  return LockRequested() && eot::gpu::ConfiguredAspectRatio() > kUiAspect + kAspectEpsilon;
+  return LockRequested() && eot::gpu::ConfiguredAspectRatio() > LayoutAspect() + kAspectEpsilon;
 }
 
 float TextScaleFactor() {
   if (!UiAspectLockActive())
     return 0.0f;
-  return kUiAspect / eot::gpu::ConfiguredAspectRatio();
+  return LayoutAspect() / eot::gpu::ConfiguredAspectRatio();
 }
 
 }
@@ -229,4 +292,56 @@ REX_HOOK_RAW(eot_HUDWindowBC_ComputePos) {
         crc == kMenuBarSelectZoneCrc)
       eot::controller::NoteMenuBarShown();
   }
+}
+
+namespace eot::goliath {
+
+bool HudWindowLoadsWide(uint32_t crc) {
+  const Entry *entry = LookUp(crc);
+  return entry && entry->wide;
+}
+
+}
+
+REX_EXTERN(__imp__eot_PAK_BuildHUDWindow);
+REX_EXTERN(__imp__eot_RenderCommand_Wnd3D);  // (renderer r3, command r4, r5)
+
+REX_HOOK_RAW(eot_PAK_BuildHUDWindow) {
+  const uint32_t crc = ctx.r7.u32;
+  if (crc && eot::gpu::MacWide() && eot::goliath::HudWindowLoadsWide(crc)) {
+    eot::gpu::CameraRatioHold hold(1.6f);
+    __imp__eot_PAK_BuildHUDWindow(ctx, base);
+    if (eot::goliath::UiAspectLogEnabled())
+      EOT_INFO("[ui] macwide: window {:#010x} offered a record under the wide test -> {}", crc,
+               ctx.r3.u32 ? "kept" : "refused");
+    return;
+  }
+  __imp__eot_PAK_BuildHUDWindow(ctx, base);
+}
+
+REX_HOOK_RAW(eot_RenderCommand_Wnd3D) {
+  const uint32_t cmd = ctx.r4.u32;
+  if (eot::gpu::MacWide() && cmd) {
+    const float x = ReadGuestF32(cmd + 28), y = ReadGuestF32(cmd + 32);
+    const float w = ReadGuestF32(cmd + 36), h = ReadGuestF32(cmd + 40);
+    const float canvas_w = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth));
+    const float canvas_h = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasHeight));
+    if (w > 0.0f && h > 0.0f && canvas_w > 0.0f && canvas_h > 0.0f && IsWideWindowRect(x, y, w, h)) {
+      const float scale = eot::gpu::ConfiguredAspectRatio() / (canvas_w / canvas_h) * (w / h);
+      const float shift = 1.0f - (9.0f / 16.0f) * scale;
+      if (shift > 0.001f) {
+        const float before = ReadGuestF32(cmd + 68);
+        WriteGuestF32(cmd + 68, before - shift);
+        static std::atomic<int> logged{0};
+        if (eot::goliath::UiAspectLogEnabled() && logged.fetch_add(1) < 4)
+          EOT_INFO("[ui] macwide: 3D window {:.1f},{:.1f} {:.1f}x{:.1f}: scale {:.3f}, object moved down "
+                   "{:.3f} (clip) from {:.3f}",
+                   x, y, w, h, scale, shift, before);
+        __imp__eot_RenderCommand_Wnd3D(ctx, base);
+        WriteGuestF32(cmd + 68, before);
+        return;
+      }
+    }
+  }
+  __imp__eot_RenderCommand_Wnd3D(ctx, base);
 }
