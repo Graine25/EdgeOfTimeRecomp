@@ -2719,6 +2719,10 @@ out_directory_path = "generated/default_xex"
 # -------------------------------------------------
 
 0x82108330 = { name = "eot_RendererMaterial_Load" }
+0x820E0C50 = { name = "eot_3dObj_Activate" }
+0x820E4078 = { name = "eot_3dObj_SetGeometryImpl" }
+0x820E2C28 = { name = "eot_3dObj_MaterialAnimStart" }
+0x8218BB38 = { name = "eot_MaterialAnimInstance_Play" }
 0x8216D0C8 = { name = "eot_ModelResource_LoadGeometry" }
 0x8211C5F8 = { name = "eot_BuildShaderBundleWithDecl" }
 
