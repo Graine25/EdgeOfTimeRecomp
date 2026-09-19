@@ -279,7 +279,7 @@
 0xE993960F = { policy = "lock", name = "HUDGenericSelector_ScrollBarMask", type = "sprite" }
 0xB769F047 = { policy = "lock", name = "HUDGenericSelector_ScrollBarTemplate", type = "sprite" }
 0x2CC27EF0 = { policy = "lock", name = "HUDGenericSelector_ScrollLeftArrow", type = "sprite" }
-0x1B675589 = { policy = "hug_right", name = "HUDGenericSelector_ScrollRightArrow", type = "sprite" }
+0x1B675589 = { policy = "lock", name = "HUDGenericSelector_ScrollRightArrow", type = "sprite" }
 0x8972AA4D = { policy = "lock", name = "HUDGenericSelector_Selector", type = "sprite" }
 0x310B0993 = { policy = "lock", name = "HUDGenericSelector_Text", type = "label" }
 0x5C979955 = { policy = "lock", name = "HUDGenericSelectorBase", type = "sprite" }
@@ -288,8 +288,8 @@
 0x7F85723D = { policy = "lock", name = "HUDGlobals", type = "sprite" }
 0x45E2617B = { policy = "lock", name = "HUDGlobals_BackgroundFade", type = "sprite" }
 0x121126A8 = { policy = "lock", name = "HUDGlobals_Container", type = "sprite" }
-0xE790340C = { policy = "hug_left", name = "HUDGlobals_MoreLeft", type = "sprite" }
-0x2500B415 = { policy = "lock", name = "HUDGlobals_MoreRight", type = "sprite" }
+0xE790340C = { policy = "lock_width", name = "HUDGlobals_MoreLeft", type = "sprite" }
+0x2500B415 = { policy = "lock_width", name = "HUDGlobals_MoreRight", type = "sprite" }
 0x1293702D = { policy = "lock", name = "HUDGlobals_SafeZone", type = "sprite" }
 0xFFC59AA9 = { policy = "lock", name = "HUDGlobals_SelectZone", type = "sprite" }
 0xAB5BEFB8 = { policy = "lock", name = "HUDGlobals_Spacer", type = "sprite" }
