@@ -76,13 +76,13 @@
 0xBA67BB61 = { policy = "lock", name = "HUDObjectiveCounter", type = "sprite" }
 0x0D62739D = { policy = "lock", name = "HUDObjectiveCounter_Count", type = "sprite" }
 0xC5D4C2AA = { policy = "lock", name = "HUDObjectiveCounter_Picture", type = "sprite" }
-0x40DC6348 = { policy = "stretch", name = "HUDPiP", type = "sprite" }
-0x76B01033 = { policy = "lock", name = "HUDPiP_InfiniteLoadingPrompt", type = "sprite" }
-0x42433A25 = { policy = "lock", name = "HUDPiPTimeLine", type = "sprite" }
-0x60AE3905 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay", type = "sprite" }
-0xBF7311A4 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay_Text", type = "sprite" }
-0xFE6CDE21 = { policy = "lock", name = "HUDPiPTimeLine_PiP", type = "sprite" }
-0xBD73045B = { policy = "lock", name = "HUDPiPTimeLine_PiP_Text", type = "sprite" }
+0x40DC6348 = { policy = "stretch", name = "HUDPiP", type = "sprite", wide = true }
+0x76B01033 = { policy = "lock", name = "HUDPiP_InfiniteLoadingPrompt", type = "sprite", wide = true }
+0x42433A25 = { policy = "lock", name = "HUDPiPTimeLine", type = "sprite", wide = true }
+0x60AE3905 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay", type = "sprite", wide = true }
+0xBF7311A4 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay_Text", type = "sprite", wide = true }
+0xFE6CDE21 = { policy = "lock", name = "HUDPiPTimeLine_PiP", type = "sprite", wide = true }
+0xBD73045B = { policy = "lock", name = "HUDPiPTimeLine_PiP_Text", type = "sprite", wide = true }
 0x851FB1D4 = { policy = "lock", name = "HUDPrompt3D", type = "sprite" }
 0x6FE3BB09 = { policy = "lock", name = "HUDPrompt3DBottom", type = "sprite" }
 0x10FF6B01 = { policy = "lock", name = "HUDPrompt3DLeft", type = "sprite" }

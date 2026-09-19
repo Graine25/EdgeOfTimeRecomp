@@ -66,9 +66,10 @@ REXCVAR_DEFINE_INT32(eot_pip_scale, 50, "EdgeOfTime/Video",
 REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
                       "Aspect ratio the game builds its projection for in fullscreen: auto follows "
                       "the window, the rest force a ratio. Wider than 16:9 shows more to the sides "
-                      "rather than stretching, the HUD held in a centred 16:9 region. 16:10 is the "
-                      "game's own 4:3 picture and screens with the sides of a 16:10 view, nothing "
-                      "moved vertically. In a window the picture always follows the window. The "
+                      "rather than stretching, the HUD held in a centred 16:9 region. 16:10 "
+                      "(MacWide) is the game's own 4:3 picture and screens with the sides of a "
+                      "16:10 view, nothing moved vertically, the picture-in-picture screen alone "
+                      "on its wide layout. In a window the picture always follows the window. The "
                       "installer picks the ratio nearest the display's.")
     .allowed({"auto", "4:3", "16:9", "16:10", "21:9", "32:9"});
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
