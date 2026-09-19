@@ -138,9 +138,10 @@ float SurfaceRenderScale(const GuestSurface &surf) {
   for (u32 k = 0; k < 4; ++k)
     if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
       return base;
+  const float pip = static_cast<float>(std::clamp(Settings::PipScalePercent(), 25, 100)) / 100.0f;
   const float w = static_cast<float>(surf.width) / static_cast<float>(kGuestRenderWidth);
   const float t = std::clamp((w - 0.8f) / 0.2f, 0.0f, 1.0f);
-  return std::max(1.0f, base * (0.5f + 0.5f * t));
+  return std::max(1.0f, base * (pip + (1.0f - pip) * t));
 }
 
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
