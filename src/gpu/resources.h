@@ -56,6 +56,13 @@ struct HostTexture {
 
 struct GuestSurface;
 
+struct VelocityHandle {
+  u64 depthUid = 0;
+  u32 slot = 0;
+  u64 generation = 0;
+  u64 frame = ~0ull;
+};
+
 struct ResolvePacket;
 
 struct GuestTexture {
@@ -92,6 +99,7 @@ struct GuestTexture {
   u32 resolvedLevel = 0;
   i32 resolvedRect[6] = {0, 0, 0, 0, 0, 0};
   u32 resolvedMipMask = 0;
+  VelocityHandle velocity;
   u32 resolveOrdinal = 0;
   u64 resolveOrdinalFrame = ~0ull;
   u32 handoffRegretMask = 0;

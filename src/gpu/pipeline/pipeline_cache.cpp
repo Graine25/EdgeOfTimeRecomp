@@ -343,10 +343,13 @@ PsoBuildResult BuildPipelineFromRecord(VideoState &s, const PsoRecord &r, PsoSou
     return PsoBuildResult::Skipped;
   PipelineState st = r.state;
   const ShaderCacheEntry *ps_entry = r.state.psHash ? FindShaderCacheEntry(r.state.psHash) : nullptr;
-  st.vs = GetHostShaderByHash(s, r.state.vsHash, r.state.spec, false, true,
-                              VsVariantFor(vs_entry, ps_entry, r.state.psHash == 0));
+  const VsVariant variant = VsVariantFor(vs_entry, ps_entry, r.state.psHash == 0, r.state.velocity);
+  if (r.state.velocity && variant != VsVariant::Velocity)
+    return PsoBuildResult::Skipped;
+  st.vs = GetHostShaderByHash(s, r.state.vsHash, r.state.spec, false, true, variant);
   st.ps = r.state.psHash
-              ? GetHostShaderByHash(s, r.state.psHash, r.state.spec, true, true)
+              ? GetHostShaderByHash(s, r.state.psHash, r.state.spec, true, true,
+                                    r.state.velocity ? VsVariant::Velocity : VsVariant::Trimmed)
               : nullptr;
   if (!st.vs || (r.state.psHash && !st.ps))
     return PsoBuildResult::Skipped;

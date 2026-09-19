@@ -86,6 +86,9 @@ const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size,
   } else if (variant == VsVariant::PositionOnly && e.posDxilSize) {
     offset = e.posDxilOffset;
     *size = e.posDxilSize;
+  } else if (variant == VsVariant::Velocity && e.velDxilSize) {
+    offset = e.velDxilOffset;
+    *size = e.velDxilSize;
   }
 #else
   offset = e.spirvOffset;
@@ -96,6 +99,9 @@ const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size,
   } else if (variant == VsVariant::PositionOnly && e.posSpirvSize) {
     offset = e.posSpirvOffset;
     *size = e.posSpirvSize;
+  } else if (variant == VsVariant::Velocity && e.velSpirvSize) {
+    offset = e.velSpirvOffset;
+    *size = e.velSpirvSize;
   }
 #endif
   return c.blob.data() + offset;
@@ -402,11 +408,25 @@ void VertexInputsFromEntry(const ShaderCacheEntry &e, std::vector<VertexInput> &
   }
 }
 
-VsVariant VsVariantFor(const ShaderCacheEntry *vs, const ShaderCacheEntry *ps, bool null_ps) {
+bool EntryHasVelocity(const ShaderCacheEntry *e) {
+  if (!e)
+    return false;
+#if defined(EOT_D3D12)
+  return e->velDxilSize != 0;
+#else
+  return e->velSpirvSize != 0;
+#endif
+}
+
+VsVariant VsVariantFor(const ShaderCacheEntry *vs, const ShaderCacheEntry *ps, bool null_ps,
+                       bool velocity) {
   if (null_ps)
     return VsVariant::PositionOnly;
   if (!vs || !ps)
     return VsVariant::Trimmed;
+  if (velocity && EntryHasVelocity(vs) && EntryHasVelocity(ps) &&
+      !(ps->interpolantMask & ~vs->interpolantMask))
+    return VsVariant::Velocity;
   return (ps->interpolantMask & ~vs->interpolantMask) ? VsVariant::Full : VsVariant::Trimmed;
 }
 
@@ -416,7 +436,7 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
   const ShaderCacheEntry *entry = FindShaderCacheEntry(hash);
   if (!entry || !s.device)
     return nullptr;
-  if (is_pixel)
+  if (is_pixel && variant != VsVariant::Velocity)
     variant = VsVariant::Trimmed;
 #if defined(EOT_D3D12)
   const u32 effective = spec_mask & entry->specConstantsMask;
@@ -494,7 +514,7 @@ plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 s
     }
     return nullptr;
   }
-  if (shader.isPixel)
+  if (shader.isPixel && variant != VsVariant::Velocity)
     variant = VsVariant::Trimmed;
   if (shader.lastHost && shader.lastSpecMask == spec_mask && static_cast<VsVariant>(shader.lastVariant) == variant)
     return shader.lastHost;

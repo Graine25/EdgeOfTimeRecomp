@@ -1,0 +1,31 @@
+#pragma once
+
+#include <rex/types.h>
+
+namespace eot::gpu {
+
+struct VideoState;
+struct GuestTexture;
+
+namespace taa {
+
+inline constexpr u32 kViewProjectionVa = 0x82496E3C;
+
+bool IsSceneConsumer(u64 ps_hash);
+
+void FrameJitter(const VideoState &s, bool packet_skip, bool rect_list, float *jx, float *jy);
+u32 JitterIndex(const VideoState &s, bool packet_skip, bool rect_list);
+bool FrameSkip(const VideoState &s, bool packet_skip);
+
+void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16],
+                             const float *camera_vp, u64 consumer_hash, bool skip);
+
+float CameraMotionPixels(const float prev_vp[16], const float cur_vp[16], float width, float height);
+bool FastCameraGate(u32 slot, float motion_px, float width);
+void EndFrame(VideoState &s);
+
+void Reset(VideoState &s);
+void Shutdown(VideoState &s);
+
+}
+}

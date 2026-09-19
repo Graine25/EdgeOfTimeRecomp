@@ -80,6 +80,24 @@ REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video",
 REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug",
                     "Run both the hook's setter and the XDK's on every call and log any "
                     "difference in what they wrote.");
+REXCVAR_DEFINE_BOOL(eot_taa, false, "EdgeOfTime/Graphics",
+                    "Temporal anti-aliasing: every 3D draw is offset by a sub-pixel amount "
+                    "that changes each frame, and the scene is blended with the previous "
+                    "frame's, reprojected by its motion vectors where the G-buffer wrote "
+                    "them (eot_motion_vectors) and through the camera elsewhere, before "
+                    "the game's own post chain reads it. Settles the shimmer on distant "
+                    "geometry that multisampling leaves. The ultra preset turns it on.");
+REXCVAR_DEFINE_DOUBLE(eot_taa_feedback, 0.8, "EdgeOfTime/Graphics",
+                      "How much of the previous frame the temporal anti-aliasing keeps when "
+                      "nothing moves (0.3 crisp and quick, 0.9 smoother and softer); motion "
+                      "without a vector lowers it towards zero on its own.")
+    .range(0.3, 0.95);
+REXCVAR_DEFINE_BOOL(eot_motion_vectors, false, "EdgeOfTime/Graphics",
+                    "Per-object motion vectors for the temporal anti-aliasing: the G-buffer "
+                    "draws run their vertex shader a second time on last frame's constants "
+                    "and write where each pixel's surface was, so moving characters and "
+                    "props converge like the scenery instead of being clamped every frame. "
+                    "The ultra preset turns it on.");
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics",
                     "Bloom (the HDR glow around bright light). Off keeps the tone curve.");
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics",
@@ -114,7 +132,8 @@ REXCVAR_DEFINE_INT32(eot_debug_quality_level, -1, "EdgeOfTime/Debug",
 REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
                      "Shadow map size per cascade in texels: 0 = follow the render resolution "
                      "(the console's 1024 at the nearest whole multiple: 2048 at 1080p and "
-                     "1440p, 3072 at 2160p), or 1024 / 2048 / 4096 fixed. Always a multiple of "
+                     "1440p, 3072 at 2160p), or 1024 / 2048 / 4096 / 8192 fixed (8192 is the "
+                     "ultra preset's: a 16384-texel atlas, about 2 GB). Always a multiple of "
                      "1024, since the game holds its cascades still on a 1024-texel grid. "
                      "Applies to shadow surfaces created after the change.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
@@ -197,6 +216,10 @@ REXCVAR_DEFINE_INT32(eot_dump_every, 0, "EdgeOfTime/Debug",
                      "Write the presented back buffer as logs/frame_<N>.ppm every N "
                      "presented frames (0 = off).")
     .range(0, 1000000);
+REXCVAR_DEFINE_INT32(eot_dump_burst, 1, "EdgeOfTime/Debug",
+                     "How many consecutive frames each eot_dump_every dump writes, so "
+                     "frame-to-frame flicker can be measured.")
+    .range(1, 64);
 
 REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "EdgeOfTime/Video",
                     "Map the presented front buffer through the guest's display gamma "
@@ -223,6 +246,7 @@ i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
+i32 Settings::DumpBurst() { return REXCVAR_GET(eot_dump_burst); }
 namespace {
 std::atomic<i32> g_diag_frame_armed{0};
 }
@@ -242,6 +266,9 @@ i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
+bool Settings::Taa() { return REXCVAR_GET(eot_taa); }
+bool Settings::MotionVectors() { return REXCVAR_GET(eot_motion_vectors); }
+double Settings::TaaFeedback() { return REXCVAR_GET(eot_taa_feedback); }
 bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
 bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
 bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }

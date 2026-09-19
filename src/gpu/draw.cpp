@@ -41,7 +41,9 @@
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
+#include "gpu/taa.h"
 #include "gpu/textures.h"
+#include "gpu/velocity.h"
 #include "gpu/trace.h"
 #include "gpu/vertex_layout.h"
 
@@ -73,6 +75,7 @@ struct Targets {
   float scale = 1.0f;
   i32 offsetX = 0;
   i32 offsetY = 0;
+  velocity::Target *velocity = nullptr;
 };
 
 struct ViewportInfo {
@@ -347,8 +350,13 @@ bool BindTargets(VideoState &s, Targets &t) {
     NoteSurfaceDrawn(*t.depth, *depth, t.writesDepthStencil, t.writesDepth);
     t.depth->lastUseFrame = s.guest_frames;
   }
-  if (!BindImages(s, colors, t.colorCount, depth, true))
+  u32 color_count = t.colorCount;
+  if (t.velocity && color_count < 4)
+    colors[color_count++] = &t.velocity->image;
+  if (!BindImages(s, colors, color_count, depth, true))
     return false;
+  if (t.velocity)
+    velocity::BeforeDraw(s, *t.velocity, color_count - 1);
   GpuTimingMark(s, s.command_list,
                 GpuTargetCategory(t.width == kGuestRenderWidth && t.height == kGuestRenderHeight,
                                   t.depth != nullptr, t.colorCount,
@@ -357,7 +365,7 @@ bool BindTargets(VideoState &s, Targets &t) {
   return true;
 }
 
-ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
+ViewportInfo ComputeViewport(DeviceView dev, const Targets &t, float jitter_x, float jitter_y) {
   ViewportInfo v;
   const float rt_w = static_cast<float>(std::max(1u, t.width));
   const float rt_h = static_cast<float>(std::max(1u, t.height));
@@ -410,6 +418,11 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t) {
   if ((dev.U32(dev::kVtxControl) & 1) == 0) {
     v.posOffset[0] += 1.0f / std::max(1.0f, w);
     v.posOffset[1] -= 1.0f / std::max(1.0f, h);
+  }
+  if ((jitter_x != 0.0f || jitter_y != 0.0f) && xs_en && ys_en && t.width == kGuestRenderWidth &&
+      t.height == kGuestRenderHeight) {
+    v.posOffset[0] += jitter_x * 2.0f / std::max(1.0f, w * t.scale);
+    v.posOffset[1] -= jitter_y * 2.0f / std::max(1.0f, h * t.scale);
   }
   const float S = t.scale;
   const float hx0 = std::round(x0 * S), hx1 = std::round((x0 + w) * S);
@@ -1640,6 +1653,8 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
     sc.samplerIndices[i] = kSamplerLinearClamp;
   }
   const u64 generation = s.texture_generation.load(std::memory_order_relaxed);
+  for (u32 slot = 0; slot < 16; ++slot)
+    s.draw_bound_textures[slot] = nullptr;
   for (u32 slot = 0; slot < 16; ++slot) {
     if (!(texture_mask & (1u << slot)))
       continue;
@@ -1732,6 +1747,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       cs.biasedBits = biased_bits;
     }
     gt->perfSamples++;
+    s.draw_bound_textures[slot] = gt;
     switch (static_cast<xe::DataDimension>(dimension)) {
     case xe::DataDimension::k3D:
       sc.texture3DIndices[slot] = index;
@@ -1773,6 +1789,24 @@ bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {
 }
 
 static_assert(dev::kPsFloatConstants + 256u * 16u == dev::kVsBoolConstants);
+
+bool VelocityCandidate(DeviceView dev, const TargetWords &tw) {
+  if (tw.colorCount != 1 || !tw.depthVa || !tw.colorVa[0])
+    return false;
+  if (!(dev.U32(dev::kDepthControl) & 4))
+    return false;
+  if ((dev.U32(dev::kVteControl) & 5) != 5)
+    return false;
+  const float xs = std::fabs(dev.F32(dev::kVportXScale)), ys = std::fabs(dev.F32(dev::kVportYScale));
+  if (std::fabs(xs * 2.0f - static_cast<float>(kGuestRenderWidth)) >= 1.0f ||
+      std::fabs(ys * 2.0f - static_cast<float>(kGuestRenderHeight)) >= 1.0f)
+    return false;
+  const u32 *w = tw.colorWords[0];
+  const u32 width = (w[3] >> 18) + 1, height = ((w[3] >> 3) & 0x7FFF) + 1;
+  if (width != kGuestRenderWidth || height != kGuestRenderHeight)
+    return false;
+  return ((w[1] >> 16) & 0xF) == 7; // ColorRenderTargetFormat k_16_16_16_16_FLOAT
+}
 
 bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
                  const u8 *device_image, DrawPacket &pk) {
@@ -1873,6 +1907,79 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
   }
   pk.vs = vs;
   pk.ps = ps;
+  pk.hasCameraVP = false;
+  if (Settings::Taa() || Settings::DiagVerbosity() >= 2) {
+    struct CameraByTarget {
+      u32 rt0 = 0;
+      float vp[16] = {};
+      float prevVp[16] = {};
+      bool prevValid = false;
+      u64 frame = ~0ull;
+      bool skip = false;
+    };
+    static CameraByTarget cameras[4];
+    static u32 camera_next = 0;
+    static const CameraByTarget *camera_last = nullptr;
+    static u64 capture_frame = 0;
+    static u64 last_present_count = ~0ull;
+    if (s.captured_presents != last_present_count) {
+      last_present_count = s.captured_presents;
+      ++capture_frame;
+    }
+    const u32 rt0 = dev.U32(dev::kRenderTarget0);
+    const u32 vte = dev.U32(dev::kVteControl);
+    const bool projected = (vte & 5) == 5;
+    const float xs = std::fabs(dev.F32(dev::kVportXScale)), ys = std::fabs(dev.F32(dev::kVportYScale));
+    const bool frame_sized = std::fabs(xs * 2.0f - static_cast<float>(kGuestRenderWidth)) < 1.0f &&
+                             std::fabs(ys * 2.0f - static_cast<float>(kGuestRenderHeight)) < 1.0f;
+    if (projected && !geom.rectList && frame_sized && rt0) {
+      if (const auto *m = eot::mem::at<eot::be<float>>(taa::kViewProjectionVa)) {
+        CameraByTarget *slot = nullptr;
+        for (CameraByTarget &c : cameras)
+          if (c.rt0 == rt0)
+            slot = &c;
+        if (!slot)
+          slot = &cameras[camera_next++ % 4];
+        if (slot->rt0 != rt0) {
+          slot->prevValid = false;
+          slot->skip = false;
+        }
+        slot->rt0 = rt0;
+        if (slot->frame != capture_frame) {
+          if (slot->frame != ~0ull) {
+            std::memcpy(slot->prevVp, slot->vp, sizeof(slot->prevVp));
+            slot->prevValid = true;
+          }
+          slot->frame = capture_frame;
+          for (u32 i = 0; i < 16; ++i)
+            slot->vp[i] = m[i];
+          const float motion =
+              slot->prevValid
+                  ? taa::CameraMotionPixels(slot->prevVp, slot->vp, static_cast<float>(InternalRenderWidth()),
+                                            static_cast<float>(InternalRenderHeight()))
+                  : 0.0f;
+          slot->skip = taa::FastCameraGate(static_cast<u32>(slot - cameras), motion,
+                                           static_cast<float>(InternalRenderWidth()));
+        }
+        camera_last = slot;
+      }
+    }
+    if (camera_last && camera_last->frame == capture_frame)
+      pk.taaSkip = camera_last->skip;
+    if (ps && taa::IsSceneConsumer(ps->hash)) {
+      const CameraByTarget *pick = nullptr;
+      for (const CameraByTarget &c : cameras)
+        if (c.rt0 && c.rt0 == rt0)
+          pick = &c;
+      if (!pick)
+        pick = camera_last;
+      if (pick && pick->rt0) {
+        std::memcpy(pk.cameraVP, pick->vp, sizeof(pk.cameraVP));
+        pk.hasCameraVP = true;
+        pk.taaSkip = pick->skip;
+      }
+    }
+  }
   pk.vs_va = vs_va;
   pk.ps_va = ps_va;
 
@@ -1995,6 +2102,27 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
   s.vs_float_constants_stale = 0;
   s.ps_float_constants_stale = 0;
   lap(s.perf.const_float_ms);
+
+  pk.velocity = false;
+  if (Settings::MotionVectors() && ps && !geom.rectList && vs->entry && ps->entry &&
+      vs->entry->usesFloatConstants && VelocityCandidate(dev, pk.targets) &&
+      VsVariantFor(vs->entry, ps->entry, false, true) == VsVariant::Velocity) {
+    const StreamInfo &s0 = streams[0];
+    u64 key = 0x51ED270B0E9A4C3Dull;
+    auto mix = [&key](u64 v) { key ^= v + 0x9E3779B97F4A7C15ull + (key << 6) + (key >> 2); };
+    mix(geom.stream0OverrideVa ? geom.stream0OverrideVa : s0.objectVa);
+    mix(s0.dataVa);
+    mix((u64(lo) << 32) | hi);
+    mix(static_cast<u32>(geom.baseVertex));
+    mix((u64(vs_va) << 32) | ps_va);
+    mix(pk.indexed ? pk.index_count : pk.vertexCount);
+    UploadAlloc both;
+    if (velocity::PrepareDraw(s, key, pk.vs_consts.cpu, vs->floatConstantRegs, &both)) {
+      pk.vs_consts = both;
+      pk.velocity = true;
+    }
+    lap(s.perf.const_float_ms);
+  }
 
   u32 max_slot = 0;
   for (u32 S = 0; S < 16; ++S)
@@ -2174,6 +2302,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     bool a2c = false;
     plume::RenderPipeline *pipeline = nullptr;
     ViewportInfo vp;
+    u32 jitterIndex = 0;
+    velocity::Target *velocity = nullptr;
     SharedConstants fixed;
     UploadAlloc shared;
     u64 sharedRing = ~0ull;
@@ -2185,9 +2315,14 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   static u32 memo_next = 0;
   const u8 *state_block = pk.window.image + DeviceWindow::kBlocks[2].base;
   const u8 *consts_block = pk.window.image + DeviceWindow::kBlocks[1].base;
+  const u32 jitter_index = taa::JitterIndex(s, pk.taaSkip, pk.rectList);
+  float jitter_x = 0.0f, jitter_y = 0.0f;
+  if (!pk.rectList)
+    taa::FrameJitter(s, pk.taaSkip, pk.rectList, &jitter_x, &jitter_y);
   ReplayMemo *memo = nullptr;
   for (ReplayMemo &m : memos) {
     if (m.valid && m.vs == vs && m.ps == ps && m.layout == layout && m.topology == pk.topology &&
+        m.jitterIndex == jitter_index &&
         m.rectList == pk.rectList && std::memcmp(m.strides, pk.strides, sizeof(pk.strides)) == 0 &&
         std::memcmp(m.state, state_block, sizeof(m.state)) == 0 &&
         std::memcmp(m.consts, consts_block, sizeof(m.consts)) == 0) {
@@ -2305,9 +2440,15 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   }
   lap(s.perf.replay_targets_ms);
 
+  if (pk.velocity && Settings::MotionVectors() && targets.colorCount == 1 && targets.depth &&
+      targets.colorImage[0] && !cls.rect)
+    targets.velocity = velocity::CurrentFor(s, *targets.depth, targets.colorImage[0]->width,
+                                            targets.colorImage[0]->height, targets.samples);
+
   bool memo_hit = state_hit && memo->colorCount == targets.colorCount &&
                   memo->samples == targets.samples && memo->offsetX == targets.offsetX &&
-                  memo->offsetY == targets.offsetY && memo->images[4] == targets.depthImage;
+                  memo->offsetY == targets.offsetY && memo->images[4] == targets.depthImage &&
+                  memo->velocity == targets.velocity;
   for (u32 i = 0; memo_hit && i < targets.colorCount; ++i)
     memo_hit = memo->images[i] == targets.colorImage[i];
 
@@ -2331,9 +2472,32 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     spec = layout->spec;
     FillPipelineState(dev, targets, st, &spec, &a2c);
     spec |= layout->spec;
-    st.vs = ResolveHostShader(s, *vs, spec,
-                              VsVariantFor(vs->entry, ps ? ps->entry : nullptr, ps == nullptr));
-    st.ps = ps ? ResolveHostShader(s, *ps, spec) : nullptr;
+    const VsVariant variant = VsVariantFor(vs->entry, ps ? ps->entry : nullptr, ps == nullptr,
+                                           targets.velocity != nullptr);
+    if (targets.velocity && variant != VsVariant::Velocity)
+      targets.velocity = nullptr;
+    st.vs = ResolveHostShader(s, *vs, spec, variant);
+    st.ps = ps ? ResolveHostShader(s, *ps, spec,
+                                   variant == VsVariant::Velocity ? VsVariant::Velocity
+                                                                  : VsVariant::Trimmed)
+               : nullptr;
+    if (targets.velocity) {
+      const u32 v = st.rtCount;
+      st.rtFormats[v] = velocity::kFormat;
+      st.blend[v] = plume::RenderBlendDesc::Copy();
+      st.rtCount = v + 1;
+      st.velocity = true;
+      static u64 logged_frame = ~0ull;
+      if (Settings::DiagVerbosity() >= 2 && logged_frame != s.guest_frames / 600) {
+        logged_frame = s.guest_frames / 600;
+        EOT_DEBUG("[velocity] draw vs {:016x} ps {:016x} variant {} rt0 fmt {} blend {} mask {:#x} "
+                  "rt1 fmt {} samples {} depth write {} spec {:#x}",
+                  vs->hash, ps ? ps->hash : 0ull, static_cast<u32>(variant),
+                  static_cast<u32>(st.rtFormats[0]), st.blend[0].blendEnabled,
+                  st.blend[0].renderTargetWriteMask, static_cast<u32>(st.rtFormats[1]),
+                  st.sampleCount, st.depthWrite, spec);
+      }
+    }
     if (!st.vs || (ps && !st.ps)) {
       Dropped("host shader unavailable (link failure)", 0x6007);
       return;
@@ -2395,7 +2559,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
       return;
     }
 
-    vp = ComputeViewport(dev, targets);
+    vp = ComputeViewport(dev, targets, jitter_x, jitter_y);
     for (u32 i = 0; i < 4; ++i) {
       sc.booleans[i] = dev.U32(dev::kVsBoolConstants + 4 * i);
       sc.booleans[4 + i] = dev.U32(dev::kPsBoolConstants + 4 * i);
@@ -2429,6 +2593,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     fill.vs = vs;
     fill.ps = ps;
     fill.layout = layout;
+    fill.jitterIndex = jitter_index;
+    fill.velocity = targets.velocity;
     for (u32 i = 0; i < 4; ++i)
       fill.images[i] = i < targets.colorCount ? targets.colorImage[i] : nullptr;
     fill.images[4] = targets.depthImage;
@@ -2469,6 +2635,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
                             (zfunc == 1 || zfunc == 3 || zfunc == 4 || zfunc == 6);
     BindTexturesAndSamplers(s, dev, texture_mask, sc, scene_draw ? &targets : nullptr);
   }
+  if (pk.hasCameraVP)
+    taa::BeforeSceneConsumerDraw(s, s.draw_bound_textures, pk.cameraVP, ps ? ps->hash : 0, pk.taaSkip);
   UploadAlloc shared_alloc;
   const u64 ring_epoch = UploadRingEpoch();
   if (memo->sharedRing == ring_epoch &&
@@ -3009,6 +3177,8 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
     }
   }
   const bool clear_depth = (flags & 0x10) != 0, clear_stencil = (flags & 0x20) != 0;
+  if (clear_depth && whole && targets.depth)
+    velocity::OnDepthCleared(s, *targets.depth);
   auto *cmd = s.command_list;
   if (GpuTimingDiagActive(s)) {
     GpuTimingDiagMark(s, cmd, std::format("clear flags {:#x}", flags));
