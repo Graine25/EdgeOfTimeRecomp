@@ -12,6 +12,7 @@ POLICY = {
     "lock_text": "Policy::LockText",
     "hug_left": "Policy::HugLeft",
     "hug_right": "Policy::HugRight",
+    "lock_width": "Policy::LockWidth",
 }
 
 
