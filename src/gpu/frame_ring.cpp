@@ -324,6 +324,14 @@ bool MakeChunk(Chunk &chunk, u64 size) {
   chunk.used = 0;
 #if defined(EOT_D3D12)
   chunk.gpuVa = static_cast<plume::D3D12Buffer *>(chunk.buffer.get())->d3d->GetGPUVirtualAddress();
+#else
+  chunk.gpuVa = chunk.buffer->getDeviceAddress();
+  if (!chunk.gpuVa) {
+    EOT_ERROR("upload ring: the device gave the chunk no buffer device address (VK_KHR_buffer_device_address)");
+    chunk.buffer->unmap();
+    chunk.buffer.reset();
+    return false;
+  }
 #endif
   return true;
 }
