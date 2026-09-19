@@ -285,7 +285,7 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/patches/sm2099_body_pulse.cpp
         src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/achievements_page.cpp
-        src/gamelogic/camera/mouse_look.cpp)
+        src/gamelogic/input/input.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
     # Named as the SDK opens it, so the copy preloaded beside the executable answers its dlopen.
