@@ -10,6 +10,8 @@
 #include <plume_render_interface.h>
 #if defined(EOT_D3D12)
 #include <plume_d3d12.h>
+#else
+#include <plume_vulkan.h>
 #endif
 
 #include "core/logging.h"
@@ -210,9 +212,29 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
     g_supported = false;
     return;
   }
+#if defined(EOT_D3D12)
   st.pool->queryResults();
   const u64 *r = st.pool->getResults();
   const size_t n = std::min<size_t>(st.journal.size(), st.pool->getCount());
+#else
+  auto *vk_pool = static_cast<plume::VulkanQueryPool *>(st.pool.get());
+  std::vector<u64> ns(st.used);
+  const VkResult res =
+      st.used ? vkGetQueryPoolResults(vk_pool->device->vk, vk_pool->vk, 0, st.used, sizeof(u64) * st.used,
+                                      ns.data(), sizeof(u64), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT)
+              : VK_SUCCESS;
+  if (res != VK_SUCCESS) {
+    EOT_WARN("[gpu-timing] vkGetQueryPoolResults failed ({:#x}) for slot {}; timing disabled", static_cast<u32>(res),
+             slot);
+    g_supported = false;
+    return;
+  }
+  const double period = vk_pool->device->physicalDeviceProperties.limits.timestampPeriod;
+  for (u64 &v : ns)
+    v = static_cast<u64>(static_cast<double>(v) * period);
+  const u64 *r = ns.data();
+  const size_t n = std::min<size_t>(st.journal.size(), ns.size());
+#endif
   if (n < 2 || r[n - 1] <= r[0])
     return;
   for (size_t i = 1; i < n; ++i) {

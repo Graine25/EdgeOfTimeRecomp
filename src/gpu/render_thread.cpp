@@ -10,6 +10,8 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#else
+#include <pthread.h>
 #endif
 #include <immintrin.h>
 
@@ -157,6 +159,8 @@ void PublishHead(Queue &q, u64 head) {
 void WorkerMain() {
 #if defined(_WIN32)
   SetThreadDescription(GetCurrentThread(), L"reeot render");
+#else
+  pthread_setname_np(pthread_self(), "reeot render");
 #endif
   PinThreadToPhysicalCore(2, "the render thread");
 #if defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING)
