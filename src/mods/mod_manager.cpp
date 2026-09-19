@@ -24,6 +24,7 @@
 #include "installer/disc_install.h"
 #include "mods/mods_api.h"
 #include "platform/process.h"
+#include "platform/update_check.h"
 
 namespace eot::mods {
 namespace {
@@ -205,6 +206,7 @@ bool RestorePak(std::string &message) {
     put_back.push_back(name);
     EOT_INFO("[mods] {} put back", Utf8(target));
   }
+  fs::remove(BackupDir() / kDataFolder, ec);
   if (put_back.empty() && failed.empty()) {
     message = "No package is replaced.";
     return false;
@@ -489,6 +491,25 @@ bool RestoreBinary(std::string &message) {
   return failed.empty();
 }
 
+std::string BinaryNote() {
+  const fs::path exe = g_install / platform::kExecutableFileName;
+  std::string note = std::string(platform::kExecutableFileName) + ": ";
+  if (const auto id = platform::ReadBuildIdentity(exe)) {
+    note += "reeot";
+    if (!id->version.empty())
+      note += " v" + id->version;
+    if (!id->commit.empty())
+      note += " (" + id->commit + (id->modified ? "*)" : ")");
+    if (!id->stamp.empty())
+      note += ", built " + id->stamp;
+  } else {
+    note += "a program that carries no reeot build information";
+  }
+  note += SlotFiles(EOT_MOD_SLOT_BINARY).empty() ? " -- the port's own (stock) build"
+                                                  : " -- a replacement; the port's own is kept in mods/backup";
+  return note;
+}
+
 void SyncBinary() {
   std::error_code ec;
   for (const auto &it : fs::directory_iterator(BackupDir(), ec))
@@ -633,6 +654,8 @@ extern "C" int32_t eot_mods_slot(int32_t slot, eot_mod_slot_info *out) {
     }
   }
   CopyOut(out->files, sizeof(out->files), names);
+  if (slot == EOT_MOD_SLOT_BINARY)
+    CopyOut(out->note, sizeof(out->note), BinaryNote());
   return 1;
 }
 

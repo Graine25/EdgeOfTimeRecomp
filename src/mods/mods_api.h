@@ -19,6 +19,7 @@ enum eot_mod_slot_t { EOT_MOD_SLOT_PAK = 0, EOT_MOD_SLOT_MODEL = 1, EOT_MOD_SLOT
 struct eot_mod_slot_info {
   int32_t installed;
   char files[384];
+  char note[256];
 };
 
 enum eot_mods_import_state_t {

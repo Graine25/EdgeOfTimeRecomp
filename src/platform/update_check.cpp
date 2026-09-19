@@ -189,6 +189,22 @@ void UpdateInstalledCopy(const fs::path &install_root) {
 #endif
 }
 
+std::optional<BuildIdentity> ReadBuildIdentity(const fs::path &exe) {
+  BuildIdentity id;
+#if defined(_WIN32)
+  const std::vector<uint8_t> res = ReadVersionResource(exe);
+  id.stamp = ResourceString(res, L"BuildStamp");
+  id.version = ResourceString(res, L"FileVersion");
+  id.commit = ResourceString(res, L"Commit");
+  id.modified = ResourceString(res, L"Modified") == "1";
+#else
+  id.stamp = InstalledBuildStamp(exe);
+#endif
+  if (id.stamp.empty() && id.version.empty())
+    return std::nullopt;
+  return id;
+}
+
 std::optional<InstallUpdate> LastInstallUpdate() {
   std::lock_guard lock(g_mutex);
   return g_updated;

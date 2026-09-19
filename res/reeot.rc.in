@@ -23,8 +23,13 @@ BEGIN
       VALUE "ProductName",     "reeot"
       VALUE "ProductVersion",  "@PROJECT_VERSION@"
       // A sortable per-build stamp the offline update check reads from a
-      // distributed build to tell whether it is newer than this one.
+      // distributed build to tell whether it is newer than this one, and the
+      // commit it was built from, 1 in Modified when the tree had local
+      // changes (the watermark's asterisk): what the Mods page says about the
+      // exe in place.
       VALUE "BuildStamp",      "@REEOT_BUILD_TIMESTAMP@"
+      VALUE "Commit",          "@REEOT_GIT_COMMIT@"
+      VALUE "Modified",        "@REEOT_GIT_DIRTY@"
     END
   END
   BLOCK "VarFileInfo"
