@@ -7,6 +7,8 @@
 #include <string>
 #include <unordered_map>
 
+#include <rex/memory/utils.h>
+
 #include "core/logging.h"
 #include "gpu/backend.h"
 #include "gpu/constant_buffers.h"
@@ -32,18 +34,38 @@ namespace eot::gpu::velocity {
 
 namespace {
 
+constexpr u32 kSlots = 4;
+constexpr u32 kBlockBytes = (kSlots + 1) * kPrevFileOffset;
+constexpr u64 kArenaChunkBytes = 16ull << 20;
+constexpr u64 kBlockAlignment = 256;
+
+struct ArenaChunk {
+  std::unique_ptr<plume::RenderBuffer> buffer;
+  u8 *cpu = nullptr;
+  u64 capacity = 0, used = 0, gpuVa = 0;
+};
+
+struct Block {
+  plume::RenderBuffer *buffer = nullptr;
+  u8 *cpu = nullptr;
+  u64 offset = 0, gpuVa = 0;
+  bool valid() const { return buffer != nullptr; }
+};
+
 struct Entry {
   u64 frame = ~0ull;
   u32 regs = 0;
-  u32 capacity = 0;
-  std::unique_ptr<u8[]> bytes;
+  Block block;
 };
 
 struct CaptureState {
   u64 frame = 0;
   std::unordered_map<u64, Entry> store;
   std::unordered_map<u64, u32> ordinals;
-  u64 prepared = 0, paired = 0, firstSeen = 0;
+  std::vector<ArenaChunk> chunks;
+  std::vector<Block> freeBlocks;
+  bool arenaFailed = false;
+  u64 prepared = 0, paired = 0, firstSeen = 0, wrapCopies = 0;
 };
 
 CaptureState &capture() {
@@ -57,6 +79,62 @@ constexpr u64 kEntryTtl = 120;
 u64 Mix(u64 a, u64 b) {
   a ^= b + 0x9E3779B97F4A7C15ull + (a << 6) + (a >> 2);
   return a;
+}
+
+bool MakeArenaChunk(VideoState &s, ArenaChunk &chunk) {
+  plume::RenderBufferDesc desc = plume::RenderBufferDesc::UploadBuffer(kArenaChunkBytes);
+  desc.flags = plume::RenderBufferFlag::CONSTANT;
+  chunk.buffer = CreateHostBuffer(s.device.get(), desc, "velocity-history");
+  if (!chunk.buffer)
+    return false;
+  chunk.cpu = static_cast<u8 *>(chunk.buffer->map());
+  if (!chunk.cpu) {
+    chunk.buffer.reset();
+    return false;
+  }
+  chunk.capacity = kArenaChunkBytes;
+  chunk.used = 0;
+#if defined(EOT_D3D12)
+  chunk.gpuVa = static_cast<plume::D3D12Buffer *>(chunk.buffer.get())->d3d->GetGPUVirtualAddress();
+#else
+  chunk.gpuVa = chunk.buffer->getDeviceAddress();
+  if (!chunk.gpuVa) {
+    chunk.buffer->unmap();
+    chunk.buffer.reset();
+    return false;
+  }
+#endif
+  return true;
+}
+
+bool AllocBlock(VideoState &s, CaptureState &c, Block *out) {
+  if (!c.freeBlocks.empty()) {
+    *out = c.freeBlocks.back();
+    c.freeBlocks.pop_back();
+    return true;
+  }
+  if (c.arenaFailed)
+    return false;
+  if (c.chunks.empty() || c.chunks.back().used + kBlockBytes + kBlockAlignment > c.chunks.back().capacity) {
+    ArenaChunk chunk;
+    if (!MakeArenaChunk(s, chunk)) {
+      c.arenaFailed = true;
+      EOT_ERROR("[velocity] history arena: a {} MB chunk failed; no more motion vectors this run",
+                kArenaChunkBytes >> 20);
+      return false;
+    }
+    c.chunks.push_back(std::move(chunk));
+    EOT_INFO("[velocity] history arena: chunk {} ({} MB, {} blocks)", c.chunks.size(),
+             kArenaChunkBytes >> 20, kArenaChunkBytes / kBlockBytes);
+  }
+  ArenaChunk &chunk = c.chunks.back();
+  const u64 start = (chunk.used + kBlockAlignment - 1) / kBlockAlignment * kBlockAlignment;
+  out->buffer = chunk.buffer.get();
+  out->cpu = chunk.cpu + start;
+  out->offset = start;
+  out->gpuVa = chunk.gpuVa + start;
+  chunk.used = start + kBlockBytes;
+  return true;
 }
 
 struct Ring {
@@ -253,53 +331,60 @@ void BeginCaptureFrame(VideoState &) {
   c.ordinals.clear();
   if (c.frame % kSweepEvery == 0) {
     for (auto it = c.store.begin(); it != c.store.end();) {
-      if (c.frame - it->second.frame > kEntryTtl)
+      if (c.frame - it->second.frame > kEntryTtl) {
+        if (it->second.block.valid())
+          c.freeBlocks.push_back(it->second.block);
         it = c.store.erase(it);
-      else
+      } else {
         ++it;
+      }
     }
   }
 }
 
-bool PrepareDraw(VideoState &, u64 key, const u8 *file, u32 regs, UploadAlloc *out) {
+bool PrepareDraw(VideoState &s, u64 key, const u8 *guest_file, u32 regs, UploadAlloc *out) {
   CaptureState &c = capture();
   regs = std::clamp(regs, 16u, 256u);
   const u32 bytes = regs * 16;
   const u32 ordinal = c.ordinals[key]++;
   const u64 id = Mix(key, ordinal);
   Entry &e = c.store[id];
-  bool paired = false;
   c.prepared++;
-  if (e.bytes && e.frame + 1 == c.frame && e.regs >= regs) {
-    if (UploadAllocate(kPrevFileOffset + bytes, kConstantBufferAlignment, out)) {
-      std::memcpy(out->cpu, file, bytes);
-      std::memcpy(out->cpu + kPrevFileOffset, e.bytes.get(), bytes);
-      paired = true;
-      c.paired++;
-      static u64 logged = ~0ull;
-      if (Settings::DiagVerbosity() >= 2 && logged != c.frame / 600) {
-        logged = c.frame / 600;
-        const float *cur = reinterpret_cast<const float *>(file);
-        const float *prev = reinterpret_cast<const float *>(e.bytes.get());
-        EOT_DEBUG("[velocity] pair frame {} key {:016x} ord {} regs {} cur c0 {:.5g} {:.5g} {:.5g} {:.5g} c3 "
-                  "{:.5g} {:.5g} {:.5g} {:.5g} | prev c0 {:.5g} {:.5g} {:.5g} {:.5g} c3 {:.5g} {:.5g} {:.5g} "
-                  "{:.5g} | gpu {:#x} cpu {}",
-                  c.frame, key, ordinal, regs, cur[0], cur[1], cur[2], cur[3], cur[12], cur[13],
-                  cur[14], cur[15], prev[0], prev[1], prev[2], prev[3], prev[12], prev[13], prev[14],
-                  prev[15], out->gpuVa, static_cast<const void *>(out->cpu));
-      }
-    }
-  } else if (!e.bytes) {
+  if (!e.block.valid()) {
     c.firstSeen++;
+    if (!AllocBlock(s, c, &e.block))
+      return false;
   }
-  if (e.capacity < regs) {
-    e.bytes.reset(new u8[bytes]);
-    e.capacity = regs;
+  const u32 slot = (kSlots - 1) - static_cast<u32>(c.frame % kSlots);
+  const bool paired = e.frame + 1 == c.frame && e.regs >= regs;
+  if (paired && slot == kSlots - 1) {
+    std::memcpy(e.block.cpu + kSlots * kPrevFileOffset, e.block.cpu, e.regs * 16);
+    c.wrapCopies++;
   }
-  std::memcpy(e.bytes.get(), file, bytes);
+  u8 *cur = e.block.cpu + slot * kPrevFileOffset;
+  rex::memory::copy_and_swap_32_unaligned(cur, reinterpret_cast<const u32 *>(guest_file), regs * 4);
   e.regs = regs;
   e.frame = c.frame;
-  return paired;
+  if (!paired)
+    return false;
+  c.paired++;
+  *out = UploadAlloc{};
+  out->buffer = e.block.buffer;
+  out->offset = e.block.offset + slot * kPrevFileOffset;
+  out->cpu = cur;
+  out->size = 2 * kPrevFileOffset;
+  out->gpuVa = e.block.gpuVa + slot * kPrevFileOffset;
+  static u64 logged = ~0ull;
+  if (Settings::DiagVerbosity() >= 2 && logged != c.frame / 600) {
+    logged = c.frame / 600;
+    const float *cf = reinterpret_cast<const float *>(cur);
+    const float *pf = reinterpret_cast<const float *>(cur + kPrevFileOffset);
+    EOT_DEBUG("[velocity] pair frame {} key {:016x} ord {} regs {} slot {} cur c0 {:.5g} {:.5g} {:.5g} "
+              "{:.5g} | prev c0 {:.5g} {:.5g} {:.5g} {:.5g} | gpu {:#x}",
+              c.frame, key, ordinal, regs, slot, cf[0], cf[1], cf[2], cf[3], pf[0], pf[1], pf[2], pf[3],
+              out->gpuVa);
+  }
+  return true;
 }
 
 Target *CurrentFor(VideoState &s, const GuestSurface &depth, u32 width, u32 height, u32 samples) {
@@ -399,10 +484,11 @@ void EndFrame(VideoState &s) {
   if (!c.prepared && !r.draws)
     return;
   EOT_DEBUG("[velocity] 600 frames: {} draws prepared, {} paired with last frame, {} first seen, "
-            "store {} entries; {} passes, {} depth clears, {} velocity draws, {} resolves",
-            c.prepared, c.paired, c.firstSeen, c.store.size(), r.passes, r.clears, r.draws,
-            r.resolves);
-  c.prepared = c.paired = c.firstSeen = 0;
+            "{} wrap copies, store {} entries in {} arena chunk(s) ({} free blocks); {} passes, {} "
+            "depth clears, {} velocity draws, {} resolves",
+            c.prepared, c.paired, c.firstSeen, c.wrapCopies, c.store.size(), c.chunks.size(),
+            c.freeBlocks.size(), r.passes, r.clears, r.draws, r.resolves);
+  c.prepared = c.paired = c.firstSeen = c.wrapCopies = 0;
   r.passes = r.clears = r.draws = r.resolves = 0;
 }
 
@@ -421,7 +507,13 @@ void Shutdown(VideoState &s) {
     p.reset();
   for (auto &p : r.resolvePs)
     p.reset();
-  capture().store.clear();
+  CaptureState &c = capture();
+  c.store.clear();
+  c.freeBlocks.clear();
+  for (ArenaChunk &chunk : c.chunks)
+    if (chunk.buffer)
+      chunk.buffer->unmap();
+  c.chunks.clear();
 }
 
 }

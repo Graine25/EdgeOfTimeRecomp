@@ -17,7 +17,7 @@ inline constexpr plume::RenderFormat kFormat = plume::RenderFormat::R16G16_FLOAT
 
 void BeginCaptureFrame(VideoState &s);
 
-bool PrepareDraw(VideoState &s, u64 key, const u8 *file, u32 regs, UploadAlloc *out);
+bool PrepareDraw(VideoState &s, u64 key, const u8 *guest_file, u32 regs, UploadAlloc *out);
 
 struct Target {
   HostTexture image;
