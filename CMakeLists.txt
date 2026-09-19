@@ -220,6 +220,7 @@ set(REEOT_SOURCES
     src/installer/uninstall.cpp
     src/installer/self_install.cpp
     src/installer/dlc_publish.cpp
+    src/mods/mod_manager.cpp
     ${REEOT_EMBED_SOURCES}
     ${REEOT_EMBED_PACKAGE_SOURCE}
     src/core/critical_section.cpp
