@@ -6,6 +6,20 @@ REEOT_VIDEO_TITLE	VIDEO
 REEOT_GRAPHICS_TITLE	GRAPHICS
 REEOT_GAME_TITLE	GAME
 REEOT_CONTROLS_TITLE	CONTROLS
+REEOT_MODS	Mods
+REEOT_MODS_TITLE	MODS
+REEOT_OPT_PAK	Pak Replacement
+REEOT_DESC_PAK	Puts a package of yours in place of one of the game's own. The file is named after the package it replaces (Common.pkz, a level's .pkz); the game's own is kept in the install's mods/backup folder and Restore puts it back.
+REEOT_OPT_MODEL	Model Import
+REEOT_DESC_MODEL	Adds a costume package built with the model import tools (a raw _DLC002.pak, or a _DLC00N.pkz) as downloadable content: the costume then appears in the gallery. One package at a time; Restore takes it out again.
+REEOT_OPT_BINARY	Binary Replacement
+REEOT_DESC_BINARY	Puts a modified program in place of the port's own: an .exe replaces reeot.exe, a .dll the library of that name beside it. The original is kept in the install's mods/backup folder and Restore puts it back.
+REEOT_MODS_IN_PLACE	In place:
+REEOT_MODS_NOTHING	Nothing in place.
+REEOT_VAL_IMPORT	Import
+REEOT_VAL_RESTORE	Restore
+REEOT_VAL_CHOOSING	Choosing...
+REEOT_VAL_IMPORTING	Importing...
 REEOT_OPT_FULLSCREEN	Fullscreen
 REEOT_OPT_RESOLUTION	Resolution
 REEOT_OPT_ASPECT	Aspect Ratio

@@ -42,6 +42,7 @@
 #include "ui/watermark.h"
 #include "platform/update_check.h"
 #include "installer/uninstall.h"
+#include "mods/mod_manager.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "platform/crash_handler.h"
@@ -330,6 +331,7 @@ rex::PathConfig ReeotApp::PathsForInstall(const rex::PathConfig &defaults,
   LoadTranslation(paths.game_data_root);
   eot::installer::PublishDlc(cfg.install_root / eot::installer::kDlcFolderName, paths.game_data_root,
                              profile_root_);
+  eot::mods::Initialize(cfg.install_root, paths.game_data_root, profile_root_);
   EOT_INFO("[install] using the install at {} (recorded by {}; profile {})", cfg.install_root.string(),
            cfg.app_version, profile_root_.string());
   return paths;
@@ -342,6 +344,7 @@ ReeotApp::OnFinalizePaths(const rex::PathConfig &defaults, std::function<void(re
     eot::installer::WritePortFiles(*named);
     LoadTranslation(*named);
     eot::installer::PublishDlc(install_root_ / eot::installer::kDlcFolderName, *named, profile_root_);
+    eot::mods::Initialize(install_root_, *named, profile_root_);
     rex::PathConfig paths = defaults;
     paths.game_data_root = *named;
     return paths;
@@ -498,6 +501,7 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
   }
   eot::installer::AdoptLegacyUserData(profile_root_);
   eot::installer::PublishDlc(install_root / eot::installer::kDlcFolderName, cfg.game_data_path(), profile_root_);
+  eot::mods::Initialize(install_root, cfg.game_data_path(), profile_root_);
 
   if (choices.create_shortcut) {
     std::string shortcut_error;
