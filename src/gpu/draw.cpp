@@ -2092,17 +2092,6 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
     }
   }
 
-  if (!UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs,
-                       s.vs_float_constants_stale, &pk.vs_consts) ||
-      !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
-                       s.ps_float_constants_stale, &pk.ps_consts)) {
-    Dropped("constant upload failed", 0x6010);
-    return false;
-  }
-  s.vs_float_constants_stale = 0;
-  s.ps_float_constants_stale = 0;
-  lap(s.perf.const_float_ms);
-
   pk.velocity = false;
   if (Settings::MotionVectors() && ps && !geom.rectList && vs->entry && ps->entry &&
       vs->entry->usesFloatConstants && VelocityCandidate(dev, pk.targets) &&
@@ -2116,13 +2105,28 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
     mix(static_cast<u32>(geom.baseVertex));
     mix((u64(vs_va) << 32) | ps_va);
     mix(pk.indexed ? pk.index_count : pk.vertexCount);
-    UploadAlloc both;
-    if (velocity::PrepareDraw(s, key, pk.vs_consts.cpu, vs->floatConstantRegs, &both)) {
-      pk.vs_consts = both;
-      pk.velocity = true;
+    const u32 regs = std::clamp(vs->floatConstantRegs, 16u, 256u);
+    if (const u8 *guest_file = dev.Bytes(dev::kVsFloatConstants, regs * 16)) {
+      UploadAlloc block;
+      if (velocity::PrepareDraw(s, key, guest_file, regs, &block)) {
+        pk.vs_consts = block;
+        pk.velocity = true;
+      }
     }
     lap(s.perf.const_float_ms);
   }
+
+  if ((!pk.velocity && !UploadFloatFile(s, dev, dev::kVsFloatConstants, 0, vs->floatConstantRegs,
+                                        s.vs_float_constants_stale, &pk.vs_consts)) ||
+      !UploadFloatFile(s, dev, dev::kPsFloatConstants, 1, ps ? ps->floatConstantRegs : 16u,
+                       s.ps_float_constants_stale, &pk.ps_consts)) {
+    Dropped("constant upload failed", 0x6010);
+    return false;
+  }
+  if (!pk.velocity)
+    s.vs_float_constants_stale = 0;
+  s.ps_float_constants_stale = 0;
+  lap(s.perf.const_float_ms);
 
   u32 max_slot = 0;
   for (u32 S = 0; S < 16; ++S)
