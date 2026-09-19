@@ -23,6 +23,7 @@
 #include "gpu/surfaces.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
+#include "gpu/velocity.h"
 
 namespace eot::gpu {
 
@@ -364,6 +365,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       target.contentSerial++;
       target.resolvedSurfaceUid = content_surf.uid;
       target.resolvedSurfaceSerial = content_surf.serial;
+      target.velocity = content_surf.isDepth ? velocity::HandleFor(content_surf, s.guest_frames)
+                                             : VelocityHandle{};
       target.resolvedOwnSerial = target.contentSerial;
       target.resolvedLevel = level;
       std::memcpy(target.resolvedRect, rect_now, sizeof(rect_now));
@@ -564,6 +567,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       dest->contentSerial++;
       dest->resolvedSurfaceUid = surf->uid;
       dest->resolvedSurfaceSerial = surf->serial;
+      dest->velocity = surf->isDepth ? velocity::HandleFor(*surf, s.guest_frames) : VelocityHandle{};
       dest->resolvedOwnSerial = dest->contentSerial;
       dest->resolvedLevel = dest_level;
       const i32 rect_now[6] = {vx, vy, vw, vh, x0, y0};

@@ -299,12 +299,13 @@ constexpr Choice kPipScale[] = {{"REEOT_VAL_50_PERCENT", "50"}, {"REEOT_VAL_66_P
 constexpr Choice kAspect[] = {{"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"}, {"REEOT_VAL_16_9", "16:9"},
                               {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};
 constexpr Choice kPreset[] = {{"REEOT_VAL_LOW", "low"}, {"REEOT_VAL_MEDIUM", "medium"}, {"REEOT_VAL_HIGH", "high"},
-                              {"REEOT_VAL_CUSTOM", "custom"}};
+                              {"REEOT_VAL_ULTRA", "ultra"}, {"REEOT_VAL_CUSTOM", "custom"}};
 constexpr Choice kMsaa[] = {{"REEOT_VAL_OFF", "0"}, {"REEOT_VAL_2X", "2"}, {"REEOT_VAL_4X", "4"}, {"REEOT_VAL_8X", "8"}};
 constexpr Choice kAnisotropy[] = {{"REEOT_VAL_OFF", "0"}, {"REEOT_VAL_2X", "2"},   {"REEOT_VAL_4X", "4"},
                                   {"REEOT_VAL_8X", "8"},  {"REEOT_VAL_16X", "16"}};
 constexpr Choice kShadowSize[] = {{"REEOT_VAL_AUTO", "0"},     {"REEOT_VAL_1024", "1024"},
-                                  {"REEOT_VAL_2048", "2048"}, {"REEOT_VAL_4096", "4096"}};
+                                  {"REEOT_VAL_2048", "2048"}, {"REEOT_VAL_4096", "4096"},
+                                  {"REEOT_VAL_8192", "8192"}};
 constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_BICUBIC", "bicubic"},
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
@@ -367,6 +368,9 @@ constexpr Setting kGraphicsSettings[] = {
      .choices = kPreset},
     {.label = "REEOT_OPT_MSAA", .description = "REEOT_DESC_MSAA", .cvar = "eot_msaa", .choices = kMsaa,
      .numeric = true, .restart = true},
+    {.label = "REEOT_OPT_TAA", .description = "REEOT_DESC_TAA", .cvar = "eot_taa", .choices = kOnOff},
+    {.label = "REEOT_OPT_MOTION_VECTORS", .description = "REEOT_DESC_MOTION_VECTORS",
+     .cvar = "eot_motion_vectors", .choices = kOnOff},
     {.label = "REEOT_OPT_ANISOTROPY", .description = "REEOT_DESC_ANISOTROPY", .cvar = "eot_anisotropy",
      .choices = kAnisotropy, .numeric = true},
     {.label = "REEOT_OPT_SHADOW_SIZE", .description = "REEOT_DESC_SHADOW_SIZE", .cvar = "eot_shadow_map_size",

@@ -14,26 +14,31 @@ REXCVAR_DEFINE_STRING(eot_quality_preset, "custom", "EdgeOfTime/Graphics",
                       "anisotropic, 2048 shadow maps. high: 4x MSAA, bicubic upscale, 16x "
                       "anisotropic, 4096 shadow maps (Lanczos costs 0.14 ms more a 4K frame "
                       "for no visible gain over the Catmull-Rom; pick it under custom). "
+                      "ultra: 8x MSAA, 8192 shadow maps, and temporal anti-aliasing with "
+                      "per-object motion vectors. "
                       "Choosing one writes those values into "
-                      "eot_msaa (restart), eot_upscale, eot_anisotropy and eot_shadow_map_size; "
+                      "eot_msaa (restart), eot_upscale, eot_anisotropy, eot_shadow_map_size, "
+                      "eot_taa and eot_motion_vectors; "
                       "changing any of them afterwards makes the preset custom, which is also "
                       "the default and touches nothing.")
-    .allowed({"low", "medium", "high", "custom"});
+    .allowed({"low", "medium", "high", "ultra", "custom"});
 
 namespace {
 
-enum class Level { kLow, kMedium, kHigh, kCustom };
+enum class Level { kLow, kMedium, kHigh, kUltra, kCustom };
 
 struct Gate {
   const char *name;
-  const char *low, *medium, *high;
+  const char *low, *medium, *high, *ultra;
 };
 
 constexpr Gate kGates[] = {
-    {"eot_msaa", "0", "2", "4"},
-    {"eot_upscale", "bilinear", "bicubic", "bicubic"},
-    {"eot_anisotropy", "0", "8", "16"},
-    {"eot_shadow_map_size", "1024", "2048", "4096"},
+    {"eot_msaa", "0", "2", "4", "8"},
+    {"eot_upscale", "bilinear", "bicubic", "bicubic", "bicubic"},
+    {"eot_anisotropy", "0", "8", "16", "16"},
+    {"eot_shadow_map_size", "1024", "2048", "4096", "8192"},
+    {"eot_taa", "false", "false", "false", "true"},
+    {"eot_motion_vectors", "false", "false", "false", "true"},
 };
 
 Level Parse(std::string_view v) {
@@ -43,6 +48,8 @@ Level Parse(std::string_view v) {
     return Level::kMedium;
   if (v == "high")
     return Level::kHigh;
+  if (v == "ultra")
+    return Level::kUltra;
   return Level::kCustom;
 }
 
@@ -54,6 +61,8 @@ const char *Value(const Gate &g, Level level) {
     return g.medium;
   case Level::kHigh:
     return g.high;
+  case Level::kUltra:
+    return g.ultra;
   default:
     return nullptr;
   }

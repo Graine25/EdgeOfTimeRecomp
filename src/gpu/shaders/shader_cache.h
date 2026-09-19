@@ -23,6 +23,10 @@ struct ShaderCacheEntry {
   uint32_t posDxilSize;
   uint32_t posSpirvOffset;
   uint32_t posSpirvSize;
+  uint32_t velDxilOffset;
+  uint32_t velDxilSize;
+  uint32_t velSpirvOffset;
+  uint32_t velSpirvSize;
 };
 
 extern ShaderCacheEntry g_shaderCacheEntries[];

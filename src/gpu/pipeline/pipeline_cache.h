@@ -44,6 +44,7 @@ struct PipelineState {
   plume::RenderStencilFaceDesc stencilBack;
   plume::RenderBlendDesc blend[4];
   bool alphaToCoverage;
+  bool velocity;
 };
 constexpr size_t kPipelineKeyOffset = offsetof(PipelineState, vsHash);
 

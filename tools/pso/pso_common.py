@@ -4,14 +4,14 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 COLUMNS = [
     "vsHash", "psHash", "spec", "layoutKey", "declRaw", "strides", "topology", "rtFormats",
     "rtCount", "dsFormat", "sampleCount", "cull", "frontFace", "depthBias",
     "slopeScaledDepthBias", "targetScale", "depthClip", "depthEnable", "depthWrite", "depthFunc",
     "stencilEnable", "stencilReadMask", "stencilWriteMask", "stencilRef", "stencilFront",
-    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "frame", "session",
-    "package",
+    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "velocity", "frame",
+    "session", "package",
 ]
 DIAGNOSTIC_COLUMNS = {"layoutKey", "frame", "session", "package"}
 BIAS_COLUMNS = ("depthBias", "slopeScaledDepthBias", "targetScale")
