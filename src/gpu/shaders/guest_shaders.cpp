@@ -20,9 +20,38 @@
 #include "gpu/shaders/dxc_link.h"
 #include "gpu/shaders/shader_cache.h"
 
+#if !defined(EOT_D3D12)
+#include <smolv.h>
+#endif
+
 namespace eot::gpu {
 
 namespace {
+
+std::string GuestEntryPoint(const u8 *bytes, size_t size) {
+#if defined(EOT_D3D12)
+  (void)bytes;
+  (void)size;
+  return "main";
+#else
+  const auto *words = reinterpret_cast<const u32 *>(bytes);
+  const size_t count = size / 4;
+  constexpr u32 kOpEntryPoint = 15;
+  for (size_t i = 5; i < count;) {
+    const u32 opcode = words[i] & 0xFFFFu;
+    const u32 length = words[i] >> 16;
+    if (length == 0)
+      break;
+    if (opcode == kOpEntryPoint && i + 3 < count) {
+      const char *name = reinterpret_cast<const char *>(&words[i + 3]);
+      const size_t max = (std::min(i + length, count) - (i + 3)) * 4;
+      return std::string(name, strnlen(name, max));
+    }
+    i += length;
+  }
+  return "shaderMain";
+#endif
+}
 
 struct CacheState {
   std::vector<u8> blob;
@@ -389,7 +418,12 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
     return nullptr;
   if (is_pixel)
     variant = VsVariant::Trimmed;
+#if defined(EOT_D3D12)
   const u32 effective = spec_mask & entry->specConstantsMask;
+#else
+  const u32 effective = 0;
+  (void)spec_mask;
+#endif
   const u64 salt = (u64(effective) << 3) | (u64(variant) << 1) | 1u;
   const u64 key = hash ^ (salt * 0x9E3779B97F4A7C15ull) ^ (is_pixel ? 1u : 0u);
   {
@@ -400,10 +434,22 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
   }
   u32 size = 0;
   const u8 *bytes = EntryBytes(*entry, &size, variant);
+#if !defined(EOT_D3D12)
+  std::vector<u8> decoded;
+  if (bytes && size) {
+    decoded.resize(smolv::GetDecodedBufferSize(bytes, size));
+    if (decoded.empty() || !smolv::Decode(bytes, size, decoded.data(), decoded.size())) {
+      EOT_ERROR("[shaders] SMOL-V decode failed for {:016x} ({} bytes)", hash, size);
+      decoded.clear();
+    }
+    bytes = decoded.data();
+    size = static_cast<u32>(decoded.size());
+  }
+#endif
   std::unique_ptr<plume::RenderShader> host;
   if (bytes && size) {
     if (entry->specConstantsMask == 0) {
-      host = s.device->createShader(bytes, size, "main", kHostShaderFormat);
+      host = s.device->createShader(bytes, size, GuestEntryPoint(bytes, size).c_str(), kHostShaderFormat);
       if (!host)
         EOT_ERROR("[shaders] createShader failed for {:016x}", hash);
     } else {
@@ -427,7 +473,9 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
         }
       }
 #else
-      host = s.device->createShader(bytes, size, "main", kHostShaderFormat);
+      host = s.device->createShader(bytes, size, GuestEntryPoint(bytes, size).c_str(), kHostShaderFormat);
+      if (!host)
+        EOT_ERROR("[shaders] createShader failed for {:016x}", hash);
 #endif
     }
   }

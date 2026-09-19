@@ -159,6 +159,11 @@ void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask
     std::memset(&st.stencilBack, 0, sizeof(st.stencilBack));
     st.stencilFront.compareFunction = plume::RenderComparisonFunction::ALWAYS;
     st.stencilBack.compareFunction = plume::RenderComparisonFunction::ALWAYS;
+    for (plume::RenderStencilFaceDesc *face : {&st.stencilFront, &st.stencilBack}) {
+      face->failOp = plume::RenderStencilOp::KEEP;
+      face->depthFailOp = plume::RenderStencilOp::KEEP;
+      face->passOp = plume::RenderStencilOp::KEEP;
+    }
   }
   for (u32 i = 0; i < 4; ++i) {
     plume::RenderBlendDesc &b = st.blend[i];
@@ -265,6 +270,14 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
     desc.renderTargetBlend[i] = st.blend[i];
   }
   desc.depthTargetFormat = st.dsFormat;
+
+#if !defined(EOT_D3D12)
+  const plume::RenderSpecConstant spec_constant(0, st.spec);
+  if (st.spec != 0) {
+    desc.specConstants = &spec_constant;
+    desc.specConstantsCount = 1;
+  }
+#endif
 
   EOT_CPU_ZONE("pipeline build");
   auto pso = CreateHostGraphicsPipeline(s.device.get(), desc, "guest-draw");

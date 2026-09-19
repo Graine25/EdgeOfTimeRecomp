@@ -2563,19 +2563,16 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     }
     s.bound_pipeline = pipeline;
   }
+#if defined(EOT_D3D12)
   static u32 last_stencil_ref = ~0u;
   if (dynamic_state_invalid)
     last_stencil_ref = ~0u;
   if (st.stencilEnable && last_stencil_ref != st.stencilRef) {
-#if defined(EOT_D3D12)
     static_cast<plume::D3D12CommandList *>(cmd)->d3d->OMSetStencilRef(st.stencilRef);
-#else
-    vkCmdSetStencilReference(static_cast<plume::VulkanCommandList *>(cmd)->vk,
-                             VK_STENCIL_FACE_FRONT_AND_BACK, st.stencilRef);
-#endif
     last_stencil_ref = st.stencilRef;
     s.perf.stencil_ref_calls++;
   }
+#endif
   static plume::RenderViewport last_vp;
   static plume::RenderRect last_sc;
   if (dynamic_state_invalid || std::memcmp(&last_vp, &vp.vp, sizeof(last_vp)) != 0) {
@@ -2596,8 +2593,12 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
           s.root_cbv_index[r], alloc.gpuVa);
       return;
     }
-#endif
     cmd->setGraphicsRootDescriptor(plume::RenderBufferReference(alloc.buffer, alloc.offset), r);
+#else
+    const u64 address = alloc.gpuVa;
+    cmd->setGraphicsPushConstants(kGuestPushConstantRangeIndex, &address, r * static_cast<u32>(sizeof(u64)),
+                                  static_cast<u32>(sizeof(u64)));
+#endif
   };
   for (u32 r = 0; r < 2; ++r) {
     if (s.bound_root_buffer[r] == roots[r]->buffer && s.bound_root_offset[r] == roots[r]->offset)
