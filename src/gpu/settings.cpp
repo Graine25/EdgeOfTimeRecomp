@@ -55,6 +55,14 @@ REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
                       "references render.")
     .allowed({"native", "720p", "1080p", "1440p", "2160p"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_INT32(eot_pip_scale, 50, "EdgeOfTime/Video",
+                     "Resolution of a texture camera's record (the picture-in-picture window the "
+                     "abilities open: a second scene with its own lights and post chain) as a "
+                     "percentage of the render scale: 100, 66 or 50. The window ramps back to the "
+                     "full scale over the last fifth of the frame's width, so one that grows into "
+                     "the screen sharpens into place. Takes effect at boot.")
+    .range(25, 100)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video",
                       "Aspect ratio the game builds its projection for in fullscreen: auto follows "
                       "the window, the rest force a ratio. Wider than 16:9 shows more to the sides "
@@ -200,6 +208,7 @@ bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
 bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
+i32 Settings::PipScalePercent() { return REXCVAR_GET(eot_pip_scale); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
