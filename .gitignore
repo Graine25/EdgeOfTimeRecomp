@@ -81,3 +81,5 @@ __pycache__/
 
 # Linux playtest packages (scripts/package-appimage.sh)
 /dist/
+/modelimport/s99
+/modelimport/build
