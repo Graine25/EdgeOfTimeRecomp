@@ -82,15 +82,13 @@ bool MacWide() {
          g_camera_ratio.load(std::memory_order_relaxed) < kWidescreenThreshold;
 }
 
-CameraRatioHold::CameraRatioHold(float value, unsigned screen)
-    : address_(kCameraAspectRatio + 4u * (screen < 4 ? screen : 0)),
-      saved_(eot::mem::load<uint32_t>(address_)) {
+CameraRatioHold::CameraRatioHold(float value) : saved_(eot::mem::load<uint32_t>(kCameraAspectRatio)) {
   g_table_holds.fetch_add(1, std::memory_order_acq_rel);
-  eot::mem::store<uint32_t>(address_, std::bit_cast<uint32_t>(value));
+  eot::mem::store<uint32_t>(kCameraAspectRatio, std::bit_cast<uint32_t>(value));
 }
 
 CameraRatioHold::~CameraRatioHold() {
-  eot::mem::store<uint32_t>(address_, saved_);
+  eot::mem::store<uint32_t>(kCameraAspectRatio, saved_);
   g_table_holds.fetch_sub(1, std::memory_order_acq_rel);
 }
 
