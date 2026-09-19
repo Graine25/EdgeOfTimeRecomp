@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <bit>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <mutex>
@@ -38,7 +39,9 @@ constexpr uint32_t kHudCanvasHeight = 0x824AB94C;
 constexpr uint32_t kWndFlags = 52;
 constexpr uint32_t kWndParent = 80;
 constexpr uint32_t kWndComputedX = 92;
+constexpr uint32_t kWndComputedY = 96;
 constexpr uint32_t kWndComputedW = 100;
+constexpr uint32_t kWndComputedH = 104;
 constexpr uint32_t kWndClippedX = 108;
 constexpr uint32_t kWndClippedW = 116;
 constexpr uint32_t kWndCrc = 292;
@@ -136,13 +139,41 @@ void Census(uint32_t crc, const Entry *entry, uint32_t parent, bool root, float 
            parent_entry && parent_entry->name[0] ? parent_entry->name : (parent ? "?" : "-"));
 }
 
+struct WideRect {
+  uint32_t crc = 0;
+  float x = 0, y = 0, w = 0, h = 0;
+};
+std::mutex g_wide_rects_mutex;
+std::array<WideRect, 16> g_wide_rects{};
+
+void NoteWideWindowRect(uint32_t crc, uint32_t wnd) {
+  const WideRect now{crc, ReadGuestF32(wnd + kWndComputedX), ReadGuestF32(wnd + kWndComputedY),
+                     ReadGuestF32(wnd + kWndComputedW), ReadGuestF32(wnd + kWndComputedH)};
+  std::lock_guard lock(g_wide_rects_mutex);
+  for (WideRect &r : g_wide_rects) {
+    if (r.crc == crc || r.crc == 0) {
+      r = now;
+      return;
+    }
+  }
+}
+
+bool IsWideWindowRect(float x, float y, float w, float h) {
+  std::lock_guard lock(g_wide_rects_mutex);
+  for (const WideRect &r : g_wide_rects) {
+    if (r.crc && std::fabs(r.x - x) < 1.0f && std::fabs(r.y - y) < 1.0f && std::fabs(r.w - w) < 1.0f &&
+        std::fabs(r.h - h) < 1.0f)
+      return true;
+  }
+  return false;
+}
+
 void ApplyAspectPolicy(uint32_t wnd) {
   if (!wnd || !LockRequested())
     return;
 
   const float display_aspect = eot::gpu::ConfiguredAspectRatio();
-  const Entry *wide_entry = LookUp(eot::mem::load<uint32_t>(wnd + kWndCrc));
-  const float ui_aspect = wide_entry && wide_entry->wide ? 16.0f / 9.0f : LayoutAspect();
+  const float ui_aspect = LayoutAspect();
   if (display_aspect <= ui_aspect + kAspectEpsilon)
     return;
 
@@ -152,7 +183,10 @@ void ApplyAspectPolicy(uint32_t wnd) {
 
   const uint32_t crc = eot::mem::load<uint32_t>(wnd + kWndCrc);
   const Entry *entry = LookUp(crc);
-  const Policy policy = PolicyForCrc(entry);
+  const bool wide_on_macwide = entry && entry->wide && eot::gpu::MacWide();
+  const Policy policy = wide_on_macwide ? Policy::Lock : PolicyForCrc(entry);
+  if (wide_on_macwide)
+    NoteWideWindowRect(crc, wnd);
   const bool hug = policy == Policy::HugLeft || policy == Policy::HugRight;
   const bool width_only = policy == Policy::LockWidth && !self_laid_out;
   const bool hide = policy == Policy::Hide && !self_laid_out;
@@ -315,10 +349,13 @@ REX_HOOK_RAW(eot_PAK_BuildHUDWindow) {
 REX_HOOK_RAW(eot_RenderCommand_Wnd3D) {
   const uint32_t cmd = ctx.r4.u32;
   if (eot::gpu::MacWide() && cmd) {
-    const float w = ReadGuestF32(cmd + 20);
+    const float x = ReadGuestF32(cmd + 12), y = ReadGuestF32(cmd + 16);
+    const float w = ReadGuestF32(cmd + 20), h = ReadGuestF32(cmd + 24);
     const float canvas_w = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth));
-    if (canvas_w > 0.0f && w >= canvas_w - 2.0f) {
-      eot::gpu::CameraRatioHold hold(16.0f / 9.0f);
+    const float canvas_h = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasHeight));
+    if (w > 0.0f && h > 0.0f && canvas_w > 0.0f && canvas_h > 0.0f && IsWideWindowRect(x, y, w, h)) {
+      const float held = (16.0f / 9.0f) * (canvas_w / canvas_h) / (w / h);
+      eot::gpu::CameraRatioHold hold(held);
       __imp__eot_RenderCommand_Wnd3D(ctx, base);
       return;
     }

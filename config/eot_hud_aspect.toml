@@ -60,7 +60,7 @@
 0x94E26ECC = { policy = "lock", name = "HUDContextualAction_Text", type = "sprite" }
 0x1E0D80BD = { policy = "lock", name = "HUDDebugGameText", type = "sprite" }
 0x9848FEE1 = { policy = "lock", name = "HUDDoorTimer", type = "sprite" }
-0x6CC8E8EF = { policy = "lock", name = "HUDFlash", type = "sprite" }
+0x6CC8E8EF = { policy = "stretch", name = "HUDFlash", type = "sprite" }
 0x500B165F = { policy = "lock", name = "HUDFPSHit", type = "sprite" }
 0x56E081DA = { policy = "lock", name = "HUDGameTimerTemp", type = "sprite" }
 0x42576B04 = { policy = "lock", name = "HUDGenericTimer", type = "sprite" }
