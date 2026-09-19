@@ -60,7 +60,7 @@
 0x94E26ECC = { policy = "lock", name = "HUDContextualAction_Text", type = "sprite" }
 0x1E0D80BD = { policy = "lock", name = "HUDDebugGameText", type = "sprite" }
 0x9848FEE1 = { policy = "lock", name = "HUDDoorTimer", type = "sprite" }
-0x6CC8E8EF = { policy = "lock", name = "HUDFlash", type = "sprite" }
+0x6CC8E8EF = { policy = "stretch", name = "HUDFlash", type = "sprite" }
 0x500B165F = { policy = "lock", name = "HUDFPSHit", type = "sprite" }
 0x56E081DA = { policy = "lock", name = "HUDGameTimerTemp", type = "sprite" }
 0x42576B04 = { policy = "lock", name = "HUDGenericTimer", type = "sprite" }
@@ -76,13 +76,13 @@
 0xBA67BB61 = { policy = "lock", name = "HUDObjectiveCounter", type = "sprite" }
 0x0D62739D = { policy = "lock", name = "HUDObjectiveCounter_Count", type = "sprite" }
 0xC5D4C2AA = { policy = "lock", name = "HUDObjectiveCounter_Picture", type = "sprite" }
-0x40DC6348 = { policy = "stretch", name = "HUDPiP", type = "sprite" }
-0x76B01033 = { policy = "lock", name = "HUDPiP_InfiniteLoadingPrompt", type = "sprite" }
-0x42433A25 = { policy = "lock", name = "HUDPiPTimeLine", type = "sprite" }
-0x60AE3905 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay", type = "sprite" }
-0xBF7311A4 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay_Text", type = "sprite" }
-0xFE6CDE21 = { policy = "lock", name = "HUDPiPTimeLine_PiP", type = "sprite" }
-0xBD73045B = { policy = "lock", name = "HUDPiPTimeLine_PiP_Text", type = "sprite" }
+0x40DC6348 = { policy = "stretch", name = "HUDPiP", type = "sprite", wide = true }
+0x76B01033 = { policy = "lock", name = "HUDPiP_InfiniteLoadingPrompt", type = "sprite", wide = true }
+0x42433A25 = { policy = "lock", name = "HUDPiPTimeLine", type = "sprite", wide = true }
+0x60AE3905 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay", type = "sprite", wide = true }
+0xBF7311A4 = { policy = "lock", name = "HUDPiPTimeLine_Gameplay_Text", type = "sprite", wide = true }
+0xFE6CDE21 = { policy = "lock", name = "HUDPiPTimeLine_PiP", type = "sprite", wide = true }
+0xBD73045B = { policy = "lock", name = "HUDPiPTimeLine_PiP_Text", type = "sprite", wide = true }
 0x851FB1D4 = { policy = "lock", name = "HUDPrompt3D", type = "sprite" }
 0x6FE3BB09 = { policy = "lock", name = "HUDPrompt3DBottom", type = "sprite" }
 0x10FF6B01 = { policy = "lock", name = "HUDPrompt3DLeft", type = "sprite" }
@@ -279,7 +279,7 @@
 0xE993960F = { policy = "lock", name = "HUDGenericSelector_ScrollBarMask", type = "sprite" }
 0xB769F047 = { policy = "lock", name = "HUDGenericSelector_ScrollBarTemplate", type = "sprite" }
 0x2CC27EF0 = { policy = "lock", name = "HUDGenericSelector_ScrollLeftArrow", type = "sprite" }
-0x1B675589 = { policy = "hug_right", name = "HUDGenericSelector_ScrollRightArrow", type = "sprite" }
+0x1B675589 = { policy = "lock", name = "HUDGenericSelector_ScrollRightArrow", type = "sprite" }
 0x8972AA4D = { policy = "lock", name = "HUDGenericSelector_Selector", type = "sprite" }
 0x310B0993 = { policy = "lock", name = "HUDGenericSelector_Text", type = "label" }
 0x5C979955 = { policy = "lock", name = "HUDGenericSelectorBase", type = "sprite" }
@@ -288,8 +288,8 @@
 0x7F85723D = { policy = "lock", name = "HUDGlobals", type = "sprite" }
 0x45E2617B = { policy = "lock", name = "HUDGlobals_BackgroundFade", type = "sprite" }
 0x121126A8 = { policy = "lock", name = "HUDGlobals_Container", type = "sprite" }
-0xE790340C = { policy = "hug_left", name = "HUDGlobals_MoreLeft", type = "sprite" }
-0x2500B415 = { policy = "lock", name = "HUDGlobals_MoreRight", type = "sprite" }
+0xE790340C = { policy = "lock_width", name = "HUDGlobals_MoreLeft", type = "sprite" }
+0x2500B415 = { policy = "lock_width", name = "HUDGlobals_MoreRight", type = "sprite" }
 0x1293702D = { policy = "lock", name = "HUDGlobals_SafeZone", type = "sprite" }
 0xFFC59AA9 = { policy = "lock", name = "HUDGlobals_SelectZone", type = "sprite" }
 0xAB5BEFB8 = { policy = "lock", name = "HUDGlobals_Spacer", type = "sprite" }
@@ -327,8 +327,8 @@
 0x3C1A70B8 = { policy = "lock", name = "HUDMiniLoading_Icon", type = "sprite" }
 0x2880F8D8 = { policy = "lock", name = "HUDMiniLoading_Text", type = "sprite" }
 0xC5553CE7 = { policy = "lock", name = "HUDMovieBackground", type = "sprite" }
-0xC9430D6D = { policy = "lock", name = "HUDMovieBackground_Bottom", type = "sprite" }
-0x816F2A1B = { policy = "lock", name = "HUDMovieBackground_Top", type = "sprite" }
+0xC9430D6D = { policy = "hide", name = "HUDMovieBackground_Bottom", type = "sprite" }
+0x816F2A1B = { policy = "hide", name = "HUDMovieBackground_Top", type = "sprite" }
 0xFD28013B = { policy = "lock", name = "HUDMultiValueControl", type = "sprite" }
 0xCD79EA99 = { policy = "lock", name = "HUDMultiValueControl_Label", type = "sprite" }
 0x721E9207 = { policy = "lock", name = "HUDMultiValueControl_LeftArrow", type = "sprite" }
