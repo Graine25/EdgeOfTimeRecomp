@@ -6,15 +6,16 @@
 
 #include <rex/types.h>
 #include <rex/memory/utils.h>
+#include <rex/system/xmemory.h>
 
 #include "core/logging.h"
 #include "gpu/d3d.h"
 
 namespace eot::gpu::fastguest {
 
-inline u8 *Guest(u8 *base, u32 va) { return base + va + (va >= 0xE0000000u ? 0x1000u : 0u); }
+inline u8 *Guest(u8 *base, u32 va) { return base + va + rex::memory::detail::PhysicalHostOffset(va); }
 inline const u8 *Guest(const u8 *base, u32 va) {
-  return base + va + (va >= 0xE0000000u ? 0x1000u : 0u);
+  return base + va + rex::memory::detail::PhysicalHostOffset(va);
 }
 
 inline u16 Ld16(const u8 *p) { return rex::memory::load_and_swap<u16>(p); }

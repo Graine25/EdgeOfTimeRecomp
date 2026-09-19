@@ -22,6 +22,13 @@
 #else
 #include <plume_vulkan.h>
 #endif
+
+#if !defined(_WIN32)
+#include <dlfcn.h>
+#include <sched.h>
+
+#include <fstream>
+#endif
 #include <rex/ui/window.h>
 
 #include <renderdoc_app.h>
@@ -168,16 +175,27 @@ bool g_rdoc_capturing = false;
 }
 
 void RenderDocInit() {
-#if defined(_WIN32)
   if (g_rdoc || Settings::RenderDocFrame() <= 0)
     return;
   const std::string dll = Settings::RenderDocDll();
+#if defined(_WIN32)
   HMODULE mod = LoadLibraryA(dll.c_str());
   if (!mod) {
     EOT_ERROR("[rdc] LoadLibrary({}) failed ({})", dll, GetLastError());
     return;
   }
   auto get_api = reinterpret_cast<pRENDERDOC_GetAPI>(GetProcAddress(mod, "RENDERDOC_GetAPI"));
+#else
+  const std::string so = dll.ends_with(".dll") ? "librenderdoc.so" : dll;
+  void *mod = ::dlopen(so.c_str(), RTLD_NOW | RTLD_NOLOAD);
+  if (!mod)
+    mod = ::dlopen(so.c_str(), RTLD_NOW);
+  if (!mod) {
+    EOT_ERROR("[rdc] dlopen({}) failed ({})", so, ::dlerror());
+    return;
+  }
+  auto get_api = reinterpret_cast<pRENDERDOC_GetAPI>(::dlsym(mod, "RENDERDOC_GetAPI"));
+#endif
   if (!get_api || !get_api(eRENDERDOC_API_Version_1_6_0, reinterpret_cast<void **>(&g_rdoc)) ||
       !g_rdoc) {
     EOT_ERROR("[rdc] RENDERDOC_GetAPI failed");
@@ -192,7 +210,6 @@ void RenderDocInit() {
   g_rdoc->GetAPIVersion(&major, &minor, &patch);
   EOT_INFO("[rdc] RenderDoc {}.{}.{} loaded from {}; capturing guest frame {} to {}", major,
            minor, patch, dll, Settings::RenderDocFrame(), path);
-#endif
 }
 
 void RenderDocFrameBoundary(u64 guest_frame_just_presented) {
@@ -297,11 +314,18 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
                                                                         nullptr);
   }
 #else
-  cmd->copyTextureRegion(
-      plume::RenderTextureCopyLocation::PlacedFootprint(readback.get(),
-                                                        plume::RenderFormat::R8G8B8A8_UNORM, w, h,
-                                                        1, row / 4, 0),
-      plume::RenderTextureCopyLocation::Subresource(target.texture.get(), 0));
+  {
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = row / 4;
+    region.bufferImageHeight = h;
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent = {w, h, 1};
+    vkCmdCopyImageToBuffer(static_cast<plume::VulkanCommandList *>(cmd)->vk,
+                           static_cast<plume::VulkanTexture *>(target.texture.get())->vk,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, static_cast<plume::VulkanBuffer *>(readback.get())->vk,
+                           1, &region);
+  }
 #endif
   s.bound_pipeline = nullptr;
   s.bound_framebuffer = nullptr;
@@ -371,6 +395,46 @@ bool PinThreadToPhysicalCore(u32 core, const char *what) {
     return false;
   EOT_INFO("[gpu] {} pinned to physical core {} (logical mask {:#x} of {} cores)", what, core,
            static_cast<u64>(cores[core].mask), cores.size());
+  return true;
+#elif defined(__linux__)
+  std::vector<std::vector<int>> cores;
+  for (int cpu = 0; cpu < 1024; ++cpu) {
+    const std::string base = "/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/topology/";
+    std::ifstream in(base + "core_cpus_list");
+    if (!in)
+      in.open(base + "thread_siblings_list");
+    if (!in)
+      break;
+    std::string list;
+    std::getline(in, list);
+    std::vector<int> set;
+    size_t pos = 0;
+    while (pos < list.size()) {
+      size_t end = list.find(',', pos);
+      if (end == std::string::npos)
+        end = list.size();
+      const std::string item = list.substr(pos, end - pos);
+      const size_t dash = item.find('-');
+      const int lo = std::atoi(item.c_str());
+      const int hi = dash == std::string::npos ? lo : std::atoi(item.c_str() + dash + 1);
+      for (int c = lo; c <= hi && c < 1024; ++c)
+        set.push_back(c);
+      pos = end + 1;
+    }
+    if (set.empty() || set.front() != cpu)
+      continue;
+    cores.push_back(std::move(set));
+  }
+  if (cores.size() < 8 || core >= cores.size())
+    return false;
+  cpu_set_t mask;
+  CPU_ZERO(&mask);
+  for (int c : cores[core])
+    CPU_SET(c, &mask);
+  if (::sched_setaffinity(0, sizeof(mask), &mask) != 0)
+    return false;
+  EOT_INFO("[gpu] {} pinned to physical core {} ({} logical CPUs of {} cores)", what, core, cores[core].size(),
+           cores.size());
   return true;
 #else
   (void)core;
@@ -918,8 +982,19 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
     EOT_ERROR("Window has no native HWND yet");
     return false;
   }
+#elif defined(PLUME_SDL_VULKAN_ENABLED)
+  {
+    int count = 0;
+    SDL_Window **windows = SDL_GetWindows(&count);
+    render_window = (windows && count > 0) ? windows[0] : nullptr;
+    SDL_free(windows);
+  }
+  if (!render_window) {
+    EOT_ERROR("No SDL window exists yet");
+    return false;
+  }
 #else
-  EOT_ERROR("Non-Windows native window handles are not wired up yet");
+  EOT_ERROR("Native window handles are not wired up for this platform");
   return false;
 #endif
 
