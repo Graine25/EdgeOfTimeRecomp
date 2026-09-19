@@ -52,7 +52,7 @@ constexpr uint32_t kFlagScreenSpace = 0x2;
 float LayoutAspect() { return eot::gpu::LayoutIsWidescreen() ? 16.0f / 9.0f : 4.0f / 3.0f; }
 constexpr float kAspectEpsilon = 0.01f;
 
-enum class Policy { Lock, Stretch, LockText, HugLeft, HugRight, LockWidth };
+enum class Policy { Lock, Stretch, LockText, HugLeft, HugRight, LockWidth, Hide };
 
 struct Entry {
   uint32_t crc;
@@ -97,6 +97,8 @@ const char *PolicyName(Policy p) {
     return "hug_right";
   case Policy::LockWidth:
     return "lock_width";
+  case Policy::Hide:
+    return "hide";
   }
   return "?";
 }
@@ -151,12 +153,13 @@ void ApplyAspectPolicy(uint32_t wnd) {
   const Policy policy = PolicyForCrc(entry);
   const bool hug = policy == Policy::HugLeft || policy == Policy::HugRight;
   const bool width_only = policy == Policy::LockWidth && !self_laid_out;
+  const bool hide = policy == Policy::Hide && !self_laid_out;
   Census(crc, entry, parent, self_laid_out, ReadGuestF32(wnd + kWndComputedX),
          ReadGuestF32(wnd + kWndComputedW),
          static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth)), policy);
-  if (!hug && !width_only && self_laid_out == (policy == Policy::Stretch))
+  if (!hug && !width_only && !hide && self_laid_out == (policy == Policy::Stretch))
     return;
-  const bool inverse = !self_laid_out && !hug && !width_only;
+  const bool inverse = !self_laid_out && !hug && !width_only && !hide;
 
   const float canvas_w = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasWidth));
   const float canvas_h = static_cast<float>(eot::mem::load<uint32_t>(kHudCanvasHeight));
@@ -172,7 +175,7 @@ void ApplyAspectPolicy(uint32_t wnd) {
   const float offset = canvas_w * (1.0f - scale) * 0.5f;
 
   const bool trace = eot::goliath::UiAspectLogEnabled() &&
-                     (width_only || g_remapped.load(std::memory_order_relaxed) < 24);
+                     (width_only || hide || g_remapped.load(std::memory_order_relaxed) < 24);
   const float before_x = ReadGuestF32(wnd + kWndComputedX);
   const float before_w = ReadGuestF32(wnd + kWndComputedW);
 
@@ -196,6 +199,10 @@ void ApplyAspectPolicy(uint32_t wnd) {
   }
   const auto remap = [&](uint32_t x_field, uint32_t w_field) {
     const float x = ReadGuestF32(wnd + x_field), w = ReadGuestF32(wnd + w_field);
+    if (hide) {
+      WriteGuestF32(wnd + x_field, canvas_w * 8.0f);
+      return;
+    }
     if (width_only) {
       WriteGuestF32(wnd + x_field, centre + (x - centre) * scale);
       WriteGuestF32(wnd + w_field, w * scale);
