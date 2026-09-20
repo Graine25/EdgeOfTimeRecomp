@@ -134,7 +134,7 @@ elif mode == "callseq":
                             if f4 and f4.start_ea == t:
                                 refs.append(dname(t))
             w.writerow([f"{ea:#x}", dname(ea), fn.end_ea - fn.start_ea, "|".join(seq), "|".join(refs)])
-elif mode == "apiseq":
+elif mode in ("apiseq", "dataseq"):
     import ida_typeinf
     ok = ida_hexrays.init_hexrays_plugin()
     fields = {}
@@ -145,12 +145,24 @@ elif mode == "apiseq":
             t.get_udt_details(udt)
             fields[t.get_type_name()] = {m.offset // 8: m.name for m in udt}
 
+    with_data = mode == "dataseq"
+
+    def data_name(ea):
+        n = idc.get_name(ea)
+        d = ida_name.demangle_name(n, idc.get_inf_attr(idc.INF_SHORT_DEMNAMES))
+        return d or n
+
     class V(ida_hexrays.ctree_visitor_t):
         def __init__(self):
             super().__init__(ida_hexrays.CV_FAST)
             self.seq = []
 
         def visit_expr(self, e):
+            if with_data and e.op == ida_hexrays.cot_obj and not ida_funcs.get_func(e.obj_ea):
+                n = data_name(e.obj_ea)
+                if n and not n.startswith("gpAPI"):
+                    self.seq.append("@" + n)
+                return 0
             if e.op != ida_hexrays.cot_call:
                 return 0
             x = e.x

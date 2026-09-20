@@ -1,4 +1,5 @@
 import csv
+import re
 import sys
 
 csv.field_size_limit(1 << 30)
@@ -16,12 +17,24 @@ for r in rows:
     if ea in names and r[1] != names[ea]:
         old_to_new[r[1]] = names[ea]
         r[1] = names[ea]
+PLACE = re.compile(r"^(@?)(?:sub_|nullsub_|dword_|unk_|byte_|word_|off_|flt_|qword_|dbl_|stru_|asc_)([0-9A-Fa-f]{6,8})$")
+
+
+def map_token(t):
+    if t in old_to_new:
+        return old_to_new[t]
+    m = PLACE.match(t)
+    if m and int(m.group(2), 16) in names:
+        return m.group(1) + names[int(m.group(2), 16)]
+    return t
+
+
 changed = 0
 for r in rows:
     for col in (3, 4):
         if len(r) > col and r[col]:
             toks = r[col].split("|")
-            new = [old_to_new.get(t, t) for t in toks]
+            new = [map_token(t) for t in toks]
             if new != toks:
                 changed += 1
                 r[col] = "|".join(new)
