@@ -15,11 +15,15 @@ struct Settings {
   static i32 SummaryFrames();
   static i32 DiagVerbosity();
   static bool Vsync();
+  static bool Taa();
+  static double TaaFeedback();
+  static bool MotionVectors();
   static bool Bloom();
   static bool DepthOfField();
   static bool MotionBlur();
   static bool RadialBlur();
   static bool ColorGrading();
+  static bool SceneCopyRefresh();
   static double FovScale();
   static i32 Anisotropy();
   static i32 Msaa();
@@ -34,6 +38,8 @@ struct Settings {
   static bool FastSettersVerify();
   static f64 RenderScale();
   static std::string Resolution();
+  static i32 DisplayScalePercent();
+  static std::string FullscreenMode();
   static i32 PipScalePercent();
   static i32 FpsLimit();
   static std::string AspectRatio();
@@ -43,6 +49,7 @@ struct Settings {
   static bool Profiler();
   static i32 PerfFrames();
   static i32 DumpEvery();
+  static i32 DumpBurst();
   static i32 DiagFrame();
   static bool DiagScene();
   static i32 DiagSceneFrom();
@@ -63,6 +70,7 @@ constexpr u32 kGuestRenderWidth = 1120;
 constexpr u32 kGuestRenderHeight = 632;
 
 void SetAutoRenderHeight(u32 height);
+void SetDisplayHeight(u32 height);
 f32 RenderScaleFactor();
 u32 InternalRenderWidth();
 u32 InternalRenderHeight();

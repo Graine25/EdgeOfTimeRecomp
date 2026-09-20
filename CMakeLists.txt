@@ -240,6 +240,8 @@ set(REEOT_SOURCES
     src/goliath/body_pulse_materials.cpp
     src/goliath/web_color.cpp
     src/goliath/text/glyph_pages.cpp
+    src/gpu/taa.cpp
+    src/gpu/velocity.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/hooks/stubs.cpp
     src/gpu/hooks/state.cpp
@@ -392,7 +394,8 @@ endif()
 foreach(shader IN ITEMS copy_vs imgui_vs)
     reeot_host_shader(reeot ${shader} vs_6_0)
 endforeach()
-foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps
+foreach(shader IN ITEMS blit_ps copy_depth_ps imgui_ps taa_ps
+        velocity_resolve_2x_ps velocity_resolve_4x_ps velocity_resolve_8x_ps
         resolve_msaa_color_2x_ps resolve_msaa_color_4x_ps resolve_msaa_color_8x_ps
         resolve_msaa_depth_2x_ps resolve_msaa_depth_4x_ps resolve_msaa_depth_8x_ps
         derive_depth_stencil_2x_ps

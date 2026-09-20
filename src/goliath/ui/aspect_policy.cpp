@@ -56,6 +56,7 @@ struct Entry {
   Policy policy;
   const char *name;
   bool wide;
+  Policy macwide;
 };
 
 constexpr Entry kWindows[] = {
@@ -178,7 +179,7 @@ void ApplyAspectPolicy(uint32_t wnd) {
   const uint32_t crc = eot::mem::load<uint32_t>(wnd + kWndCrc);
   const Entry *entry = LookUp(crc);
   const bool wide_on_macwide = entry && entry->wide && eot::gpu::MacWide();
-  const Policy policy = wide_on_macwide ? Policy::Lock : PolicyForCrc(entry);
+  const Policy policy = wide_on_macwide ? entry->macwide : PolicyForCrc(entry);
   const auto note_wide = [&] {
     if (wide_on_macwide)
       NoteWideWindowRect(crc, wnd);

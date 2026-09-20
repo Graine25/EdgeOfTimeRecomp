@@ -15,6 +15,7 @@
 
 #include <SDL3/SDL.h>
 #include <plume_render_interface.h>
+#include <rex/cvar.h>
 #include <plume_render_interface_builders.h>
 #if defined(EOT_D3D12)
 #include <plume_d3d12.h>
@@ -961,6 +962,17 @@ std::string PanelMode() {
 
 }
 
+namespace {
+
+// Keeps the guest's video mode when exclusive fullscreen sets the resolution cvar.
+void PinGuestVideoMode() {
+  for (auto &entry : rex::cvar::GetRegistry())
+    if ((entry.name == "video_mode_width" || entry.name == "video_mode_height") && entry.default_value != "0")
+      entry.default_value = "0";
+}
+
+}
+
 bool Video::CreateHostDevice(rex::ui::Window *window) {
   if (!window) {
     EOT_ERROR("Video::CreateHostDevice: null window");
@@ -1030,6 +1042,32 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   s.command_list = s.command_lists[0].get();
 
   constexpr uint32_t kMaxFrameLatency = 2;
+  {
+    const eot::platform::Display display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
+    SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
+    SetDisplayHeight(display.height);
+    if (display.refresh_hz)
+      s.display_refresh_hz = display.refresh_hz;
+    EOT_INFO("[gpu] display {}x{} at {} Hz, {}: a window renders at {}p", display.width, display.height,
+             display.refresh_hz, Settings::Fullscreen() ? "fullscreen" : "windowed",
+             eot::platform::AutoRenderHeight(display));
+    if (Settings::Fullscreen() && Settings::FullscreenMode() == "exclusive") {
+      const u32 want_h = InternalRenderHeight();
+      const u32 want_w = display.width && display.height
+                             ? static_cast<u32>(std::lround(static_cast<f64>(want_h) * display.width /
+                                                            display.height))
+                             : InternalRenderWidth();
+      PinGuestVideoMode();
+      rex::cvar::SetFlagByName("resolution", std::format("{}x{}", want_w, want_h));
+      rex::cvar::SetFlagByName("fullscreen_exclusive", "true");
+      EOT_INFO("[gpu] exclusive fullscreen at the display mode nearest {}x{} for the {}x{} internal render",
+               want_w, want_h, InternalRenderWidth(), want_h);
+    } else if (rex::cvar::GetFlagByName("fullscreen_exclusive") == "true" ||
+               !rex::cvar::GetFlagByName("resolution").empty()) {
+      rex::cvar::SetFlagByName("fullscreen_exclusive", "false");
+      rex::cvar::SetFlagByName("resolution", "");
+    }
+  }
   plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM, kNumFrames + 1,
                                   true, kMaxFrameLatency);
   s.swap_chain = s.queue->createSwapChain(desc);
@@ -1054,15 +1092,6 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   InitGPUProfiler(static_cast<plume::D3D12Device *>(s.device.get())->d3d,
                   static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
 #endif
-  {
-    const eot::platform::Display display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
-    SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
-    if (display.refresh_hz)
-      s.display_refresh_hz = display.refresh_hz;
-    EOT_INFO("[gpu] display {}x{} at {} Hz, {}: a window renders at {}p", display.width, display.height,
-             display.refresh_hz, Settings::Fullscreen() ? "fullscreen" : "windowed",
-             eot::platform::AutoRenderHeight(display));
-  }
   ApplyQualityPresetAtBoot();
   {
     const i32 asked = Settings::Msaa();

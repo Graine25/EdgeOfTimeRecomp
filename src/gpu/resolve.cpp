@@ -23,6 +23,7 @@
 #include "gpu/surfaces.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
+#include "gpu/velocity.h"
 
 namespace eot::gpu {
 
@@ -191,6 +192,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
   EOT_CPU_ZONE("ResolveGuest");
   PerfScope perf_scope(s.perf.resolve_ms);
   s.perf.resolves++;
+  if (pk.refresh)
+    s.perf.resolve_refreshes++;
   FlushPendingTransitions(s);
   GpuTimingMark(s, s.command_list, kGpuCatResolve);
 
@@ -337,8 +340,9 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
         target.resolveOrdinal = 0;
       }
       const u32 ordinal = std::min(target.resolveOrdinal, 31u);
-      const bool regretted = (target.handoffRegretMask >> ordinal) & 1u;
-      target.resolveOrdinal++;
+      const bool regretted = pk.refresh || ((target.handoffRegretMask >> ordinal) & 1u);
+      if (!pk.refresh)
+        target.resolveOrdinal++;
       if (target.resolvedSurfaceUid == content_surf.uid &&
           target.resolvedSurfaceSerial == content_surf.serial &&
           target.resolvedOwnSerial == target.contentSerial && target.resolvedLevel == level &&
@@ -361,6 +365,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       target.contentSerial++;
       target.resolvedSurfaceUid = content_surf.uid;
       target.resolvedSurfaceSerial = content_surf.serial;
+      target.velocity = content_surf.isDepth ? velocity::HandleFor(content_surf, s.guest_frames)
+                                             : VelocityHandle{};
       target.resolvedOwnSerial = target.contentSerial;
       target.resolvedLevel = level;
       std::memcpy(target.resolvedRect, rect_now, sizeof(rect_now));
@@ -561,6 +567,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       dest->contentSerial++;
       dest->resolvedSurfaceUid = surf->uid;
       dest->resolvedSurfaceSerial = surf->serial;
+      dest->velocity = surf->isDepth ? velocity::HandleFor(*surf, s.guest_frames) : VelocityHandle{};
       dest->resolvedOwnSerial = dest->contentSerial;
       dest->resolvedLevel = dest_level;
       const i32 rect_now[6] = {vx, vy, vw, vh, x0, y0};
@@ -571,6 +578,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
     } else if (vw > 0 && vh > 0) {
       blit(*dest, dest_level, vx, vy, vw, vh, x0, y0);
     }
+    if (!depth_source && !pk.refresh)
+      dest->lastResolve = std::make_shared<ResolvePacket>(pk);
     if (depth_source && whole_src && dest_level == 0 && vw == rw && vh == rh &&
         surf->host.sampleCount == 1 && dest_ref && dest->host.isDepth && dest->host.renderable &&
         dest->host.sampleCount == 1 && dest->host.mipLevels == 1 && dest->host.arraySize == 1 &&
