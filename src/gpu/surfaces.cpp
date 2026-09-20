@@ -155,6 +155,7 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   static u64 next_uid = 1;
   surf.uid = next_uid++;
   surf.serial++;
+  surf.wholeClearSerial = surf.serial;
   return CreateSurfaceImage(s, surf, surf.host, HostSampleCountFor(s, surf),
                             surf.isDepth ? "surface-ds" : "surface-rt");
 }
@@ -611,6 +612,7 @@ bool SurfaceTakeBack(VideoState &s, GuestSurface &surf) {
       lender->host.format != dst.format) {
     surf.content = GuestSurface::Content::Undefined;
     surf.serial++;
+    surf.wholeClearSerial = surf.serial;
     surf.host.needsClear = true;
     if (surf.single.valid())
       surf.single.needsClear = true;
@@ -762,6 +764,7 @@ void NoteSurfaceClearedColor(GuestSurface &surf, const HostTexture &image, const
   surf.drawn = true;
   surf.serial++;
   if (whole) {
+    surf.wholeClearSerial = surf.serial;
     surf.handoffFrame = ~0ull;
     surf.handoffMirror.reset();
     DropBorrow(surf);

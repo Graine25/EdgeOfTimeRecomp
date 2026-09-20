@@ -11,7 +11,7 @@
 
 namespace eot::gpu {
 
-constexpr u32 kPsoCsvVersion = 3;
+constexpr u32 kPsoCsvVersion = 4;
 
 constexpr const char *kPsoDir = "pso";
 constexpr u32 kPsoGateLoadingScreenMs = 5000;
@@ -33,7 +33,7 @@ struct PsoRecord {
 };
 
 struct PsoCsvLayout {
-  static constexpr u32 kColumns = 34;
+  static constexpr u32 kColumns = 35;
   i8 index[kColumns];
   u32 fieldCount = 0;
   u32 version = kPsoCsvVersion;

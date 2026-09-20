@@ -33,7 +33,9 @@
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
+#include "gpu/taa.h"
 #include "gpu/textures.h"
+#include "gpu/velocity.h"
 #include "gpu/trace.h"
 
 namespace eot::gpu {
@@ -558,7 +560,7 @@ void LogPerfLocked(VideoState &s) {
     return;
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall (p50 {:.2f} p95 {:.2f} p99 {:.2f} max {:.2f}) | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
+           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} refresh, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} (@{:#x}) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
            "| hostbind/f vb {:.1f}/{:.1f} (1s {:.1f}) ib {:.1f}/{:.1f} fb reuse {:.1f} tgtmemo {:.1f} (miss g{:.0f} w{:.0f} s{:.0f}) sorted {:.0f}/{:.0f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f} (hit {:.1f})/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} blit {:.2f} submit {:.2f} fence {:.2f} house {:.2f} pace {:.2f} | KB/frame vtx {} "
@@ -570,7 +572,7 @@ void LogPerfLocked(VideoState &s) {
            p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
            p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
            p.const_file_mask_misses,
-           p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames,
+           p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames, p.resolve_refreshes / p.frames,
            p.surface_transfers / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
            p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
@@ -687,6 +689,8 @@ void FrameLimitWait(const VideoState &s) {
 
 void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   EOT_CPU_ZONE("PresentLocked");
+  taa::EndFrame(s);
+  velocity::EndFrame(s);
   s.guest_frames++;
   s.frame_clock[s.guest_frames % kFrameClockRing] =
       std::chrono::duration<f64>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -785,7 +789,8 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   if (uncovered)
     cmd->clearColor(0, plume::RenderColor(0, 0, 0, 1), nullptr, 0);
   const i32 dump_every = Settings::DumpEvery();
-  if (front && dump_every > 0 && ((s.presented_frames + 1) % static_cast<u64>(dump_every)) == 0) {
+  const u64 dump_phase = dump_every > 0 ? (s.presented_frames + 1) % static_cast<u64>(dump_every) : 1;
+  if (front && dump_every > 0 && dump_phase < static_cast<u64>(std::max(1, Settings::DumpBurst()))) {
     const std::string path = std::format("logs/frame_{}.ppm", s.presented_frames + 1);
     DumpHostTextureLocked(s, front->host, path.c_str(), 1.0f, lut_index,
                           SamplingSwizzle(*front, front->fetch[3] >> 1));
@@ -898,6 +903,8 @@ void Video::Present(u32 front_buffer_texture_va) {
     PinThreadToPhysicalCore(1, "the guest's rendering thread");
   }
   trace::EndFrame(s.guest_frames + 1);
+  s.captured_presents++;
+  velocity::BeginCaptureFrame(s);
   if (s.ready && !s.shutting_down.load(std::memory_order_acquire)) {
     if (RenderThreadActive()) {
       u64 seq = 0;

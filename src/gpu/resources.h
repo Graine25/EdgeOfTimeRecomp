@@ -56,6 +56,15 @@ struct HostTexture {
 
 struct GuestSurface;
 
+struct VelocityHandle {
+  u64 depthUid = 0;
+  u32 slot = 0;
+  u64 generation = 0;
+  u64 frame = ~0ull;
+};
+
+struct ResolvePacket;
+
 struct GuestTexture {
   u32 va = 0;
   u32 fetch[6] = {};
@@ -90,6 +99,7 @@ struct GuestTexture {
   u32 resolvedLevel = 0;
   i32 resolvedRect[6] = {0, 0, 0, 0, 0, 0};
   u32 resolvedMipMask = 0;
+  VelocityHandle velocity;
   u32 resolveOrdinal = 0;
   u64 resolveOrdinalFrame = ~0ull;
   u32 handoffRegretMask = 0;
@@ -101,6 +111,7 @@ struct GuestTexture {
   u64 perfSamples = 0;
   u64 perfResolves = 0;
   u64 perfDeadResolves = 0;
+  std::shared_ptr<ResolvePacket> lastResolve;
 };
 
 struct GuestSurface {
@@ -133,6 +144,7 @@ struct GuestSurface {
   u64 borrowedSerial = 0;
   u64 uid = 0;
   u64 serial = 1;
+  u64 wholeClearSerial = 0;
   u64 handoffFrame = ~0ull;
   std::weak_ptr<GuestTexture> handoffMirror;
   u32 handoffMirrorOrdinal = 0;

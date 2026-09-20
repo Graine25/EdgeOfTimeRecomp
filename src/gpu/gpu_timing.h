@@ -21,6 +21,7 @@ constexpr u32 kGpuCatUpload = 4;
 constexpr u32 kGpuCatResolveHw = 6;
 constexpr u32 kGpuCatResolveDepth = 7;
 constexpr u32 kGpuCatBroadcast = 8;
+constexpr u32 kGpuCatTaa = 9;
 
 u32 GpuTargetCategory(bool full_frame, bool has_depth, u32 color_count, u32 color0_host_format,
                       u32 samples, bool additive);

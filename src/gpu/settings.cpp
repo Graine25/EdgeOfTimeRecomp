@@ -29,7 +29,13 @@ REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug", "Log frames slower tha
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video", "Internal render resolution")
-    .allowed({"native", "720p", "1080p", "1440p", "2160p"})
+    .allowed({"native", "720p", "1080p", "1440p", "2160p", "display"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_INT32(eot_display_scale, 100, "EdgeOfTime/Video", "Render percent of display")
+    .range(25, 200)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_STRING(eot_fullscreen_mode, "borderless", "EdgeOfTime/Video", "Borderless or exclusive fullscreen")
+    .allowed({"borderless", "exclusive"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_pip_scale, 50, "EdgeOfTime/Video", "Picture-in-picture resolution")
     .range(25, 100)
@@ -39,8 +45,13 @@ REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video", "Fullscreen 
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video", "Frame rate cap")
     .range(0, 1000);
 REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug", "Check fast setters match");
+REXCVAR_DEFINE_BOOL(eot_taa, false, "EdgeOfTime/Graphics", "Temporal anti-aliasing");
+REXCVAR_DEFINE_DOUBLE(eot_taa_feedback, 0.8, "EdgeOfTime/Graphics", "TAA history strength")
+    .range(0.3, 0.95);
+REXCVAR_DEFINE_BOOL(eot_motion_vectors, false, "EdgeOfTime/Graphics", "Per-object motion vectors");
 REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics", "Glow around bright lights");
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics", "Depth of field blur");
+REXCVAR_DEFINE_BOOL(eot_scene_copy_refresh, true, "EdgeOfTime/Graphics", "Refresh copies for glass effects");
 REXCVAR_DEFINE_BOOL(eot_motion_blur, true, "EdgeOfTime/Graphics", "Motion blur on or off");
 REXCVAR_DEFINE_BOOL(eot_radial_blur, true, "EdgeOfTime/Graphics", "Radial blur streaks");
 REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics", "Scene color grading");
@@ -89,6 +100,8 @@ REXCVAR_DEFINE_STRING(eot_rdc_path, "D:/reeot_caps/tmp/reeot", "EdgeOfTime/Debug
 
 REXCVAR_DEFINE_INT32(eot_dump_every, 0, "EdgeOfTime/Debug", "Save a frame every N")
     .range(0, 1000000);
+REXCVAR_DEFINE_INT32(eot_dump_burst, 1, "EdgeOfTime/Debug", "Frames saved per dump")
+    .range(1, 64);
 
 REXCVAR_DEFINE_BOOL(eot_present_gamma, true, "EdgeOfTime/Video", "Use the console gamma ramp");
 
@@ -104,6 +117,8 @@ bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
 bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
+i32 Settings::DisplayScalePercent() { return REXCVAR_GET(eot_display_scale); }
+std::string Settings::FullscreenMode() { return std::string(REXCVAR_GET(eot_fullscreen_mode)); }
 i32 Settings::PipScalePercent() { return REXCVAR_GET(eot_pip_scale); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
@@ -111,6 +126,7 @@ i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
+i32 Settings::DumpBurst() { return REXCVAR_GET(eot_dump_burst); }
 namespace {
 std::atomic<i32> g_diag_frame_armed{0};
 }
@@ -130,11 +146,15 @@ i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
+bool Settings::Taa() { return REXCVAR_GET(eot_taa); }
+bool Settings::MotionVectors() { return REXCVAR_GET(eot_motion_vectors); }
+double Settings::TaaFeedback() { return REXCVAR_GET(eot_taa_feedback); }
 bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
 bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
 bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }
 bool Settings::RadialBlur() { return REXCVAR_GET(eot_radial_blur); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
+bool Settings::SceneCopyRefresh() { return REXCVAR_GET(eot_scene_copy_refresh); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
 i32 Settings::Msaa() { return REXCVAR_GET(eot_msaa); }
@@ -151,6 +171,7 @@ bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
 namespace {
 
 u32 g_auto_render_height = 1080;
+u32 g_display_height = 0;
 
 std::atomic<bool> g_fullscreen{true};
 struct FullscreenWatch {
@@ -174,15 +195,22 @@ f32 ComputeRenderScale() {
     target_height = 1440;
   else if (preset == "2160p")
     target_height = 2160;
+  else if (preset == "display") {
+    const u32 rows = g_display_height ? g_display_height : g_auto_render_height;
+    target_height = std::max(
+        kGuestRenderHeight,
+        static_cast<u32>(std::lround(static_cast<f64>(rows) * Settings::DisplayScalePercent() / 100.0)));
+  }
   const f64 scale = target_height != 0
                         ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
                         : Settings::RenderScale();
-  return static_cast<f32>(std::clamp(scale, 0.25, 4.0));
+  return static_cast<f32>(std::clamp(scale, 0.25, 5.0));
 }
 
 }
 
 void SetAutoRenderHeight(u32 height) { g_auto_render_height = height; }
+void SetDisplayHeight(u32 height) { g_display_height = height; }
 
 bool Settings::Fullscreen() {
   static const bool initial = [] {
@@ -207,22 +235,24 @@ u32 InternalRenderHeight() { return ScaleDim(kGuestRenderHeight); }
 }
 
 REXCVAR_DEFINE_STRING(eot_quality_preset, "custom", "EdgeOfTime/Graphics", "Graphics quality preset")
-    .allowed({"low", "medium", "high", "custom"});
+    .allowed({"low", "medium", "high", "ultra", "custom"});
 
 namespace {
 
-enum class Level { kLow, kMedium, kHigh, kCustom };
+enum class Level { kLow, kMedium, kHigh, kUltra, kCustom };
 
 struct Gate {
   const char *name;
-  const char *low, *medium, *high;
+  const char *low, *medium, *high, *ultra;
 };
 
 constexpr Gate kGates[] = {
-    {"eot_msaa", "0", "2", "4"},
-    {"eot_upscale", "bilinear", "bicubic", "bicubic"},
-    {"eot_anisotropy", "0", "8", "16"},
-    {"eot_shadow_map_size", "1024", "2048", "4096"},
+    {"eot_msaa", "0", "2", "4", "8"},
+    {"eot_upscale", "bilinear", "bicubic", "bicubic", "bicubic"},
+    {"eot_anisotropy", "0", "8", "16", "16"},
+    {"eot_shadow_map_size", "1024", "2048", "4096", "8192"},
+    {"eot_taa", "false", "false", "false", "true"},
+    {"eot_motion_vectors", "false", "false", "false", "true"},
 };
 
 Level Parse(std::string_view v) {
@@ -232,6 +262,8 @@ Level Parse(std::string_view v) {
     return Level::kMedium;
   if (v == "high")
     return Level::kHigh;
+  if (v == "ultra")
+    return Level::kUltra;
   return Level::kCustom;
 }
 
@@ -243,6 +275,8 @@ const char *Value(const Gate &g, Level level) {
     return g.medium;
   case Level::kHigh:
     return g.high;
+  case Level::kUltra:
+    return g.ultra;
   default:
     return nullptr;
   }

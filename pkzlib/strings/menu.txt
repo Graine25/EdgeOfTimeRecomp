@@ -26,13 +26,14 @@ REEOT_OPT_ASPECT	Aspect Ratio
 REEOT_OPT_FPS_LIMIT	Frame Rate Limit
 REEOT_OPT_VSYNC	VSync
 REEOT_OPT_RENDER_SCALE	Render Scale
-REEOT_OPT_PIP_SCALE	Picture-in-Picture Resolution
+REEOT_OPT_PIP_SCALE	PiP Resolution
 REEOT_OPT_BRIGHTNESS	Brightness
 REEOT_OPT_CONTRAST	Contrast
 REEOT_OPT_SATURATION	Saturation
 REEOT_OPT_GAMMA	Gamma
 REEOT_OPT_PRESET	Quality Preset
 REEOT_OPT_MSAA	Anti-Aliasing
+REEOT_OPT_TAA	Temporal Anti-Aliasing
 REEOT_OPT_ANISOTROPY	Anisotropic Filtering
 REEOT_OPT_SHADOW_SIZE	Shadow Resolution
 REEOT_OPT_SHADOW_DISTANCE	Shadow Distance
@@ -60,12 +61,13 @@ REEOT_VAL_66_PERCENT	66%
 REEOT_VAL_50_PERCENT	50%
 REEOT_VAL_4_3	4:3
 REEOT_VAL_16_9	16:9
-REEOT_VAL_16_10	16:10 (MacWide)
+REEOT_VAL_16_10	16:10
 REEOT_VAL_21_9	21:9
 REEOT_VAL_32_9	32:9
 REEOT_VAL_LOW	Low
-REEOT_VAL_MEDIUM	Medium
+REEOT_VAL_MEDIUM	Med
 REEOT_VAL_HIGH	High
+REEOT_VAL_ULTRA	Ultra
 REEOT_VAL_CUSTOM	Custom
 REEOT_VAL_2X	2x
 REEOT_VAL_4X	4x
@@ -74,11 +76,12 @@ REEOT_VAL_16X	16x
 REEOT_VAL_1024	1024
 REEOT_VAL_2048	2048
 REEOT_VAL_4096	4096
+REEOT_VAL_8192	8192
 REEOT_VAL_BILINEAR	Bilinear
 REEOT_VAL_BICUBIC	Bicubic
 REEOT_VAL_LANCZOS	Lanczos
 REEOT_DESC_FULLSCREEN	Fills the display, or runs in a window that can be moved and resized.
-REEOT_DESC_RESOLUTION	The resolution the game renders at in fullscreen. Native is the console's own 1120x632, scaled by Render Scale. In a window the game renders at the height the display suggests and the picture stretches to the window.
+REEOT_DESC_RESOLUTION	The resolution the game renders at in fullscreen. Native is the console's own 1120x632, scaled by Render Scale; Display is the display's own, scaled by Display Scale. In a window the game renders at the height the display suggests and the picture stretches to the window.
 REEOT_DESC_ASPECT	The shape the game builds its picture for in fullscreen. Wider than 16:9 shows more to the sides rather than stretching. In a window the picture follows the window.
 REEOT_DESC_FPS_LIMIT	The most frames per second the game will run at. The game runs one step per frame, so this paces everything, not just the display.
 REEOT_DESC_VSYNC	Waits for the display before showing a frame, which stops tearing and caps the rate at the display's.
@@ -90,6 +93,7 @@ REEOT_DESC_SATURATION	How strong the colours are: 0% is greyscale, 100% is the g
 REEOT_DESC_GAMMA	The curve between dark and light, before the console's own ramp.
 REEOT_DESC_PRESET	Sets Anti-Aliasing, Anisotropic Filtering, Shadow Resolution and the Upscale Filter together. Changing any of those by hand makes this Custom.
 REEOT_DESC_MSAA	Smooths the edges of geometry by drawing every scene pass with several samples per pixel. Costs memory and bandwidth in proportion.
+REEOT_DESC_TAA	Blends each frame with the previous one, offset by a fraction of a pixel and reprojected through the camera, so distant edges stop shimmering. Works with or without multisampling.
 REEOT_DESC_ANISOTROPY	Keeps floors and walls sharp at grazing angles. Near free on a modern card.
 REEOT_DESC_SHADOW_SIZE	The size of each shadow map. Auto follows the render resolution; the fixed sizes trade sharpness for memory.
 REEOT_DESC_SHADOW_DISTANCE	How far shadows are cast, as a multiple of what the level asks for. Farther spreads the same map over more ground.
@@ -150,3 +154,15 @@ REEOT_DESC_LANGUAGE	The language of the text and, where the game has it, the spe
 REEOT_DESC_RESTART	Takes effect after a restart.
 REEOT_RESTART_TITLE	Restart now?
 REEOT_RESTART_BODY	Some of these settings take effect after a restart. Restart the game now?
+REEOT_OPT_MOTION_VECTORS	Motion Vectors
+REEOT_DESC_MOTION_VECTORS	Gives Temporal Anti-Aliasing where each moving character and prop was last frame, so they settle like the scenery instead of blurring. Needs Temporal Anti-Aliasing.
+REEOT_VAL_DISPLAY	Display
+REEOT_VAL_75_PERCENT	75%
+REEOT_VAL_150_PERCENT	150%
+REEOT_VAL_200_PERCENT	200%
+REEOT_OPT_DISPLAY_SCALE	Display Scale
+REEOT_DESC_DISPLAY_SCALE	With Resolution set to Display: the share of the display's pixels the game renders. 100% is one rendered pixel per display pixel, 200% a supersample; below 100% costs less.
+REEOT_OPT_FULLSCREEN_MODE	Fullscreen Mode
+REEOT_DESC_FULLSCREEN_MODE	Borderless keeps the desktop's resolution and scales the picture to it. Exclusive switches the display to the render resolution, so nothing is rescaled and the desktop is out of the way; on a very high-resolution display it is cheaper.
+REEOT_VAL_BORDERLESS	Borderless
+REEOT_VAL_EXCLUSIVE	Exclusive
