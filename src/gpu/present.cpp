@@ -5,6 +5,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #if defined(_WIN32)
@@ -26,6 +27,7 @@
 #include "gpu/draw.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/imgui_overlay.h"
+#include "gpu/live_stats.h"
 #include "gpu/patches/aspect_ratio.h"
 #include "gpu/patches/movie_aspect.h"
 #include "gpu/patches/present_effects.h"
@@ -408,6 +410,57 @@ void LogRenderAreaLocked(VideoState &s, u64 frames) {
   s.render_area_window.clear();
 }
 
+constexpr u32 kLiveWindow = 30;
+
+void PublishLiveStatsLocked(const VideoState &s, const PerfCounters &p) {
+  static u64 reset = ~0ull;
+  static PerfCounters prev;
+  if (reset != s.perf_resets) {
+    reset = s.perf_resets;
+    prev = PerfCounters{};
+  }
+  if (p.frames < prev.frames + kLiveWindow)
+    return;
+  const f64 frames = static_cast<f64>(p.frames - prev.frames);
+  const f64 gpu_frames = static_cast<f64>(std::max(1u, p.gpu_frames - prev.gpu_frames));
+  const auto per_frame = [&](f64 now, f64 before) { return static_cast<f32>((now - before) / frames); };
+  LiveStats live;
+  live.wall_ms = per_frame(p.frame_ms, prev.frame_ms);
+  live.gpu_ms = static_cast<f32>((p.gpu_ms - prev.gpu_ms) / gpu_frames);
+  live.capture_ms = per_frame(p.capture_ms, prev.capture_ms);
+  live.present_wait_ms = per_frame(p.present_wait_ms, prev.present_wait_ms);
+  live.draw_ms = per_frame(p.draw_ms, prev.draw_ms);
+  live.record_ms = per_frame(p.record_ms + p.rec_state_ms + p.rec_bind_ms,
+                             prev.record_ms + prev.rec_state_ms + prev.rec_bind_ms);
+  live.draws = static_cast<u32>((p.draws - prev.draws) / frames);
+  live.resolves = static_cast<u32>((p.resolves - prev.resolves) / frames);
+  std::vector<std::tuple<f64, u32, u32>> cats;
+  for (const auto &[cat, v] : p.gpu_cats) {
+    f64 ms = v.first;
+    u32 draws = v.second;
+    if (const auto it = prev.gpu_cats.find(cat); it != prev.gpu_cats.end()) {
+      ms -= it->second.first;
+      draws -= it->second.second;
+    }
+    if (ms <= 0.0)
+      continue;
+    cats.emplace_back(ms / gpu_frames, static_cast<u32>(draws / frames), cat);
+  }
+  std::sort(cats.begin(), cats.end(),
+            [](const auto &a, const auto &b) { return std::get<0>(a) > std::get<0>(b); });
+  for (const auto &[ms, draws, cat] : cats) {
+    if (live.row_count >= LiveStats::kMaxRows || (ms < 0.02 && live.row_count >= 4))
+      break;
+    LiveStats::Row &row = live.rows[live.row_count++];
+    const std::string name = GpuCategoryName(cat);
+    std::snprintf(row.name, sizeof(row.name), "%s", name.c_str());
+    row.ms = static_cast<f32>(ms);
+    row.draws = draws;
+  }
+  prev = p;
+  PublishLiveStats(live);
+}
+
 void LogPerfLocked(VideoState &s) {
   const i32 every = Settings::PerfFrames();
   PerfCounters &p = s.perf;
@@ -545,6 +598,7 @@ void LogPerfLocked(VideoState &s) {
   p.live_surfaces = static_cast<u32>(s.surfaces.size());
   s.perf_prev_frame = p;
   s.perf_prev_frame.pace_ms = g_pace_ms;
+  PublishLiveStatsLocked(s, p);
 
   f64 wall_p50 = 0, wall_p95 = 0, wall_p99 = 0, wall_max = 0;
   if (every > 0 && static_cast<i32>(p.frames) >= every && !s.frame_walls.empty()) {

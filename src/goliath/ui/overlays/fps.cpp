@@ -12,16 +12,23 @@
 #include <rex/cvar.h>
 
 #include "core/memory_helpers.h"
+#include "gpu/live_stats.h"
 
 REXCVAR_DEFINE_BOOL(show_fps_overlay, false, "EdgeOfTime/Video",
                     "Show the FPS / frame time overlay (engine FPS from guest memory, host "
                     "present time).");
+REXCVAR_DEFINE_BOOL(show_gpu_overlay, false, "EdgeOfTime/Video",
+                    "Show, under the FPS overlay, where the GPU's time went over the last 30 "
+                    "frames pass by pass (the [perf] line's categories: shadow, the full-frame "
+                    "surfaces by colour format, the resolves, present), with the draw count and "
+                    "the game thread's capture, draw and record times.");
 
 namespace {
 
 using namespace eot;
 
 std::atomic<bool> g_fps_overlay_enabled{false};
+std::atomic<bool> g_gpu_overlay_enabled{false};
 
 void EnsureFpsOverlayStateInitialized() {
   static const bool initialized = [] {
@@ -29,6 +36,12 @@ void EnsureFpsOverlayStateInitialized() {
     rex::cvar::RegisterChangeCallback(
         "show_fps_overlay", [](std::string_view, std::string_view) {
           g_fps_overlay_enabled.store(REXCVAR_GET(show_fps_overlay),
+                                      std::memory_order_release);
+        });
+    g_gpu_overlay_enabled.store(REXCVAR_GET(show_gpu_overlay), std::memory_order_relaxed);
+    rex::cvar::RegisterChangeCallback(
+        "show_gpu_overlay", [](std::string_view, std::string_view) {
+          g_gpu_overlay_enabled.store(REXCVAR_GET(show_gpu_overlay),
                                       std::memory_order_release);
         });
     return true;
@@ -131,7 +144,8 @@ HostFrameClock g_host_frame_clock;
 
 bool FpsOverlayEnabled() {
   EnsureFpsOverlayStateInitialized();
-  return g_fps_overlay_enabled.load(std::memory_order_acquire);
+  return g_fps_overlay_enabled.load(std::memory_order_acquire) ||
+         g_gpu_overlay_enabled.load(std::memory_order_acquire);
 }
 
 void FpsOverlayDialog::SyncEnabledState() {
@@ -153,15 +167,28 @@ void FpsOverlayDialog::OnDraw(ImGuiIO &io) {
   if (!REX_KERNEL_STATE())
     return;
   g_host_frame_clock.Tick();
+  const bool fps_on = g_fps_overlay_enabled.load(std::memory_order_acquire);
+  const bool gpu_on = g_gpu_overlay_enabled.load(std::memory_order_acquire);
 
   ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f));
   ImGui::SetNextWindowBgAlpha(0.5f);
   ImGui::PushStyleColor(ImGuiCol_Border, IM_COL32(0, 0, 0, 0));
-  ImGui::SetNextWindowSize(ImVec2(230.0f, 0.0f));
+  ImGui::SetNextWindowSize(ImVec2(gpu_on ? 400.0f : 230.0f, 0.0f));
   const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
                                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                                  ImGuiWindowFlags_NoBringToFrontOnFocus;
   if (ImGui::Begin("##fps_overlay", nullptr, flags)) {
+    if (fps_on)
+      DrawFpsBlock();
+    if (gpu_on)
+      DrawGpuBlock(fps_on);
+  }
+  ImGui::End();
+  ImGui::PopStyleColor();
+}
+
+void FpsOverlayDialog::DrawFpsBlock() {
+  {
     const std::optional<float> fps = ReadEngineFps();
     char buf[64];
     if (fps)
@@ -190,6 +217,34 @@ void FpsOverlayDialog::OnDraw(ImGuiIO &io) {
                   static_cast<double>(g_host_frame_clock.Worst()));
     ImGui::TextColored(ImVec4(0.72f, 0.86f, 1.0f, 1.0f), "%s", host_buf);
   }
-  ImGui::End();
-  ImGui::PopStyleColor();
+}
+
+void FpsOverlayDialog::DrawGpuBlock(bool below_fps) {
+  eot::gpu::LiveStats live;
+  if (!eot::gpu::ReadLiveStats(&live)) {
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "gpu: collecting");
+    return;
+  }
+  if (below_fps)
+    ImGui::Separator();
+  char line[128];
+  std::snprintf(line, sizeof(line), "gpu %.1f ms | wall %.1f ms | %u draws | %u resolves",
+                static_cast<double>(live.gpu_ms), static_cast<double>(live.wall_ms), live.draws,
+                live.resolves);
+  ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "%s", line);
+  std::snprintf(line, sizeof(line), "game thread capture %.1f wait %.1f | render draw %.1f (rec %.1f)",
+                static_cast<double>(live.capture_ms), static_cast<double>(live.present_wait_ms),
+                static_cast<double>(live.draw_ms), static_cast<double>(live.record_ms));
+  ImGui::TextColored(ImVec4(0.9f, 0.85f, 0.7f, 1.0f), "%s", line);
+  for (uint32_t i = 0; i < live.row_count; ++i) {
+    const eot::gpu::LiveStats::Row &row = live.rows[i];
+    if (row.draws)
+      std::snprintf(line, sizeof(line), "  %-16s %5.2f ms  %u draws", row.name,
+                    static_cast<double>(row.ms), row.draws);
+    else
+      std::snprintf(line, sizeof(line), "  %-16s %5.2f ms", row.name, static_cast<double>(row.ms));
+    const bool heavy = live.gpu_ms > 0.0f && row.ms >= live.gpu_ms * 0.25f;
+    ImGui::TextColored(heavy ? ImVec4(1.0f, 0.75f, 0.4f, 1.0f) : ImVec4(0.72f, 0.86f, 1.0f, 1.0f),
+                       "%s", line);
+  }
 }
