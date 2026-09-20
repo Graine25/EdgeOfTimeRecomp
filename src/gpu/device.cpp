@@ -1033,6 +1033,29 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   s.command_list = s.command_lists[0].get();
 
   constexpr uint32_t kMaxFrameLatency = 2;
+  {
+    const eot::platform::Display display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
+    SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
+    SetDisplayHeight(display.height);
+    if (display.refresh_hz)
+      s.display_refresh_hz = display.refresh_hz;
+    EOT_INFO("[gpu] display {}x{} at {} Hz, {}: a window renders at {}p", display.width, display.height,
+             display.refresh_hz, Settings::Fullscreen() ? "fullscreen" : "windowed",
+             eot::platform::AutoRenderHeight(display));
+    if (Settings::Fullscreen() && Settings::FullscreenMode() == "exclusive") {
+      const u32 want_h = InternalRenderHeight();
+      const u32 want_w = display.width && display.height
+                             ? static_cast<u32>(std::lround(static_cast<f64>(want_h) * display.width /
+                                                            display.height))
+                             : InternalRenderWidth();
+      if (window->SetFullscreenDisplayMode(want_w, want_h))
+        EOT_INFO("[gpu] exclusive fullscreen for the {}x{} internal render", InternalRenderWidth(),
+                 want_h);
+      else
+        EOT_WARN("[gpu] exclusive fullscreen: no display mode for {}x{}; staying borderless", want_w,
+                 want_h);
+    }
+  }
   plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM, kNumFrames + 1,
                                   true, kMaxFrameLatency);
   s.swap_chain = s.queue->createSwapChain(desc);
@@ -1057,15 +1080,6 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   InitGPUProfiler(static_cast<plume::D3D12Device *>(s.device.get())->d3d,
                   static_cast<plume::D3D12CommandQueue *>(s.queue.get())->d3d);
 #endif
-  {
-    const eot::platform::Display display = eot::platform::DisplayFor(window->GetNativeWindowHandle());
-    SetAutoRenderHeight(eot::platform::AutoRenderHeight(display));
-    if (display.refresh_hz)
-      s.display_refresh_hz = display.refresh_hz;
-    EOT_INFO("[gpu] display {}x{} at {} Hz, {}: a window renders at {}p", display.width, display.height,
-             display.refresh_hz, Settings::Fullscreen() ? "fullscreen" : "windowed",
-             eot::platform::AutoRenderHeight(display));
-  }
   ApplyQualityPresetAtBoot();
   {
     const i32 asked = Settings::Msaa();
