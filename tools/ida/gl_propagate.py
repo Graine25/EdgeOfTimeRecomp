@@ -5,6 +5,7 @@ import sys
 
 src3, src360, out = sys.argv[1], sys.argv[2], sys.argv[3]
 iterations = int(sys.argv[4]) if len(sys.argv) > 4 else 6
+BAND_HI = float(sys.argv[5]) if len(sys.argv) > 5 else 2.4
 
 SKIP3 = re.compile(r"^(_|__|j_|nn::|std::|operator|\?|sub_|nullsub|unk_|loc_|\.|\$)")
 PLACEHOLDER = re.compile(r"^(sub_|nullsub_|GameLogic_\d+|loc_)")
@@ -139,7 +140,7 @@ for it in range(iterations):
         if len(cnt) == 1:
             nm = next(iter(cnt))
             sa, sb = size360.get(cea, 0), size3.get(nm, 0)
-            if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= 2.4):
+            if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= BAND_HI):
                 continue
             if nm not in name360.values():
                 name360[cea] = nm
@@ -171,7 +172,7 @@ for cea, cs in callers360.items():
     if len(cand) != 1:
         continue
     sa, sb = size360.get(cea, 0), size3.get(cand[0], 0)
-    if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= 2.4):
+    if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= BAND_HI):
         continue
     name360[cea] = cand[0]
     accepted[cea] = cand[0]
@@ -188,7 +189,7 @@ for ea, (nm, sz, seq, refs) in d360.items():
     u = [x for x in set(u) if x and PLACEHOLDER.match(name360[x]) and len(callers360.get(x, ())) == 1]
     if len(g3) == 1 and len(u) == 1:
         sa, sb = size360.get(u[0], 0), size3.get(g3[0], 0)
-        if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= 2.4):
+        if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= BAND_HI):
             continue
         name360[u[0]] = g3[0]
         accepted[u[0]] = g3[0]

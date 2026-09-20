@@ -24,7 +24,7 @@ for r in csv.DictReader(open(src, encoding="utf-8")):
         fam = m.group(1) if m else "misc"
         fams.setdefault(fam, []).append((ea, name))
         n += 1
-    elif (name.startswith("g_") or name.startswith("vtbl_")) and not AUTO.match(name):
+    elif (name.startswith(("g_", "vtbl_", "gpAPI")) or "::" in name) and not AUTO.match(name):
         globs.append((ea, name))
 
 with open(out, "w", encoding="utf-8") as fp:
