@@ -23,14 +23,16 @@ def load(path):
         ea, name, size, seq = r[0], r[1], int(r[2]), r[3]
         calls = [key(s) for s in seq.split("|")] if seq else []
         calls = [c for c in calls if not HELPER.match(c)]
-        rows[ea] = (name, size, calls)
+        refs = [key(s) for s in r[4].split("|")] if len(r) > 4 and r[4] else []
+        refs = [x for i, x in enumerate(refs) if i == 0 or refs[i - 1] != x]
+        rows[ea] = (name, size, calls, refs)
     return rows
 
 
 d3 = load(src3)
 d360 = load(src360)
 by_name3 = {}
-for ea, (name, size, seq) in d3.items():
+for ea, (name, size, seq, refs) in d3.items():
     by_name3.setdefault(key(name), []).append(ea)
 
 name360 = {ea: v[0] for ea, v in d360.items()}
@@ -81,19 +83,7 @@ accepted = {}
 for it in range(iterations):
     votes = collections.defaultdict(collections.Counter)
     pairs = 0
-    for ea, (name, size, seq) in d360.items():
-        cur = name360[ea]
-        if PLACEHOLDER.match(cur) or cur not in by_name3 or len(by_name3[cur]) != 1:
-            continue
-        ea3 = by_name3[cur][0]
-        seq3 = d3[ea3][2]
-        s360 = [name360.get(ea_by_name360.get(c, ""), c) for c in seq]
-        if not seq3 or not s360:
-            continue
-        pairs += 1
-        anchors = [(-1, -1)]
-        A = s360
-        B = seq3
+    def vote_gaps(A, B):
         la, lb = len(A), len(B)
         dp = [[0] * (lb + 1) for _ in range(la + 1)]
         for x in range(la - 1, -1, -1):
@@ -102,6 +92,7 @@ for it in range(iterations):
                     dp[x][y] = dp[x + 1][y + 1] + 1
                 else:
                     dp[x][y] = max(dp[x + 1][y], dp[x][y + 1])
+        anchors = [(-1, -1)]
         x = y = 0
         while x < la and y < lb:
             if A[x] == B[y] and not PLACEHOLDER.match(A[x]):
@@ -129,6 +120,20 @@ for it in range(iterations):
                 cea = ea_by_name360.get(c360)
                 if cea and PLACEHOLDER.match(name360[cea]):
                     votes[cea][c3] += 1
+
+    for ea, (name, size, seq, refs) in d360.items():
+        cur = name360[ea]
+        if PLACEHOLDER.match(cur) or cur not in by_name3 or len(by_name3[cur]) != 1:
+            continue
+        ea3 = by_name3[cur][0]
+        seq3, refs3 = d3[ea3][2], d3[ea3][3]
+        s360 = [name360.get(ea_by_name360.get(c, ""), c) for c in seq]
+        r360 = [name360.get(ea_by_name360.get(c, ""), c) for c in refs]
+        if seq3 and s360:
+            pairs += 1
+            vote_gaps(s360, seq3)
+        if refs3 and r360:
+            vote_gaps(r360, refs3)
     new = 0
     for cea, cnt in votes.items():
         if len(cnt) == 1:
@@ -146,10 +151,10 @@ for it in range(iterations):
 
 callers3 = collections.defaultdict(set)
 callers360 = collections.defaultdict(set)
-for ea, (nm, sz, seq) in d3.items():
+for ea, (nm, sz, seq, refs) in d3.items():
     for c in seq:
         callers3[c].add(key(nm))
-for ea, (nm, sz, seq) in d360.items():
+for ea, (nm, sz, seq, refs) in d360.items():
     for c in seq:
         cea = ea_by_name360.get(c)
         callers360[cea if cea else c].add(name360[ea])
@@ -172,6 +177,23 @@ for cea, cs in callers360.items():
     accepted[cea] = cand[0]
     taken.add(cand[0])
 print("with caller-set matches:", len(accepted))
+
+callees3 = {key(v[0]): set(v[2]) for ea, v in d3.items()}
+for ea, (nm, sz, seq, refs) in d360.items():
+    cur = name360[ea]
+    if PLACEHOLDER.match(cur) or cur not in by_name3 or len(by_name3[cur]) != 1:
+        continue
+    g3 = [c for c in callees3.get(cur, ()) if len(callers3.get(c, ())) == 1 and not SKIP3.match(c) and c not in taken and ("::" in c or re.match(r"^[A-Z]", c))]
+    u = [ea_by_name360.get(c) for c in seq]
+    u = [x for x in set(u) if x and PLACEHOLDER.match(name360[x]) and len(callers360.get(x, ())) == 1]
+    if len(g3) == 1 and len(u) == 1:
+        sa, sb = size360.get(u[0], 0), size3.get(g3[0], 0)
+        if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= 2.4):
+            continue
+        name360[u[0]] = g3[0]
+        accepted[u[0]] = g3[0]
+        taken.add(g3[0])
+print("with private-callee matches:", len(accepted))
 
 with open(out, "w", newline="", encoding="utf-8") as f:
     w = csv.writer(f)
