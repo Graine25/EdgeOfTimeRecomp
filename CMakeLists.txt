@@ -245,6 +245,7 @@ set(REEOT_SOURCES
     src/gpu/pipeline/pipeline_cache.cpp
     src/gpu/gpu_profiling.cpp
     src/gpu/gpu_timing.cpp
+    src/gpu/live_stats.cpp
     src/gpu/pipeline/pso_records.cpp
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
