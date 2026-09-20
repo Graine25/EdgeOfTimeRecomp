@@ -470,6 +470,8 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
   if (bytes && size) {
     if (entry->specConstantsMask == 0) {
       host = s.device->createShader(bytes, size, GuestEntryPoint(bytes, size).c_str(), kHostShaderFormat);
+      if (host)
+        host->setName(std::format("{:016x}", hash));
       if (!host)
         EOT_ERROR("[shaders] createShader failed for {:016x}", hash);
     } else {
@@ -490,10 +492,14 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
                     effective, size, error);
         } else {
           host = s.device->createShader(linked.data(), linked.size(), "main", kHostShaderFormat);
+          if (host)
+            host->setName(std::format("{:016x} spec {:x}", hash, effective));
         }
       }
 #else
       host = s.device->createShader(bytes, size, GuestEntryPoint(bytes, size).c_str(), kHostShaderFormat);
+      if (host)
+        host->setName(std::format("{:016x}", hash));
       if (!host)
         EOT_ERROR("[shaders] createShader failed for {:016x}", hash);
 #endif
