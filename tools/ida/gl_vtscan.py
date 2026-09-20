@@ -102,6 +102,15 @@ for lo, hi in data_segs:
         ea += 4
     if len(run) >= 3:
         tables.append(run)
+split = []
+for run in tables:
+    start = 0
+    for k, (p, v) in enumerate(run):
+        if k > start and (idc.get_name(v) or "").endswith("::DeletingDtor") and idc.get_name(p).startswith("vtbl_"):
+            split.append(run[start:k])
+            start = k
+    split.append(run[start:])
+tables = [r for r in split if len(r) >= 3]
 log("candidate tables:", len(tables))
 
 named_total = 0
@@ -117,6 +126,9 @@ for run in tables:
     if cur_lab.startswith("vtbl_"):
         cands[cur_lab[5:].split("_plus")[0]] = 1
     best, best_score = None, 0
+    slot0 = idc.get_name(run[0][1]) or ""
+    dtor_cls = slot0[:-len("::DeletingDtor")] if slot0.endswith("::DeletingDtor") else None
+    label_cls = cur_lab[5:] if cur_lab.startswith("vtbl_") and "_plus" not in cur_lab else None
     for c in cands:
         if c not in vt3ds:
             continue
@@ -132,8 +144,43 @@ for run in tables:
                 agree += 1
             else:
                 disagree += 1
+        if c == label_cls or (c == dtor_cls and disagree == 0):
+            if disagree:
+                log("%s %s: %d named slots disagree with %s" % (hex(vt_ea), cur_lab, disagree, c))
+            best, best_score = c, 1000
+            break
         if agree >= 2 and disagree == 0 and agree > best_score:
             best, best_score = c, agree
+    if not best and label_cls and label_cls not in vt3ds:
+        base, base_len = None, 0
+        for c in cands:
+            if c not in vt3ds or c == label_cls:
+                continue
+            agree = disagree = 0
+            for k, (p, v) in enumerate(run):
+                n = idc.get_name(v) or ""
+                if not ("::" in n and not n.startswith(PLACEHOLDER)):
+                    continue
+                s3 = slot_name3(c, k)
+                if s3 is None:
+                    continue
+                if n.split("::", 1)[1].split("_")[0] == s3[1] or n == "%s::%s" % s3:
+                    agree += 1
+                else:
+                    disagree += 1
+            if agree >= 1 and disagree == 0 and len(vt3ds[c]) > base_len:
+                base, base_len = c, len(vt3ds[c])
+        if base:
+            owned += 1
+            log("%s %s: 360-only class, slots from base %s" % (hex(vt_ea), cur_lab, base))
+            for k, (p, v) in enumerate(run):
+                n = idc.get_name(v) or ""
+                if "::" in n and not n.startswith(PLACEHOLDER):
+                    continue
+                s3 = slot_name3(base, k)
+                if s3 and rename(v, "%s::%s" % (label_cls, s3[1])):
+                    named_total += 1
+        continue
     if not best:
         continue
     owned += 1
