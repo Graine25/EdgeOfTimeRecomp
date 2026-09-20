@@ -293,7 +293,12 @@ constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLI
 constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL_INVERTED", "true"}};
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
-                                  {"REEOT_VAL_2160P", "2160p"}};
+                                  {"REEOT_VAL_2160P", "2160p"},   {"REEOT_VAL_DISPLAY", "display"}};
+constexpr Choice kDisplayScale[] = {{"REEOT_VAL_50_PERCENT", "50"},   {"REEOT_VAL_66_PERCENT", "66"},
+                                    {"REEOT_VAL_75_PERCENT", "75"},   {"REEOT_VAL_100_PERCENT", "100"},
+                                    {"REEOT_VAL_150_PERCENT", "150"}, {"REEOT_VAL_200_PERCENT", "200"}};
+constexpr Choice kFullscreenMode[] = {{"REEOT_VAL_BORDERLESS", "borderless"},
+                                      {"REEOT_VAL_EXCLUSIVE", "exclusive"}};
 constexpr Choice kPipScale[] = {{"REEOT_VAL_50_PERCENT", "50"}, {"REEOT_VAL_66_PERCENT", "66"},
                                 {"REEOT_VAL_100_PERCENT", "100"}};
 constexpr Choice kAspect[] = {{"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"}, {"REEOT_VAL_16_9", "16:9"},
@@ -315,6 +320,9 @@ constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
 
 bool RenderScaleApplies() {
   return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "native";
+}
+bool DisplayScaleApplies() {
+  return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "display";
 }
 
 bool FullscreenOn() { return rex::cvar::Query<bool>("fullscreen"); }
@@ -344,6 +352,10 @@ constexpr Setting kVideoSettings[] = {
      .choices = kOnOff},
     {.label = "REEOT_OPT_RESOLUTION", .description = "REEOT_DESC_RESOLUTION", .cvar = "eot_resolution",
      .choices = kResolution, .restart = true, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
+    {.label = "REEOT_OPT_DISPLAY_SCALE", .description = "REEOT_DESC_DISPLAY_SCALE", .cvar = "eot_display_scale",
+     .choices = kDisplayScale, .numeric = true, .restart = true, .enabled = DisplayScaleApplies},
+    {.label = "REEOT_OPT_FULLSCREEN_MODE", .description = "REEOT_DESC_FULLSCREEN_MODE",
+     .cvar = "eot_fullscreen_mode", .choices = kFullscreenMode, .restart = true, .enabled = FullscreenOn},
     {.label = "REEOT_OPT_PIP_SCALE", .description = "REEOT_DESC_PIP_SCALE", .cvar = "eot_pip_scale",
      .choices = kPipScale, .numeric = true, .restart = true},
     {.label = "REEOT_OPT_RENDER_SCALE", .description = "REEOT_DESC_RENDER_SCALE", .cvar = "eot_render_scale",

@@ -38,6 +38,8 @@ struct Settings {
   static bool FastSettersVerify();
   static f64 RenderScale();
   static std::string Resolution();
+  static i32 DisplayScalePercent();
+  static std::string FullscreenMode();
   static i32 PipScalePercent();
   static i32 FpsLimit();
   static std::string AspectRatio();
@@ -68,6 +70,7 @@ constexpr u32 kGuestRenderWidth = 1120;
 constexpr u32 kGuestRenderHeight = 632;
 
 void SetAutoRenderHeight(u32 height);
+void SetDisplayHeight(u32 height);
 f32 RenderScaleFactor();
 u32 InternalRenderWidth();
 u32 InternalRenderHeight();

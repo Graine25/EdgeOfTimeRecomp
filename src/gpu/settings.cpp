@@ -44,7 +44,9 @@ REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video",
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
                       "Internal render resolution in fullscreen: native (the guest's own 1120x632, "
-                      "scaled by eot_render_scale), 720p, 1080p, 1440p or 2160p (4K). The preset "
+                      "scaled by eot_render_scale), 720p, 1080p, 1440p, 2160p (4K), or display "
+                      "(the display's own height times eot_display_scale, the way Unleashed "
+                      "Recompiled and reblue size their frame). The preset "
                       "is a target height the scale is derived from; the present always fits the "
                       "result to the window, so a 1440p internal image is blitted up to whatever "
                       "the display is. In a window the preset is not used: the render height "
@@ -53,7 +55,23 @@ REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video",
                       "picks the preset the display suggests. Fidelity measurement "
                       "(tools/score_dense.py) needs native, which is what the guest and the Xenia "
                       "references render.")
-    .allowed({"native", "720p", "1080p", "1440p", "2160p"})
+    .allowed({"native", "720p", "1080p", "1440p", "2160p", "display"})
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_INT32(eot_display_scale, 100, "EdgeOfTime/Video",
+                     "Percent of the display's height the game renders at when eot_resolution "
+                     "is display: 100 is one rendered pixel per display pixel, 50 on a 5K "
+                     "panel is 1440p, 200 is a 2x2 supersample resolved by the present's box "
+                     "filter. Never below the console's own 632 rows.")
+    .range(25, 200)
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_STRING(eot_fullscreen_mode, "borderless", "EdgeOfTime/Video",
+                      "borderless: the desktop's resolution, the internal render resampled to it "
+                      "at present (a five-tap bicubic over every display pixel, 0.85 ms at 5K) "
+                      "and composited by the desktop. exclusive: fullscreen switches the display "
+                      "to the mode nearest the internal render, so the present is a plain copy "
+                      "and the desktop compositor is out of the path; the picture is the "
+                      "display's own scaler's.")
+    .allowed({"borderless", "exclusive"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_pip_scale, 50, "EdgeOfTime/Video",
                      "Resolution of a texture camera's record (the picture-in-picture window the "
@@ -239,6 +257,8 @@ bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
 bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
+i32 Settings::DisplayScalePercent() { return REXCVAR_GET(eot_display_scale); }
+std::string Settings::FullscreenMode() { return std::string(REXCVAR_GET(eot_fullscreen_mode)); }
 i32 Settings::PipScalePercent() { return REXCVAR_GET(eot_pip_scale); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
@@ -291,6 +311,7 @@ bool Settings::PresentFrameLog() { return REXCVAR_GET(eot_present_log); }
 namespace {
 
 u32 g_auto_render_height = 1080;
+u32 g_display_height = 0;
 
 std::atomic<bool> g_fullscreen{true};
 struct FullscreenWatch {
@@ -314,15 +335,22 @@ f32 ComputeRenderScale() {
     target_height = 1440;
   else if (preset == "2160p")
     target_height = 2160;
+  else if (preset == "display") {
+    const u32 rows = g_display_height ? g_display_height : g_auto_render_height;
+    target_height = std::max(
+        kGuestRenderHeight,
+        static_cast<u32>(std::lround(static_cast<f64>(rows) * Settings::DisplayScalePercent() / 100.0)));
+  }
   const f64 scale = target_height != 0
                         ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
                         : Settings::RenderScale();
-  return static_cast<f32>(std::clamp(scale, 0.25, 4.0));
+  return static_cast<f32>(std::clamp(scale, 0.25, 5.0));
 }
 
 }
 
 void SetAutoRenderHeight(u32 height) { g_auto_render_height = height; }
+void SetDisplayHeight(u32 height) { g_display_height = height; }
 
 bool Settings::Fullscreen() {
   static const bool initial = [] {
