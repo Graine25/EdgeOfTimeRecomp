@@ -15,7 +15,7 @@ public:
 
 private:
   void DrawFpsBlock();
-  void DrawGpuBlock(bool below_fps);
+  void DrawGpuBlock();
 
   bool registered_ = true;
 };
