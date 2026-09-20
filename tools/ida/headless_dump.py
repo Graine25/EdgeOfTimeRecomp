@@ -114,6 +114,24 @@ elif mode == "dword":
                     around = " ".join("%08x" % idc.get_wide_dword(ea + 4 * k) for k in range(-4, 8))
                     f.write("%#x seg %s fn %s  [%s]\n" % (ea, ida_segment.get_segm_name(seg), dname(fe) if fe else "-", around))
                     ea += 1
+elif mode == "vtraw":
+    rx = re.compile(argv[3], re.I)
+    n = int(argv[4]) if len(argv) > 4 else 64
+    ptr = 8 if idaapi.inf_is_64bit() else 4
+    rd = idc.get_qword if ptr == 8 else idc.get_wide_dword
+    with open(out, "w", encoding="utf-8") as f:
+        for ea, name in idautils.Names():
+            d = ida_name.demangle_name(name, idc.get_inf_attr(idc.INF_SHORT_DEMNAMES)) or name
+            if not d.startswith("`vtable for'") or not rx.search(d[len("`vtable for'"):]):
+                continue
+            f.write("\n// ===== %#x %s =====\n" % (ea, d))
+            for i in range(n):
+                p2 = ea + i * ptr
+                v = rd(p2)
+                fe = ida_funcs.get_func(v)
+                lab = idc.get_name(p2)
+                lab = (ida_name.demangle_name(lab, idc.get_inf_attr(idc.INF_SHORT_DEMNAMES)) or lab) if lab else ""
+                f.write("%3d %#x %#x %s %s\n" % (i, p2, v, dname(fe.start_ea) if fe else "-", ("<- " + lab) if lab else ""))
 elif mode == "drefs":
     with open(out, "w", encoding="utf-8") as f:
         for ea in [int(x, 16) for x in argv[3].split(",")]:
