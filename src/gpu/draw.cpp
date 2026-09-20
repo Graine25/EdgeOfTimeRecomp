@@ -1805,6 +1805,131 @@ bool VelocityCandidate(DeviceView dev, const TargetWords &tw) {
   return ((w[1] >> 16) & 0xF) == 7; // ColorRenderTargetFormat k_16_16_16_16_FLOAT
 }
 
+bool ShadowTileWords(const u32 words[5]) {
+  const u32 size_bits = words[3];
+  return (size_bits >> 18) + 1 == 1024 && ((size_bits >> 3) & 0x7FFF) + 1 == 1024;
+}
+
+struct ShadowPassCensus {
+  u64 frame = ~0ull;
+  u32 pass = 0;
+  u64 hash = 0;
+  u32 casters = 0;
+  u32 skinned = 0;
+  u64 staticHash = 0;
+  u64 lastHashes[64] = {};
+  u64 lastStaticHashes[64] = {};
+  u32 lastCasters[64] = {};
+  u32 lastPasses = 0;
+  u64 hashes[64] = {};
+  u64 staticHashes[64] = {};
+  u32 castersOf[64] = {};
+  u64 sumPasses = 0, sumRepeats = 0, sumCasters = 0, sumRepeatCasters = 0, frames = 0;
+  u64 sumSkinned = 0, sumStaticRepeatPasses = 0, sumStaticRepeatCasters = 0;
+  u64 lastPrint = 0;
+};
+ShadowPassCensus g_shadow_census;
+
+void ShadowPassClose(ShadowPassCensus &c) {
+  if (!c.casters)
+    return;
+  if (c.pass < 64) {
+    c.hashes[c.pass] = c.hash;
+    c.staticHashes[c.pass] = c.staticHash;
+    c.castersOf[c.pass] = c.casters;
+    const bool repeat = c.skinned == 0 && c.pass < c.lastPasses && c.lastHashes[c.pass] == c.hash;
+    const bool static_repeat = c.pass < c.lastPasses && c.lastStaticHashes[c.pass] == c.staticHash;
+    c.sumPasses++;
+    c.sumCasters += c.casters;
+    c.sumSkinned += c.skinned;
+    if (repeat) {
+      c.sumRepeats++;
+      c.sumRepeatCasters += c.casters;
+    }
+    if (static_repeat) {
+      c.sumStaticRepeatPasses++;
+      c.sumStaticRepeatCasters += c.casters - c.skinned;
+    }
+  }
+  c.pass++;
+  c.hash = 0;
+  c.staticHash = 0;
+  c.casters = 0;
+  c.skinned = 0;
+}
+
+void NoteShadowCaster(VideoState &s, DeviceView dev, const GuestShader &vs, const StreamInfo streams[16],
+                      u32 lo, u32 hi) {
+  if (Settings::DiagVerbosity() < 1)
+    return;
+  ShadowPassCensus &c = g_shadow_census;
+  if (c.frame != s.guest_frames) {
+    ShadowPassClose(c);
+    std::memcpy(c.lastHashes, c.hashes, sizeof(c.hashes));
+    std::memcpy(c.lastStaticHashes, c.staticHashes, sizeof(c.staticHashes));
+    std::memcpy(c.lastCasters, c.castersOf, sizeof(c.castersOf));
+    c.lastPasses = std::min(c.pass, 64u);
+    c.pass = 0;
+    c.frames++;
+    c.frame = s.guest_frames;
+    if (s.guest_frames - c.lastPrint >= 300) {
+      c.lastPrint = s.guest_frames;
+      if (c.frames) {
+        EOT_INFO("[shadow] census over {} frames: {:.1f} passes a frame, {:.1f} whole repeats of the previous "
+                 "frame ({:.0f}%), {:.1f} static repeats ({:.0f}%); {:.0f} casters a frame, {:.0f} skinned, "
+                 "{:.0f} in whole repeats, {:.0f} static casters in static repeats",
+                 c.frames, static_cast<f64>(c.sumPasses) / c.frames,
+                 static_cast<f64>(c.sumRepeats) / c.frames,
+                 c.sumPasses ? 100.0 * c.sumRepeats / c.sumPasses : 0.0,
+                 static_cast<f64>(c.sumStaticRepeatPasses) / c.frames,
+                 c.sumPasses ? 100.0 * c.sumStaticRepeatPasses / c.sumPasses : 0.0,
+                 static_cast<f64>(c.sumCasters) / c.frames, static_cast<f64>(c.sumSkinned) / c.frames,
+                 static_cast<f64>(c.sumRepeatCasters) / c.frames,
+                 static_cast<f64>(c.sumStaticRepeatCasters) / c.frames);
+      }
+      c.sumPasses = c.sumRepeats = c.sumCasters = c.sumRepeatCasters = c.frames = 0;
+      c.sumSkinned = c.sumStaticRepeatPasses = c.sumStaticRepeatCasters = 0;
+    }
+  }
+  u64 rows = 0x9E3779B97F4A7C15ull;
+  u64 world = 0x9E3779B97F4A7C15ull;
+  if (const u8 *file = dev.Bytes(dev::kVsFloatConstants, 112)) {
+    for (u32 i = 16; i < 28; ++i) {
+      u32 raw;
+      std::memcpy(&raw, file + 4 * i, 4);
+      world ^= raw + 0x9E3779B97F4A7C15ull + (world << 6) + (world >> 2);
+    }
+    for (u32 i = 0; i < 16; ++i) {
+      u32 raw;
+      std::memcpy(&raw, file + 4 * i, 4);
+      rows ^= raw + 0x9E3779B97F4A7C15ull + (rows << 6) + (rows >> 2);
+    }
+  }
+  static u64 pass_rows = 0;
+  if (c.casters && rows != pass_rows)
+    ShadowPassClose(c);
+  if (!c.casters)
+    pass_rows = rows;
+  const bool skinned = vs.floatConstantRegs > 16;
+  u64 h = c.hash ? c.hash : rows;
+  const auto mix = [&h](u64 v) { h ^= v + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2); };
+  mix(vs.hash);
+  mix(streams[0].dataVa);
+  mix((u64(lo) << 32) | hi);
+  mix(world);
+  if (skinned)
+    mix(s.guest_frames);
+  c.hash = h;
+  if (!skinned) {
+    u64 sh = c.staticHash ? c.staticHash : rows;
+    sh ^= h + 0x9E3779B97F4A7C15ull + (sh << 6) + (sh >> 2);
+    c.staticHash = sh;
+  } else {
+    c.skinned++;
+  }
+  c.casters++;
+}
+
 bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
                  const u8 *device_image, DrawPacket &pk) {
   static u32 capture_count = 0;
@@ -2088,6 +2213,10 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
         PrefetchSampleProbes(st_info.data + first, bytes);
     }
   }
+
+  if (!pk.targets.colorCount && pk.targets.depthVa && !ps && !geom.rectList &&
+      !geom.stream0OverrideVa && ShadowTileWords(pk.targets.depthWords))
+    NoteShadowCaster(s, dev, *vs, streams, lo, hi);
 
   pk.velocity = false;
   if (Settings::MotionVectors() && ps && !geom.rectList && vs->entry && ps->entry &&
