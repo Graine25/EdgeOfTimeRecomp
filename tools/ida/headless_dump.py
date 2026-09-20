@@ -54,7 +54,7 @@ elif mode in ("decomp", "decompaddr"):
             if not ok:
                 continue
             try:
-                cf = ida_hexrays.decompile(ea)
+                cf = ida_hexrays.decompile(ea, None, ida_hexrays.DECOMP_NO_CACHE)
                 f.write(str(cf) + "\n")
             except Exception as e:  # noqa
                 f.write(f"// decompile failed: {e}\n")
@@ -134,6 +134,55 @@ elif mode == "callseq":
                             if f4 and f4.start_ea == t:
                                 refs.append(dname(t))
             w.writerow([f"{ea:#x}", dname(ea), fn.end_ea - fn.start_ea, "|".join(seq), "|".join(refs)])
+elif mode == "apiseq":
+    import ida_typeinf
+    ok = ida_hexrays.init_hexrays_plugin()
+    fields = {}
+    for i in range(1, ida_typeinf.get_ordinal_limit()):
+        t = ida_typeinf.tinfo_t()
+        if t.get_numbered_type(None, i) and t.is_struct() and t.get_type_name() and t.get_type_name().startswith("API"):
+            udt = ida_typeinf.udt_type_data_t()
+            t.get_udt_details(udt)
+            fields[t.get_type_name()] = {m.offset // 8: m.name for m in udt}
+
+    class V(ida_hexrays.ctree_visitor_t):
+        def __init__(self):
+            super().__init__(ida_hexrays.CV_FAST)
+            self.seq = []
+
+        def visit_expr(self, e):
+            if e.op != ida_hexrays.cot_call:
+                return 0
+            x = e.x
+            while x.op == ida_hexrays.cot_cast:
+                x = x.x
+            if x.op == ida_hexrays.cot_obj:
+                self.seq.append(dname(x.obj_ea))
+            elif x.op in (ida_hexrays.cot_memptr, ida_hexrays.cot_memref):
+                b = x.x
+                while b.op == ida_hexrays.cot_cast:
+                    b = b.x
+                if b.op == ida_hexrays.cot_obj:
+                    g = idc.get_name(b.obj_ea)
+                    if g.startswith("gpAPI"):
+                        st = "API" + g[5:]
+                        self.seq.append("%s::%s" % (st, fields.get(st, {}).get(x.m, "off%d" % x.m)))
+            return 0
+
+    with open(out, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        for ea in matching(argv[3]):
+            fn = ida_funcs.get_func(ea)
+            seq = []
+            if ok:
+                try:
+                    cf = ida_hexrays.decompile(ea, None, ida_hexrays.DECOMP_NO_CACHE)
+                    v = V()
+                    v.apply_to(cf.body, None)
+                    seq = v.seq
+                except Exception:  # noqa
+                    seq = []
+            w.writerow([f"{ea:#x}", dname(ea), fn.end_ea - fn.start_ea, "|".join(seq), ""])
 elif mode == "xrefs":
     with open(out, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -156,7 +205,7 @@ elif mode == "vtable":
             if not ok or ida_funcs.get_func(ea) is None:
                 continue
             try:
-                f.write(str(ida_hexrays.decompile(ea)) + "\n")
+                f.write(str(ida_hexrays.decompile(ea, None, ida_hexrays.DECOMP_NO_CACHE)) + "\n")
             except Exception as e:  # noqa
                 f.write(f"// decompile failed: {e}\n")
 elif mode == "dword":
