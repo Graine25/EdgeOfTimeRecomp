@@ -1,0 +1,1257 @@
+ea,name,ret,idatype
+0x10009c,GLAPIEngine::GetCurrentHardwareTime(void),void,void __fastcall(nn::svc *this)
+0x13546c,GLAPIString::GenerateCRC(char const*),int,"int __fastcall(const char *this, const char *a2)"
+0x1a2ba0,"GLAPI3dObj::GetBSphere(GameObjHandle,GetObjParams *,BUVector3 *,float *)",float,"float __fastcall(int a1, int a2, BUVector3 *a3, float *a4)"
+0x1a2c04,"GLAPI3dObj::GeometryGet(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a2c7c,"GLAPI3dObj::SetGeometry(GameObjHandle,GetObjParams *,ResourceHandle)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1a2d74,"GLAPI3dObj::HierarchyGet(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a2dec,"GLAPI3dObj::MaterialSwap(GameObjHandle,GetObjParams *,uint,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, unsigned int a4)"
+0x1a2f1c,GLAPI3dObj::GetNbSubModel(ResourceHandle),nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, unsigned int a2)"
+0x1a2f90,"GLAPI3dObj::GetRenderHeat(GameObjHandle,GetObjParams *)",unsigned int,"unsigned int __fastcall(int a1, int a2)"
+0x1a2fdc,"GLAPI3dObj::HaloParamsGet(GameObjHandle,GetObjParams *,HaloParams &)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a30f0,"GLAPI3dObj::HaloParamsSet(GameObjHandle,GetObjParams *,HaloParams const&)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a3240,"GLAPI3dObj::SetFaceCamera(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a32b4,"GLAPI3dObj::SetRenderHeat(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a332c,"GLAPI3dObj::GetCamDistance(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a3394,"GLAPI3dObj::HierarchyReset(GameObjHandle,GetObjParams *,bool)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, int a3)"
+0x1a3408,"GLAPI3dObj::IsVisibleInCam(GameObjHandle,GetObjParams *,GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2, int a3, int a4)"
+0x1a3554,"GLAPI3dObj::BoneGetLocalPos(GameObjHandle,GetObjParams *,uint,BUVector3 *,BUVector3 *,BUVector3 *,BUVector3 *)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, _DWORD *a4, _DWORD *a5, _DWORD *a6, _DWORD *a7)"
+0x1a3684,"GLAPI3dObj::BoneGetWorldPos(GameObjHandle,GetObjParams *,uint,BUVector3 *,BUVector3 *,BUVector3 *,BUVector3 *)",nn::math::MTX44 *,"nn::math::MTX44 *__fastcall(int a1, int a2, unsigned int a3, _DWORD *a4, _DWORD *a5, _DWORD *a6, _DWORD *a7)"
+0x1a37d0,"GLAPI3dObj::BoneSetLocalPos(GameObjHandle,GetObjParams *,uint,BUVector3 const*,BUVector3 const*,BUVector3 const*)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, const BUVector3 *a4, const BUVector3 *a5, const BUVector3 *a6)"
+0x1a385c,"GLAPI3dObj::BoneSetWorldPos(GameObjHandle,GetObjParams *,uint,BUVector3 const*,BUVector3 const*,BUVector3 const*)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, const BUVector3 *a4, const BUVector3 *a5, const BUVector3 *a6)"
+0x1a38f0,"GLAPI3dObj::GetClipDistance(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a393c,"GLAPI3dObj::GetFadeDistance(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a3988,"GLAPI3dObj::GetInstanceType(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a39fc,"GLAPI3dObj::GetSubModelInfo(ResourceHandle,uint,SubModelInfo &)",bool,"bool __fastcall(unsigned int a1, unsigned int a2, int *a3)"
+0x1a3b6c,"GLAPI3dObj::InstanciateFrom(GameObjHandle,GetObjParams *,GameObjHandle,GetObjParams *)",GO3dObj *,"GO3dObj *__fastcall(int a1, int a2, int a3, int a4)"
+0x1a3c08,"GLAPI3dObj::MaterialGetName(GameObjHandle,GetObjParams *,uint)",int *,"int *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a3c98,"GLAPI3dObj::MaterialGetText(GameObjHandle,GetObjParams *,uint,ushort *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, wchar_t *a4, unsigned int a5)"
+0x1a3d00,"GLAPI3dObj::MaterialSetText(GameObjHandle,GetObjParams *,uint,StringHandle,...)",GO3dObjBC *,"GO3dObjBC *(GO3dObjBC *result, int a2, unsigned int a3, int a4, ...)"
+0x1a3d88,"GLAPI3dObj::SetClipDistance(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1a3e28,"GLAPI3dObj::SetFadeDistance(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1a3eac,"GLAPI3dObj::GetColorKeyIndex(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a3f14,"GLAPI3dObj::GetObjectOpacity(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a3f60,"GLAPI3dObj::GetRenderCamMask(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a3fa0,"GLAPI3dObj::MaterialAnimPlay(GameObjHandle,GetObjParams *,uint,MaterialAnimHandle,uint,GameObjHandle,GetObjParams *)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, unsigned int a4, char a5, int a6, int a7)"
+0x1a402c,"GLAPI3dObj::MaterialAnimStop(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a40a0,"GLAPI3dObj::MaterialColorGet(GameObjHandle,GetObjParams *,BUVector4 &)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x1a41fc,"GLAPI3dObj::MaterialGetCount(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a425c,"GLAPI3dObj::SetColorKeyIndex(GameObjHandle,GetObjParams *,uint,float)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a42e4,"GLAPI3dObj::SetMaterialColor(GameObjHandle,GetObjParams *,BUVector4 const&)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x1a4448,"GLAPI3dObj::SetObjectOpacity(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1a44e4,"GLAPI3dObj::SetRenderCamMask(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, int a3)"
+0x1a45d4,"GLAPI3dObj::IsStaticHierarchy(GameObjHandle,GetObjParams *)",unsigned int,"unsigned int __fastcall(int a1, int a2)"
+0x1a461c,"GLAPI3dObj::MaterialAnimPause(GameObjHandle,GetObjParams *,uint,bool)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, int a4)"
+0x1a4698,"GLAPI3dObj::MaterialSetEnable(GameObjHandle,GetObjParams *,uint,bool)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, char a4)"
+0x1a4794,"GLAPI3dObj::AddLightEffectMask(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a47f8,"GLAPI3dObj::GetLightEffectMask(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a4838,"GLAPI3dObj::ResetLODTransition(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a48b0,"GLAPI3dObj::SetColorKeyIndices(GameObjHandle,GetObjParams *,float *)",int,"int __fastcall(int a1, int a2, int *a3)"
+0x1a4944,"GLAPI3dObj::CopyAndSetHierarchy(GameObjHandle,GetObjParams *,void const*,ResourceHandle,uint)",int,"int __fastcall(int a1, int a2, void *a3, unsigned int a4, int a5)"
+0x1a4ccc,"GLAPI3dObj::MaterialAnimGetTime(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a4d30,"GLAPI3dObj::MaterialAnimSetTime(GameObjHandle,GetObjParams *,uint,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a4db4,"GLAPI3dObj::MotionTrailGetCount(GameObjHandle,GetObjParams *)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2)"
+0x1a4e04,"GLAPI3dObj::MotionTrailSetPause(GameObjHandle,GetObjParams *,bool,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, bool a3, unsigned int a4)"
+0x1a4e80,"GLAPI3dObj::FindBoneIndexFromCRC(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1a4ef0,"GLAPI3dObj::LightShadowParamsGet(GameObjHandle,GetObjParams *,LightShadowParams &)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a4f6c,"GLAPI3dObj::LightShadowParamsSet(GameObjHandle,GetObjParams *,LightShadowParams const&)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, int a3)"
+0x1a5060,"GLAPI3dObj::MaterialGetTextStyle(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1a50f0,"GLAPI3dObj::MaterialSetTextStyle(GameObjHandle,GetObjParams *,uint,ResourceHandle)",int,"int __fastcall(int a1, int a2, unsigned int a3, unsigned int a4)"
+0x1a51d4,"GLAPI3dObj::MotionTrailSetEnable(GameObjHandle,GetObjParams *,bool,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, bool a3, unsigned int a4)"
+0x1a5250,"GLAPI3dObj::Shadow3dObjParamsGet(GameObjHandle,GetObjParams *,Shadow3dObjParams &)",int,"int __fastcall(int a1, int a2, int *a3)"
+0x1a5428,"GLAPI3dObj::Shadow3dObjParamsSet(GameObjHandle,GetObjParams *,Shadow3dObjParams const&)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, int *a3)"
+0x1a5764,"GLAPI3dObj::GetVisibleCamDistance(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a57cc,"GLAPI3dObj::InstanceUninstanciate(GameObjHandle,GetObjParams *)",GO3dObj *,"GO3dObj *__fastcall(int a1, int a2)"
+0x1a5838,"GLAPI3dObj::MaterialDistortionGet(GameObjHandle,GetObjParams *,uint,float &,float &,bool &)",int,"int __fastcall(int a1, int a2, unsigned int a3, _DWORD *a4, _DWORD *a5, _BYTE *a6)"
+0x1a58d8,"GLAPI3dObj::MaterialDistortionSet(GameObjHandle,GetObjParams *,uint,float,float,bool)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, char a4)"
+0x1a598c,"GLAPI3dObj::RemoveLightEffectMask(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a59f0,"GLAPI3dObj::GeometryLODSetDistance(ResourceHandle,uint,float)",RZResource *,"RZResource *__fastcall(unsigned int a1, unsigned int a2)"
+0x1a5a8c,"GLAPI3dObj::LODSetDistanceOverride(GameObjHandle,GetObjParams *,uint,float)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1a5b68,"GLAPI3dObj::SeeThroughEnvParamsGet(GameObjHandle,GetObjParams *,SeeThroughEnvParams &)",void,void()
+0x1a5b6c,"GLAPI3dObj::SeeThroughEnvParamsSet(GameObjHandle,GetObjParams *,SeeThroughEnvParams const&)",void,void()
+0x1a5b70,"GLAPI3dObj::SetEnableLodTransition(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a5be4,"GLAPI3dObj::SetFadeAndClipDistance(GameObjHandle,GetObjParams *,float,float)",int,"int __fastcall(int a1, int a2)"
+0x1a5c98,"GLAPI3dObj::MaterialAnimGetDuration(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a5cfc,"GLAPI3dObj::MaterialSetFormatedText(GameObjHandle,GetObjParams *,uint,wchar_t const*)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, wchar_t *a4)"
+0x1a5d70,"GLAPI3dObj::MotionTrailGetTimeScale(GameObjHandle,GetObjParams *)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2)"
+0x1a5dc8,"GLAPI3dObj::MotionTrailSetTimeScale(GameObjHandle,GetObjParams *,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2)"
+0x1a5e44,"GLAPI3dObj::FindMaterialIndexFromCRC(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1a5eb0,"GLAPI3dObj::GetObjectLightGridEnable(GameObjHandle,GetObjParams *)",unsigned int,"unsigned int __fastcall(int a1, int a2)"
+0x1a5efc,"GLAPI3dObj::MaterialGetSpecularColor(GameObjHandle,GetObjParams *,uint)",void,void()
+0x1a5f10,"GLAPI3dObj::MaterialSetSpecularColor(GameObjHandle,GetObjParams *,uint,BUVector3 const*)",void,void()
+0x1a5f14,"GLAPI3dObj::MotionTrailGetFadeLength(ResourceHandle,float &,float &)",RZResource *,"RZResource *__fastcall(unsigned int a1, unsigned int a2, _DWORD *a3)"
+0x1a5f98,"GLAPI3dObj::MotionTrailSetFadeLength(ResourceHandle,float,float)",RZResource *,"RZResource *__fastcall(unsigned int a1, unsigned int a2)"
+0x1a6020,"GLAPI3dObj::SetObjectLightGridEnable(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a6094,"GLAPI3dObj::ShadowMapShadowParamsGet(GameObjHandle,GetObjParams *,ShadowMapShadowParams &)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a6118,"GLAPI3dObj::ShadowMapShadowParamsSet(GameObjHandle,GetObjParams *,ShadowMapShadowParams const&)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, int a3)"
+0x1a61c8,"GLAPI3dObj::LODClearDistanceOverrides(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a62ac,"GLAPI3dObj::MaterialAnimGetSpeedScale(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a6310,"GLAPI3dObj::MaterialAnimSetSpeedScale(GameObjHandle,GetObjParams *,uint,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a6394,"GLAPI3dObj::SetScreenSpaceUVTransform(GameObjHandle,GetObjParams *,BUVector3 const&,BUVector3 const&,BUVector3 const&)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const nn::math::MTX44 *a3, int a4, unsigned int *a5)"
+0x1a649c,"GLAPI3dObj::FindMotionTrailIndexFromCRC(GameObjHandle,GetObjParams *,uint)",unsigned int,"unsigned int __fastcall(int a1, int a2, int a3)"
+0x1a6540,"GLAPI3dObj::MaterialLoadDiscardableData(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a65b8,"GLAPI3dObj::AddObjectToSpecularColorList(GameObjHandle,GetObjParams *,uint,bool,uint)",void,void()
+0x1a65bc,"GLAPI3dObj::IsAccurateBSphereComputation(GameObjHandle,GetObjParams *)",unsigned int,"unsigned int __fastcall(int a1, int a2)"
+0x1a6608,"GLAPI3dObj::FindMaterialAnimHandleFromCRC(GameObjHandle,GetObjParams *,uint,uint)",unsigned int,"unsigned int __fastcall(int a1, int a2, unsigned int a3, unsigned int a4)"
+0x1a66a0,"GLAPI3dObj::MaterialGetTextAlternateColor(GameObjHandle,GetObjParams *,uint,uint,BUVector4 &)",int,"int __fastcall(int a1, int a2, unsigned int a3, int a4, float *a5)"
+0x1a683c,"GLAPI3dObj::MaterialSetTextAlternateColor(GameObjHandle,GetObjParams *,uint,uint,BUVector4 const&)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3, int a4, float *a5)"
+0x1a6a08,"GLAPI3dObj::MaterialUnloadDiscardableData(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a6a7c,"GLAPI3dObj::MotionTrailSetFollowAnimation(GameObjHandle,GetObjParams *,bool,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, bool a3, unsigned int a4)"
+0x1a6af8,"GLAPI3dObj::SetAccurateBSphereComputation(GameObjHandle,GetObjParams *,bool)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, int a3)"
+0x1a6b6c,"GLAPI3dObj::GetObjectSoftBodyInterpolation(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a6bb8,"GLAPI3dObj::SetObjectSoftBodyInterpolation(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1a6c54,"GLAPI3dObj::FindConstraintGroupIndexFromCRC(GameObjHandle,GetObjParams *,uint)",unsigned int,"unsigned int __fastcall(int a1, int a2, unsigned int a3)"
+0x1a6cb4,"GLAPI3dObj::MaterialIsDiscardableDataLoaded(GameObjHandle,GetObjParams *,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x1a6d10,"GLAPI3dObj::SetEnableMatAnimUpdateFrequency(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a6d84,"GLAPI3dObj::RemoveObjectFromSpecularColorList(GameObjHandle,GetObjParams *)",void,void()
+0x1a6d88,GLAPI3dObj::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1a7290,"GLAPI3dObj::BoneGetNb(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a72ec,"GLAPI3dObj::GetNbLODs(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a7358,"GLAPI3dObj::IsVisible(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1a73d4,"GLAPIAudio::PauseMusic(bool,float)",void,"void __fastcall(GLAPIAudio *this, bool a2, float a3, int a4, int a5)"
+0x1a7470,"GLAPIAudio::PrepareCue(GameObjHandle,GetObjParams *,ResourceHandle,PlayCue3dModes_e,bool,uint,GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2, int a3, char a4, char a5, int a6, int a7, int a8)"
+0x1a75c4,"GLAPIAudio::StopHandle(AudioHandle,StopHandleModes_e)",void,"void __fastcall(int result, unsigned int a2, int a3, int a4, int a5)"
+0x1a7618,GLAPIAudio::GetListener(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x1a7640,GLAPIAudio::GetSFXPitch(void),int *,int *__fastcall(GLAPIAudio *this)
+0x1a7650,"GLAPIAudio::PauseAllSFX(bool,float)",void,"void __fastcall(GLAPIAudio *this, bool a2, float a3, int a4, int a5)"
+0x1a76ec,"GLAPIAudio::PauseHandle(AudioHandle,bool,float)",void,"void __fastcall(int a1, char a2, int a3, int a4, int a5)"
+0x1a7794,GLAPIAudio::PlayCueOnce(ResourceHandle),void,"void __fastcall(int result, unsigned int a2, int a3, int a4, int a5)"
+0x1a77e4,"GLAPIAudio::SetListener(uint,GameObjHandle,GetObjParams *)",int,"int __fastcall(unsigned int a1, int a2, int a3)"
+0x1a788c,GLAPIAudio::SetSFXPitch(float),float,"float __fastcall(GLAPIAudio *this, float a2)"
+0x1a78f8,GLAPIAudio::GetAudioMode(void),int,int __fastcall(GLAPIAudio *this)
+0x1a794c,GLAPIAudio::GetSFXVolume(void),int *,int *__fastcall(GLAPIAudio *this)
+0x1a795c,"GLAPIAudio::PlayAmbiance(ResourceHandle,float,float,GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a7988,GLAPIAudio::SetAudioMode(AudioModes_e),void,void()
+0x1a798c,GLAPIAudio::SetSFXVolume(float),float,"float __fastcall(GLAPIAudio *this, float a2)"
+0x1a7a00,GLAPIAudio::StopAmbiance(float),void,"void __fastcall(GLAPIAudio *this, float a2, int a3, int a4, int a5)"
+0x1a7a9c,GLAPIAudio::GetHandleTime(AudioHandle),ADCue *,ADCue *__fastcall(ADCue *result)
+0x1a7ae0,GLAPIAudio::GetMusicPitch(void),_DWORD *,_DWORD *__fastcall(GLAPIAudio *this)
+0x1a7b20,"GLAPIAudio::PauseAmbiance(bool,float)",void,"void __fastcall(GLAPIAudio *this, bool a2, float a3, int a4, int a5)"
+0x1a7bc4,"GLAPIAudio::PauseHandleEx(AudioHandle,bool,float,bool)",void,"void __fastcall(int a1, char a2, char a3, int a4, int a5)"
+0x1a7c74,GLAPIAudio::SetCuePresets(CuePresets),void,"void __fastcall(__int64 a1, int a2, int a3, int a4)"
+0x1a7cc8,GLAPIAudio::SetMusicPitch(float),_DWORD *,"_DWORD *__fastcall(GLAPIAudio *this, float a2)"
+0x1a7d54,GLAPIAudio::StopAllSounds(StopHandleModes_e),void,"void __fastcall(char a1, unsigned int a2, int a3, int a4, int a5)"
+0x1a7d9c,GLAPIAudio::GetHandleState(AudioHandle),int,int __fastcall(int a1)
+0x1a7ea8,GLAPIAudio::GetMusicVolume(void),_DWORD *,_DWORD *__fastcall(GLAPIAudio *this)
+0x1a7ee8,"GLAPIAudio::PauseAllSounds(bool,float)",void,"void __fastcall(GLAPIAudio *this, bool a2, float a3, int a4, int a5)"
+0x1a7f84,"GLAPIAudio::PlaySoundTrack(uint,uint,char const*,ResourceHandle,float,float,GameObjHandle,GetObjParams *)",void,"void __fastcall(int a1, int a2, int a3, int a4, int a5, int a6)"
+0x1a80bc,GLAPIAudio::SetMusicVolume(float),MVMovieBC *,"MVMovieBC *__fastcall(GLAPIAudio *this, float a2, float a3)"
+0x1a811c,GLAPIAudio::GetHandleVolume(AudioHandle),ADCue *,ADCue *__fastcall(int a1)
+0x1a8168,GLAPIAudio::IsCueResource3D(ResourceHandle),bool,bool __fastcall(unsigned int a1)
+0x1a81ec,GLAPIAudio::GetAmbiancePitch(void),_DWORD *,_DWORD *__fastcall(GLAPIAudio *this)
+0x1a822c,GLAPIAudio::GetPitchAtHandle(AudioHandle),_DWORD *,_DWORD *__fastcall(_DWORD *result)
+0x1a82a0,GLAPIAudio::SetAmbiancePitch(float),_DWORD *,"_DWORD *__fastcall(GLAPIAudio *this, float a2)"
+0x1a832c,"GLAPIAudio::SetPitchAtHandle(AudioHandle,float)",void,"void __fastcall(int a1, int a2, int a3, int a4, int a5)"
+0x1a8418,GLAPIAudio::SetSFXPitchRatio(float),float,"float __fastcall(GLAPIAudio *this, float a2)"
+0x1a8490,GLAPIAudio::GetAmbianceVolume(void),_DWORD *,_DWORD *__fastcall(GLAPIAudio *this)
+0x1a84d0,"GLAPIAudio::GetHandleAtObject(GameObjHandle,GetObjParams *,ResourceHandle)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1a852c,GLAPIAudio::GetListenerVolume(uint),char *,"char *__fastcall(GLAPIAudio *this, unsigned int a2)"
+0x1a8544,GLAPIAudio::GetSilentDistance(ResourceHandle),unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int i)"
+0x1a864c,GLAPIAudio::GetVolumeAtHandle(AudioHandle),_DWORD *,_DWORD *__fastcall(_DWORD *result)
+0x1a86c0,GLAPIAudio::SetAmbianceVolume(float),MVMovieBC *,"MVMovieBC *__fastcall(GLAPIAudio *this, float a2, float a3)"
+0x1a8720,"GLAPIAudio::SetListenerVolume(uint,float)",unsigned int,"unsigned int __fastcall(GLAPIAudio *this, unsigned int a2, float a3)"
+0x1a8838,"GLAPIAudio::SetVolumeAtHandle(AudioHandle,float)",void,"void __fastcall(int a1, int a2, int a3, int a4, int a5)"
+0x1a892c,"GLAPIAudio::GetHandleTimeInfos(AudioHandle,uint,float *,float *,float *)",int,"int __fastcall(int a1, unsigned int a2, float *a3, float *a4, float *a5)"
+0x1a898c,GLAPIAudio::IsCueResourceEmpty(ResourceHandle),bool,bool __fastcall(unsigned int a1)
+0x1a8a10,GLAPIAudio::PlayPreparedHandle(AudioHandle),void,"void __fastcall(int result, unsigned int a2, int a3, int a4, int a5)"
+0x1a8a5c,GLAPIAudio::Set2DListenerIndex(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x1a8a90,"GLAPIAudio::SetPitchByCategory(ResourceHandle,float)",void,"void __fastcall(int a1, unsigned int a2, int a3, int a4, int a5)"
+0x1a8ae8,GLAPIAudio::GetCategoryAtHandle(AudioHandle),int,int __fastcall(int a1)
+0x1a8b1c,"GLAPIAudio::GetVariableAtHandle(AudioHandle,uint)",_DWORD *,"_DWORD *__fastcall(_DWORD *result, unsigned int a2)"
+0x1a8b94,"GLAPIAudio::SetVariableAtHandle(AudioHandle,uint,float)",void,"void __fastcall(int result, unsigned int a2, int a3, int a4, int a5)"
+0x1a8c80,"GLAPIAudio::SetVelocityOverride(AudioHandle,BUVector3 const&,bool)",void,"void __fastcall(int a1, _DWORD *a2, float a3, int a4, int a5)"
+0x1a8d18,"GLAPIAudio::SetVolumeByCategory(ResourceHandle,float)",void,"void __fastcall(int a1, unsigned int a2, int a3, int a4, int a5)"
+0x1a8d70,GLAPIAudio::GetAPICategoryVolume(ResourceHandle),unsigned int,unsigned int __fastcall(unsigned int result)
+0x1a8e04,GLAPIAudio::GetSFXReverbSettings(ADReverbSettings3DS &),int,int()
+0x1a8e0c,"GLAPIAudio::PlayMusic_Deprecated(ResourceHandle,uint,float,float)",void,"void __fastcall(int a1, int a2)"
+0x1a8e3c,GLAPIAudio::SetSFXReverbResource(ResourceHandle),void,void()
+0x1a8e40,GLAPIAudio::SetSFXReverbSettings(ADReverbSettings3DS const*),void,void()
+0x1a8e44,"GLAPIAudio::SetThresholdDistance(AudioHandle,float)",int,int __fastcall(int result)
+0x1a8e78,"GLAPIAudio::StopSoundsByCategory(ResourceHandle,StopHandleModes_e)",void,"void __fastcall(int result, unsigned int a2, int a3, int a4, int a5)"
+0x1a8ed0,"GLAPIAudio::PlayCueOnceAtPosition(ResourceHandle,PlayCue3dModes_e,BUVector3 &,GameObjHandle,GetObjParams *)",int,"int __fastcall(int result, char a2, _DWORD *a3, int a4, int a5)"
+0x1a8fe0,"GLAPIAudio::SetPitchRatioAtHandle(AudioHandle,float)",void,"void __fastcall(int a1, int a2, int a3, int a4, int a5)"
+0x1a90d8,GLAPIAudio::SetReverbGlobalVolume(float),void,"void __fastcall(GLAPIAudio *this, float a2)"
+0x1a90dc,"GLAPIAudio::ChangeMusicStreamIndex(uint,float,float)",void,"void __fastcall(GLAPIAudio *this, unsigned int a2, float a3, float a4, int a5)"
+0x1a913c,GLAPIAudio::RemoveVelocityOverride(AudioHandle),void,"void __fastcall(int a1, int a2, int a3, int a4, int a5)"
+0x1a91ac,GLAPIAudio::SetVolumeAllCategories(float),void,"void __fastcall(GLAPIAudio *this, unsigned int a2, int a3, int a4, int a5)"
+0x1a91fc,GLAPIAudio::DrawOcclusionAudioGraph(bool),void,"void __fastcall(GLAPIAudio *this, bool a2)"
+0x1a9200,"GLAPIAudio::PlayAmbiance_Deprecated(ResourceHandle,float,float)",void,void __fastcall(int a1)
+0x1a9234,"GLAPIAudio::SetPitchRatioByCategory(ResourceHandle,float)",void,"void __fastcall(int a1, int a2, int a3, int a4, int a5)"
+0x1a9298,GLAPIAudio::SetReverbCollisionFlags(uint),void,"void __fastcall(GLAPIAudio *this, unsigned int a2)"
+0x1a929c,"GLAPIAudio::PauseAllSoundsInCategory(ResourceHandle,bool,float,bool)",void,"void __fastcall(int a1, char a2, char a3, int a4, int a5)"
+0x1a9348,"GLAPIAudio::SetDistanceCurveAtHandle(AudioHandle,ResourceHandle)",void,"void __fastcall(int result, unsigned int a2, int a3, int a4, int a5)"
+0x1a939c,GLAPIAudio::MultistreamsGetStreamCount(ResourceHandle),int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x1a9418,GLAPIAudio::AudioRestoreBackgroundMusic(void),void,void __fastcall(GLAPIAudio *this)
+0x1a941c,GLAPIAudio::AudioOverrideBackgroundMusic(void),void,void __fastcall(GLAPIAudio *this)
+0x1a9420,GLAPIAudio::InitAPI(void),"unsigned int (__fastcall *)(unsigned int result, unsigned int i)","unsigned int (__fastcall *__fastcall(GLAPIAudio *this))(unsigned int result, unsigned int i)"
+0x1a97ec,"GLAPIAudio::PlayCue(GameObjHandle,GetObjParams *,ResourceHandle,PlayCue3dModes_e,bool,uint,GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2, int a3, char a4, char a5, int a6, int a7, int a8)"
+0x1a99a0,GLAPIAudio::PlayCueEx(PlayCueExParams const&),int,int __fastcall(float *a1)
+0x1a9ce8,"GLAPIAudio::PlayMusic(ResourceHandle,uint,float,float,GameObjHandle,GetObjParams *)",void,"void __fastcall(int a1, int a2, int a3, int a4)"
+0x1a9d10,GLAPIAudio::StopMusic(float),void,"void __fastcall(GLAPIAudio *this, float a2, int a3, int a4, int a5)"
+0x1a9da4,"GLAPICurve::GetNodeData(ResourceHandle,uint)",RZResource *,"RZResource *__fastcall(unsigned int a1, unsigned int a2)"
+0x1a9de8,"GLAPICurve::GetYFromXAbs(ResourceHandle,float)",RZCurve *,RZCurve *__fastcall(unsigned int a1)
+0x1a9e34,GLAPICurve::GetNodesCount(ResourceHandle),RZResource *,RZResource *__fastcall(unsigned int a1)
+0x1a9e54,"GLAPICurve::GetYFromXPercent(ResourceHandle,float)",RZCurve *,RZCurve *__fastcall(unsigned int a1)
+0x1a9eb8,"GLAPICurve::GetTangentFromXAbs(ResourceHandle,float,BUVector2 &)",unsigned __int16 *,"unsigned __int16 *__fastcall(unsigned int a1, float *a2)"
+0x1a9efc,"GLAPICurve::GetNode(ResourceHandle,uint,BUVector2 &)",RZResource *,"RZResource *__fastcall(unsigned int a1, unsigned int a2, int *a3)"
+0x1a9f40,GLAPICurve::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1a9f98,GLAPICurve::GetCurve(ResourceHandle),nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, int *a2)"
+0x1aa010,"GLAPICurve::GetRange(ResourceHandle,float &,float &)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, int *a2, int *a3)"
+0x1aa058,"GLAPIDebug::DrawSphere(BXMatrix3 const&,BUVector3 const&,float,CMRGBA const&,bool)",int,int()
+0x1aa060,"GLAPIDebug::DrawSquare(BXMatrix3 const&,BUVector3 const&,float,float,CMRGBA const&,bool)",int,int()
+0x1aa068,GLAPIDebug::FileExists(char const*),int,"int __fastcall(GLAPIDebug *this, const char *a2)"
+0x1aa0bc,GLAPIDebug::GetUsedMem(MemoryHeaps_e),int,int __fastcall(int a1)
+0x1aa138,"GLAPIDebug::BSplineDraw(GameObjHandle,CMRGBA const&,bool)",int,int()
+0x1aa140,"GLAPIDebug::GLAssertTxt(char const*,char const*,char const*,uint,char const*)",int,"int __fastcall(GLAPIDebug *this, const char *a2, const char *a3, const char *a4, unsigned int a5, const char *a6)"
+0x1aa148,"GLAPIDebug::GUISetValue(uint,uint,uint,char const*)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, unsigned int a3, unsigned int a4, const char *a5)"
+0x1aa14c,GLAPIDebug::GetDebugVar(uint),int,"int __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aa15c,GLAPIDebug::GetTotalMem(MemoryHeaps_e),int,int __fastcall(int a1)
+0x1aa1d8,GLAPIDebug::MovieExists(char const*),int,"int __fastcall(GLAPIDebug *this, const char *a2)"
+0x1aa238,"GLAPIDebug::OpenBinFile(char const*,GLBinFileOpenModes_e)",unsigned int,"unsigned int __fastcall(char *a1, int a2)"
+0x1aa39c,"GLAPIDebug::ReadBinFile(uint,void *,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, char *a2, unsigned int a3, unsigned int a4)"
+0x1aa47c,"GLAPIDebug::SetDebugVar(uint,uint)",int,"int __fastcall(int this, unsigned int a2, unsigned int a3)"
+0x1aa48c,GLAPIDebug::CloseBinFile(uint),void,"void __fastcall(unsigned int this, unsigned int a2)"
+0x1aa58c,"GLAPIDebug::GUISetValueF(uint,uint,uint,float)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, unsigned int a3, unsigned int a4, float a5)"
+0x1aa590,GLAPIDebug::GetLogsLevel(void),int,int __fastcall(GLAPIDebug *this)
+0x1aa598,GLAPIDebug::PerfEndEvent(void),void,void __fastcall(GLAPIDebug *this)
+0x1aa59c,GLAPIDebug::SetLogsLevel(GELogLevels_e),void,void()
+0x1aa5a0,"GLAPIDebug::DrawTriangles(DebugVertex const*,uint,bool,bool,bool,bool)",int,int()
+0x1aa5a8,"GLAPIDebug::GUIShowDialog(uint,uint,bool)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, unsigned int a3, bool a4)"
+0x1aa5ac,"GLAPIDebug::HaltExecution(bool,char const*,...)",int,"int(int this, bool a2, const char *a3, int a4, ...)"
+0x1aa5e0,"GLAPIDebug::SetConsoleMgr(GameObjHandle,GetObjParams *)",void,void()
+0x1aa5e4,"GLAPIDebug::AddMemoryWatch(void const*,uint,char const*)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, char *a3, const char *a4)"
+0x1aa600,"GLAPIDebug::DrawNavMeshTri(EnvironmentHandle,uint,uint,CMRGBA const&,bool,bool)",int,int()
+0x1aa608,GLAPIDebug::EngineGetBuild(void),int,int __fastcall(GLAPIDebug *this)
+0x1aa610,"GLAPIDebug::GUISendCommand(uint,uint,uint,char const*)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, unsigned int a3, unsigned int a4, const char *a5)"
+0x1aa614,GLAPIDebug::GetPackageInfo(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x1aa638,GLAPIDebug::GetUsedMemPeak(MemoryHeaps_e),int,int __fastcall(int a1)
+0x1aa6b4,GLAPIDebug::LogGameObjects(void),void,void __fastcall(GLAPIDebug *this)
+0x1aa6b8,"GLAPIDebug::PerfBeginEvent(char const*,...)",void,"void __fastcall(GLAPIDebug *this, const char *a2)"
+0x1aa6bc,"GLAPIDebug::TextureGetSize(ResourceHandle,uint *,uint *)",unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2, _DWORD *a3)"
+0x1aa8ac,"GLAPIDebug::DrawSweptSphere(BXMatrix3 const&,BUVector3 const&,float,float,CMRGBA const&,bool)",int,int()
+0x1aa8b4,"GLAPIDebug::GUICreateDialog(uint,char const*)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, const char *a3)"
+0x1aa8b8,"GLAPIDebug::GUIRegisterTool(uint,char const*)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, const char *a3)"
+0x1aa8bc,GLAPIDebug::GetResourceName(ResourceHandle),int,int()
+0x1aa8c4,"GLAPIDebug::ProfileIncCount(uint,uint)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, unsigned int a3)"
+0x1aa8c8,"GLAPIDebug::AppendTextToFile(char const*,char const*)",void,"void __fastcall(GLAPIDebug *this, const char *a2, const char *a3)"
+0x1aa8cc,"GLAPIDebug::DrawSimpleSphere(BUVector3 const&,float,CMRGBA const&,bool)",int,int()
+0x1aa8d4,"GLAPIDebug::EngineGetVersion(uint *,uint *)",int,"int __fastcall(int this, unsigned int *a2, unsigned int *a3)"
+0x1aa8f0,GLAPIDebug::GSTakeScreenshot(void),int,int __fastcall(GLAPIDebug *this)
+0x1aa8f8,GLAPIDebug::GetParamDescName(uint),int,"int __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aa908,"GLAPIDebug::GetResourcesInfo(uint,uint,bool,DebugResInfo &)",void,void()
+0x1aa90c,"GLAPIDebug::ObjAddDebugFlags(GameObjHandle,GetObjParams *,uint)",void,void()
+0x1aa910,GLAPIDebug::ProfileStopTimer(uint),void,"void __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aa914,GLAPIDebug::ResetUsedMemPeak(MemoryHeaps_e),int,int __fastcall(int a1)
+0x1aa994,"GLAPIDebug::GUISetValueUINT32(uint,uint,uint,uint)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, unsigned int a3, unsigned int a4, unsigned int a5)"
+0x1aa998,GLAPIDebug::ProfileStartTimer(uint),void,"void __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aa99c,GLAPIDebug::AutoSkipAllAsserts(bool),char,"char __fastcall(char this, bool a2)"
+0x1aa9ac,GLAPIDebug::GSMemoryViewerGrab(char const*),int,"int __fastcall(GLAPIDebug *this, const char *a2)"
+0x1aa9b4,GLAPIDebug::GSPAGStopProfiling(char const*),int,"int __fastcall(GLAPIDebug *this, const char *a2)"
+0x1aa9bc,"GLAPIDebug::GUISetValueVector4(uint,uint,uint,BUVector4 const&)",void,void()
+0x1aa9c0,GLAPIDebug::GetPackageUserTime(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x1aa9e4,GLAPIDebug::DebugDrawSetEnabled(bool),void,"void __fastcall(GLAPIDebug *this, bool a2)"
+0x1aa9e8,"GLAPIDebug::EngineGetAPIVersion(uint *,uint *)",int,"int __fastcall(int this, unsigned int *a2, unsigned int *a3)"
+0x1aaa04,GLAPIDebug::GSPAGStartProfiling(void),int,int __fastcall(GLAPIDebug *this)
+0x1aaa0c,GLAPIDebug::GSPAGTakeScreenshot(void),int,int __fastcall(GLAPIDebug *this)
+0x1aaa14,"GLAPIDebug::ObjRemoveDebugFlags(GameObjHandle,GetObjParams *,uint)",void,void()
+0x1aaa18,"GLAPIDebug::EngineGetFullVersion(uint *,uint *,uint *)",int,"int __fastcall(int this, unsigned int *a2, unsigned int *a3, unsigned int *a4)"
+0x1aaa44,"GLAPIDebug::PrintPhysicsWarnings(GameObjHandle,GetObjParams *)",void,void()
+0x1aaa48,GLAPIDebug::SetAssertFilterPrefix(char const*),unsigned int,"unsigned int __fastcall(GLAPIDebug *this, const char *a2)"
+0x1aaa58,GLAPIDebug::GetLargestFreeNodeSize(MemoryHeaps_e),int,int __fastcall(int a1)
+0x1aaae8,"GLAPIDebug::RegisterClassMemberInt(BaseObject *,uint *,uint,uint,char const*,char const*,int,int,RegisterMemberTypes_e)",void,void()
+0x1aaaec,"GLAPIDebug::DisplayLoadingResources(bool,GameObjHandle,GetObjParams *)",void,void()
+0x1aaaf0,GLAPIDebug::GetLogActivesCategories(void),int,int __fastcall(GLAPIDebug *this)
+0x1aaaf8,GLAPIDebug::SetLogActivesCategories(uint),void,"void __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aaafc,GLAPIDebug::DeletePermanentDebugMesh(uint),void,"void __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aab00,GLAPIDebug::EngineGetConsoleHostName(void),void *,void *__fastcall(GLAPIDebug *this)
+0x1aab0c,GLAPIDebug::MainHeapSetDebugDataSize(uint),void,"void __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aab10,"GLAPIDebug::RegisterClassMemberFloat(BaseObject *,float *,uint,char const*,char const*,float,float,RegisterMemberTypes_e)",void,void()
+0x1aab14,GLAPIDebug::InspectDiscardableRequest(ResourceHandle),void,void()
+0x1aab18,GLAPIDebug::CustomHeapSetDebugDataSize(uint),void,"void __fastcall(GLAPIDebug *this, unsigned int a2)"
+0x1aab1c,"GLAPIDebug::InspectDiscardableRequestByCRC(uint,uint,GameObjHandle,GetObjParams *)",void,void()
+0x1aab20,GLAPIDebug::GetFPS(void),void *,void *__fastcall(GLAPIDebug *this)
+0x1aab34,"GLAPIDebug::PrintF(char const*,...)",void,"void __fastcall(GLAPIDebug *this, const char *a2)"
+0x1aab38,"GLAPIDebug::DrawBox(BXMatrix3 const&,BUVector3 const&,BUVector3 const&,CMRGBA const&,bool)",int,int()
+0x1aab40,"GLAPIDebug::GLPrint(char const*,...)",int *,"int *(GLAPIDebug *this, const char *a2, ...)"
+0x1aab4c,GLAPIDebug::InitAPI(void),void (*)(),void (*__fastcall(GLAPIDebug *this))()
+0x1aaf64,"GLAPIDebug::VPrintF(char const*,std::__va_list)",void,"void __fastcall(GLAPIDebug *this, const char *a2, std::__va_list a3)"
+0x1aaf68,"GLAPIDebug::DrawLine(BUVector3 const&,BUVector3 const&,CMRGBA const&,bool,bool)",int,int()
+0x1aaf70,"GLAPIDebug::DrawPoly(BUVector3 const*,uint,CMRGBA const&,bool,bool,bool)",int,int()
+0x1aaf78,"GLAPIDebug::GLAssert(char const*,char const*,char const*,uint)",int,"int __fastcall(GLAPIDebug *this, const char *a2, const char *a3, const char *a4, unsigned int a5)"
+0x1aaf80,"GLAPIDebug::GLVPrint(char const*,std::__va_list)",int *,"int *__fastcall(GLAPIDebug *this, const char *a2, std::__va_list a3)"
+0x1aaf8c,"GLAPIDebug::ZoneDraw(GameObjHandle,GetObjParams *,CMRGBA const&,bool)",int,int()
+0x1aaf94,"GLAPIDebug::GUISaveAs(uint,uchar *)",void,"void __fastcall(GLAPIDebug *this, unsigned int a2, unsigned __int8 *a3)"
+0x1aaf98,"GLAPIInput::IsInputDown(uint,uint)",bool,"bool __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3)"
+0x1aaff4,GLAPIInput::AddInputMask(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x1ab018,"GLAPIInput::GetHWInputKB(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab050,GLAPIInput::GetInputMask(void),int,int __fastcall(GLAPIInput *this)
+0x1ab060,"GLAPIInput::GetInputDelta(uint,uint)",int,"int __fastcall(int this, unsigned int a2, unsigned int a3)"
+0x1ab0a0,"GLAPIInput::IsHWInputKBUp(uint,uint)",bool,"bool __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab120,"GLAPIInput::GetGamePadGUID(uint,char *)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, char *a3)"
+0x1ab124,GLAPIInput::GetGamePadName(uint),int,"int __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab12c,"GLAPIInput::AddVibrationHit(uint,VibrationFreqs_e,VibrationEnveloppe const&)",char *,"char *__fastcall(char *result, char a2, int *a3)"
+0x1ab1c8,GLAPIInput::EnableVibration(bool),void,"void __fastcall(GLAPIInput *this, bool a2)"
+0x1ab208,"GLAPIInput::GetHWInputMouse(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab240,"GLAPIInput::IsHWInputKBDown(uint,uint)",bool,"bool __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab2c0,GLAPIInput::RemoveInputMask(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x1ab2e4,GLAPIInput::SetNbLogicInput(uint),void,"void __fastcall(int this, unsigned int a2)"
+0x1ab348,GLAPIInput::ToggleMouseLock(bool),void,"void __fastcall(GLAPIInput *this, bool a2)"
+0x1ab34c,"GLAPIInput::EnableWiiPointer(uint,bool)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, bool a3)"
+0x1ab350,"GLAPIInput::IsHWInputMouseUp(uint,uint)",bool,"bool __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab3d0,"GLAPIInput::SetLogicInputMgr(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1ab470,GLAPIInput::StopAllVibration(void),void,void __fastcall(GLAPIInput *this)
+0x1ab484,GLAPIInput::DisconnectGamePad(uint),void,"void __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab488,GLAPIInput::GetGamePadBattery(uint),int,"int __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab490,"GLAPIInput::GetHWInputGamePad(uint,uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x1ab4dc,"GLAPIInput::GetHWInputKBDelta(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab520,"GLAPIInput::SetGamePadEnabled(uint,bool)",int,"int __fastcall(GLAPIInput *this, unsigned int a2, bool a3)"
+0x1ab548,GLAPIInput::IsGamepadConnected(uint),bool,"bool __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab564,"GLAPIInput::IsHWInputGamePadUp(uint,uint,uint)",bool,"bool __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x1ab61c,"GLAPIInput::IsHWInputMouseDown(uint,uint)",bool,"bool __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab69c,GLAPIInput::IsUniversalGamePad(uint),int,"int __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab6a4,GLAPIInput::IsVibrationEnabled(void),int,int __fastcall(GLAPIInput *this)
+0x1ab6b4,GLAPIInput::EnableSimplePairing(bool),int,"int __fastcall(GLAPIInput *this, bool a2)"
+0x1ab6bc,GLAPIInput::GetGamePadAxisCount(uint),int,"int __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab6c4,"GLAPIInput::GetHWInputCounterKB(uint,uint)",int,"int __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3)"
+0x1ab6f8,GLAPIInput::IsGamePadBatteryLow(uint),int,"int __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab700,GLAPIInput::IsVirtualKeyboardOn(void),int,int __fastcall(GLAPIInput *this)
+0x1ab708,"GLAPIInput::GetHWInputMouseDelta(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1ab750,"GLAPIInput::IsHWInputGamePadDown(uint,uint,uint)",bool,"bool __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x1ab7fc,"GLAPIInput::WiiMotionPlusSetMode(uint,MotionPlusMode_e)",void,void()
+0x1ab800,GLAPIInput::GetGamePadButtonCount(uint),int,"int __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab808,"GLAPIInput::SetWiimoteSensitivity(WiiMoteSensitivities_e,uint,float,float)",void,void()
+0x1ab80c,"GLAPIInput::ShowVirtualKeyboardUI(uint,ushort const*,ushort const*,ushort const*,ushort *,uint)",int,"int __fastcall(GLAPIInput *this, unsigned int a2, const unsigned __int16 *a3, const unsigned __int16 *a4, const unsigned __int16 *a5, unsigned __int16 *a6, unsigned int a7)"
+0x1ab814,"GLAPIInput::WiiMotionPlusSetAngle(uint,float,float,float)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, float a3, float a4, float a5)"
+0x1ab818,"GLAPIInput::AddVibrationContinuous(uint,VibrationFreqs_e,float)",char *,"char *__fastcall(char *result, char a2)"
+0x1ab890,"GLAPIInput::GetCurrentNbVibrations(uint,VibrationFreqs_e)",int,"int __fastcall(int a1, int a2)"
+0x1ab904,GLAPIInput::GetGamePadCapabilities(uint),int,"int __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1ab90c,"GLAPIInput::GetHWInputCounterMouse(uint,uint)",int,"int __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3)"
+0x1ab940,"GLAPIInput::GetHWInputGamePadDelta(uint,uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x1ab9a0,"GLAPIInput::GetHWInputCounterGamePad(uint,uint,uint)",int,"int __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x1ab9f0,"GLAPIInput::SetWiimoteAllSensitivity(uint,float,float)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, float a3, float a4)"
+0x1ab9f4,"GLAPIInput::WiiMotionPlusSetDirection(uint,KPADMPDir *)",void,void()
+0x1ab9f8,"GLAPIInput::GetUnicodeCharForHWInputKB(uint,uint)",int,"int __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3)"
+0x1aba00,GLAPIInput::GetPS3EnterButtonAssignment(void),int,int __fastcall(GLAPIInput *this)
+0x1aba08,"GLAPIInput::WiiMotionPlusEnableZeroPlay(uint,bool)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, bool a3)"
+0x1aba0c,GLAPIInput::GetCurrentlyAppliedInputMask(void),int,int __fastcall(GLAPIInput *this)
+0x1aba1c,"GLAPIInput::WiiMotionPlusEnableAccRevise(uint,bool)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, bool a3)"
+0x1aba20,"GLAPIInput::WiiMotionPlusEnableDirRevise(uint,bool)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, bool a3)"
+0x1aba24,"GLAPIInput::WiiMotionPlusEnableDpdRevise(uint,bool)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, bool a3)"
+0x1aba28,"GLAPIInput::WiiMotionPlusSetDirectionMag(uint,float)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, float a3)"
+0x1aba2c,GLAPIInput::WiiMotionPlusStopCalibration(uint),void,"void __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1aba30,GLAPIInput::WiiMotionPlusWorkCalibration(uint),void,"void __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1aba3c,"GLAPIInput::WiiMotionPlusSetDirReviseBase(uint,KPADMPDir *)",void,void()
+0x1aba40,"GLAPIInput::WiiMotionPlusSetZeroDriftMode(uint,MotionPlusDriftMode_e)",void,void()
+0x1aba44,"GLAPIInput::WiiMotionPlusSetZeroPlayParam(uint,float)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, float a3)"
+0x1aba48,GLAPIInput::WiiMotionPlusStartCalibration(uint),void,"void __fastcall(GLAPIInput *this, unsigned int a2)"
+0x1aba4c,"GLAPIInput::WiiMotionPlusSetAccReviseParam(uint,float,float)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, float a3, float a4)"
+0x1aba50,"GLAPIInput::WiiMotionPlusSetDirReviseParam(uint,float)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, float a3)"
+0x1aba54,"GLAPIInput::WiiMotionPlusSetDpdReviseParam(uint,float)",void,"void __fastcall(GLAPIInput *this, unsigned int a2, float a3)"
+0x1aba58,GLAPIInput::DetectDirectInputGamepadChanges(void),void,void __fastcall(GLAPIInput *this)
+0x1aba5c,GLAPIInput::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1abd9c,"GLAPIInput::GetInput(uint,uint)",int,"int __fastcall(int this, unsigned int a2, unsigned int a3)"
+0x1abdc4,"GLAPIInput::IsInputUp(uint,uint)",bool,"bool __fastcall(GLAPIInput *this, unsigned int a2, unsigned int a3)"
+0x1abe20,"GLAPILight::IntensityGet(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1abe64,"GLAPILight::IntensitySet(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1abeec,"GLAPILight::LightInfoGet(GameObjHandle,GetObjParams *,LightInfo &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, int a3)"
+0x1abfe0,"GLAPILight::LightInfoSet(GameObjHandle,GetObjParams *,LightInfo const&)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1ac27c,"GLAPILight::RenderCamMaskGet(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1ac2b8,"GLAPILight::RenderCamMaskSet(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1ac34c,"GLAPILight::ShadowMapCastGet(GameObjHandle,GetObjParams *,ShadowMapCast &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, int a3)"
+0x1ac3dc,"GLAPILight::ShadowMapCastSet(GameObjHandle,GetObjParams *,ShadowMapCast const&)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, int a3)"
+0x1ac484,GLAPILight::GetAffectingLights(AffectingLightsParams &),unsigned int,unsigned int __fastcall(int a1)
+0x1ac498,"GLAPILight::LightShadowCastGet(GameObjHandle,GetObjParams *,LightShadowCast &)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1ac518,"GLAPILight::LightShadowCastSet(GameObjHandle,GetObjParams *,LightShadowCast const&)",GOLight *,"GOLight *__fastcall(int a1, int a2, int a3)"
+0x1ac608,"GLAPILight::Shadow3dObjCastGet(GameObjHandle,GetObjParams *,Shadow3dObjCast &)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1ac678,"GLAPILight::Shadow3dObjCastSet(GameObjHandle,GetObjParams *,Shadow3dObjCast const&)",GOLight *,"GOLight *__fastcall(int a1, int a2, int a3)"
+0x1ac738,GLAPILight::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1ac808,"GLAPILight::ColorGet(GameObjHandle,GetObjParams *,BUVector3 &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x1ac854,"GLAPILight::ColorSet(GameObjHandle,GetObjParams *,BUVector3 const&)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x1ac8b0,"GLAPILight::RangeSet(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1ac90c,GLAPILight::GetCoffee(void),int,int __fastcall(GLAPILight *this)
+0x1ac918,"GLAPILogic::GetClassCRC(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1ac970,"GLAPILogic::PostMessage(GameObjHandle,GetObjParams *,uint,void const*,uint,EngineStates_e)",int,"int __fastcall(int a1, int a2, int a3, int a4, int a5, int a6)"
+0x1ac9bc,"GLAPILogic::SendMessage(GameObjHandle,GetObjParams *,uint,void *)",int,"int __fastcall(int a1, int a2, unsigned int a3, void *a4)"
+0x1aca4c,"GLAPILogic::SetBigLogic(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2)"
+0x1aca9c,"GLAPILogic::SleepFrames(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1acb0c,"GLAPILogic::GetClassName(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1acb68,"GLAPILogic::GetParentState(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1acbcc,GLAPILogic::IsInDestructor(void),unsigned int,unsigned int __fastcall(GLAPILogic *this)
+0x1acbf0,GLAPILogic::IsInitializing(void),unsigned int,unsigned int __fastcall(GLAPILogic *this)
+0x1acc14,GLAPILogic::RegisterModule(BaseObject *),GLLogicInstance *,"GLLogicInstance *__fastcall(GLAPILogic *this, BaseObject *a2)"
+0x1acc40,"GLAPILogic::GetCurrentState(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1acca4,GLAPILogic::IsInConstructor(void),unsigned int,unsigned int __fastcall(GLAPILogic *this)
+0x1accc8,"GLAPILogic::GetLogicInitArgs(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1acd28,GLAPILogic::GetStatePointers(uint),int,"int __fastcall(GLAPILogic *this, unsigned int a2)"
+0x1acd60,"GLAPILogic::PostMessageLight(GameObjHandle,GetObjParams *,uint,void *,EngineStates_e)",int,"int __fastcall(int a1, int a2, int a3, int a4, int a5)"
+0x1acdb8,GLAPILogic::UnregisterModule(BaseObject *),void,"void __fastcall(GLAPILogic *this, BaseObject *a2)"
+0x1acde4,GLAPILogic::GetMultiValueState(uint),int,"int __fastcall(GLAPILogic *this, unsigned int a2)"
+0x1acdf4,"GLAPILogic::GetUpdateFrequency(GameObjHandle,GetObjParams *,UpdateFrequencyParams &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1ace70,"GLAPILogic::PostDelayedMessage(GameObjHandle,GetObjParams *,uint,void *,uint,uint,MsgTimeDelayTypes_e,float,uint)",int,"int __fastcall(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8)"
+0x1aced8,"GLAPILogic::SetMultiValueState(uint,uint)",int,"int __fastcall(int this, unsigned int a2, unsigned int a3)"
+0x1acee8,"GLAPILogic::SetUpdateFrequency(GameObjHandle,GetObjParams *,UpdateFrequencyParams const&)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1acf64,GLAPILogic::EnableModuleMessage(BaseObject *),GLLogicInstance *,"GLLogicInstance *__fastcall(GLAPILogic *this, BaseObject *a2)"
+0x1acf90,GLAPILogic::DisableModuleMessage(BaseObject *),GLLogicInstance *,"GLLogicInstance *__fastcall(GLAPILogic *this, BaseObject *a2)"
+0x1acfbc,GLAPILogic::ForceStateTransition(void),GLLogicInstanceBC *,GLLogicInstanceBC *__fastcall(GLAPILogic *this)
+0x1acff8,GLAPILogic::NotifyObjStateChange(void),int,int __fastcall(GLAPILogic *this)
+0x1ad004,"GLAPILogic::GetStateEventPointers(void (BaseObject::**)(float),void (BaseObject::**)(float),void (BaseObject::**)(uint),void (BaseObject::**)(uint),void (BaseObject::**)(uint),void (BaseObject::**)(uint))",_DWORD *,"_DWORD *__fastcall(int a1, _DWORD *a2, _DWORD *a3, _DWORD *a4, _DWORD *a5, _QWORD *a6)"
+0x1ad05c,GLAPILogic::IsRunningOnMainThread(void),bool,bool __fastcall(GLAPILogic *this)
+0x1ad074,"GLAPILogic::SetLogicParamBlockMgr(GameObjHandle,GetObjParams *)",void,void()
+0x1ad078,"GLAPILogic::SetStateEventPointers(void (BaseObject::*)(float),void (BaseObject::*)(float),void (BaseObject::*)(uint),void (BaseObject::*)(uint),void (BaseObject::*)(uint),void (BaseObject::*)(uint))",_DWORD *,"_DWORD *__fastcall(int a1, int a2, int a3, int a4, int a5, int a6, int a7, int a8, int a9, int a10, int a11, int a12)"
+0x1ad0dc,"GLAPILogic::IsLogicMultithreadable(GameObjHandle,GetObjParams *)",int,int()
+0x1ad0e4,"GLAPILogic::SetLogicMultithreadable(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2)"
+0x1ad134,"GLAPILogic::GetCurrentConcurrentState(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1ad1a0,GLAPILogic::CancelPostedDelayedMessages(uint),int,"int __fastcall(GLAPILogic *this, unsigned int a2)"
+0x1ad1b0,"GLAPILogic::SetUpdateFrequencyInitDelays(GameObjHandle,GetObjParams *,float,float,float)",int,"int __fastcall(int a1, int a2)"
+0x1ad24c,GLAPILogic::ForceConcurrentStateTransition(uint),GLLogicInstanceBC *,"GLLogicInstanceBC *__fastcall(GLAPILogic *this, unsigned int a2)"
+0x1ad28c,"GLAPILogic::Sleep(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1ad304,GLAPILogic::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1ad4c4,GLAPILogic::GetSender(void),int,int __fastcall(GLAPILogic *this)
+0x1ad508,GLAPIMovie::PauseMovie(MovieHandle),MVMovie *,MVMovie *__fastcall(unsigned int a1)
+0x1ad53c,GLAPIMovie::CancelMovie(MovieHandle),MVMovie *,MVMovie *__fastcall(unsigned int a1)
+0x1ad570,GLAPIMovie::GetMovieTime(MovieHandle),void,void __fastcall(unsigned int a1)
+0x1ad5a8,"GLAPIMovie::PrepareMovie(MovieHandle,MovieParams const&)",int,"int __fastcall(unsigned int a1, int *a2)"
+0x1ad650,GLAPIMovie::UnPauseMovie(MovieHandle),MVMovie *,MVMovie *__fastcall(unsigned int a1)
+0x1ad684,GLAPIMovie::IsMoviePaused(MovieHandle),int,int()
+0x1ad6b0,GLAPIMovie::IsMoviePlaying(MovieHandle),unsigned int,unsigned int __fastcall(unsigned int a1)
+0x1ad6e8,GLAPIMovie::GetMovieDuration(MovieHandle),void,void __fastcall(unsigned int a1)
+0x1ad720,GLAPIMovie::GetNewMovieHandle(void),int,"int __fastcall(GLAPIMovie *this, const std::nothrow_t *a2)"
+0x1ad730,GLAPIMovie::PlayPreparedMovie(MovieHandle),MVMovie *,MVMovie *__fastcall(unsigned int a1)
+0x1ad764,GLAPIMovie::ReleaseMovieHandle(MovieHandle),int,"int __fastcall(int a1, int a2, int a3, int a4, int a5)"
+0x1ad778,"GLAPIMovie::SetBackgroundVolume(MovieHandle,float)",MVMovieBC *,MVMovieBC *__fastcall(float a1)
+0x1ad78c,"GLAPIMovie::SetSoundtrackVolume(MovieHandle,float)",MVMovieBC *,MVMovieBC *__fastcall(float a1)
+0x1ad7a0,GLAPIMovie::GetAudioMovieDuration(MovieHandle),void,void __fastcall(unsigned int a1)
+0x1ad7d8,"GLAPIMovie::PlayMovieFromResource(MovieHandle,ResourceHandle,MovieParams const&)",int,"int __fastcall(unsigned int a1, int a2, size_t *a3)"
+0x1ad890,GLAPIMovie::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1ad960,"GLAPIMovie::PlayMovie(MovieHandle,MovieParams const&)",int,"int __fastcall(unsigned int a1, int *a2)"
+0x1ada08,GLAPIMovie::StopMovie(MovieHandle),MVMovie *,MVMovie *__fastcall(unsigned int a1)
+0x1e014c,"GLAPICamera::SetClipCam(GameObjHandle,GetObjParams *,GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2, int a3, int a4)"
+0x1e01cc,"GLAPICamera::GetFOVAngle(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e0214,"GLAPICamera::GetViewRect(GameObjHandle,GetObjParams *,BURect &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x1e028c,"GLAPICamera::SetDrawMask(GameObjHandle,GetObjParams *,HUDWndHandle,bool,bool)",void,void()
+0x1e0290,"GLAPICamera::SetFOVAngle(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e02f4,"GLAPICamera::SetViewRect(GameObjHandle,GetObjParams *,BURect const&)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x1e044c,"GLAPICamera::GetCamScreen(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e0490,GLAPICamera::GetRenderCam(uint),int,"int __fastcall(GLAPICamera *this, unsigned int a2)"
+0x1e04b0,"GLAPICamera::PostFxGetDOF(GameObjHandle,GetObjParams *,PostFx_DOF &)",int,"int __fastcall(int a1, int a2)"
+0x1e04ec,"GLAPICamera::PostFxGetFog(GameObjHandle,GetObjParams *,PostFx_Fog &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x1e0554,"GLAPICamera::PostFxSetDOF(GameObjHandle,GetObjParams *,PostFx_DOF const*)",int,"int __fastcall(int a1, int a2)"
+0x1e05ac,"GLAPICamera::PostFxSetFog(GameObjHandle,GetObjParams *,PostFx_Fog const*)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x1e0698,"GLAPICamera::SetCamScreen(GameObjHandle,GetObjParams *,Screens_e)",int,"int __fastcall(int result, int a2, unsigned int a3)"
+0x1e071c,"GLAPICamera::SetRenderCam(GameObjHandle,GetObjParams *,uint)",unsigned int,"unsigned int __fastcall(int a1, int a2, unsigned int a3)"
+0x1e07e0,"GLAPICamera::PostFxGetHalo(GameObjHandle,GetObjParams *,PostFx_Halo &)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e0840,"GLAPICamera::PostFxSetHalo(GameObjHandle,GetObjParams *,PostFx_Halo const*)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x1e090c,"GLAPICamera::WorldToScreen(GameObjHandle,GetObjParams *,BUVector3 const&,uint,BUVector3&)",f32 *,"f32 *__fastcall(int a1, int a2, const nn::math::MTX44 *a3, char a4, float *a5)"
+0x1e0c1c,"GLAPICamera::GetAspectRatio(GameObjHandle,GetObjParams *)",GOCameraBC *,"GOCameraBC *__fastcall(int a1, int a2)"
+0x1e0c6c,"GLAPICamera::GetFarClipping(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e0cb4,"GLAPICamera::PostFxGetBloom(GameObjHandle,GetObjParams *,PostFx_HDR &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e0d0c,"GLAPICamera::PostFxGetGrain(GameObjHandle,GetObjParams *,PostFx_Grain &)",int,"int __fastcall(int a1, int a2)"
+0x1e0d48,"GLAPICamera::PostFxSetBloom(GameObjHandle,GetObjParams *,PostFx_HDR const*)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e0dd8,"GLAPICamera::PostFxSetGrain(GameObjHandle,GetObjParams *,PostFx_Grain const*)",int,"int __fastcall(int a1, int a2)"
+0x1e0e30,"GLAPICamera::SetAspectRatio(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e0eac,"GLAPICamera::SetFarClipping(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e0f40,"GLAPICamera::GetNearClipping(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e0f88,"GLAPICamera::SetNearClipping(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e1008,"GLAPICamera::GetRenderCamMask(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e104c,"GLAPICamera::PostFxGetFishEye(GameObjHandle,GetObjParams *,PostFx_FishEye &)",int,int()
+0x1e1054,"GLAPICamera::PostFxSetFishEye(GameObjHandle,GetObjParams *,PostFx_FishEye const*)",int,"int __fastcall(int a1, int a2)"
+0x1e10ac,"GLAPICamera::SetRenderCamMask(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e1108,"GLAPICamera::IsSphereInFrustum(GameObjHandle,GetObjParams *,BUVector3 const&,float)",bool,"bool __fastcall(int a1, int a2, float *a3)"
+0x1e1204,"GLAPICamera::PostFxGetHeatHaze(GameObjHandle,GetObjParams *,PostFx_HeatHaze &)",int,"int __fastcall(int a1, int a2)"
+0x1e1240,"GLAPICamera::PostFxSetHeatHaze(GameObjHandle,GetObjParams *,PostFx_HeatHaze const*)",int,"int __fastcall(int a1, int a2)"
+0x1e1298,"GLAPICamera::ResetLODTransition(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e134c,"GLAPICamera::ShadowMapGetParams(GameObjHandle,GetObjParams *,ShadowMapParams &)",int,"int __fastcall(int a1, int a2)"
+0x1e1384,"GLAPICamera::ShadowMapSetParams(GameObjHandle,GetObjParams *,ShadowMapParams const*)",int,"int __fastcall(int a1, int a2)"
+0x1e13dc,"GLAPICamera::PostFxGetEdgeFilter(GameObjHandle,GetObjParams *,PostFx_EdgeFilter &)",int,"int __fastcall(int a1, int a2)"
+0x1e141c,"GLAPICamera::PostFxGetHeatVision(GameObjHandle,GetObjParams *,PostFx_HeatVision &)",int,"int __fastcall(int a1, int a2)"
+0x1e1458,"GLAPICamera::PostFxGetMotionBlur(GameObjHandle,GetObjParams *,PostFx_MotionBlur &)",int,"int __fastcall(int a1, int a2)"
+0x1e1494,"GLAPICamera::PostFxGetRadialBlur(GameObjHandle,GetObjParams *,PostFx_RadialBlur &)",int,"int __fastcall(int a1, int a2)"
+0x1e14d0,"GLAPICamera::PostFxSetEdgeFilter(GameObjHandle,GetObjParams *,PostFx_EdgeFilter const*)",int,"int __fastcall(int a1, int a2)"
+0x1e1528,"GLAPICamera::PostFxSetHeatVision(GameObjHandle,GetObjParams *,PostFx_HeatVision const*)",int,"int __fastcall(int a1, int a2)"
+0x1e1580,"GLAPICamera::PostFxSetMotionBlur(GameObjHandle,GetObjParams *,PostFx_MotionBlur const*)",int,"int __fastcall(int a1, int a2)"
+0x1e15d8,"GLAPICamera::PostFxSetRadialBlur(GameObjHandle,GetObjParams *,PostFx_RadialBlur const*)",int,"int __fastcall(int a1, int a2)"
+0x1e1630,"GLAPICamera::PostFxGetColorization(GameObjHandle,GetObjParams *,PostFx_Colorization &)",int,"int __fastcall(int a1, int a2)"
+0x1e166c,"GLAPICamera::PostFxSetColorization(GameObjHandle,GetObjParams *,PostFx_Colorization const*)",void,void()
+0x1e1670,"GLAPICamera::StereoGetEyeSeparation(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e16c4,"GLAPICamera::StereoGetFocalDistance(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e1718,"GLAPICamera::StereoSetEyeSeparation(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e1790,"GLAPICamera::StereoSetFocalDistance(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e1808,"GLAPICamera::SetRenderToTextureCamera(GameObjHandle,GetObjParams *,ResourceHandle,BURect const*)",unsigned int,"unsigned int __fastcall(int a1, int a2, int a3, int a4)"
+0x1e1878,"GLAPICamera::WorldToScreen_Deprecated(GameObjHandle,GetObjParams *,BUVector3 const&,BUVector3&)",f32 *,"f32 *__fastcall(int a1, int a2, const nn::math::MTX44 *a3, float *a4)"
+0x1e188c,"GLAPICamera::PostFxGetBloom_Deprecated(GameObjHandle,GetObjParams *,PostFx_HDR &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e18ec,"GLAPICamera::PostFxGetCameraMotionBlur(GameObjHandle,GetObjParams *,PostFx_CameraMotionBlur &)",int,"int __fastcall(int a1, int a2)"
+0x1e1928,"GLAPICamera::PostFxSetBloom_Deprecated(GameObjHandle,GetObjParams *,PostFx_HDR const*)",int,"int __fastcall(int a1, int a2, int *a3)"
+0x1e19c8,"GLAPICamera::PostFxSetCameraMotionBlur(GameObjHandle,GetObjParams *,PostFx_CameraMotionBlur const*)",int,"int __fastcall(int a1, int a2)"
+0x1e1a00,"GLAPICamera::SetLODTransitionResetDistance(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e1a90,"GLAPICamera::ShadowMapSetSpotLightSelector(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e1ac4,"GLAPICamera::StereoSetEyeColorizationTextures(GameObjHandle,GetObjParams *,ResourceHandle,ResourceHandle)",int,"int __fastcall(int a1, int a2, unsigned int a3, unsigned int a4)"
+0x1e1bb8,GLAPICamera::ShadowMapSetSpotLightTransitionTime(float),void,"void __fastcall(GLAPICamera *this, float a2)"
+0x1e1bbc,GLAPICamera::ShadowMapResetSpotLightTransitionTime(void),void,void __fastcall(GLAPICamera *this)
+0x1e1bc0,GLAPICamera::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1e1ec4,"GLAPICamera::SetMode(GameObjHandle,GetObjParams *,CamTypes_e)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e1f5c,GLAPIEngine::GetSysClock(SysTime *),s32,s32 __fastcall(unsigned __int16 *a1)
+0x1e1f6c,GLAPIEngine::SetGameName(char const*),int,"int __fastcall(GLAPIEngine *this, const char *a2)"
+0x1e1f94,GLAPIEngine::GetDeltaTime(DeltaTypes_e),float,float __fastcall(float result)
+0x1e2014,GLAPIEngine::GetTimeScale(void),void *,void *__fastcall(GLAPIEngine *this)
+0x1e2024,GLAPIEngine::SetTimeScale(float),void *,"void *__fastcall(GLAPIEngine *this, float a2)"
+0x1e2068,GLAPIEngine::GetFrameCount(void),int,int __fastcall(GLAPIEngine *this)
+0x1e2078,"GLAPIEngine::QuitAndLaunch(char const*,uchar const*,uint)",void,"void __fastcall(GLAPIEngine *this, const char *a2, const unsigned __int8 *a3, unsigned int a4)"
+0x1e207c,"GLAPIEngine::QuitAndLaunchEx(char const*,uint,char const**)",void,"void __fastcall(GLAPIEngine *this, const char *a2, unsigned int a3, const char **a4)"
+0x1e2080,"GLAPIEngine::DemoGetLaunchData(uchar *&,uint &)",void,"void __fastcall(GLAPIEngine *this, unsigned __int8 **a2, unsigned int *a3)"
+0x1e2084,GLAPIEngine::GetActiveLanguage(void),int,int __fastcall(GLAPIEngine *this)
+0x1e2094,"GLAPIEngine::SetActiveLanguage(Languages_e,GameObjHandle,GetObjParams *)",int,"int __fastcall(char a1, int a2, int a3)"
+0x1e2128,GLAPIEngine::SetGameLogicTarget(GameLogicTargets_e),char,char __fastcall(char result)
+0x1e2138,GLAPIEngine::DemoGetTimeoutValue(void),int,int __fastcall(GLAPIEngine *this)
+0x1e2140,"GLAPIEngine::SetFileIOErrorHandler(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x1e21d8,GLAPIEngine::IsInSingleThreadedState(void),int,int __fastcall(GLAPIEngine *this)
+0x1e21e0,GLAPIEngine::ConvertHardwareTimeToSeconds(ulong long),float *,"float *__fastcall(GLAPIEngine *this, unsigned __int64 a2)"
+0x1e2200,GLAPIEngine::SetIsInBlockingLoadingScreen(bool),char,"char __fastcall(char this, bool a2)"
+0x1e2210,GLAPIEngine::Quit(void),int,int __fastcall(GLAPIEngine *this)
+0x1e221c,GLAPIEngine::IsDemo(void),int,int __fastcall(GLAPIEngine *this)
+0x1e2224,GLAPIEngine::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1e2330,GLAPIEngine::GetLocale(void),int,int __fastcall(GLAPIEngine *this)
+0x1e2338,GLAPIEngine::GetTVMode(void),int,int __fastcall(GLAPIEngine *this)
+0x1e2340,"GLAPIOnline::SetHighScore(uint,uint)",void,"void __fastcall(GLAPIOnline *this, unsigned int a2, unsigned int a3)"
+0x1e2344,"GLAPIOnline::GetHighScores(uint,uint,uint)",void,"void __fastcall(GLAPIOnline *this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x1e2348,GLAPIOnline::ShowLoginScreen(void),void,void __fastcall(GLAPIOnline *this)
+0x1e234c,GLAPIOnline::UnlockAchievement(uint),void,"void __fastcall(GLAPIOnline *this, unsigned int a2)"
+0x1e2350,GLAPIOnline::GetConnectionStatus(void),int,int __fastcall(GLAPIOnline *this)
+0x1e2358,GLAPIOnline::IsAchievementLocked(uint),int,"int __fastcall(GLAPIOnline *this, unsigned int a2)"
+0x1e2360,"GLAPIOnline::GetFriendsHighScores(uint,uint,uint)",void,"void __fastcall(GLAPIOnline *this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x1e2364,GLAPIOnline::CancelPendingOperation(void),void,void __fastcall(GLAPIOnline *this)
+0x1e2368,"GLAPIOnline::GetAgeBaseRestrictions(bool *,int *)",void,"void __fastcall(GLAPIOnline *this, bool *a2, int *a3)"
+0x1e236c,GLAPIOnline::RegisterOnlineListener(GameObjHandle),void,void()
+0x1e2370,"GLAPIOnline::GetSurroundingHighScores(uint,uint)",void,"void __fastcall(GLAPIOnline *this, unsigned int a2, unsigned int a3)"
+0x1e2374,GLAPIOnline::UnregisterOnlineListener(GameObjHandle),void,void()
+0x1e2378,GLAPIOnline::Init(OnlineInitInfos const&),int,int()
+0x1e2380,GLAPIOnline::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1e2420,"GLAPIPhysic::ApplyForce(GameObjHandle,GetObjParams *,BUVector3 const&)",int,"int __fastcall(int a1, int a2, PSRigidBody *a3)"
+0x1e24bc,"GLAPIPhysic::GetContext(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e2504,GLAPIPhysic::ModuleKill(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x1e2560,"GLAPIPhysic::SetContext(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e25d0,GLAPIPhysic::SphereCast(PSSphereCastIn const&),int,int __fastcall(int a1)
+0x1e25e0,GLAPIPhysic::WindCreate(PSWindParams const&),int,int __fastcall(float *a1)
+0x1e25f0,GLAPIPhysic::WindRemove(uint),unsigned int,"unsigned int __fastcall(GLAPIPhysic *this, unsigned int a2)"
+0x1e2600,"GLAPIPhysic::ApplyTorque(GameObjHandle,GetObjParams *,BUVector3 const&)",int,"int __fastcall(int a1, int a2, PSRigidBody *a3)"
+0x1e269c,GLAPIPhysic::PausePhysic(bool),int *,"int *__fastcall(GLAPIPhysic *this, bool a2)"
+0x1e26b4,"GLAPIPhysic::RemoveFlags(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e27a0,"GLAPIPhysic::ApplyImpulse(GameObjHandle,GetObjParams *,BUVector3 const&,uint,BUVector3 const*,uint)",int,"int __fastcall(int a1, int a2, PSRigidBody *a3, const BUVector3 *a4, float *a5, const BUVector3 *a6)"
+0x1e2854,"GLAPIPhysic::ColPrimGetNb(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e28b4,"GLAPIPhysic::ModuleCreate(GameObjHandle,GetObjParams *,PSModuleTypes_e)",int,"int __fastcall(int a1, int a2, const std::nothrow_t *a3)"
+0x1e2934,"GLAPIPhysic::RayIntersect(PSRayIntersectionIn const&,PSRayIntersectionOut &)",int,"int __fastcall(GLAPIPhysic *this, const PSRayIntersectionIn *a2, PSRayIntersectionOut *a3)"
+0x1e2a88,"GLAPIPhysic::ColPrimGetDim(GameObjHandle,GetObjParams *,uint,BUVector3 &)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, _DWORD *a4)"
+0x1e2b60,"GLAPIPhysic::WindParamsGet(uint,PSWindParams &)",int *,"int *__fastcall(unsigned int a1, _DWORD *a2)"
+0x1e2b98,"GLAPIPhysic::WindParamsSet(uint,PSWindParams const&)",int,"int __fastcall(unsigned int a1, int a2)"
+0x1e2be0,"GLAPIPhysic::ModuleDoAction(uint,uint,void *)",int,"int __fastcall(unsigned int this, unsigned int a2, unsigned int a3, void *a4)"
+0x1e2c30,"GLAPIPhysic::RagdollGetMass(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e2cb0,"GLAPIPhysic::RagdollSetMass(GameObjHandle,GetObjParams *,uint,float)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e2d34,"GLAPIPhysic::ColPrimFlagsAdd(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, unsigned int a4)"
+0x1e2da8,"GLAPIPhysic::ColPrimGetFlags(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e2e18,"GLAPIPhysic::ColPrimGetShape(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e2e98,"GLAPIPhysic::GetKeyColPrimID(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e2f04,"GLAPIPhysic::GetPhysicParams(GameObjHandle,GetObjParams *,PSPhysicParams &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e2f88,"GLAPIPhysic::ModuleGetParams(uint,void *)",int,"int __fastcall(unsigned int this, unsigned int a2, void *a3)"
+0x1e2fcc,"GLAPIPhysic::ModuleSetParams(uint,void const*)",int,"int __fastcall(unsigned int this, unsigned int a2, const void *a3)"
+0x1e3010,GLAPIPhysic::PauseGlobalWind(bool),char,"char __fastcall(char this, bool a2)"
+0x1e3020,"GLAPIPhysic::RagdollActivate(GameObjHandle,GetObjParams *,bool,float,uint)",void,void()
+0x1e3024,"GLAPIPhysic::SetKeyColPrimID(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1e30b4,"GLAPIPhysic::SetPhysicParams(GameObjHandle,GetObjParams *,PSPhysicParams const&)",int,"int __fastcall(int a1, int a2, PSPhysicParams *a3)"
+0x1e3124,GLAPIPhysic::ConstraintRemove(void *),_DWORD *,"_DWORD *__fastcall(_DWORD *this, void *a2)"
+0x1e31dc,"GLAPIPhysic::GetAngularFactor(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e324c,"GLAPIPhysic::GetInertiaTensor(GameObjHandle,GetObjParams *,BXMatrix3 *,BXMatrix3 *)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3, _DWORD *a4)"
+0x1e32dc,"GLAPIPhysic::ModuleSetContext(uint,uint)",PSModule *,"PSModule *__fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1e331c,"GLAPIPhysic::SetAngularFactor(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e3388,"GLAPIPhysic::GetLinearVelocity(GameObjHandle,GetObjParams *,BUVector3 &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x1e3410,"GLAPIPhysic::ModuleSetPriority(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x1e3454,"GLAPIPhysic::RagdollApplyForce(GameObjHandle,GetObjParams *,uint,BUVector3 const&)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, PSRigidBody *a4)"
+0x1e34d0,"GLAPIPhysic::RagdollGetContext(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e353c,"GLAPIPhysic::RagdollGetNbPrims(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x1e3588,"GLAPIPhysic::RagdollSetContext(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e35f8,"GLAPIPhysic::SetLinearVelocity(GameObjHandle,GetObjParams *,BUVector3 const&)",int,"int __fastcall(int a1, int a2, PSRigidBody *a3)"
+0x1e3694,"GLAPIPhysic::ColPrimFlagsRemove(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, unsigned int a3, unsigned int a4)"
+0x1e3838,"GLAPIPhysic::ColPrimGetWorldPos(GameObjHandle,GetObjParams *,uint,BUVector3 &)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, _DWORD *a4)"
+0x1e38e0,"GLAPIPhysic::CollidableFlagsAdd(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1e3958,"GLAPIPhysic::CollidableFlagsGet(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e39b8,"GLAPIPhysic::GetActivationState(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e3a24,"GLAPIPhysic::GetAngularVelocity(GameObjHandle,GetObjParams *,BUVector3 &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e3a90,"GLAPIPhysic::GetPhysicTimeScale(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e3b00,"GLAPIPhysic::GetPhysicTransform(GameObjHandle,GetObjParams *,BXMatrix4 &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e3b80,"GLAPIPhysic::RagdollApplyTorque(GameObjHandle,GetObjParams *,uint,BUVector3 const&)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, PSRigidBody *a4)"
+0x1e3bfc,"GLAPIPhysic::SetAngularVelocity(GameObjHandle,GetObjParams *,BUVector3 const&)",int,"int __fastcall(int a1, int a2, PSRigidBody *a3)"
+0x1e3c6c,"GLAPIPhysic::SetPhysicTimeScale(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e3d10,"GLAPIPhysic::ColMaterialAddFlags(EnvironmentHandle,uint,uint)",PSCollisionMapBC *,"PSCollisionMapBC *__fastcall(unsigned int a1, unsigned int a2, int a3)"
+0x1e3d94,"GLAPIPhysic::ColPrimGetTransform(GameObjHandle,GetObjParams *,uint,BXMatrix4 &)",int,"int __fastcall(int a1, int a2, GOGameObj *a3, _DWORD *a4)"
+0x1e3e2c,GLAPIPhysic::GetGlobalWindParams(PSWindParams &),_DWORD *,_DWORD *__fastcall(_DWORD *a1)
+0x1e3e50,GLAPIPhysic::GetPhysicFrameCount(void),int,int __fastcall(GLAPIPhysic *this)
+0x1e3e60,"GLAPIPhysic::ModuleDoActionOnAll(GameObjHandle,GetObjParams *,uint,void *)",int,"int __fastcall(int a1, int a2, unsigned int a3, void *a4)"
+0x1e3ed8,"GLAPIPhysic::RagdollApplyImpulse(GameObjHandle,GetObjParams *,uint,BUVector3 const&,uint,BUVector3 const*,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, PSRigidBody *a4, const BUVector3 *a5, float *a6, const BUVector3 *a7)"
+0x1e3f78,"GLAPIPhysic::RagdollModuleCreate(GameObjHandle,GetObjParams *,uint,PSModuleTypes_e)",int,"int __fastcall(int a1, int a2, GOGameObj *a3, const std::nothrow_t *a4)"
+0x1e400c,GLAPIPhysic::RayIntersectRequest(PSRayIntersectionIn const&),unsigned int,"unsigned int __fastcall(GLAPIPhysic *this, const PSRayIntersectionIn *a2)"
+0x1e40e0,GLAPIPhysic::SetGlobalWindParams(PSWindParams const&),int,int __fastcall(int a1)
+0x1e412c,GLAPIPhysic::SetWorldLowestLimit(float),void *,"void *__fastcall(GLAPIPhysic *this, float a2)"
+0x1e413c,"GLAPIPhysic::CalculateBoundingBox(GameObjHandle,GetObjParams *,BUBox &)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x1e4260,"GLAPIPhysic::ColMaterialGetParams(EnvironmentHandle,uint,PSColMaterialParams &)",int,"int __fastcall(unsigned int a1, unsigned int a2, _DWORD *a3)"
+0x1e42e0,"GLAPIPhysic::ColMaterialSetParams(EnvironmentHandle,uint,PSColMaterialParams const&)",int,"int __fastcall(unsigned int a1, unsigned int a2, _DWORD *a3)"
+0x1e4360,"GLAPIPhysic::ConstraintCreateCone(GameObjHandle,BXMatrix3 const&,BUVector3 const&,GameObjHandle,BXMatrix3 const&,BUVector3 const&,bool)",PSConstraint *,"PSConstraint *__fastcall(int a1, float *a2, float *a3, int a4, float *a5, float *a6, const std::nothrow_t *a7)"
+0x1e4600,"GLAPIPhysic::GetCenterOfMassLocal(GameObjHandle,GetObjParams *,BUVector3 &)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e4674,"GLAPIPhysic::GetCenterOfMassWorld(GameObjHandle,GetObjParams *,BUVector3 &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x1e46e0,"GLAPIPhysic::GetPSUpdateFrequency(GameObjHandle,GetObjParams *,PSUpdateFrequencyParams &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e4758,"GLAPIPhysic::SetCenterOfMassLocal(GameObjHandle,GetObjParams *,BUVector3 const*)",int,"int __fastcall(int a1, int a2, PSRigidBody *a3)"
+0x1e47c8,"GLAPIPhysic::SetPSUpdateFrequency(GameObjHandle,GetObjParams *,PSUpdateFrequencyParams const&)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e4870,"GLAPIPhysic::WallCrawlRegisterObj(GameObjHandle,GetObjParams *,uint,uint)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, unsigned int a3, unsigned int a4)"
+0x1e48fc,"GLAPIPhysic::CollidableFlagsRemove(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1e4974,"GLAPIPhysic::ConstraintCreateHinge(GameObjHandle,BXMatrix3 const&,BUVector3 const&,GameObjHandle,BXMatrix3 const*,BUVector3 const*,bool)",PSConstraint *,"PSConstraint *__fastcall(int a1, const std::nothrow_t *a2, float *a3, int a4, float *a5, float *a6, int a7)"
+0x1e4c54,"GLAPIPhysic::ConstraintSetDrawInfo(void *,bool,float)",int,"int __fastcall(int this, void *a2, bool a3, float a4)"
+0x1e4c64,"GLAPIPhysic::ColMaterialRemoveFlags(EnvironmentHandle,uint,uint)",PSCollisionMapBC *,"PSCollisionMapBC *__fastcall(unsigned int a1, unsigned int a2, int a3)"
+0x1e4ce8,"GLAPIPhysic::ColPrimGetParentBoneID(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1e4d84,"GLAPIPhysic::ColPrimNoCRFlagsEnvAdd(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e4f58,"GLAPIPhysic::ColPrimNoCRFlagsEnvGet(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e4fc8,"GLAPIPhysic::ColPrimNoCRFlagsObjAdd(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e519c,"GLAPIPhysic::ColPrimNoCRFlagsObjGet(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e520c,"GLAPIPhysic::ConstraintConeSetLimit(void *,float,float,float)",_DWORD *,"_DWORD *__fastcall(_DWORD *this, void *a2, float a3, float a4, float a5)"
+0x1e5248,"GLAPIPhysic::RagdollGetCenterOfMass(GameObjHandle,GetObjParams *,uint,BUVector3 &)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, _DWORD *a4)"
+0x1e52b0,"GLAPIPhysic::RagdollGetPhysicParams(GameObjHandle,GetObjParams *,uint,PSPhysicParams &)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int *a4)"
+0x1e5344,"GLAPIPhysic::RagdollSetCenterOfMass(GameObjHandle,GetObjParams *,uint,BUVector3 const*)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, PSRigidBody *a4)"
+0x1e53c0,"GLAPIPhysic::RagdollSetPhysicParams(GameObjHandle,GetObjParams *,uint,PSPhysicParams const&)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, PSPhysicParams *a4)"
+0x1e543c,"GLAPIPhysic::ResetPhysicGOTransform(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e54a4,"GLAPIPhysic::SetBodyActivationState(GameObjHandle,GetObjParams *,PSActivationState_e)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e5514,"GLAPIPhysic::TestArcCircleCollision(TestArcCircleCollisionInputData const&,float &,BUVector3 &)",int,"int __fastcall(GLAPIPhysic *this, const TestArcCircleCollisionInputData *a2, BUVector3 *a3, BUVector3 *a4)"
+0x1e552c,"GLAPIPhysic::WallCrawlUnregisterObj(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x1e55a8,"GLAPIPhysic::ColPrimFindIndexFromCRC(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x1e5628,"GLAPIPhysic::ConstraintHingeSetLimit(void *,float,float)",_DWORD *,"_DWORD *__fastcall(_DWORD *this, void *a2, float a3, float a4)"
+0x1e5654,"GLAPIPhysic::GetEnvPrimitiveFromView(BXMatrix4 const&,BXMatrix4 const&,uint,uint,PSEnvColTriangle **,uint *,uint &)",unsigned int,"unsigned int __fastcall(nn::math::MTX44 *a1, const BUMatrix *a2, unsigned int a3, unsigned int a4, PSEnvColTriangle **a5, unsigned int *a6, unsigned int *a7)"
+0x1e5760,"GLAPIPhysic::RagdollSetAngularFactor(GameObjHandle,GetObjParams *,uint,float)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e57d8,"GLAPIPhysic::RagdollGetLinearVelocity(GameObjHandle,GetObjParams *,uint,BUVector3 &)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, _DWORD *a4)"
+0x1e5870,"GLAPIPhysic::RagdollSetLinearVelocity(GameObjHandle,GetObjParams *,uint,BUVector3 const&)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, PSRigidBody *a4)"
+0x1e58ec,"GLAPIPhysic::RayIntersectVsGameObject(GameObjHandle,GetObjParams *,PSRayIntersectionVsGOIn const&,PSRayIntersectionVsGOOut &)",int,"int __fastcall(int a1, int a2, int a3, int a4)"
+0x1e5bbc,"GLAPIPhysic::ColPrimNoCRFlagsEnvRemove(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e5c60,"GLAPIPhysic::ColPrimNoCRFlagsObjRemove(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e5d04,"GLAPIPhysic::RagdollGetActivationState(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e5d80,"GLAPIPhysic::RagdollGetAngularVelocity(GameObjHandle,GetObjParams *,uint,BUVector3 &)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, _DWORD *a4)"
+0x1e5e18,"GLAPIPhysic::RagdollSetActivationState(GameObjHandle,GetObjParams *,uint,PSActivationState_e)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e5e94,"GLAPIPhysic::RagdollSetAngularVelocity(GameObjHandle,GetObjParams *,uint,BUVector3 const&)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, PSRigidBody *a4)"
+0x1e5f10,"GLAPIPhysic::WallCrawlSphereMoveOnWall(SphereMoveOnWallInputData const&,SphereMoveOnWallOutputData &)",int,"int __fastcall(GLAPIPhysic *this, const SphereMoveOnWallInputData *a2, SphereMoveOnWallOutputData *a3)"
+0x1e5f4c,GLAPIPhysic::ManifoldGetNbContactPoints(void *),int,"int __fastcall(GLAPIPhysic *this, void *a2)"
+0x1e5f54,"GLAPIPhysic::RagdollGetRootColPrimIndex(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e5fd8,"GLAPIPhysic::RagdollSetConstraintActive(GameObjHandle,GetObjParams *,uint,uint,bool)",int,"int __fastcall(int a1, int a2, unsigned int a3, unsigned int a4, int a5)"
+0x1e6180,"GLAPIPhysic::ColMaterialFindIndexFromCRC(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2, int *a3)"
+0x1e61c0,"GLAPIPhysic::ColPrimCollisionFlagsEnvAdd(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e6264,"GLAPIPhysic::ColPrimCollisionFlagsEnvGet(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e62d4,"GLAPIPhysic::ColPrimCollisionFlagsObjAdd(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e6378,"GLAPIPhysic::ColPrimCollisionFlagsObjGet(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e63e8,"GLAPIPhysic::ManifoldGetContactPointInfo(void *,PSContactPoint_Info *)",unsigned int,"unsigned int __fastcall(int a1, int a2)"
+0x1e65a4,"GLAPIPhysic::RagdollGetCenterOfMassWorld(GameObjHandle,GetObjParams *,uint,BUVector3 &)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, _DWORD *a4)"
+0x1e660c,"GLAPIPhysic::ColMaterialAddCollisionFlags(EnvironmentHandle,uint,uint)",PSCollisionMapBC *,"PSCollisionMapBC *__fastcall(unsigned int a1, unsigned int a2, int a3)"
+0x1e668c,"GLAPIPhysic::ColMaterialGetCollisionFlags(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x1e66f8,"GLAPIPhysic::ConstraintCreatePointToPoint(GameObjHandle,BUVector3 const&,GameObjHandle,BUVector3 const*,bool)",PSConstraint *,"PSConstraint *__fastcall(int a1, const BUVector3 *a2, int a3, const BUVector3 *a4, int a5)"
+0x1e6890,"GLAPIPhysic::GetEnvironmentPrimitiveCache(GameObjHandle,GetObjParams *,PSEnvColTriangle ***)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x1e69fc,"GLAPIPhysic::ColPrimCollisionFlagsEnvRemove(GameObjHandle,GetObjParams *,uint,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3, int a4)"
+0x1e6c54,"GLAPIPhysic::ColPrimCollisionFlagsObjRemove(GameObjHandle,GetObjParams *,uint,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3, int a4)"
+0x1e6eac,"GLAPIPhysic::ColPrimFlagsAddToAllPrimitives(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e6f18,"GLAPIPhysic::ColMaterialRemoveCollisionFlags(EnvironmentHandle,uint,uint)",PSCollisionMapBC *,"PSCollisionMapBC *__fastcall(unsigned int a1, unsigned int a2, int a3)"
+0x1e6f98,"GLAPIPhysic::ColPrimDisableCollisionFlagsAdd(GameObjHandle,GetObjParams *,uint,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3, int a4)"
+0x1e71d8,"GLAPIPhysic::ColPrimDisableCollisionFlagsGet(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e7248,"GLAPIPhysic::ColPrimGetLocalPosWithParentBone(GameObjHandle,GetObjParams *,uint,BUVector3 *,BUVector3 *,BUVector3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, unsigned int a3, _DWORD *a4, _DWORD *a5, _DWORD *a6, _DWORD *a7)"
+0x1e7320,"GLAPIPhysic::RagdollGetCorrespondingPrimIndex(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e73b0,"GLAPIPhysic::ColPrimDisableCollisionFlagsRemove(GameObjHandle,GetObjParams *,uint,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3, int a4)"
+0x1e7428,"GLAPIPhysic::GetEnvPrimitiveFromView_Deprecated(BXMatrix4 const&,BXMatrix4 const&,uint,uint,PSEnvColTriangle **,uint &)",int,"int __fastcall(nn::math::MTX44 *a1, const BUMatrix *a2, unsigned int a3, unsigned int a4, PSEnvColTriangle **a5, unsigned int *a6)"
+0x1e751c,"GLAPIPhysic::ColPrimAddExtraRadiusToCacheBSphere(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int result, int a2)"
+0x1e75ac,"GLAPIPhysic::ColPrimFlagsRemoveFromAllPrimitives(GameObjHandle,GetObjParams *,uint)",PSRequestUtils *,"PSRequestUtils *__fastcall(int a1, int a2, GOGameObj *a3)"
+0x1e7618,"GLAPIPhysic::GetMass(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e7688,GLAPIPhysic::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1e7cf8,"GLAPIPhysic::SetMass(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x1e7d70,"GLAPIPhysic::AddFlags(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x1e7e60,"GLAPIPhysic::GetFlags(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x1e7ec8,"GLAPIPhysic::WindPause(uint,bool)",int,"int __fastcall(GLAPIPhysic *this, char a2, bool a3)"
+0x1e7ef0,"GLAPIString::FormatString(ushort *,uint,StringHandle,...)",char *,"char *(char *result, unsigned int a2, unsigned int a3, ...)"
+0x1e7fc4,"GLAPIString::FormatWString(ushort *,uint,StringHandle,...)",char *,"char *(char *result, unsigned int a2, unsigned int a3, ...)"
+0x1e809c,"GLAPIString::VFormatString(ushort *,uint,StringHandle,std::__va_list)",char *,"char *__fastcall(char *result, unsigned int a2, unsigned int a3, std::__va_list a4)"
+0x1e8164,"GLAPIString::VFormatWString(ushort *,uint,StringHandle,std::__va_list)",char *,"char *__fastcall(char *result, unsigned int a2, unsigned int a3, std::__va_list a4)"
+0x1e8230,"GLAPIString::FormatCharString(ushort *,uint,char const*,...)",wchar_t *,"wchar_t *(wchar_t *this, unsigned __int16 *a2, const char *a3, const char *a4, ...)"
+0x1e8300,"GLAPIString::WideStringToUTF8(char *,uint,ushort const*)",_BYTE *,"_BYTE *__fastcall(_BYTE *this, char *a2, unsigned __int16 *a3, const unsigned __int16 *a4)"
+0x1e83d0,"GLAPIString::CheckStringFormat(wchar_t const*,wchar_t const*,bool)",bool,"bool __fastcall(GLAPIString *this, const wchar_t *a2, const wchar_t *a3, bool a4)"
+0x1e8628,"GLAPIString::VFormatCharString(ushort *,uint,char const*,std::__va_list)",int,"int __fastcall(GLAPIString *this, unsigned __int16 *a2, const char *a3, const char *a4, std::__va_list a5)"
+0x1e86e0,"GLAPIString::GetUnformattedWString(ushort *,uint,StringHandle)",unsigned int,"unsigned int __fastcall(_WORD *a1, unsigned int a2, unsigned int a3)"
+0x1e8790,GLAPIString::AtoF(char const*),int,"int __fastcall(int this, const char *a2)"
+0x1e87b4,GLAPIString::AtoI(char const*),char *,"char *__fastcall(char *this, const char *a2)"
+0x1e87c4,"GLAPIString::StrCmp(char const*,char const*)",unsigned int,"unsigned int __fastcall(GLAPIString *this, char *a2, const char *a3)"
+0x1e87d8,"GLAPIString::StrCpy(char *,char const*)",int,"int __fastcall(int this, unsigned int a2, const char *a3)"
+0x1e87ec,GLAPIString::StrLen(char const*),char *,"char *__fastcall(char *this, const char *a2)"
+0x1e87fc,GLAPIString::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x1e8938,"GLAPIString::SPrintF(char *,char const*,...)",int,"int(GLAPIString *this, char *a2, const char *a3, int a4, ...)"
+0x1e896c,"GLAPIString::StrnCpy(char *,char const*,uint)",_DWORD *,"_DWORD *__fastcall(_DWORD *this, int *a2, signed int a3, unsigned int a4)"
+0x1e8980,"GLAPIString::WStrCmp(ushort const*,ushort const*)",int,"int __fastcall(GLAPIString *this, unsigned __int16 *a2, const unsigned __int16 *a3)"
+0x1e8994,"GLAPIString::WStrCpy(ushort *,ushort const*)",_WORD *,"_WORD *__fastcall(_WORD *this, unsigned __int16 *a2, const unsigned __int16 *a3)"
+0x1e89a8,GLAPIString::WStrLen(ushort const*),_WORD *,"_WORD *__fastcall(_WORD *this, const unsigned __int16 *a2)"
+0x1e89b8,GLAPIString::StrLower(char *),unsigned __int8 *,"unsigned __int8 *__fastcall(unsigned __int8 *this, char *a2)"
+0x1e89f0,GLAPIString::StrUpper(char *),unsigned __int8 *,"unsigned __int8 *__fastcall(unsigned __int8 *this, char *a2)"
+0x1e8a28,"GLAPIString::VSPrintF(char *,char const*,std::__va_list)",int,"int __fastcall(GLAPIString *this, char *a2, const char *a3, std::__va_list a4)"
+0x1e8a3c,"GLAPIString::WStrnCpy(ushort *,ushort const*,uint)",_WORD *,"_WORD *__fastcall(_WORD *this, _WORD *a2, int a3, unsigned int a4)"
+0x1e8a50,GLAPIString::WStrLower(ushort *),unsigned __int16 *,"unsigned __int16 *__fastcall(unsigned __int16 *this, unsigned __int16 *a2)"
+0x1e8aac,GLAPIString::WStrUpper(ushort *),unsigned __int16 *,"unsigned __int16 *__fastcall(unsigned __int16 *this, unsigned __int16 *a2)"
+0x1f44d0,GLAPIHUD::TextWndSetDefaultStyle(ResourceHandle),RZResource *,RZResource *__fastcall(unsigned int a1)
+0x21bf6c,"GLAPIBSpline::GetBSphere(GameObjHandle,GetObjParams *,BUVector3 *,float *)",GOSpline *,"GOSpline *__fastcall(int a1, int a2, _DWORD *a3, _DWORD *a4)"
+0x21bfdc,"GLAPIBSpline::RemoveNode(GameObjHandle,GetObjParams *,uint)",GOSpline *,"GOSpline *__fastcall(int a1, int a2, const std::nothrow_t *a3)"
+0x21c038,"GLAPIBSpline::GetCircular(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21c07c,"GLAPIBSpline::GetNodeData(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x21c0f4,"GLAPIBSpline::SetCircular(GameObjHandle,GetObjParams *,bool)",const std::nothrow_t **,"const std::nothrow_t **__fastcall(int a1, int a2, int a3)"
+0x21c194,"GLAPIBSpline::SetNodeData(GameObjHandle,GetObjParams *,uint,void *)",GOSpline *,"GOSpline *__fastcall(int a1, int a2, unsigned int a3, _DWORD *a4)"
+0x21c210,"GLAPIBSpline::GetNodeCount(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21c250,"GLAPIBSpline::GetNearestPoint(GameObjHandle,GetObjParams *,uint,BUVector3 const&,BUVector3*,BUVector3*)",GOSpline *,"GOSpline *__fastcall(int a1, int a2, char a3, const BUVector3 *a4, BUVector3 *a5, BUVector3 *a6)"
+0x21c2f4,"GLAPIBSpline::GetNodePosition(GameObjHandle,GetObjParams *,uint,BUVector3 &,BUVector3*,BUVector3*)",int,"int __fastcall(int a1, int a2, unsigned int a3, float *a4, float *a5, float *a6)"
+0x21c3b8,"GLAPIBSpline::SetNodePosition(GameObjHandle,GetObjParams *,uint,BUVector3 const&,BUVector3 const&,BUVector3 const&,bool,bool)",GOSpline *,"GOSpline *__fastcall(int a1, int a2, unsigned int a3, const BUVector3 *a4, const BUVector3 *a5, const BUVector3 *a6, int a7, int a8)"
+0x21c444,"GLAPIBSpline::GetPosAtDistance(GameObjHandle,GetObjParams *,float,BUVector3 *,BUVector3 *,BSplineCursor *)",int,"int __fastcall(int result, int a2, __int64 a3, int a4)"
+0x21c4c8,"GLAPIBSpline::ContactWithSphere(GameObjHandle,GetObjParams *,BUVector3 const&,float,float)",GOSpline *,"GOSpline *__fastcall(int a1, int a2, _DWORD *a3)"
+0x21c54c,"GLAPIBSpline::GetNodePosInSpline(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2)"
+0x21c5c8,GLAPIBSpline::Create(BSplineDefinition const&),int,int __fastcall(unsigned int a1)
+0x21c614,"GLAPIBSpline::GetLOD(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21c654,"GLAPIBSpline::GetPos(GameObjHandle,GetObjParams *,float,BUVector3 *,BUVector3 *,BSplineCursor *)",int,"int __fastcall(int result, int a2, __int64 a3, int a4)"
+0x21c708,"GLAPIBSpline::SetLOD(GameObjHandle,GetObjParams *,uint)",const std::nothrow_t **,"const std::nothrow_t **__fastcall(int a1, int a2, const std::nothrow_t *a3)"
+0x21c788,"GLAPIBSpline::AddNode(GameObjHandle,GetObjParams *,uint,BSplinePoint const&,bool)",GOSpline *,"GOSpline *__fastcall(int a1, int a2, const std::nothrow_t *a3, const BSplinePoint *a4, int a5)"
+0x21c80c,GLAPIBSpline::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x21c8f4,"GLAPIBSpline::GetLength(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21c93c,GLAPIContent::InitAPI(void),int,int __fastcall(GLAPIContent *this)
+0x21cbc8,"GLAPIEmitter::AddParticle(GameObjHandle,GetObjParams *,uint,BUVector3 const&)",GOEmitterBC *,"GOEmitterBC *__fastcall(int a1, int a2, float a3, _DWORD *a4)"
+0x21cc5c,"GLAPIEmitter::EnableField(GameObjHandle,GetObjParams *,uint,bool)",int,"int __fastcall(int a1, int a2, char a3, int a4)"
+0x21ccdc,"GLAPIEmitter::RemoveFlags(GameObjHandle,GetObjParams *,uint)",GOEmitterBC *,"GOEmitterBC *__fastcall(int a1, int a2, int a3)"
+0x21cd54,"GLAPIEmitter::GetFieldType(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x21cdb0,"GLAPIEmitter::KillParticles(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21ce1c,"GLAPIEmitter::GetFieldParams(GameObjHandle,GetObjParams *,uint,APIEmitterField_Base *)",int,"int __fastcall(int a1, int a2, unsigned int a3, int a4)"
+0x21ce7c,"GLAPIEmitter::IsFieldEnabled(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, char a3)"
+0x21ced4,"GLAPIEmitter::SetFieldParams(GameObjHandle,GetObjParams *,uint,APIEmitterField_Base const*)",int,"int __fastcall(int a1, int a2, unsigned int a3, _DWORD *a4)"
+0x21cf58,"GLAPIEmitter::SimulateUpdate(GameObjHandle,GetObjParams *,uint,float)",GOEmitter *,"GOEmitter *__fastcall(int a1, int a2, unsigned int a3)"
+0x21cff8,"GLAPIEmitter::IsCollidingWith(GameObjHandle,GetObjParams *,EmitterCollideParams const&)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21d070,"GLAPIEmitter::GetEmissionCount(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21d0b0,"GLAPIEmitter::GetRenderCamMask(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21d0f0,"GLAPIEmitter::ParticleAddFlags(ResourceHandle,uint)",RZResource *,"RZResource *__fastcall(unsigned int a1, int a2)"
+0x21d16c,GLAPIEmitter::ParticleGetFlags(ResourceHandle),int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x21d1e0,"GLAPIEmitter::SetRenderCamMask(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21d27c,"GLAPIEmitter::GetEmissionParams(GameObjHandle,GetObjParams *,uint,EmissionParams &)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, int a3, _DWORD *a4)"
+0x21d2dc,"GLAPIEmitter::SetEmissionParams(GameObjHandle,GetObjParams *,uint,EmissionParams const&)",GOEmitterBC *,"GOEmitterBC *__fastcall(int a1, int a2, unsigned int a3, EmissionParams *a4)"
+0x21d358,"GLAPIEmitter::GetEmissionOpacity(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21d3b4,"GLAPIEmitter::SetEmissionOpacity(GameObjHandle,GetObjParams *,uint,float)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21d430,"GLAPIEmitter::SetUpdateFrequency(GameObjHandle,GetObjParams *,UpdateFrequencyParams const&)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21d648,"GLAPIEmitter::GetParticleTypeDesc(ResourceHandle,ParticleTypeDesc &)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2)"
+0x21d6c8,"GLAPIEmitter::ParticleRemoveFlags(ResourceHandle,uint)",RZResource *,"RZResource *__fastcall(unsigned int a1, int a2)"
+0x21d744,"GLAPIEmitter::SetParticleTypeDesc(ResourceHandle,ParticleTypeDesc const&)",unsigned int,"unsigned int __fastcall(unsigned int result, _DWORD *a2)"
+0x21d7c4,GLAPIEmitter::GetParticleTypeOpacity(ResourceHandle),void,void()
+0x21d7d0,"GLAPIEmitter::SetParticleTypeOpacity(ResourceHandle,float)",void,void()
+0x21d7d4,"GLAPIEmitter::GetEmissionParticleType(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21d838,"GLAPIEmitter::SetUpdateFrequencyInitDelays(GameObjHandle,GetObjParams *,float,float,float)",_DWORD *,"_DWORD *__fastcall(int a1, int a2)"
+0x21d8c0,"GLAPIEmitter::ParticleSetCollisionParameters(ResourceHandle,uint,uint,float,float,uint)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, unsigned int a2)"
+0x21d930,"GLAPIEmitter::ParticleSetCollisionParameters_Deprecated(ResourceHandle,uint,uint,float,uint)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, unsigned int a2)"
+0x21d9a0,"GLAPIEmitter::Reset(GameObjHandle,GetObjParams *,uint)",GOEmitterBC *,"GOEmitterBC *__fastcall(int a1, int a2, unsigned int a3)"
+0x21da14,GLAPIEmitter::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x21db98,"GLAPIEmitter::AddFlags(GameObjHandle,GetObjParams *,uint)",GOEmitterBC *,"GOEmitterBC *__fastcall(int a1, int a2, int a3)"
+0x21dc10,"GLAPIEmitter::GetFlags(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21dc50,"GLAPIGameObj::GetGameObj(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21dc98,"GLAPIGameObj::GetGroupId(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21dcd8,"GLAPIGameObj::GetObjName(GameObjHandle,GetObjParams *)",int *,"int *__fastcall(int a1, int a2)"
+0x21dd18,"GLAPIGameObj::GetPackage(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21dd54,"GLAPIGameObj::GetSibling(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21dda4,"GLAPIGameObj::SafeSetPos(GameObjHandle,GetObjParams *,BUVector3 const*,BUVector3 const*,BUVector3 const*)",float *,"float *__fastcall(int a1, int a2, BUVector3 *a3, float *a4, BUVector3 *a5)"
+0x21ddd4,"GLAPIGameObj::SetGroupId(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21de28,"GLAPIGameObj::SetObjName(GameObjHandle,GetObjParams *,char *)",int,"int __fastcall(int a1, int a2)"
+0x21de78,"GLAPIGameObj::SetPackage(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int *a1, int a2, unsigned int a3)"
+0x21df24,GLAPIGameObj::TimerReset(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x21df74,GLAPIGameObj::TimerStart(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x21dfb4,"GLAPIGameObj::GetLocalPos(GameObjHandle,GetObjParams *,BUVector3 *,BUVector3 *,BUVector3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3, _DWORD *a4, _DWORD *a5, _DWORD *a6)"
+0x21e0a8,"GLAPIGameObj::LeaveParent(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x21e10c,"GLAPIGameObj::TimerCreate(GameObjHandle,GetObjParams *,uint)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, unsigned int a3)"
+0x21e17c,"GLAPIGameObj::AddGroupMask(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21e1d8,"GLAPIGameObj::GetGroupMask(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21e214,GLAPIGameObj::GetObjByName(char const*),int,"int __fastcall(GLAPIGameObj *this, const char *a2)"
+0x21e2ec,"GLAPIGameObj::GetTimeScale(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21e334,"GLAPIGameObj::SafeSetPosAt(GameObjHandle,GetObjParams *,BUVector3 const*,BUVector3 const*,BUVector3 const*)",int,"int __fastcall(int a1, int a2, float *a3, float *a4, _DWORD *a5)"
+0x21e364,"GLAPIGameObj::SetTimeScale(GameObjHandle,GetObjParams *,float)",int,"int __fastcall(int a1, int a2)"
+0x21e408,GLAPIGameObj::TimerGetTime(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x21e448,"GLAPIGameObj::GetGameObjCRC(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21e48c,"GLAPIGameObj::GetParamBlock(GameObjHandle,GetObjParams *)",_DWORD *,"_DWORD *__fastcall(int a1, int a2)"
+0x21e4d0,"GLAPIGameObj::GetParentBone(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21e5f4,GLAPIGameObj::IsCopyAllowed(void),int,int __fastcall(GLAPIGameObj *this)
+0x21e608,"GLAPIGameObj::TimerUseScale(uint,bool)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, bool a3)"
+0x21e654,"GLAPIGameObj::InternalSetPos(GameObjHandle,GetObjParams *,BUVector3 const*,BUVector3 const*,BUVector3 const*,bool)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, BUVector3 *a3, float *a4, BUVector3 *a5, int a6)"
+0x21e88c,"GLAPIGameObj::RemoveGroupMask(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21e8e8,"GLAPIGameObj::SetYawPitchRoll(GameObjHandle,GetObjParams *,float,float,float)",int,"int __fastcall(int a1, int a2)"
+0x21eaf0,"GLAPIGameObj::TimerSingleShot(GameObjHandle,GetObjParams *,uint,float,bool)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, unsigned int a3, int a4)"
+0x21ebc0,"GLAPIGameObj::GetSourceGameObj(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21ec00,"GLAPIGameObj::InternalSetPosAt(GameObjHandle,GetObjParams *,BUVector3 const*,BUVector3 const*,BUVector3 const*,bool)",int,"int __fastcall(int a1, int a2, float *a3, float *a4, _DWORD *a5, int a6)"
+0x21f0d4,"GLAPIGameObj::KillWithChildren(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x21f138,"GLAPIGameObj::TimerSetInterval(uint,float)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, float a3)"
+0x21f198,"GLAPIGameObj::FindGameObjFromCRC(GameObjectTypes_e,uint)",int,"int __fastcall(int a1, int a2)"
+0x21f1d0,"GLAPIGameObj::GetScaleWithEngine(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21f214,"GLAPIGameObj::SetScaleWithEngine(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21f284,"GLAPIGameObj::GetScaleWithPackage(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21f2c8,"GLAPIGameObj::SetScaleWithPackage(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21f338,"GLAPIGameObj::GetPackagePausableMask(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21f374,"GLAPIGameObj::SetPackagePausableMask(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21f434,"GLAPIGameObj::GetParamBlock_Deprecated(GameObjHandle,GetObjParams *,uint *)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3)"
+0x21f494,"GLAPIGameObj::GetAutoDeactivationDistances(GameObjHandle,GetObjParams *,GODeactivableDistances &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x21f4f8,"GLAPIGameObj::SetPackagePausable_Deprecated(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21f5f4,"GLAPIGameObj::LoadUsedResourcesDiscardableData(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x21f664,"GLAPIGameObj::AutoDeactivationSetReferenceObject(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x21f6c4,"GLAPIGameObj::UnloadUsedResourcesDiscardableData(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x21f72c,"GLAPIGameObj::IsUsedResourcesDiscardableDataLoaded(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x21f774,"GLAPIGameObj::AutoDeactivationAddDeactivableObjects(GameObjHandle,GetObjParams *,GODeactivableDistances const&)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, int *a3)"
+0x21f7e0,GLAPIGameObj::AutoDeactivationRemoveReferenceObject(void),_DWORD *,_DWORD *__fastcall(GLAPIGameObj *this)
+0x21f7f0,"GLAPIGameObj::AutoDeactivationRemoveDeactivableObjects(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x21f870,"GLAPIGameObj::Copy(GameObjHandle,GetObjParams *,void const*,uint)",int,"int __fastcall(int a1, int a2, void *a3, int a4)"
+0x21fc0c,"GLAPIGameObj::Kill(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x21fc70,"GLAPIGameObj::Pause(GameObjHandle,GetObjParams *,bool)",int,"int __fastcall(int a1, int a2, int a3)"
+0x21fce0,"GLAPIGameObj::Scale(GameObjHandle,GetObjParams *,BUVector3 const&)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x21feb0,"GLAPIGameObj::GetPos(GameObjHandle,GetObjParams *,BUVector3 *,BUVector3 *,BUVector3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, int a2, _DWORD *a3, _DWORD *a4, _DWORD *a5, _DWORD *a6)"
+0x21ffc0,"GLAPIGameObj::Rotate(GameObjHandle,GetObjParams *,BUVector3 const&,float)",float *,"float *__fastcall(float *result, int a2, float *a3)"
+0x220290,"GLAPIGameObj::SetPos(GameObjHandle,GetObjParams *,BUVector3 const*,BUVector3 const*,BUVector3 const*)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, BUVector3 *a3, float *a4, BUVector3 *a5)"
+0x2202c0,"GLAPIGameObj::GetType(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x220308,GLAPIGameObj::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x22063c,"GLAPIGameObj::Activate(GameObjHandle,GetObjParams *,uint)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, unsigned int a3)"
+0x2207dc,"GLAPIGameObj::GetChild(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x22082c,"GLAPIGameObj::IsActive(GameObjHandle,GetObjParams *)",bool,"bool __fastcall(int a1, int a2)"
+0x22088c,"GLAPIGameObj::IsKilled(GameObjHandle,GetObjParams *)",unsigned int,"unsigned int __fastcall(int a1, int a2)"
+0x2208ec,"GLAPIGameObj::IsPaused(GameObjHandle,GetObjParams *)",unsigned int,"unsigned int __fastcall(int a1, int a2)"
+0x220930,"GLAPIGameObj::SetPosAt(GameObjHandle,GetObjParams *,BUVector3 const*,BUVector3 const*,BUVector3 const*)",int,"int __fastcall(int a1, int a2, float *a3, float *a4, _DWORD *a5)"
+0x220960,"GLAPIGameObj::GetParent(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x2209b0,"GLAPIGameObj::HasPhysic(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x2209f8,GLAPIGameObj::TimerKill(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x220a38,GLAPIGameObj::TimerStop(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x220a78,"GLAPINavMesh::GetTriCount(EnvironmentHandle,uint)",NMNavMeshMap *,"NMNavMeshMap *__fastcall(unsigned int a1, unsigned int a2)"
+0x220acc,"GLAPINavMesh::GetGroupData(EnvironmentHandle,uint,uint *)",NMNavMeshMap *,"NMNavMeshMap *__fastcall(unsigned int a1, unsigned int a2, unsigned int *a3)"
+0x220b28,"GLAPINavMesh::GetTriangles(EnvironmentHandle,uint)",NMNavMeshMap *,"NMNavMeshMap *__fastcall(unsigned int a1, unsigned int a2)"
+0x220b7c,"GLAPINavMesh::FindTriIdxFromRay(EnvironmentHandle,uint,BUVector3 const&,BUVector3 const&,uint)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2, PSShape *this, float *a4, unsigned int a5)"
+0x220c40,"GLAPINavMesh::FindGroupIndexFromCRC(EnvironmentHandle,uint)",NMNavMeshMap *,"NMNavMeshMap *__fastcall(unsigned int a1, unsigned int a2)"
+0x220c94,"GLAPINavMesh::FindNavMeshIndexFromCRC(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2, int *a3)"
+0x220cdc,"GLAPINavMesh::FindNavMeshTriIdxFromRay(EnvironmentHandle,uint,BUVector3 const&,BUVector3 const&,uint,EnvironmentHandle&,uint &)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2, PSShape *this, float *a4, unsigned int a5, _DWORD *a6, _DWORD *a7)"
+0x220d90,"GLAPINavMesh::FindNearestTriIdxFromRay(EnvironmentHandle,uint,BUVector3 const&,BUVector3 const&)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2, PSShape *this, float *a4)"
+0x220e50,"GLAPINavMesh::FindNearestTriIdxFromPoint(EnvironmentHandle,uint,BUVector3 const&,float)",int,"int __fastcall(unsigned int a1, unsigned int a2, PKPackageBC *a3)"
+0x220ec4,"GLAPINavMesh::GetNeighborRemoteEnvHandle(EnvironmentHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int a1, int a2)"
+0x220ed0,"GLAPINavMesh::FindNavMeshNearestTriIdxFromRay(BUVector3 const&,BUVector3 const&,EnvironmentHandle &,uint &)",int,"int __fastcall(BUAABB *a1, const BUVector3 *a2, int *a3, const BUVector3 *a4)"
+0x221088,"GLAPINavMesh::FindNavMeshNearestTriIdxFromPoint(BUVector3 const&,float,EnvironmentHandle &,uint &)",int,"int __fastcall(float *a1, int *a2, int *a3)"
+0x221238,GLAPINavMesh::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x2212cc,GLAPINetwork::InitAPI(void),int,int __fastcall(GLAPINetwork *this)
+0x2217b0,GLAPIPackage::IsUnloaded(uint),bool,"bool __fastcall(unsigned int this, unsigned int a2)"
+0x2217d4,"GLAPIPackage::PauseRange(uint,uint,uint)",int *,"int *__fastcall(GLAPIPackage *this, unsigned int a2, unsigned int a3, unsigned int a4)"
+0x221824,GLAPIPackage::ForceUnload(uint),int,"int __fastcall(GLAPIPackage *this, unsigned int a2)"
+0x221834,GLAPIPackage::IsActivated(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x22185c,GLAPIPackage::GetTimeScale(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x221888,"GLAPIPackage::SetLoadFlags(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x2218ac,"GLAPIPackage::SetTimeScale(uint,float)",int,"int __fastcall(unsigned int this, unsigned int a2, float a3)"
+0x2218d0,GLAPIPackage::GetPausedMask(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x2218f4,GLAPIPackage::HasLoadFailed(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x221920,GLAPIPackage::LockRSOMemory(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x22194c,"GLAPIPackage::GetInformation(uint,PKPackageInfo &)",int,"int __fastcall(int a1, int *a2)"
+0x22198c,GLAPIPackage::GetPackageName(uint),int,"int __fastcall(GLAPIPackage *this, unsigned int a2)"
+0x2219a8,"GLAPIPackage::SavePauseStatus(uint,uint,uint *)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, _DWORD *a3, unsigned int *a4)"
+0x2219e8,GLAPIPackage::GetRenderCamMask(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x221aa4,"GLAPIPackage::SetRenderCamMask(uint,uint)",PKPackageBC *,"PKPackageBC *__fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x221acc,"GLAPIPackage::RestorePauseStatus(uint,uint,uint const*)",_DWORD *,"_DWORD *__fastcall(_DWORD *this, unsigned int a2, unsigned int *a3, const unsigned int *a4)"
+0x221b1c,GLAPIPackage::GetEnvironmentCount(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x221b40,GLAPIPackage::IsPaused_Deprecated(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x221b6c,"GLAPIPackage::GetEnvironmentHandle(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x221bac,"GLAPIPackage::ChangeLoadingPriority(uint,LoadingPriorities_e)",int,"int __fastcall(unsigned int a1, int a2)"
+0x221c08,"GLAPIPackage::PauseRange_Deprecated(uint,uint,bool)",int *,"int *__fastcall(GLAPIPackage *this, unsigned int a2, unsigned int a3, bool a4)"
+0x221c7c,GLAPIPackage::EnableHiResTextureLoading(uint),int,"int __fastcall(unsigned int this, unsigned int a2)"
+0x221cb4,"GLAPIPackage::GetInformation_Deprecated(uint,PKPackageInfo &)",int,"int __fastcall(int a1, int *a2)"
+0x221cf4,"GLAPIPackage::Load(uint,uint,LoadingPriorities_e)",PKPackageImp *,"PKPackageImp *__fastcall(PKPackageImp *result, int a2, int a3)"
+0x221d50,GLAPIPackage::Cache(uint),int *,"int *__fastcall(GLAPIPackage *this, unsigned int a2)"
+0x221d7c,"GLAPIPackage::Pause(uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2, unsigned int a3)"
+0x221de0,GLAPIPackage::Unload(uint),int *,"int *__fastcall(GLAPIPackage *this, unsigned int a2)"
+0x221df0,GLAPIPackage::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x221f68,"GLAPIPackage::Activate(uint,bool)",int,"int __fastcall(GLAPIPackage *this, bool a2, bool a3)"
+0x221f7c,GLAPIPackage::IsLoaded(uint),bool,"bool __fastcall(unsigned int this, unsigned int a2)"
+0x221fd8,GLAPIPackage::IsLoading(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
+0x222020,GLAPIWindows::InitAPI(void),int,int __fastcall(GLAPIWindows *this)
+0x222270,GLAPIXBOX360::InitAPI(void),int,int __fastcall(GLAPIXBOX360 *this)
+0x25dc98,GLAPICutscene::IsPrepared(CutsceneHandle),bool,bool __fastcall(unsigned int a1)
+0x25dca8,GLAPICutscene::GetDuration(ResourceHandle),nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, unsigned int a2)"
+0x25dd28,GLAPICutscene::GetObjCount(ResourceHandle),int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x25dd9c,GLAPICutscene::PlayPrepared(CutscenePlayPreparedParams const&),int,int __fastcall(int a1)
+0x25ddac,"GLAPICutscene::GetObjByIndex(ResourceHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x25de44,"GLAPICutscene::GetPlayingOnObj(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x25df04,"GLAPICutscene::Pause_deprecated(CutsceneHandle,bool)",int,"int __fastcall(unsigned int a1, _BOOL4 a2)"
+0x25df1c,GLAPICutscene::PauseAll_deprecated(bool),int,"int __fastcall(GLAPICutscene *this, bool a2)"
+0x25df30,"GLAPICutscene::GetBoneFirstFramePosition(GameObjHandle,GetObjParams *,uint,ResourceHandle,BUVector3 *,BUVector3 *,BUVector3 *,BUVector3 *)",int,"int __fastcall(int a1, int *a2, RZCutScene *a3, unsigned int a4, _DWORD *a5, BUVector3 *a6, BUVector3 *a7, BUVector3 *a8)"
+0x25e0a4,GLAPICutscene::Play(CutscenePlayParams const&),int,int __fastcall(_DWORD *a1)
+0x25e0b4,GLAPICutscene::Skip(CutsceneSkipParams const&),int,int __fastcall(int a1)
+0x25e0c4,GLAPICutscene::Stop(CutsceneHandle),int,int __fastcall(int a1)
+0x25e104,"GLAPICutscene::Pause(CutsceneHandle,bool,uint)",int,"int __fastcall(unsigned int a1, _BOOL4 a2, unsigned int a3)"
+0x25e11c,GLAPICutscene::GetTime(CutsceneHandle),int,int()
+0x25e12c,GLAPICutscene::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x25e220,GLAPICutscene::Prepare(CutscenePlayParams const&),int,int __fastcall(_DWORD *a1)
+0x25e230,GLAPICutscene::StopAll(void),int,int __fastcall(GLAPICutscene *this)
+0x25e23c,GLAPICutscene::StopNew(CutsceneStopParams const&),int,int __fastcall(int a1)
+0x25e24c,GLAPICutscene::GetSpeed(CutsceneHandle),int,int()
+0x25e25c,"GLAPICutscene::PauseAll(bool,uint)",int,"int __fastcall(GLAPICutscene *this, bool a2, unsigned int a3)"
+0x25e270,"GLAPICutscene::SetSpeed(CutsceneHandle,float)",int,int __fastcall(unsigned int a1)
+0x25e280,"GLAPIGraphics::RemoveDome(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x25e350,"GLAPIGraphics::WebRefresh(int,int,BUVector3 const*)",GRWebBC *,"GRWebBC *__fastcall(GLAPIGraphics *this, int a2, const BUVector3 *a3, const BUVector3 *a4)"
+0x25e38c,"GLAPIGraphics::ClearScreen(BUVector4 const&,Screens_e)",float *,"float *__fastcall(float *result, unsigned int a2)"
+0x25e4a4,GLAPIGraphics::WebGetColor(int),unsigned int,"unsigned int __fastcall(GLAPIGraphics *this, int a2)"
+0x25e54c,GLAPIGraphics::WebGetFlags(int),int,"int __fastcall(GLAPIGraphics *this, int a2)"
+0x25e56c,"GLAPIGraphics::WebSetColor(int,BUVector4 const&)",int,"int __fastcall(int a1, float *a2)"
+0x25e6a8,"GLAPIGraphics::WebSetFlags(int,uint)",int,"int __fastcall(GLAPIGraphics *this, int a2, unsigned int a3)"
+0x25e6d0,GLAPIGraphics::IsWidescreen(Screens_e),bool,bool __fastcall(unsigned int a1)
+0x25e710,"GLAPIGraphics::RayIntersect(GRRayIntersectionCache const&,GRRayIntersectionIn const&,GRRayIntersectionOut &)",int,"int __fastcall(int *a1, PSShape *this, float *a3)"
+0x25e8f0,GLAPIGraphics::WebGetOpacity(int),int,"int __fastcall(GLAPIGraphics *this, int a2)"
+0x25e938,"GLAPIGraphics::WebSetOpacity(int,float)",int,"int __fastcall(GLAPIGraphics *this, int a2, float a3)"
+0x25e9e4,GLAPIGraphics::GetAspectRatio(Screens_e),unsigned int,unsigned int __fastcall(unsigned int result)
+0x25ea10,GLAPIGraphics::GetDisplayCaps(void),int *,int *__fastcall(GLAPIGraphics *this)
+0x25ea2c,GLAPIGraphics::GetScreenCount(void),int,int __fastcall(GLAPIGraphics *this)
+0x25ea34,GLAPIGraphics::GetScreenWidth(Screens_e),int,int __fastcall(unsigned int a1)
+0x25ea5c,"GLAPIGraphics::GrabScreenshot(GameObjHandle,GetObjParams *,uint,uint)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x25eb44,GLAPIGraphics::TakeScreenShot(char const*),void,"void __fastcall(GLAPIGraphics *this, const char *a2)"
+0x25eb54,"GLAPIGraphics::TextureGetInfo(ResourceHandle,TextureInfo &)",int,"int __fastcall(unsigned int a1, _DWORD *a2)"
+0x25ecbc,"GLAPIGraphics::TextureReplace(ResourceHandle,ResourceHandle)",unsigned int,"unsigned int __fastcall(unsigned int result, int *a2)"
+0x25edbc,"GLAPIGraphics::WebSetUVOffset(int,float,float)",_DWORD *,"_DWORD *__fastcall(GLAPIGraphics *this, int a2, float a3, float a4)"
+0x25ee24,GLAPIGraphics::GetScreenHeight(Screens_e),int,int __fastcall(unsigned int a1)
+0x25ee4c,GLAPIGraphics::WebGetNbStrings(int),int,"int __fastcall(GLAPIGraphics *this, int a2)"
+0x25ee6c,"GLAPIGraphics::WebSetNbStrings(int,uint)",GRWebBC *,"GRWebBC *__fastcall(GLAPIGraphics *this, const std::nothrow_t *a2, unsigned int a3)"
+0x25eef0,"GLAPIGraphics::DecalGroupCreate(ResourceHandle,ushort,float,float,bool)",int,"int __fastcall(unsigned int a1, int a2, float a3)"
+0x25efa8,GLAPIGraphics::DecalGroupDestroy(uint),void,"void __fastcall(GLAPIGraphics *this, unsigned int a2)"
+0x25efb8,GLAPIGraphics::IsBuildingShaders(void),int,int __fastcall(GLAPIGraphics *this)
+0x25efc0,GLAPIGraphics::IsGameRunningInHD(void),int,int __fastcall(GLAPIGraphics *this)
+0x25efc8,"GLAPIGraphics::IsLightGridActive(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2, int *a3)"
+0x25f028,GLAPIGraphics::IsDisplaySupported(DisplayParams const&),int,"int __fastcall(GLAPIGraphics *this, const DisplayParams *a2)"
+0x25f030,"GLAPIGraphics::SetLightGridActive(EnvironmentHandle,uint,bool)",unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2, int a3)"
+0x25f0a0,GLAPIGraphics::SetLightShaftColor(BUVector4 const&),void,void()
+0x25f0a4,"GLAPIGraphics::SetLogicDisplayMgr(GameObjHandle,GetObjParams *)",void,void()
+0x25f0a8,"GLAPIGraphics::DecalInstanceCreate(uint,BUVector3 const&,BUVector3 const&,float)",int,"int __fastcall(GLAPIGraphics *this, BUVector3 *a2, const BUVector3 *a3, const BUVector3 *a4, float a5)"
+0x25f0c4,"GLAPIGraphics::MotionTrailGLCreate(ResourceHandle,float)",int,int __fastcall(const std::nothrow_t *a1)
+0x25f0d4,GLAPIGraphics::WebGetRenderCamMask(int),int,"int __fastcall(GLAPIGraphics *this, int a2)"
+0x25f0f4,"GLAPIGraphics::WebGetStringsParams(int,uint,GRWebStringParams &)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3)"
+0x25f1d4,"GLAPIGraphics::WebSetRenderCamMask(int,uint)",int,"int __fastcall(GLAPIGraphics *this, int a2, unsigned int a3)"
+0x25f228,"GLAPIGraphics::WebSetStringsParams(int,uint,GRWebStringParams const&)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3)"
+0x25f31c,"GLAPIGraphics::DecalGroupSetOpacity(uint,float)",_DWORD *,"_DWORD *__fastcall(GLAPIGraphics *this, unsigned int a2, float a3)"
+0x25f32c,"GLAPIGraphics::DecalInstanceDestroy(uint,uint)",int,"int __fastcall(GLAPIGraphics *this, unsigned int a2, unsigned int a3)"
+0x25f344,GLAPIGraphics::GetDisplayParameters(DisplayParams &),void,"void __fastcall(GLAPIGraphics *this, DisplayParams *a2)"
+0x25f44c,GLAPIGraphics::MotionTrailGLDestroy(uint),int,"int __fastcall(GLAPIGraphics *this, unsigned int a2)"
+0x25f45c,GLAPIGraphics::RayIntersectEndCache(GRRayIntersectionCache const&),int,int __fastcall(int a1)
+0x25f490,GLAPIGraphics::SetDisplayParameters(DisplayParams const&),__int64,"__int64 __fastcall(GLAPIGraphics *this, const DisplayParams *a2)"
+0x25f60c,GLAPIGraphics::SetShadowMapSceneBox(BUBox const*),void,void()
+0x25f610,"GLAPIGraphics::WebSetTextureVTiling(int,float)",int,"int __fastcall(GLAPIGraphics *this, int a2, float a3)"
+0x25f63c,GLAPIGraphics::ClippableSphereIsValid(ClippableSphereHandle),int,int __fastcall(unsigned int a1)
+0x25f68c,"GLAPIGraphics::GetNewScreenshotHandle(uchar *,uint)",int,"int __fastcall(GLAPIGraphics *this, unsigned __int8 *a2, unsigned int a3)"
+0x25f6a0,"GLAPIGraphics::RayIntersectBeginCache(BUVector3 const&,BUVector3 const&,float,GRRayIntersectionCache &)",int,"int __fastcall(const BUVector3 *a1, float *a2, unsigned __int16 *a3)"
+0x25f800,"GLAPIGraphics::RestoreOriginalTexture(ScreenshotHandle,ResourceHandle)",unsigned int,"unsigned int __fastcall(unsigned int result, int *a2)"
+0x25f8a8,GLAPIGraphics::SetTimeOfLODTransition(float),void,"void __fastcall(GLAPIGraphics *this, float a2)"
+0x25f8ac,"GLAPIGraphics::ClippableSphereRegister(BUVector3 const&,float)",int,"int __fastcall(GLAPIGraphics *this, const BUVector3 *a2, float a3)"
+0x25f8bc,"GLAPIGraphics::DecalInstanceSetOpacity(uint,uint,float)",int,"int __fastcall(GLAPIGraphics *this, unsigned int a2, unsigned int a3, float a4)"
+0x25f8d4,GLAPIGraphics::ReleaseScreenshotHandle(ScreenshotHandle),int,int __fastcall(unsigned int a1)
+0x25f8e4,"GLAPIGraphics::ClippableSphereGetSphere(ClippableSphereHandle,BUVector3 &,float &)",int,"int __fastcall(unsigned int a1, _DWORD *a2, _DWORD *a3)"
+0x25f984,GLAPIGraphics::ClippableSphereIsVisible(ClippableSphereHandle),int,int __fastcall(unsigned int a1)
+0x25f9c4,"GLAPIGraphics::ClippableSphereSetSphere(ClippableSphereHandle,BUVector3 const&,float)",int,"int __fastcall(unsigned int a1, _DWORD *a2)"
+0x25fa44,"GLAPIGraphics::MotionTrailGLAddNewPoint(uint,BUVector3 const&)",GRMotionTrailBC *,"GRMotionTrailBC *__fastcall(GLAPIGraphics *this, const BUVector3 *a2, const BUVector3 *a3)"
+0x25fa78,GLAPIGraphics::SetDefaultRenderingFlags(uint),void,"void __fastcall(GLAPIGraphics *this, unsigned int a2)"
+0x25fa7c,GLAPIGraphics::ClippableSphereUnregister(ClippableSphereHandle),int,int __fastcall(unsigned int a1)
+0x25fa8c,"GLAPIGraphics::DecalInstanceCreateWithUp(uint,BUVector3 const&,BUVector3 const&,BUVector3 const&,float)",int,"int __fastcall(GLAPIGraphics *this, BUVector3 *a2, const BUVector3 *a3, const BUVector3 *a4, const BUVector3 *a5, float a6)"
+0x25fab4,"GLAPIGraphics::FindLightGridIndexFromCRC(EnvironmentHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int a1, unsigned int a2, int *a3)"
+0x25faf4,GLAPIGraphics::EnableLightPrePassLighting(bool),void,"void __fastcall(GLAPIGraphics *this, bool a2)"
+0x25faf8,GLAPIGraphics::GetGlobalLODDistanceFactor(void),void *,void *__fastcall(GLAPIGraphics *this)
+0x25fb08,GLAPIGraphics::SetGlobalLODDistanceFactor(float),void *,"void *__fastcall(GLAPIGraphics *this, float a2)"
+0x25fb18,"GLAPIGraphics::ReplaceTextureWithScreenshot(ScreenshotHandle,ResourceHandle)",unsigned int,"unsigned int __fastcall(unsigned int result, int *a2)"
+0x25fbd0,GLAPIGraphics::ClippableSphereGetRenderCamMask(ClippableSphereHandle),int,int __fastcall(unsigned int a1)
+0x25fbf0,"GLAPIGraphics::ClippableSphereSetRenderCamMask(ClippableSphereHandle,uint)",int,"int __fastcall(unsigned int a1, int a2)"
+0x25fc44,"GLAPIGraphics::WebAdd(int,BUVector3 const*,float,ResourceHandle)",int,"int __fastcall(int a1, const BUVector3 *a2, unsigned int a3)"
+0x25fc70,"GLAPIGraphics::AddDome(GameObjHandle,GetObjParams *,uint)",int,"int __fastcall(int a1, int a2, unsigned int a3)"
+0x25fd64,GLAPIGraphics::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x2600c8,GLAPIGraphics::WebRemove(int),int,"int __fastcall(GLAPIGraphics *this, int a2)"
+0x2600d8,"GLAPIGraphics::WebSetLOD(int,GRWebLOD_e)",unsigned int *,"unsigned int *__fastcall(int a1, unsigned int *a2)"
+0x260100,GLAPIResource::IsAvailable(ResourceHandle),int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x260174,"GLAPIResource::GetBinaryData(ResourceHandle,uint *)",int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x260200,GLAPIResource::GetParamBlock(ResourceHandle),int **,"int **__fastcall(unsigned int a1, unsigned int a2)"
+0x26028c,GLAPIResource::GetResourceCRC(ResourceHandle),int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x260300,GLAPIResource::GetResourceType(ResourceHandle),nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, unsigned int a2)"
+0x260374,"GLAPIResource::FindResourceFromCRC(CMResourceTypes_e,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x260434,GLAPIResource::LoadDiscardableData(ResourceHandle),unsigned int,unsigned int __fastcall(unsigned int result)
+0x260458,"GLAPIResource::SetLogicResourceMgr(GameObjHandle,GetObjParams *)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2)"
+0x2604f0,GLAPIResource::UnloadDiscardableData(ResourceHandle),void,void __fastcall(unsigned int a1)
+0x260504,GLAPIResource::IsDiscardableDataLoaded(ResourceHandle),int,int __fastcall(unsigned int a1)
+0x260588,"GLAPIResource::GetParamBlock_Deprecated(ResourceHandle,uint *)",unsigned int *,"unsigned int *__fastcall(unsigned int a1, unsigned int a2)"
+0x260630,GLAPIResource::DisableLoadRecursiveDiscardableData(ResourceHandle),unsigned int,unsigned int __fastcall(unsigned int result)
+0x2606ac,GLAPIResource::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x260740,GLAPISaveGame::DeleteGame(char const*),int,"int __fastcall(GLAPISaveGame *this, const char *a2)"
+0x260750,GLAPISaveGame::GetGameCount(void),int,int __fastcall(GLAPISaveGame *this)
+0x260760,GLAPISaveGame::GetLastResult(void),int,int __fastcall(GLAPISaveGame *this)
+0x260770,GLAPISaveGame::GetGameLevelID(uint),int,"int __fastcall(GLAPISaveGame *this, unsigned int a2)"
+0x260778,GLAPISaveGame::SaveGameExists(char const*),int,"int __fastcall(GLAPISaveGame *this, const char *a2)"
+0x260788,GLAPISaveGame::GetCurrentState(void),int,int __fastcall(GLAPISaveGame *this)
+0x260798,GLAPISaveGame::GetGameFilename(uint),int,"int __fastcall(GLAPISaveGame *this, unsigned int a2)"
+0x2607ac,GLAPISaveGame::GetSaveGameSize(uint),int,"int __fastcall(GLAPISaveGame *this, unsigned int a2)"
+0x2607bc,GLAPISaveGame::RefreshGameList(void),int,int __fastcall(GLAPISaveGame *this)
+0x2607cc,GLAPISaveGame::ReleaseGameData(void *),void,"void __fastcall(GLAPISaveGame *this, void *a2)"
+0x2607dc,GLAPISaveGame::HasEnoughRoomFor(uint),bool,"bool __fastcall(GLAPISaveGame *this, unsigned int a2)"
+0x2607fc,GLAPISaveGame::AllocSaveGameData(uint),int,"int __fastcall(GLAPISaveGame *this, unsigned int a2)"
+0x26080c,GLAPISaveGame::GetLoadedGameData(uint *),int,"int __fastcall(GLAPISaveGame *this, unsigned int *a2)"
+0x26081c,GLAPISaveGame::GetGameDisplayName(uint),int,"int __fastcall(GLAPISaveGame *this, unsigned int a2)"
+0x260834,"GLAPISaveGame::SelectActiveDevice(uint,bool,bool)",int,"int __fastcall(GLAPISaveGame *this, unsigned int a2, bool a3, bool a4)"
+0x26083c,"GLAPISaveGame::GetGameDisplayNameW(uint,ushort *,uint)",void,"void __fastcall(GLAPISaveGame *this, unsigned int a2, unsigned __int16 *a3, unsigned int a4)"
+0x260840,"GLAPISaveGame::SetLogicSaveGameMgr(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x2608d8,GLAPISaveGame::GetActiveDeviceState(void),int,int __fastcall(GLAPISaveGame *this)
+0x2608e8,GLAPISaveGame::GetPS3SaveFileParams(SGPS3SaveFileParams &),void,void()
+0x2608ec,GLAPISaveGame::SetPS3SaveFileParams(SGPS3SaveFileParams const&),void,void()
+0x2608f0,GLAPISaveGame::SetPrimaryController(uint),void,"void __fastcall(GLAPISaveGame *this, unsigned int a2)"
+0x2608f4,GLAPISaveGame::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x260a0c,GLAPISaveGame::LoadGame(char const*),int,"int __fastcall(GLAPISaveGame *this, const char *a2)"
+0x260a1c,"GLAPISaveGame::SaveGame(char const*,char const*,uint,void const*,uint,SaveGameFlags_e)",int,"int __fastcall(const char *a1, int a2, int a3, unsigned int a4, unsigned int a5, char a6)"
+0x260a58,"GLAPISoftBody::ParticleGetMass(SoftBodyHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, int a3, unsigned int a4)"
+0x260ab4,"GLAPISoftBody::ParticleSetMass(SoftBodyHandle,uint,float)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, int a3, unsigned int a4)"
+0x260b4c,"GLAPISoftBody::SpringSysCreate(SBSpringSystemTypes_e,void *,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x260b64,"GLAPISoftBody::ParticleAddChild(SoftBodyHandle,SBParticleChildParams const&)",int,"int __fastcall(unsigned int a1, int *a2, int a3, unsigned int a4)"
+0x260ba4,GLAPISoftBody::ResetDynamicMesh(SoftBodyHandle),unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2)"
+0x260bf8,GLAPISoftBody::SpringSysDestroy(SoftBodyHandle),unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2, int a3, int a4, int a5)"
+0x260c44,"GLAPISoftBody::SpringSysUseWind(SoftBodyHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, int a3, unsigned int a4)"
+0x260c80,"GLAPISoftBody::CreateDynamicMesh(GameObjHandle,GetObjParams *,uint,uint)",unsigned int,"unsigned int __fastcall(int a1, int a2, unsigned int a3, unsigned int a4)"
+0x260e1c,GLAPISoftBody::GetActivationState(SoftBodyHandle),int,"int __fastcall(unsigned int a1, int a2, unsigned int a3)"
+0x260e6c,GLAPISoftBody::PauseAllSoftBodies(bool),int,"int __fastcall(GLAPISoftBody *this, bool a2)"
+0x260e8c,"GLAPISoftBody::SetActivationState(SoftBodyHandle,PSActivationState_e)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, int a3, unsigned int a4)"
+0x260ed8,"GLAPISoftBody::SpringSysGetParams(SoftBodyHandle,SBSpringSystemParams &)",unsigned int,"unsigned int __fastcall(unsigned int result, _DWORD *a2, unsigned int a3)"
+0x260f50,"GLAPISoftBody::SpringSysSetParams(SoftBodyHandle,SBSpringSystemParams const&)",unsigned int,"unsigned int __fastcall(unsigned int result, _DWORD *a2, unsigned int a3)"
+0x260fd0,"GLAPISoftBody::ParticleRemoveChild(SoftBodyHandle,SBParticleChildParams const&)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, int *a2, int a3, unsigned int a4)"
+0x261010,"GLAPISoftBody::GetParticlePositions(SoftBodyHandle,BUVector3 *)",unsigned int,"unsigned int __fastcall(unsigned int a1, int a2, int a3, unsigned int a4)"
+0x2610a0,"GLAPISoftBody::ParticleApplyImpulse(SoftBodyHandle,uint,BUVector3 const&)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, float *a3)"
+0x261134,GLAPISoftBody::SpringSysGetNbParticles(SoftBodyHandle),int,"int __fastcall(unsigned int a1, int a2, unsigned int a3)"
+0x261170,"GLAPISoftBody::SpringSysSetNbParticles(SoftBodyHandle,uint)",PSSoftBody *,"PSSoftBody *__fastcall(unsigned int a1, unsigned int a2, int a3, unsigned int a4)"
+0x2611b0,"GLAPISoftBody::SpringSysGetParticleInfo(SoftBodyHandle,uint,SBSpringParticleInfo *)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, _DWORD *a3, unsigned int a4)"
+0x261244,"GLAPISoftBody::SpringSysSetParticleInfo(SoftBodyHandle,uint,SBSpringParticleInfo const*)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, _DWORD *a3, unsigned int a4)"
+0x2612d8,"GLAPISoftBody::SpringSysGetParticlesInfo(SoftBodyHandle,SBSpringParticleInfo *)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, int a3, unsigned int a4)"
+0x26138c,"GLAPISoftBody::SpringSysSetParticlesInfo(SoftBodyHandle,SBSpringParticleInfo *)",unsigned int,"unsigned int __fastcall(unsigned int result, int a2, int a3, unsigned int a4)"
+0x261440,"GLAPISoftBody::SpringSysAddCollisionEnvFlags(SoftBodyHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2)"
+0x26149c,"GLAPISoftBody::SpringSysAddCollisionObjFlags(SoftBodyHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2)"
+0x2614f8,GLAPISoftBody::SpringSysGetCollisionEnvFlags(SoftBodyHandle),int,"int __fastcall(unsigned int a1, int a2, unsigned int a3)"
+0x261548,GLAPISoftBody::SpringSysGetCollisionObjFlags(SoftBodyHandle),int,"int __fastcall(unsigned int a1, int a2, unsigned int a3)"
+0x261598,"GLAPISoftBody::SpringSysRemoveCollisionEnvFlags(SoftBodyHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2)"
+0x2615f4,"GLAPISoftBody::SpringSysRemoveCollisionObjFlags(SoftBodyHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int result, unsigned int a2)"
+0x261650,GLAPISoftBody::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x298180,"GLAPIAnimation::AnimCuePlay(GameObjHandle,GetObjParams *,AnimCueGetParams const&,AnimCuePlayParams const*)",int,"int __fastcall(int a1, int a2, const AnimCueGetParams *a3, AnimCuePlayParams *a4)"
+0x298200,"GLAPIAnimation::AnimCueStop(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3)"
+0x29827c,"GLAPIAnimation::MorphsReset(GameObjHandle,GetObjParams *)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2)"
+0x2982e8,"GLAPIAnimation::AnimCuePause(GameObjHandle,GetObjParams *,AnimCueGetParams const&,bool)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3, int a4)"
+0x29836c,"GLAPIAnimation::AnimCueAllStop(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3)"
+0x2983e8,"GLAPIAnimation::AnimCueGetTime(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",int,"int __fastcall(int a1, int a2, _BOOL4 a3)"
+0x298424,"GLAPIAnimation::AnimCueSetTime(GameObjHandle,GetObjParams *,AnimCueGetParams const&,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3)"
+0x2984b0,"GLAPIAnimation::BlenderSetFade(GameObjHandle,GetObjParams *,BlenderGetParams const&,BlenderFadeParams const&)",int,"int __fastcall(int a1, int a2, int a3, int a4)"
+0x29853c,"GLAPIAnimation::DebugSetParams(GameObjHandle,GetObjParams *,AnimationDebugParams const&)",void,void()
+0x298540,"GLAPIAnimation::AnimCueGetSpeed(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",int,"int __fastcall(int a1, int a2, _BOOL4 a3)"
+0x29857c,"GLAPIAnimation::AnimCuePlayProc(GameObjHandle,GetObjParams *,AnimCueGetParams const&,AnimCuePlayParams const*,uint)",int,"int __fastcall(int a1, int a2, const AnimCueGetParams *a3, AnimCuePlayParams *a4, unsigned int a5)"
+0x2985f4,"GLAPIAnimation::AnimCueSetSpeed(GameObjHandle,GetObjParams *,AnimCueGetParams const&,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3)"
+0x2986b4,"GLAPIAnimation::BlendTreeGetCRC(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x298718,"GLAPIAnimation::AnimCueGetStatus(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",int,"int __fastcall(int a1, int a2, _BOOL4 a3)"
+0x298764,"GLAPIAnimation::AnimCueGetPlaying(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",int,"int __fastcall(int a1, int a2, _BOOL4 a3)"
+0x2987a0,"GLAPIAnimation::AnimCueSetAddFade(GameObjHandle,GetObjParams *,AnimCueGetParams const&,AnimFade const&)",ANAnimationMgr *,"ANAnimationMgr *__fastcall(int a1, int a2, int a3, int a4)"
+0x298824,"GLAPIAnimation::AnimationGetCount(GameObjHandle,GetObjParams *)",_DWORD *,"_DWORD *__fastcall(int a1, int a2)"
+0x298884,"GLAPIAnimation::AnimCueAllSetSpeed(GameObjHandle,GetObjParams *,AnimCueGetParams const&,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3)"
+0x298910,"GLAPIAnimation::AnimCueChangeFlags(GameObjHandle,GetObjParams *,AnimCueGetParams const&,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3, ANValidation *a4)"
+0x298994,"GLAPIAnimation::AnimCueGetDuration(GameObjHandle,GetObjParams *,AnimCueGetParams const&,CMResourceTypes_e)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, int a4)"
+0x298a20,"GLAPIAnimation::AnimCueGetAddFactor(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",int,"int __fastcall(int a1, int a2, _BOOL4 a3)"
+0x298a5c,"GLAPIAnimation::AnimCueSetAddFactor(GameObjHandle,GetObjParams *,AnimCueGetParams const&,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3)"
+0x298ae8,"GLAPIAnimation::AnimCueUpdateTarget(GameObjHandle,GetObjParams *,AnimCueGetParams const&,AnimCuePlayParams const*)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3, AnimCuePlayParams *a4)"
+0x298b74,"GLAPIAnimation::BlenderGetBlendMode(GameObjHandle,GetObjParams *,BlenderGetParams const&,uint &)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, int *a4)"
+0x298bb0,"GLAPIAnimation::BlenderGetFadeState(GameObjHandle,GetObjParams *,BlenderGetParams const&,BlenderFadeState &)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, int a4)"
+0x298ca4,"GLAPIAnimation::BlenderSetBlendMode(GameObjHandle,GetObjParams *,BlenderGetParams const&,uint)",int,"int __fastcall(int a1, int a2, const BlenderGetParams *a3, int a4)"
+0x298d30,"GLAPIAnimation::RagdollExitWithAnim(GameObjHandle,GetObjParams *,AnimCueGetParams const&,AnimCuePlayParams const*)",int,"int __fastcall(int a1, int a2)"
+0x298dac,"GLAPIAnimation::AnimCueGetPlayParams(GameObjHandle,GetObjParams *,AnimCueGetParams const&,AnimCueParams &)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, int a4)"
+0x298dec,GLAPIAnimation::AnimationGetDuration(ResourceHandle),RZResource *,RZResource *__fastcall(unsigned int a1)
+0x298e78,"GLAPIAnimation::SetAllAnimSpeedScale(GameObjHandle,GetObjParams *,float)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2)"
+0x298ef0,"GLAPIAnimation::AnimCueGetPlayingAnim(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",int,"int __fastcall(int a1, int a2, _BOOL4 a3)"
+0x298f38,"GLAPIAnimation::AnimSetClippingParams(GameObjHandle,GetObjParams *,float,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x29901c,"GLAPIAnimation::BlenderGetMoveChildren(GameObjHandle,GetObjParams *,BlenderGetParams const&,uint &)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, int *a4)"
+0x299058,"GLAPIAnimation::BlenderSetMoveChildren(GameObjHandle,GetObjParams *,BlenderGetParams const&,uint)",int,"int __fastcall(int a1, int a2, const BlenderGetParams *a3, int a4)"
+0x2990e4,"GLAPIAnimation::AnimCueResourceGetAnims(ResourceHandle,uint,ResourceHandle*)",unsigned int,"unsigned int __fastcall(unsigned int a1, unsigned int a2, int a3)"
+0x299194,"GLAPIAnimation::AnimCueUpdateTargetProc(GameObjHandle,GetObjParams *,AnimCueGetParams const&,AnimCuePlayParams const*,uint)",GO3dObjBC *,"GO3dObjBC *__fastcall(int a1, int a2, const AnimCueGetParams *a3, AnimCuePlayParams *a4, unsigned int a5)"
+0x299220,"GLAPIAnimation::AnimProcUserGetLocalMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3, _DWORD *a4)"
+0x299278,"GLAPIAnimation::AnimProcUserGetWorldMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3, _DWORD *a4)"
+0x2992d0,"GLAPIAnimation::AnimCueGetPlayingAnimCRC(GameObjHandle,GetObjParams *,AnimCueGetParams const&,CMResourceTypes_e)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, int a4)"
+0x29932c,"GLAPIAnimation::BlenderGetUpdateChildren(GameObjHandle,GetObjParams *,BlenderGetParams const&,uint &)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, _DWORD *a4)"
+0x299368,"GLAPIAnimation::BlenderSetUpdateChildren(GameObjHandle,GetObjParams *,BlenderGetParams const&,uint)",int,"int __fastcall(int a1, int a2, const BlenderGetParams *a3, unsigned int a4)"
+0x2993f4,"GLAPIAnimation::UpdateFrequencyGetParams(GameObjHandle,GetObjParams *,UpdateFrequencyParams &)",int,"int __fastcall(int a1, int a2, _DWORD *a3)"
+0x299528,"GLAPIAnimation::UpdateFrequencySetParams(GameObjHandle,GetObjParams *,UpdateFrequencyParams const&)",int,"int __fastcall(int a1, int a2, int a3)"
+0x299798,"GLAPIAnimation::AnimCueInTransitionGetTime(GameObjHandle,GetObjParams *,AnimCueGetParams const&)",ANAnimCue *,"ANAnimCue *__fastcall(int a1, int a2, _BOOL4 a3)"
+0x2997d8,"GLAPIAnimation::AnimProcUserGetObjSpaceMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3, _DWORD *a4)"
+0x299830,"GLAPIAnimation::AnimProcUserGetWorldInvMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3, _DWORD *a4)"
+0x299888,GLAPIAnimation::AnimCueResourceGetAnimsCount(ResourceHandle),nn::fnd::ARMv6::Interlocked *,nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1)
+0x299910,"GLAPIAnimation::AnimProcUserGetLocalModelMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3, _DWORD *a4)"
+0x299968,"GLAPIAnimation::TreeInitializeFromResourceID(GameObjHandle,GetObjParams *,ResourceHandle)",ANAnimationMgr *,"ANAnimationMgr *__fastcall(int a1, int a2, unsigned int a3)"
+0x2999e4,"GLAPIAnimation::UpdateFrequencySetInitDelays(GameObjHandle,GetObjParams *,float,float,float)",int,"int __fastcall(int a1, int a2)"
+0x299ad8,"GLAPIAnimation::AnimGetBoneFirstFramePosition(GameObjHandle,GetObjParams *,uint,ResourceHandle,BUVector3 *,BUVector3 *,BUVector3 *,BUVector3 *)",int,"int __fastcall(int a1, int a2, unsigned int a3, int a4, _DWORD *a5, _DWORD *a6, _DWORD *a7, _DWORD *a8)"
+0x299c24,"GLAPIAnimation::AnimCueGetMoveBoneFinalPosition(GameObjHandle,GetObjParams *,AnimCueGetParams const&,BUVector3 *,BUVector4 *)",int,"int __fastcall(int a1, int a2, _BOOL4 a3, BUVector3 *a4, BUVector4 *a5)"
+0x299c84,"GLAPIAnimation::AnimProcUserGetObjSpaceModelMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",_DWORD *,"_DWORD *__fastcall(int a1, unsigned int a2, _DWORD *a3, _DWORD *a4)"
+0x299cf0,"GLAPIAnimation::AnimationGetMoveBoneFinalPosition(ResourceHandle,BUVector3 *,BUVector4 *)",int,"int __fastcall(unsigned int a1, BUVector3 *a2, BUVector4 *a3)"
+0x299ddc,GLAPIAnimation::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x2c9a7c,GLAPIDataMining::InitAPI(void),int,int __fastcall(GLAPIDataMining *this)
+0x2e0870,"GLAPIAnimation::AnimProcUserTerminate(AnimCueProcUser_MsgData &,bool)",unsigned int *,"unsigned int *__fastcall(int a1, bool a2)"
+0x2e08c8,"GLAPIAnimation::AnimProcUserSetLocalMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",unsigned int *,"unsigned int *__fastcall(int a1, unsigned int a2, BXMatrix3 *a3, BUVector3 *a4)"
+0x2e0944,"GLAPIAnimation::AnimProcUserSetWorldMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",unsigned int *,"unsigned int *__fastcall(int a1, unsigned int a2, BXMatrix3 *a3, BUVector3 *a4)"
+0x2e09c0,"GLAPIAnimation::AnimProcUserSetObjSpaceMat(AnimCueProcUser_MsgData &,uint,BXMatrix3 *,BUVector3 *)",unsigned int *,"unsigned int *__fastcall(int a1, unsigned int a2, BXMatrix3 *a3, BUVector3 *a4)"
+0x2e0ba0,"GLAPIAnimation::AnimProcUserInit(AnimCueProcUser_MsgData &,uint *,uint)",int,"int __fastcall(int a1, unsigned int *a2, int a3)"
+0x2ea3cc,"GLAPIEnvironment::GetMaterial(EnvironmentHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int a1, unsigned int a2)"
+0x2ea424,"GLAPIEnvironment::GetRenderBox(EnvironmentHandle,BUBox &)",int *,"int *__fastcall(unsigned int a1, GROctree *a2, int a3, int a4)"
+0x2ea450,"GLAPIEnvironment::MaterialSwap(EnvironmentHandle,uint,uint)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2, unsigned int a3, _DWORD *a4)"
+0x2ea504,"GLAPIEnvironment::MaterialGetName(EnvironmentHandle,uint)",int *,"int *__fastcall(unsigned int a1, unsigned int a2)"
+0x2ea51c,"GLAPIEnvironment::MaterialGetText(EnvironmentHandle,uint,ushort *,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2, wchar_t *a3, GROctreeBC *a4)"
+0x2ea55c,"GLAPIEnvironment::MaterialSetText(EnvironmentHandle,uint,StringHandle,...)",int,"int(unsigned int a1, int a2, const std::nothrow_t *a3, ...)"
+0x2ea5b0,GLAPIEnvironment::GetRenderCamMask(EnvironmentHandle),int,int __fastcall(unsigned int a1)
+0x2ea608,"GLAPIEnvironment::MaterialAnimPlay(EnvironmentHandle,uint,MaterialAnimHandle,uint,GameObjHandle,GetObjParams *)",unsigned int,"unsigned int __fastcall(unsigned int a1, unsigned int a2, unsigned int a3, int a4, int a5, int a6)"
+0x2ea658,"GLAPIEnvironment::MaterialAnimStop(EnvironmentHandle,uint)",ANMaterialAnim *,"ANMaterialAnim *__fastcall(unsigned int a1, unsigned int a2, int a3, GROctreeBC *a4)"
+0x2ea684,GLAPIEnvironment::MaterialGetCount(EnvironmentHandle),int,"int __fastcall(unsigned int a1, int a2, int a3, int a4)"
+0x2ea6a8,"GLAPIEnvironment::OccluderRegister(EnvironmentHandle,uint)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2)"
+0x2ea6e4,"GLAPIEnvironment::SetRenderCamMask(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, int a2)"
+0x2ea738,"GLAPIEnvironment::MaterialAnimPause(EnvironmentHandle,uint,bool)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2, int a3, GROctreeBC *a4)"
+0x2ea770,"GLAPIEnvironment::MaterialSetEnable(EnvironmentHandle,uint,bool)",int,"int __fastcall(unsigned int a1, unsigned int a2, char a3, int a4)"
+0x2ea7c4,"GLAPIEnvironment::CityGetBoundingBox(uint,BUBox &)",void,void()
+0x2ea7c8,"GLAPIEnvironment::CityGetLODDistance(uint,CityLodDistances_e)",void,void()
+0x2ea7d4,"GLAPIEnvironment::CitySetLODDistance(uint,CityLodDistances_e,float)",void,void()
+0x2ea7d8,"GLAPIEnvironment::GetEnvironmentInfo(EnvironmentHandle,PKPackage **,uint *,GROctree **)",int,"int __fastcall(unsigned int a1, PKPackageBC **a2, unsigned int *a3, int *a4)"
+0x2ea848,"GLAPIEnvironment::OccluderUnregister(EnvironmentHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int a1, unsigned int a2)"
+0x2ea884,"GLAPIEnvironment::MaterialAnimSetTime(EnvironmentHandle,uint,float)",int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x2ea8cc,GLAPIEnvironment::CityGetRenderCamMask(uint),int,"int __fastcall(GLAPIEnvironment *this, unsigned int a2)"
+0x2ea8d4,"GLAPIEnvironment::CitySetRenderCamMask(uint,uint)",void,"void __fastcall(GLAPIEnvironment *this, unsigned int a2, unsigned int a3)"
+0x2ea8d8,"GLAPIEnvironment::MaterialGetTextStyle(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x2ea8f8,"GLAPIEnvironment::MaterialSetTextStyle(EnvironmentHandle,uint,ResourceHandle)",int,"int __fastcall(unsigned int a1, unsigned int a2, unsigned int a3)"
+0x2ea974,"GLAPIEnvironment::MaterialSetAlphaWrite(EnvironmentHandle,uint,bool)",unsigned int,"unsigned int __fastcall(unsigned int a1, unsigned int a2, int a3)"
+0x2ea9a0,GLAPIEnvironment::FindEnvironmentFromCRC(uint),int,"int __fastcall(GLAPIEnvironment *this, unsigned int a2)"
+0x2eaae4,"GLAPIEnvironment::MaterialAnimGetDuration(EnvironmentHandle,uint)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2, int a3, GROctreeBC *a4)"
+0x2eab20,"GLAPIEnvironment::MaterialSetFormatedText(EnvironmentHandle,uint,wchar_t const*)",int,"int __fastcall(unsigned int a1, int a2, HUDTxtMgrBC *a3, int a4)"
+0x2eab68,"GLAPIEnvironment::FindMaterialIndexFromCRC(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2, int a3, GROctreeBC *a4)"
+0x2eaba0,"GLAPIEnvironment::FindOccluderIndexFromCRC(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2)"
+0x2eabe8,"GLAPIEnvironment::MaterialAnimGetSpeedScale(EnvironmentHandle,uint)",int,"int __fastcall(unsigned int a1, unsigned int a2, int a3, GROctreeBC *a4)"
+0x2eac24,"GLAPIEnvironment::MaterialAnimSetSpeedScale(EnvironmentHandle,uint,float)",_DWORD *,"_DWORD *__fastcall(unsigned int a1, unsigned int a2)"
+0x2eac6c,"GLAPIEnvironment::FindMaterialAnimHandleFromCRC(EnvironmentHandle,uint,uint)",unsigned int,"unsigned int __fastcall(unsigned int a1, unsigned int a2, unsigned int a3)"
+0x2eaca4,"GLAPIEnvironment::MaterialGetTextAlternateColor(EnvironmentHandle,uint,uint,BUVector4 &)",int,"int __fastcall(unsigned int a1, int a2, int a3, float *a4)"
+0x2eae24,"GLAPIEnvironment::MaterialSetTextAlternateColor(EnvironmentHandle,uint,uint,BUVector4 const&)",float *,"float *__fastcall(unsigned int a1, int a2, int a3, float *a4)"
+0x2eafbc,GLAPIEnvironment::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x2eb158,"GLAPIEnvironment::Activate(EnvironmentHandle,uint)",unsigned int,"unsigned int __fastcall(unsigned int a1, int a2)"
+0x36bad8,GLAPIMoveRecognition::InitAPI(void),int,int __fastcall(GLAPIMoveRecognition *this)
+0x3e72bc,GLAPI3DS::AllowHomeMenu(bool),int,"int __fastcall(GLAPI3DS *this, bool a2)"
+0x3e72dc,"GLAPI3DS::Get3DSParallax(float &,float &)",float *,"float *__fastcall(float *this, float *a2, float *a3)"
+0x3e72f8,GLAPI3DS::IsStereoActive(void),int,int __fastcall(GLAPI3DS *this)
+0x3e7310,"GLAPICamera::Set3DSParallax_Deprecated(float,float)",float,"float __fastcall(GLAPI3DS *this, float a2, float a3)"
+0x3e7314,"GLAPI3DS::Set3DSParallax(float,float)",float,"float __fastcall(GLAPI3DS *this, float a2, float a3)"
+0x3e735c,GLAPI3DS::SetStereoActive(bool),int,"int __fastcall(GLAPI3DS *this, bool a2)"
+0x3e7380,GLAPI3DS::IsUpperHUDStereo(void),int,int __fastcall(GLAPI3DS *this)
+0x3e7390,GLAPI3DS::IsHomeMenuAllowed(void),int,int __fastcall(GLAPI3DS *this)
+0x3e73a4,GLAPI3DS::SetUpperHUDStereo(bool),char,"char __fastcall(char this, bool a2)"
+0x3e73b4,GLAPI3DS::GetDepthSliderSensibility(void),int *,int *__fastcall(GLAPI3DS *this)
+0x3e73c4,GLAPI3DS::SetDepthSliderSensibility(float),int *,"int *__fastcall(GLAPI3DS *this, float a2)"
+0x3e7400,GLAPI3DS::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x3e747c,GLAPIHUD::DestroyWnd(HUDWndHandle),HUDWindow *,HUDWindow *__fastcall(int a1)
+0x3e74b4,"GLAPIHUD::SpriteSetup(HUDWndHandle,uint,uint *)",HUDWindow *,"HUDWindow *__fastcall(int a1, unsigned int a2, unsigned int *a3)"
+0x3e7504,"GLAPIHUD::Wnd2DGetUVs(HUDWndHandle,BUVector2 &,BUVector2 &,BUVector2 &,BUVector2 &,bool)",int,"int __fastcall(int a1, _DWORD *a2, _DWORD *a3, _DWORD *a4, _QWORD *a5, int a6)"
+0x3e7588,"GLAPIHUD::Wnd2DSetUVs(HUDWndHandle,BUVector2 const&,BUVector2 const&,BUVector2 const&,BUVector2 const&,bool)",HUD2DWindow **,"HUD2DWindow **__fastcall(int a1, HUD2DWindow **a2, HUD2DWindow **a3, HUD2DWindow **a4, HUD2DWindow **a5, int a6)"
+0x3e7604,GLAPIHUD::Wnd3DGetFOV(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7650,GLAPIHUD::Wnd3DGetObj(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7698,"GLAPIHUD::Wnd3DSetFOV(HUDWndHandle,float)",HUDWindow *,HUDWindow *__fastcall(int a1)
+0x3e76d8,"GLAPIHUD::Wnd3DSetObj(HUDWndHandle,GameObjHandle,GetObjParams *)",HUDWindow *,"HUDWindow *__fastcall(int a1, int a2, int a3)"
+0x3e7728,"GLAPIHUD::WndAddFlags(HUDWndHandle,uint)",HUDWindowBC *,"HUDWindowBC *__fastcall(int a1, int a2)"
+0x3e775c,GLAPIHUD::WndGetChild(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7788,GLAPIHUD::WndGetFlags(HUDWndHandle),int,int __fastcall(int a1)
+0x3e77a8,"GLAPIHUD::WndGetParam(HUDWndHandle,HUDWndParam *,HUD2dWndParam *,HUD3dWndParam *,HUDTextWndParam *)",int,"int __fastcall(int a1, _DWORD *a2, int a3, _DWORD *a4, HUDTextWndParam *a5)"
+0x3e789c,"GLAPIHUD::WndSetParam(HUDWndHandle,HUDWndParam const*,HUD2dWndParam const*,HUD3dWndParam const*,HUDTextWndParam const*)",int,"int __fastcall(int a1, const HUDWndParam *a2, const HUD2dWndParam *a3, _DWORD *a4, const HUDTextWndParam *a5)"
+0x3e7994,"GLAPIHUD::SpriteCreate(HUDWndHandle,uint)",unsigned int,"unsigned int __fastcall(int a1, unsigned int a2)"
+0x3e79e0,"GLAPIHUD::SpriteDelete(HUDWndHandle,SpriteHandle)",HUDWindow *,"HUDWindow *__fastcall(int a1, unsigned int a2)"
+0x3e7a28,"GLAPIHUD::Wnd2DSetWrap(HUDWndHandle,bool)",HUD2DWindow *,"HUD2DWindow *__fastcall(int a1, int a2)"
+0x3e7a70,"GLAPIHUD::WndGetAnchor(HUDWndHandle,HUDAlignment &)",int,"int __fastcall(int a1, _DWORD *a2)"
+0x3e7aa4,"GLAPIHUD::WndGetColors(HUDWndHandle,BUVector4 &,BUVector4 &,BUVector4 &,BUVector4 &)",_DWORD *,"_DWORD *__fastcall(int a1, _DWORD *a2, _DWORD *a3, _DWORD *a4, _DWORD *a5)"
+0x3e7b04,"GLAPIHUD::WndSetAnchor(HUDWndHandle,HUDAlignment const&)",int,"int __fastcall(int a1, _DWORD *a2)"
+0x3e7b38,"GLAPIHUD::WndSetColors(HUDWndHandle,BUVector4 const&,BUVector4 const&,BUVector4 const&,BUVector4 const&)",int *,"int *__fastcall(int a1, int *a2, int *a3, int *a4, int *a5)"
+0x3e7c00,"GLAPIHUD::WndSetParent(HUDWndHandle,HUDWndHandle)",int,"int __fastcall(int a1, int a2)"
+0x3e7c48,GLAPIHUD::WndGetSibling(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7c74,GLAPIHUD::SpriteGetCount(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7cb4,"GLAPIHUD::TextWndSetText(HUDWndHandle,StringHandle,...)",PKPackageBC *,"PKPackageBC *(int a1, unsigned int a2, ...)"
+0x3e7d14,"GLAPIHUD::Wnd3DRemoveObj(HUDWndHandle,GameObjHandle,GetObjParams *)",int,int __fastcall(int a1)
+0x3e7d58,"GLAPIHUD::WndGetClipRect(HUDWndHandle,BURect &)",_DWORD *,"_DWORD *__fastcall(int a1, _DWORD *a2)"
+0x3e7d84,GLAPIHUD::WndGetPriority(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7da8,GLAPIHUD::WndGetRotation(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7dd0,GLAPIHUD::WndLeaveParent(HUDWndHandle),HUDWindow *,HUDWindow *__fastcall(int a1)
+0x3e7e08,"GLAPIHUD::WndRemoveFlags(HUDWndHandle,uint)",HUDWindowBC *,"HUDWindowBC *__fastcall(int a1, int a2)"
+0x3e7e3c,"GLAPIHUD::WndSetClipRect(HUDWndHandle,BURect const&)",_DWORD *,"_DWORD *__fastcall(int a1, _DWORD *a2)"
+0x3e7e68,"GLAPIHUD::WndSetPriority(HUDWndHandle,uint)",HUDWindowBC *,"HUDWindowBC *__fastcall(int a1, HUDWindowBC *a2)"
+0x3e7e98,"GLAPIHUD::WndSetRotation(HUDWndHandle,float)",int,int __fastcall(int a1)
+0x3e7ef4,GLAPIHUD::TextWndGetStyle(HUDWndHandle),int,int __fastcall(int a1)
+0x3e7f48,"GLAPIHUD::TextWndSetScale(HUDWndHandle,float)",HUDWindow *,HUDWindow *__fastcall(int a1)
+0x3e7fa0,"GLAPIHUD::TextWndSetStyle(HUDWndHandle,ResourceHandle)",HUDTextWindow *,"HUDTextWindow *__fastcall(int a1, unsigned int DefaultStyle)"
+0x3e80a0,"GLAPIHUD::Wnd2DSetTexture(HUDWndHandle,ResourceHandle,bool)",int,"int __fastcall(int a1, unsigned int a2, int a3)"
+0x3e814c,GLAPIHUD::Wnd3DGetScaling(HUDWndHandle),float *,float *__fastcall(int a1)
+0x3e81b4,"GLAPIHUD::Wnd3DSetScaling(HUDWndHandle,float)",HUDWindow *,HUDWindow *__fastcall(int a1)
+0x3e8214,"GLAPIHUD::TextWndSetString(HUDWndHandle,char const*,...)",int,"int(int a1, const char *a2, ...)"
+0x3e82d0,"GLAPIHUD::TextWndSetTextVA(HUDWndHandle,StringHandle,std::__va_list)",PKPackageBC *,"PKPackageBC *__fastcall(int a1, unsigned int a2, std::__va_list a3)"
+0x3e832c,GLAPIHUD::FindHUDWndFromCRC(uint),int,"int __fastcall(GLAPIHUD *this, unsigned int a2)"
+0x3e8480,GLAPIHUD::FindStringFromCRC(uint),int,"int __fastcall(GLAPIHUD *this, unsigned int a2)"
+0x3e85d4,"GLAPIHUD::TextStyleGetColor(ResourceHandle,BUVector4 &)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, _DWORD *a2)"
+0x3e8654,"GLAPIHUD::TextStyleGetScale(ResourceHandle,BUVector2 &)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, int **a2)"
+0x3e86d4,"GLAPIHUD::TextWndGetMargins(HUDWndHandle,BURect &)",_DWORD *,"_DWORD *__fastcall(int a1, _DWORD *a2)"
+0x3e8720,GLAPIHUD::TextWndGetNbLines(HUDWndHandle),int,int __fastcall(int a1)
+0x3e8768,"GLAPIHUD::TextWndGetXYScale(HUDWndHandle,float *,float *)",int,"int __fastcall(int a1, float *a2, float *a3)"
+0x3e87bc,"GLAPIHUD::TextWndSetMargins(HUDWndHandle,BURect const&)",HUDTextWindow **,"HUDTextWindow **__fastcall(int a1, HUDTextWindow **a2)"
+0x3e87fc,"GLAPIHUD::TextWndSetXYScale(HUDWndHandle,float,float)",HUDWindow *,HUDWindow *__fastcall(int a1)
+0x3e8858,"GLAPIHUD::SubTitleSetManager(GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2)"
+0x3e88f0,"GLAPIHUD::SubTitleWndSetText(HUDWndHandle,StringHandle,uint,...)",PKPackageBC *,"PKPackageBC *(int a1, unsigned int a2, unsigned int a3, ...)"
+0x3e89c8,"GLAPIHUD::TextWndSetStringVA(HUDWndHandle,char const*,std::__va_list)",int,"int __fastcall(int a1, const char *a2, std::__va_list a3)"
+0x3e8a78,"GLAPIHUD::TextWndSetTagValue(ushort *,ushort *)",void,"void __fastcall(wchar_t *this, wchar_t *a2, unsigned __int16 *a3)"
+0x3e8a8c,GLAPIHUD::SpriteGetLayerCount(HUDWndHandle),int,int __fastcall(int a1)
+0x3e8acc,"GLAPIHUD::SubTitleWndSetTextVA(HUDWndHandle,StringHandle,uint,std::__va_list)",PKPackageBC *,"PKPackageBC *__fastcall(int a1, unsigned int a2, unsigned int a3, std::__va_list a4)"
+0x3e8b98,GLAPIHUD::TextWndGetLineHeight(HUDWndHandle),int,int __fastcall(int a1)
+0x3e8be4,"GLAPIHUD::WndExists_Deprecated(HUDWndHandle,HUDWndTypes_e *)",int,"int __fastcall(int a1, char *a2)"
+0x3e8c4c,"GLAPIHUD::SpriteGetCountInLayer(HUDWndHandle,uint)",int,"int __fastcall(int a1, unsigned int a2)"
+0x3e8ca4,"GLAPIHUD::TextStyleGetAlignment(ResourceHandle,HUDAlignment &)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, int **a2)"
+0x3e8d24,"GLAPIHUD::TextWndGetStringWidth(HUDWndHandle,ushort const*)",unsigned int,"unsigned int __fastcall(int a1, wchar_t *a2)"
+0x3e8d7c,GLAPIHUD::WndGetType_Deprecated(HUDWndHandle),int,int __fastcall(int a1)
+0x3e8dd8,"GLAPIHUD::TextWndGetStringHeight(HUDWndHandle,ushort const*)",int,"int __fastcall(int a1, wchar_t *a2)"
+0x3e8e2c,"GLAPIHUD::TextWndSetLinesToPrint(HUDWndHandle,uint,uint)",HUDTextWindow *,"HUDTextWindow *__fastcall(int a1, unsigned int a2, unsigned int a3)"
+0x3e8e68,"GLAPIHUD::WndGetParam_Deprecated(HUDWndHandle,HUDWndParam_Deprecated *)",bool,"bool __fastcall(int a1, int a2)"
+0x3e9230,"GLAPIHUD::WndSetParam_Deprecated(HUDWndHandle,HUDWndParam_Deprecated *)",int,"int __fastcall(int a1, int a2)"
+0x3e95e0,"GLAPIHUD::TextStyleGetShadowColor(ResourceHandle,BUVector4 &)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, _DWORD *a2)"
+0x3e9660,"GLAPIHUD::TextStyleGetShadowOffset(ResourceHandle,BUVector2 &)",nn::fnd::ARMv6::Interlocked *,"nn::fnd::ARMv6::Interlocked *__fastcall(unsigned int a1, int **a2)"
+0x3e96e0,"GLAPIHUD::TextWndGetAlternateColor(HUDWndHandle,uint,BUVector4 &)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x3e985c,"GLAPIHUD::TextWndGetBestScaleToFit(HUDWndHandle,ushort const*,float,float,float,float,uint)",unsigned int,"unsigned int __fastcall(int a1, int a2, unsigned int a3, int a4, float a5, float a6, unsigned int a7)"
+0x3e98e4,"GLAPIHUD::TextWndGetFormatedString(HUDWndHandle,ushort *,uint)",void,"void __fastcall(int a1, wchar_t *a2, unsigned int a3)"
+0x3e9938,"GLAPIHUD::TextWndSetAlternateColor(HUDWndHandle,uint,BUVector4 const&)",int,"int __fastcall(int a1, int a2, float *a3)"
+0x3e9af0,"GLAPIHUD::TextWndSetFormatedString(HUDWndHandle,ushort const*,uint)",HUDWindow *,"HUDWindow *__fastcall(int a1, unsigned int a2)"
+0x3e9b38,GLAPIHUD::SubTitleGetSubStringCount(StringHandle),int,int __fastcall(ADAudioMgrBC *a1)
+0x3e9b90,"GLAPIHUD::SubTitleGetSubStringTimes(StringHandle,uint,float *,float *)",int,"int __fastcall(unsigned int a1, unsigned int a2, float *a3, float *a4)"
+0x3e9c50,"GLAPIHUD::Wnd3DGetScreenCoordFrom3d(HUDWndHandle,uint,BUVector3 const&,BUVector2 &)",int,"int __fastcall(int a1, char a2, int a3, float *a4)"
+0x3e9cb4,"GLAPIHUD::GetChildHandleFromSourceCRC(HUDWndHandle,uint)",int,"int __fastcall(int a1, int a2)"
+0x3e9d0c,"GLAPIHUD::TextWndSetFormatedStringWithTag(HUDWndHandle,ushort const*,uint)",HUDWindow *,"HUDWindow *__fastcall(int a1, wchar_t *a2, unsigned int a3)"
+0x3e9db0,GLAPIHUD::LoadUsedResourcesDiscardableData(HUDWndHandle),HUDWindowBC *,HUDWindowBC *__fastcall(int a1)
+0x3e9ddc,"GLAPIHUD::TextWndGetStringWidthUsingWordWrap(HUDWndHandle,ushort const*)",unsigned int,"unsigned int __fastcall(int a1, wchar_t *a2)"
+0x3e9e34,GLAPIHUD::UnloadUsedResourcesDiscardableData(HUDWndHandle),nn::fnd::ARMv6::Interlocked *,nn::fnd::ARMv6::Interlocked *__fastcall(int a1)
+0x3e9e5c,GLAPIHUD::IsUsedResourcesDiscardableDataLoaded(HUDWndHandle),HUDWindowBC *,HUDWindowBC *__fastcall(int a1)
+0x3e9e84,GLAPIHUD::CopyWnd(HUDWndHandle),int,int __fastcall(int a1)
+0x3e9ec8,"GLAPIHUD::HitTest(BUVector2 const&,Screens_e)",int,"int __fastcall(float *a1, unsigned int a2)"
+0x3e9f20,GLAPIHUD::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x3ea398,"GLAPIHUD::Activate(HUDWndHandle,bool)",HUDWindowBC *,"HUDWindowBC *__fastcall(int a1, int a2)"
+0x3ea3dc,GLAPIHUD::IsActive(HUDWndHandle),bool,bool __fastcall(int a1)
+0x3ea41c,"GLAPIHUD::CreateWnd(HUDWndTypes_e,HUDWndHandle,uint)",int,"int __fastcall(int a1, int a2, int a3)"
+0x3ea47c,GLAPIHUD::GetHudCRC(HUDWndHandle),int,int __fastcall(int a1)
+0x3ea4a0,GLAPIHUD::GetParent(HUDWndHandle),int,int __fastcall(int a1)
+0x3ea4cc,"GLAPIHUD::SpriteGet(HUDWndHandle,HUDSprite *,uint)",unsigned int,"unsigned int __fastcall(int a1, int a2, unsigned int a3)"
+0x3ea63c,"GLAPIHUD::SpriteSet(HUDWndHandle,HUDSprite const*,uint)",HUDWindow *,"HUDWindow *__fastcall(int a1, int a2, unsigned int a3)"
+0x3ea7d8,"GLAPIHUD::WndExists(HUDWndHandle,bool *,bool *,bool *)",int,"int __fastcall(int a1, bool *a2, bool *a3, bool *a4)"
+0x3ea850,"GLAPIHUD::WndGetPos(HUDWndHandle,BURect &)",_DWORD *,"_DWORD *__fastcall(int a1, _DWORD *a2)"
+0x3ea87c,"GLAPIHUD::WndSetPos(HUDWndHandle,BURect const&)",int,"int __fastcall(int a1, int a2)"
+0x3ea90c,GLAPIPS3::InitAPI(void),int,int __fastcall(GLAPIPS3 *this)
+0x3ea954,GLAPIWII::InitAPI(void),int,int __fastcall(GLAPIWII *this)
+0x41b8c0,GLAPIUtil::MemoryFree(uint),char *,"char *__fastcall(GLAPIUtil *this, unsigned int a2)"
+0x41b8d0,GLAPIUtil::MemoryAlloc(uint),int,"int __fastcall(GLAPIUtil *this, unsigned int a2)"
+0x41b8e4,"GLAPIUtil::StartThread(void (*)(bool volatile*,void *),void *)",int,"int __fastcall(GLAPIUtil *this, void (*a2)(volatile bool *, void *), void *a3, int a4)"
+0x41b8f8,GLAPIUtil::GetWorkBuffer(uint),int,"int __fastcall(GLAPIUtil *this, unsigned int a2)"
+0x41b91c,GLAPIUtil::MemoryGetData(uint),int,"int __fastcall(GLAPIUtil *this, unsigned int a2)"
+0x41b92c,GLAPIUtil::MemoryGetSize(uint),int,"int __fastcall(GLAPIUtil *this, unsigned int a2)"
+0x41b93c,"GLAPIUtil::FreeWorkBuffer(uint,void *)",int,"int __fastcall(GLAPIUtil *this, void *a2, void *a3)"
+0x41b96c,"GLAPIUtil::MemoryChangeOwner(uint,GameObjHandle,GetObjParams *)",int,"int __fastcall(unsigned int a1, int a2, int a3)"
+0x41ba10,GLAPIUtil::MemoryAllocDebugHeap(uint),int,"int __fastcall(GLAPIUtil *this, unsigned int a2)"
+0x41ba24,GLAPIUtil::MemoryAllocCustomHeap(uint),int,"int __fastcall(GLAPIUtil *this, unsigned int a2)"
+0x41ba2c,GLAPIUtil::Rand(void),unsigned int,unsigned int __fastcall(GLAPIUtil *this)
+0x41ba58,"GLAPIUtil::MemCpy(void *,void const*,uint)",void,"void __fastcall(char *this, char *a2, size_t a3, unsigned int a4)"
+0x41ba5c,GLAPIUtil::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x41bb14,"GLAPIUtil::QuickSort(bool (*)(void const*,void const*),void *,uint,uint)",int (*)(void),"int (*__fastcall(int (*this)(void), bool (*a2)(const void *, const void *), unsigned int a3, unsigned int a4, unsigned int a5))(void)"
+0x41bb90,"GLAPIZone::GetBSphere(GameObjHandle,GetObjParams *,BUVector3 *,float *)",char *,"char *__fastcall(int a1, int a2, _DWORD *a3, _DWORD *a4)"
+0x41bbf8,"GLAPIZone::IsObjInZone(GameObjHandle,GetObjParams *,GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2, int a3, int a4)"
+0x41bd78,"GLAPIZone::IsPointInZone(GameObjHandle,GetObjParams *,BUVector3 const&)",int,"int __fastcall(int a1, int a2, BUVector3 *a3)"
+0x41be5c,"GLAPIZone::GetNearestPoint(GameObjHandle,GetObjParams *,BUVector3 const&,BUVector3&)",int,"int __fastcall(int a1, int a2, const BUVector3 *a3, BUVector3 *a4)"
+0x41bec4,"GLAPIZone::GetDistanceToBoundingSphere(GameObjHandle,GetObjParams *,BUVector3 const&)",GOZone *,"GOZone *__fastcall(int a1, int a2, const BUVector3 *a3)"
+0x41bf24,GLAPIZone::InitAPI(void),_DWORD *,_DWORD *__fastcall(_DWORD *this)
+0x488260,GLAPIDebug::GLAPIDebug(void),void,void __fastcall(GLAPIDebug *this)
+0x489450,GLAPIEngine::GetFileIOErrorHandler(void),int,int __fastcall(GLAPIEngine *this)
+0x4b4848,"GLAPIUtil::MemSet(void *,uchar,uint)",void,"void __fastcall(GLAPIUtil *this, unsigned __int8 a2, unsigned __int8 a3, unsigned int a4)"
+0x4b67d4,"GLAPI3dObj::AddChild(GameObjHandle,GetObjParams *,GameObjHandle,GetObjParams *,uint)",GOGameObj *,"GOGameObj *__fastcall(int a1, int a2, int a3, int a4, unsigned int a5)"
+0x4bb424,"GLAPIGameObj::AddChild(GameObjHandle,GetObjParams *,GameObjHandle,GetObjParams *)",int,"int __fastcall(int a1, int a2, int a3, int a4)"
+0x4ed8f8,GLAPIUtil::Seed(uint),unsigned int,"unsigned int __fastcall(unsigned int this, unsigned int a2)"
