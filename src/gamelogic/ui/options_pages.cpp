@@ -363,6 +363,8 @@ constexpr Setting kVideoSettings[] = {
     {.label = "REEOT_OPT_FPS_LIMIT", .description = "REEOT_DESC_FPS_LIMIT", .cvar = "eot_fps_limit",
      .slider = {30.0, 240.0, 10.0, Format::kFrameRate}, .numeric = true},
     {.label = "REEOT_OPT_VSYNC", .description = "REEOT_DESC_VSYNC", .cvar = "eot_vsync", .choices = kOnOff},
+    {.label = "REEOT_OPT_FPS_OVERLAY", .description = "REEOT_DESC_FPS_OVERLAY", .cvar = "show_fps_overlay",
+     .choices = kOnOff},
     {.label = "REEOT_OPT_BRIGHTNESS", .description = "REEOT_DESC_BRIGHTNESS", .cvar = "eot_brightness",
      .slider = {-0.25, 0.25, 0.01, Format::kSignedPercent}, .numeric = true},
     {.label = "REEOT_OPT_CONTRAST", .description = "REEOT_DESC_CONTRAST", .cvar = "eot_contrast",

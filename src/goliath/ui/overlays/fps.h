@@ -14,5 +14,8 @@ public:
   void OnDraw(ImGuiIO &io) override;
 
 private:
+  void DrawFpsBlock();
+  void DrawGpuBlock();
+
   bool registered_ = true;
 };

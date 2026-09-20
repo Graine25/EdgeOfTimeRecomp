@@ -25,6 +25,7 @@ REEOT_OPT_RESOLUTION	Resolution
 REEOT_OPT_ASPECT	Aspect Ratio
 REEOT_OPT_FPS_LIMIT	Frame Rate Limit
 REEOT_OPT_VSYNC	VSync
+REEOT_OPT_FPS_OVERLAY	FPS Overlay
 REEOT_OPT_RENDER_SCALE	Render Scale
 REEOT_OPT_PIP_SCALE	PiP Resolution
 REEOT_OPT_BRIGHTNESS	Brightness
@@ -85,6 +86,7 @@ REEOT_DESC_RESOLUTION	The resolution the game renders at in fullscreen. Native i
 REEOT_DESC_ASPECT	The shape the game builds its picture for in fullscreen. Wider than 16:9 shows more to the sides rather than stretching. In a window the picture follows the window.
 REEOT_DESC_FPS_LIMIT	The most frames per second the game will run at. The game runs one step per frame, so this paces everything, not just the display.
 REEOT_DESC_VSYNC	Waits for the display before showing a frame, which stops tearing and caps the rate at the display's.
+REEOT_DESC_FPS_OVERLAY	Shows the frame rate, the frame times, and where the GPU's time goes pass by pass over the last 30 frames, with the draw count and the game thread's share. For finding what a view costs.
 REEOT_DESC_RENDER_SCALE	How much larger or smaller than the console's own resolution to render, when Resolution is Native.
 REEOT_DESC_PIP_SCALE	The resolution of the picture-in-picture window the abilities open, as a share of the main picture's. It is a second scene with its own lights and effects; at 50% it costs a quarter of the pixels. Takes effect on restart.
 REEOT_DESC_BRIGHTNESS	Lifts or lowers the whole picture. Applied at the end, on top of the game's own display curve.
