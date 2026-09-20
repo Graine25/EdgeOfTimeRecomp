@@ -103,11 +103,37 @@ elif mode == "callseq":
         for ea in matching(argv[3]):
             fn = ida_funcs.get_func(ea)
             seq = []
+            refs = []
+            import ida_ua
+            ppc = idaapi.get_inf_structure().procname.lower().startswith("ppc") if hasattr(idaapi, "get_inf_structure") else idc.get_inf_attr(idc.INF_PROCNAME).lower().startswith("ppc")
+            his = {}
             for item in idautils.FuncItems(ea):
                 for x in idautils.XrefsFrom(item, idaapi.XREF_FAR):
                     if x.type in (idaapi.fl_CN, idaapi.fl_CF):
                         seq.append(dname(x.to))
-            w.writerow([f"{ea:#x}", dname(ea), fn.end_ea - fn.start_ea, "|".join(seq)])
+                    elif x.type in (idaapi.dr_O, idaapi.dr_R):
+                        f2 = ida_funcs.get_func(x.to)
+                        if f2 and f2.start_ea == x.to:
+                            refs.append(dname(x.to))
+                        elif x.type == idaapi.dr_R and not ida_funcs.get_func(x.to):
+                            v = idc.get_wide_dword(x.to)
+                            f3 = ida_funcs.get_func(v)
+                            if f3 and f3.start_ea == v:
+                                refs.append(dname(v))
+                if ppc:
+                    insn = ida_ua.insn_t()
+                    if ida_ua.decode_insn(insn, item):
+                        mn = insn.get_canon_mnem()
+                        if mn == "lis":
+                            his[insn.ops[0].reg] = (insn.ops[1].value & 0xFFFF) << 16
+                        elif mn == "addi" and insn.ops[1].reg in his:
+                            lo = insn.ops[2].value & 0xFFFF
+                            lo = lo - 0x10000 if lo >= 0x8000 else lo
+                            t = (his[insn.ops[1].reg] + lo) & 0xFFFFFFFF
+                            f4 = ida_funcs.get_func(t)
+                            if f4 and f4.start_ea == t:
+                                refs.append(dname(t))
+            w.writerow([f"{ea:#x}", dname(ea), fn.end_ea - fn.start_ea, "|".join(seq), "|".join(refs)])
 elif mode == "xrefs":
     with open(out, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
