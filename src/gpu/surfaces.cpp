@@ -83,6 +83,9 @@ static void HostAllocationSize(const GuestSurface &surf, u32 &w, u32 &h) {
   if ((surf.width == kGuestRenderWidth && surf.height == kGuestRenderHeight) ||
       (surf.isDepth && surf.width == 1024 && surf.height == 1024))
     return;
+  for (u32 k = 1; k < 4; ++k)
+    if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
+      return;
   w = (w + 79u) / 80u * 80u;
   h = (h + 63u) / 64u * 64u;
 }
@@ -518,6 +521,11 @@ void DropBorrow(GuestSurface &surf) {
   surf.borrowed.reset();
 }
 
+bool SurfaceStartsBlank(const GuestSurface &surf) {
+  return !surf.isDepth && surf.host.sampleCount == 1 && surf.width <= kGuestRenderWidth / 4 &&
+         surf.height <= kGuestRenderHeight / 4;
+}
+
 }
 
 void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src,
@@ -664,8 +672,20 @@ HostTexture *SurfaceImageForDraw(VideoState &s, GuestSurface &surf, u32 samples,
       return &surf.host;
     return EnsureSurfaceSingle(s, surf) ? &surf.single : nullptr;
   }
-  if (surf.content == GuestSurface::Content::Borrowed)
-    SurfaceTakeBack(s, surf);
+  if (surf.content == GuestSurface::Content::Borrowed) {
+    if (SurfaceStartsBlank(surf)) {
+      DropBorrow(surf);
+      surf.content = GuestSurface::Content::Undefined;
+      surf.serial++;
+      surf.wholeClearSerial = surf.serial;
+      surf.host.needsClear = true;
+      if (surf.single.valid())
+        surf.single.needsClear = true;
+      LogTransfer(s, surf, "lent content left with the mirror (pass starts blank)");
+    } else {
+      SurfaceTakeBack(s, surf);
+    }
+  }
   if (!want_single) {
     if (surf.contentInSingle && surf.single.valid() && !surf.imagesAgree &&
         surf.content == GuestSurface::Content::Drawn) {
