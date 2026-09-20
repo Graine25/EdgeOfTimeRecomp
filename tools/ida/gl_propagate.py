@@ -137,8 +137,8 @@ for it in range(iterations):
             vote_gaps(r360, refs3)
     new = 0
     for cea, cnt in votes.items():
-        if len(cnt) == 1:
-            nm = next(iter(cnt))
+        nm, n = cnt.most_common(1)[0]
+        if len(cnt) == 1 or (n >= 4 and n >= 0.75 * sum(cnt.values())):
             sa, sb = size360.get(cea, 0), size3.get(nm, 0)
             if sa > 40 and sb > 40 and not (0.8 <= sa / sb <= BAND_HI):
                 continue
