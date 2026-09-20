@@ -82,6 +82,7 @@ struct PerfCounters {
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
   u32 resolve_copies = 0;
   u32 draws_skipped = 0;
+  u32 casters_culled = 0, casters_outside = 0;
   u32 surface_transfers = 0;
   u32 resolve_transfers = 0;
   u32 resolve_noops = 0;
