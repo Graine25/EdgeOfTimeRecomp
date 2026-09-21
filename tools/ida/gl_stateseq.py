@@ -98,6 +98,15 @@ for cea in sorted(callers):
             mn = insn.get_canon_mnem()
             if mn == "LDR" and insn.ops[1].type == ida_ua.o_mem:
                 regs[insn.ops[0].reg] = idc.get_wide_dword(insn.ops[1].addr)
+            elif mn == "LDR" and insn.ops[1].type == ida_ua.o_displ:
+                base = regs.get(insn.ops[1].reg)
+                if base is not None and insn.ops[1].reg != 13:
+                    d = insn.ops[1].addr
+                    d = d - (1 << 32) if d >= (1 << 31) else d
+                    v = idc.get_wide_dword((base + d) & 0xFFFFFFFF)
+                    regs[insn.ops[0].reg] = v if is_func_start(v) else None
+                else:
+                    regs[insn.ops[0].reg] = None
             elif mn == "MOV" and insn.ops[1].type == ida_ua.o_imm:
                 regs[insn.ops[0].reg] = insn.ops[1].value & 0xFFFFFFFF
             elif mn == "MOV" and insn.ops[1].type == ida_ua.o_reg:
