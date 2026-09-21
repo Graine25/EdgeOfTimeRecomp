@@ -34,7 +34,7 @@ def rename(ea, name, force=False):
     fn = ida_funcs.get_func(ea)
     if fn and not force and (cur.startswith("nullsub_") or fn.end_ea - fn.start_ea <= 8):
         return False
-    if not force and cur and not cur.startswith(("sub_", "nullsub_", "off_", "unk_", "dword_", "byte_", "word_", "GameLogic_", "loc_")):
+    if not force and cur and not cur.startswith(("sub_", "helper_", "nullsub_", "off_", "unk_", "dword_", "byte_", "word_", "GameLogic_", "loc_")):
         return False
     ok = idc.set_name(ea, name, SN)
     if not ok:

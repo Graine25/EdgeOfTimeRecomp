@@ -6,7 +6,7 @@ import sys
 src, out, title = sys.argv[1], sys.argv[2], sys.argv[3]
 lo = int(sys.argv[4], 16) if len(sys.argv) > 4 else 0
 hi = int(sys.argv[5], 16) if len(sys.argv) > 5 else 0xFFFFFFFF
-SKIP = re.compile(r"^(sub_|nullsub_|GameLogic_\d+|loc_|j_|\?|__|_|Ke[A-Z]|Nt[A-Z]|Rtl[A-Z]|Xam[A-Z]|X[A-Z][a-z]|Ex[A-Z]|Mm[A-Z]|Ob[A-Z]|Io[A-Z]|Dbg|Hal[A-Z]|start$|Stub_)")
+SKIP = re.compile(r"^(sub_|helper_|nullsub_|GameLogic_\d+|loc_|j_|\?|__|_|Ke[A-Z]|Nt[A-Z]|Rtl[A-Z]|Xam[A-Z]|X[A-Z][a-z]|Ex[A-Z]|Mm[A-Z]|Ob[A-Z]|Io[A-Z]|Dbg|Hal[A-Z]|start$|Stub_)")
 AUTO = re.compile(r"^(g|vt)_[A-Za-z0-9]+_[0-9A-F]{4}$")
 
 fams = collections.OrderedDict()

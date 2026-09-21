@@ -8,7 +8,7 @@ import idc
 ida_auto.auto_wait()
 src, out = idc.ARGV[1], idc.ARGV[2]
 SN = idc.SN_NOWARN | 0x800
-PLACEHOLDER = ("sub_", "nullsub_", "off_", "unk_", "dword_", "byte_", "word_", "flt_", "qword_", "GameLogic_", "loc_", "asc_")
+PLACEHOLDER = ("sub_", "helper_", "nullsub_", "off_", "unk_", "dword_", "byte_", "word_", "flt_", "qword_", "GameLogic_", "loc_", "asc_")
 
 n_ok = n_skip = n_fail = 0
 with open(out, "w", encoding="utf-8") as rep:

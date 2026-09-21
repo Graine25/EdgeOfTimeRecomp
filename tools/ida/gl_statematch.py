@@ -5,7 +5,7 @@ from collections import defaultdict
 
 s360, s3ds, z360, z3ds, out = sys.argv[1:6]
 rep_path = sys.argv[6] if len(sys.argv) > 6 else None
-PLACEHOLDER = re.compile(r"^(sub|nullsub|j_sub|loc)_")
+PLACEHOLDER = re.compile(r"^(sub|helper|nullsub|j_sub|loc)_")
 
 
 def strip_sig(n):

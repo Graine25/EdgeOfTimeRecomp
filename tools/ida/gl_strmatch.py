@@ -5,7 +5,7 @@ import sys
 
 csv.field_size_limit(1 << 30)
 src3, src360, out = sys.argv[1], sys.argv[2], sys.argv[3]
-PLACEHOLDER = re.compile(r"^(sub_|nullsub_|GameLogic_\d+|loc_)")
+PLACEHOLDER = re.compile(r"^(sub_|helper_|nullsub_|GameLogic_\d+|loc_)")
 SKIP3 = re.compile(r"^(_|__|j_|nn::|std::|operator|\?|sub_|nullsub|unk_|loc_|\.|\$|\`)")
 STRING = re.compile(r"^@a[A-Z0-9_]")
 

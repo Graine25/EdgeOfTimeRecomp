@@ -8,7 +8,7 @@ iterations = int(sys.argv[4]) if len(sys.argv) > 4 else 6
 BAND_HI = float(sys.argv[5]) if len(sys.argv) > 5 else 2.4
 
 SKIP3 = re.compile(r"^(_|__|j_|nn::|std::|operator|\?|sub_|nullsub|unk_|loc_|\.|\$)")
-PLACEHOLDER = re.compile(r"^(sub_|nullsub_|GameLogic_\d+|loc_)")
+PLACEHOLDER = re.compile(r"^(sub_|helper_|nullsub_|GameLogic_\d+|loc_)")
 HELPER = re.compile(r"^(__save|__rest|__aeabi|_RtlCheckStack|__chkstk|_savegpr|_restgpr|__u64|__i64|__ll|__dtoi|__itod|__ftoi|__itof)")
 
 
