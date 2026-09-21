@@ -80,17 +80,69 @@ for cls in classes:
     ok = slots >= 1 and (good >= 0.75 * slots if slots >= 4 else good == slots) and pres >= 0.7 * len(both)
     aligned[cls] = (ok, len(both), len(keys), slots, good, pres)
 
+def dp_align(cls):
+    a = sorted(k[1] for k in st360 if k[0] == cls)
+    b = sorted(k[1] for k in st3 if k[0] == cls)
+    if len(a) < 3 or len(b) < 3:
+        return {}
+
+    def score(i, j):
+        ra, rb = st360[(cls, a[i])], st3[(cls, b[j])]
+        if set(ra) != set(rb):
+            return -3
+        sc = 2
+        for role, (ea, cur) in ra.items():
+            sc += 1 if compatible(sz360.get(ea, 0), sz3.get(rb[role][0], 0)) else -2
+        return sc
+
+    n, m = len(a), len(b)
+    best = [[0] * (m + 1) for _ in range(n + 1)]
+    back = [[None] * (m + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        best[i][0] = -i
+        back[i][0] = "u"
+    for j in range(1, m + 1):
+        best[0][j] = -j
+        back[0][j] = "l"
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            d = best[i - 1][j - 1] + score(i - 1, j - 1)
+            u = best[i - 1][j] - 1
+            l = best[i][j - 1] - 1
+            best[i][j] = max(d, u, l)
+            back[i][j] = "d" if best[i][j] == d else ("u" if best[i][j] == u else "l")
+    pairs = {}
+    i, j = n, m
+    while i > 0 and j > 0:
+        if back[i][j] == "d":
+            if score(i - 1, j - 1) >= 2 + len(st360[(cls, a[i - 1])]):
+                pairs[(cls, a[i - 1])] = (cls, b[j - 1])
+            i, j = i - 1, j - 1
+        elif back[i][j] == "u":
+            i -= 1
+        else:
+            j -= 1
+    return pairs
+
+
+dp_pairs = {}
+for cls, v in aligned.items():
+    if not v[0]:
+        dp_pairs.update(dp_align(cls))
+
 names = {}
 forced = set()
 conflicts = []
 skipped = []
 for key, roles in st360.items():
-    if key not in st3 or not aligned.get(key[0], (False,))[0]:
+    key3 = key if (key in st3 and aligned.get(key[0], (False,))[0]) else dp_pairs.get(key)
+    if key3 is None:
         continue
+    via_dp = key3 != key or not aligned.get(key[0], (False,))[0]
     for role, (ea, cur) in roles.items():
-        if role not in st3[key]:
+        if role not in st3[key3]:
             continue
-        ea3, n3 = st3[key][role]
+        ea3, n3 = st3[key3][role]
         n3 = strip_sig(n3)
         if not n3 or PLACEHOLDER.match(n3) or n3.startswith(("sub_", "nullsub_")):
             continue
@@ -100,7 +152,7 @@ for key, roles in st360.items():
                 continue
             leaf = cur.split("::")[-1]
             wrong_role = any(leaf.startswith(p) for p in ROLE_PREFIX.values()) and not leaf.startswith(ROLE_PREFIX[role])
-            if wrong_role and compatible(a, b) and a > 8:
+            if wrong_role and compatible(a, b) and a > 8 and not via_dp:
                 names[ea] = n3
                 forced.add(ea)
             else:
@@ -139,7 +191,7 @@ with open(out, "w", newline="", encoding="utf-8") as f:
     w = csv.writer(f)
     for ea in sorted(final):
         w.writerow(["%#x" % ea, final[ea]] + (["force"] if ea in forced else []))
-print("aligned classes", sum(1 for v in aligned.values() if v[0]), "of", len(aligned),
+print("aligned classes", sum(1 for v in aligned.values() if v[0]), "of", len(aligned), "dp pairs", len(dp_pairs),
       "named", len(final), "forced", len(forced & set(final)), "conflicts", len(conflicts), "skipped", len(skipped))
 if rep_path:
     with open(rep_path, "w", encoding="utf-8") as f:
