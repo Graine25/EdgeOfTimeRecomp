@@ -199,7 +199,45 @@ for run in tables:
             c = best
         if rename(v, "%s::%s" % (c, mth)):
             named_total += 1
-log("tables owned:", owned, "slots named:", named_total)
+holders = {}
+held = {}
+for run in tables:
+    vt_ea = run[0][0]
+    lab = idc.get_name(vt_ea) or ""
+    cls = lab[5:] if lab.startswith("vtbl_") and "_plus" not in lab else None
+    s0 = idc.get_name(run[0][1]) or ""
+    if not cls and s0.endswith("::DeletingDtor"):
+        cls = s0[:-len("::DeletingDtor")]
+    if not cls or cls not in vt3ds:
+        continue
+    for k, (p, v) in enumerate(run):
+        s3 = slot_name3(cls, k)
+        if s3:
+            holders.setdefault(v, {})[cls] = s3[1]
+            held[(cls, s3[1])] = v
+rehomed = 0
+for v, byc in holders.items():
+    cur = idc.get_name(v) or ""
+    if "::" not in cur or cur.startswith(PLACEHOLDER) or cur.startswith("nullsub"):
+        continue
+    ccls, cm = cur.split("::", 1)
+    cm = re.sub(r"_\d+$", "", cm)
+    methods = set(byc.values())
+    if len(methods) != 1 or cm not in methods or ccls in byc or len(byc) != 1:
+        continue
+    fn = ida_funcs.get_func(v)
+    if fn is None or fn.end_ea - fn.start_ea <= 8:
+        continue
+    x = next(iter(byc))
+    if not re.search(r"_\d+$", cur.split("::", 1)[1]):
+        other = held.get((ccls, cm))
+        if other is None or other == v:
+            continue
+    new = "%s::%s" % (x, cm)
+    ok = idc.set_name(v, new, SN) or idc.set_name(v, "%s_%X" % (new, v & 0xFFFF), SN)
+    log("%s %s -> %s (override, tables: %s) %s" % (hex(v), cur, new, ",".join(sorted(byc)), "OK" if ok else "FAIL"))
+    rehomed += ok
+log("tables owned:", owned, "slots named:", named_total, "overrides re-homed:", rehomed)
 report.close()
 print("done gl_vtscan", owned, named_total)
 idc.qexit(0)
