@@ -191,7 +191,6 @@ set(REEOT_SOURCES
     src/ui/watermark.cpp
     src/platform/update_check.cpp
     src/installer/install_registry.cpp
-    src/installer/uninstall.cpp
     src/installer/self_install.cpp
     src/installer/dlc_publish.cpp
     src/mods/mod_manager.cpp
