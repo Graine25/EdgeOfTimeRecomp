@@ -345,3 +345,4 @@
 0x8839eda0,SMAEvadeTrailClone::CopyHeroBones
 0x881b6f58,EvadeClone::UpdateEvadeDoneFade
 0x881b4380,SpikeTentacle::UpdateIdle
+0x882a3b58,BaseAI::SetTimeScale,force
