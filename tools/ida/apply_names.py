@@ -24,6 +24,10 @@ with open(out, "w", encoding="utf-8") as rep:
             n_skip += 1
             continue
         cur = idc.get_name(ea) or ""
+        if cur.endswith(("_shared", "_folded")) and not force:
+            rep.write("%#x %s: keeps %s (shared body)\n" % (ea, name, cur))
+            n_skip += 1
+            continue
         if cur and not force and not cur.startswith(PLACEHOLDER):
             rep.write("%#x %s: keeps %s\n" % (ea, name, cur))
             n_skip += 1
