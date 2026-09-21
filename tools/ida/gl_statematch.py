@@ -161,7 +161,7 @@ for key, roles in st360.items():
         if a <= 8 or b <= 8:
             skipped.append((key, role, ea, n3, "tiny", a, b))
             continue
-        if not compatible(a, b):
+        if not compatible(a, b) and (via_dp or a <= 40 or b <= 40):
             skipped.append((key, role, ea, n3, "size", a, b))
             continue
         if ea in names and names[ea] != n3:
