@@ -41,7 +41,7 @@
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"
 #include "platform/update_check.h"
-#include "installer/uninstall.h"
+#include "installer/install_registry.h"
 #include "mods/mod_manager.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"

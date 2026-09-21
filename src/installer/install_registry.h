@@ -33,3 +33,9 @@ bool WriteInstallRegistry(const InstallConfig &config);
 bool ClearInstallRegistry();
 
 }
+
+namespace eot::installer {
+
+void RunUninstall();
+
+}
