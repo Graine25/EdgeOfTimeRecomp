@@ -17,7 +17,7 @@ def log(*a):
     report.write(" ".join(str(x) for x in a) + "\n")
 
 
-PLACEHOLDER = ("sub_", "nullsub_", "off_", "unk_", "dword_", "byte_", "word_", "GameLogic_", "loc_")
+PLACEHOLDER = ("sub_", "helper_", "nullsub_", "off_", "unk_", "dword_", "byte_", "word_", "GameLogic_", "loc_")
 
 
 def rename(ea, name):
