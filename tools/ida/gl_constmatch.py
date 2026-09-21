@@ -7,7 +7,7 @@ from collections import defaultdict
 src3, src360, out = sys.argv[1], sys.argv[2], sys.argv[3]
 rep_path = sys.argv[4] if len(sys.argv) > 4 else None
 MIN_SHARED = int(sys.argv[5]) if len(sys.argv) > 5 else 2
-PLACEHOLDER = re.compile(r"^(sub_|helper_|nullsub_|j_sub_|loc_|GameLogic_\d+|unk_|off_|dword_|byte_|word_|flt_)")
+PLACEHOLDER = re.compile(r"^(sub_|helper_|nullsub_|j_sub_|loc_|GameLogic_\d+|unk_|off_|dword_|byte_|word_|flt_)" + (("|" + sys.argv[6]) if len(sys.argv) > 6 else ""))
 SKIP3 = re.compile(r"^(_|__|j_|nn::|std::|operator|\?|sub_|nullsub|unk_|loc_|\.|\$)")
 
 
@@ -73,6 +73,8 @@ for ea, (name, size, cs) in d360.items():
             continue
         shared = cs & c3
         if len(shared) < MIN_SHARED:
+            continue
+        if len(shared) == 1 and df.get(next(iter(shared)), 0) > 2:
             continue
         ws = sum(weight(c) for c in shared)
         wb = sum(weight(c) for c in c3)
