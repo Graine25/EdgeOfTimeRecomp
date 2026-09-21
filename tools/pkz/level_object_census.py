@@ -1,3 +1,4 @@
+import struct, mmap, sys, collections, re, os
 root = r'D:\EOT_Extract\extracted'
 def children(m, start, end):
     o = start
