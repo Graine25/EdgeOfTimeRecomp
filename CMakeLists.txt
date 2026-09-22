@@ -220,10 +220,7 @@ set(REEOT_SOURCES
     src/gpu/hooks/package_load.cpp
     src/gpu/patches/update_rate.cpp
     src/gpu/patches/aspect_ratio.cpp
-    src/gpu/patches/movie_aspect.cpp
-    src/gpu/patches/movie_decode.cpp
     src/gpu/patches/post_effects.cpp
-    src/gpu/patches/present_effects.cpp
     src/goliath/controller/pc_controls.cpp
     src/goliath/controller/pad_identity.cpp
     src/goliath/controller/button_glyphs.cpp
