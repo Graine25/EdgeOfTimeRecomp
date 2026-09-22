@@ -232,7 +232,6 @@ set(REEOT_SOURCES
     src/goliath/ui/hud_copy_guard.cpp
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
-    src/goliath/body_pulse_materials.cpp
     src/goliath/web_color.cpp
     src/goliath/text/glyph_pages.cpp
     src/gpu/taa.cpp
@@ -278,8 +277,7 @@ if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
-        src/gamelogic/patches/sd_bonus_suits.cpp
-        src/gamelogic/patches/sm2099_body_pulse.cpp
+        src/gamelogic/patches/game_patches.cpp
         src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/achievements_page.cpp
         src/gamelogic/input/input.cpp)
