@@ -22,3 +22,9 @@ private:
 };
 
 }
+
+namespace eot::gpu {
+
+bool TakeMovieDrawnFlag();
+
+}
