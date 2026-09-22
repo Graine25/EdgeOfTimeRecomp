@@ -15,176 +15,176 @@ out_directory_path = "generated/gamelogic"
 # IDA Generated
 0x880A0040 = { name = "eot_GameLogic_0001", size = 0x6EF0 }
 0x880A6F30 = { name = "eot_GameLogic_0002", size = 0x474 }
-0x880A7980 = { size = 0x154 }
-0x880A8178 = { size = 0x44 }
-0x880A8360 = { size = 0x18C }
-0x880A84F0 = { size = 0x8F4 }
+0x880A7980 = { name = "eot_GLInstanciateEnemy_Ghost2099", size = 0x154 }
+0x880A8178 = { name = "eot_Enemy_Ghost2099_CheckDamage_NoHeroDamage", size = 0x44 }
+0x880A8360 = { name = "eot_Enemy_Ghost2099_EnterGhost2099_Combo", size = 0x18C }
+0x880A84F0 = { name = "eot_Enemy_Ghost2099_UpdateGhost2099_Combo", size = 0x8F4 }
 0x880A8DE8 = { size = 0x4 }
-0x880A9AE0 = { size = 0x9C }
-0x880A9C38 = { size = 0x118 }
-0x880AA170 = { size = 0xFC }
-0x880AA908 = { size = 0x18C }
-0x880ACC20 = { size = 0x190 }
-0x880AD010 = { size = 0x134 }
-0x880ADCE8 = { size = 0xC0 }
-0x880ADDA8 = { size = 0xA0 }
-0x880AE1A0 = { size = 0xC0 }
-0x880AEE80 = { size = 0x1AC }
+0x880A9AE0 = { name = "eot_GLInstanciateBaseEnemiesInitializer", size = 0x9C }
+0x880A9C38 = { name = "eot_GLInstanciateEnemyExtraDataLoader", size = 0x118 }
+0x880AA170 = { name = "eot_GLInstanciateEnemyBaseWeapon", size = 0xFC }
+0x880AA908 = { name = "eot_EnemyBaseWeapon_EnterThrown", size = 0x18C }
+0x880ACC20 = { name = "eot_GLInstanciateEnemyRangedWeapon", size = 0x190 }
+0x880AD010 = { name = "eot_EnemyRangedWeapon_UpdateShoot", size = 0x134 }
+0x880ADCE8 = { name = "eot_GLInstanciateBaseEnemiesControl", size = 0xC0 }
+0x880ADDA8 = { name = "eot_GLInstanciateEnemyMeleeWeapon", size = 0xA0 }
+0x880AE1A0 = { name = "eot_GLInstanciateEnemyEgg", size = 0xC0 }
+0x880AEE80 = { name = "eot_GLInstanciateEnemyHuman", size = 0x1AC }
 0x880AFAA8 = { size = 0x2F8 }
-0x880AFDA0 = { size = 0x78 }
-0x880B15F0 = { size = 0x158 }
-0x880B2618 = { size = 0xF8 }
-0x880B2A10 = { size = 0x128 }
-0x880B32D0 = { size = 0x1DC }
-0x880B34B0 = { size = 0x84 }
+0x880AFDA0 = { name = "eot_EnemyHuman_UpdateSideRoll", size = 0x78 }
+0x880B15F0 = { name = "eot_GLInstanciateEnemyCreatureMother", size = 0x158 }
+0x880B2618 = { name = "eot_GLInstanciateEnemiesCrcResolver", size = 0xF8 }
+0x880B2A10 = { name = "eot_GLInstanciateEnemy_Zombie", size = 0x128 }
+0x880B32D0 = { name = "eot_Enemy_Zombie_EnterZombie_FistAttack", size = 0x1DC }
+0x880B34B0 = { name = "eot_Enemy_Zombie_ExitZombie_FistAttack", size = 0x84 }
 0x880B3538 = { size = 0x44 }
-0x880B3580 = { size = 0x228 }
-0x880B37A8 = { size = 0x78 }
-0x880B3820 = { size = 0x80 }
-0x880B3CD8 = { size = 0xC8 }
-0x880B54A8 = { size = 0xF0 }
-0x880B5960 = { size = 0x188 }
-0x880B8900 = { size = 0x9C }
-0x880B8FE0 = { size = 0x10C }
-0x880B98D0 = { size = 0x3E8 }
-0x880BA850 = { size = 0x104 }
-0x880BAD78 = { size = 0x50 }
-0x880BB540 = { size = 0x98 }
-0x880BBD58 = { size = 0xD4 }
-0x880BBE30 = { size = 0x34C }
-0x880BC600 = { size = 0x2E0 }
+0x880B3580 = { name = "eot_Enemy_Zombie_EnterZombie_CartAttack", size = 0x228 }
+0x880B37A8 = { name = "eot_Enemy_Zombie_UpdateZombie_CartAttack", size = 0x78 }
+0x880B3820 = { name = "eot_Enemy_Zombie_ExitZombie_CartAttack", size = 0x80 }
+0x880B3CD8 = { name = "eot_GLInstanciateMissileHUD2099", size = 0xC8 }
+0x880B54A8 = { name = "eot_GLInstanciatePatternLoader", size = 0xF0 }
+0x880B5960 = { name = "eot_GLInstanciatePatternManager", size = 0x188 }
+0x880B8900 = { name = "eot_GLInstanciateGrabAttackOnBossHelper", size = 0x9C }
+0x880B8FE0 = { name = "eot_GLInstanciateArenaDoor", size = 0x10C }
+0x880B98D0 = { name = "eot_ArenaDoor_UpdateActive", size = 0x3E8 }
+0x880BA850 = { name = "eot_GLInstanciateEnemyHeavy", size = 0x104 }
+0x880BAD78 = { name = "eot_BaseEnemy_ExitTeleport", size = 0x50 }
+0x880BB540 = { name = "eot_GLInstanciateEnemyGrenade", size = 0x98 }
+0x880BBD58 = { name = "eot_EnemyGrenade_EnterExploding", size = 0xD4 }
+0x880BBE30 = { name = "eot_EnemyGrenade_UpdateExploding", size = 0x34C }
+0x880BC600 = { name = "eot_GLInstanciateArenaController", size = 0x2E0 }
 0x880BCC18 = { size = 0xA0 }
-0x880BCCD0 = { size = 0x4C }
-0x880BE248 = { size = 0x170 }
-0x880BEB30 = { size = 0x54 }
-0x880C2460 = { size = 0x78 }
-0x880C4520 = { size = 0xE8 }
-0x880C4620 = { size = 0xD8 }
-0x880C46F8 = { size = 0x40 }
-0x880C47D0 = { size = 0x74 }
-0x880C4848 = { size = 0x7C }
-0x880C60B0 = { size = 0x100 }
-0x880C67A8 = { size = 0xE8 }
-0x880C7398 = { size = 0xF8 }
-0x880C7BD0 = { size = 0xB4 }
-0x880C8068 = { size = 0xC0 }
-0x880C8128 = { size = 0x134 }
-0x880C8FC0 = { size = 0xD8 }
-0x880C9588 = { size = 0x1F4 }
-0x880C99E0 = { size = 0xA0 }
-0x880C9FE0 = { size = 0xBC }
-0x880CA2E8 = { size = 0x400 }
-0x880CAA58 = { size = 0x2FC }
-0x880CAD58 = { size = 0xE4 }
-0x880CAE40 = { size = 0xB0 }
+0x880BCCD0 = { name = "eot_ArenaController_UpdateActive", size = 0x4C }
+0x880BE248 = { name = "eot_GLInstanciateCombatManager", size = 0x170 }
+0x880BEB30 = { name = "eot_CombatManager_UpdateActive", size = 0x54 }
+0x880C2460 = { name = "eot_GLInstanciateSpawner", size = 0x78 }
+0x880C4520 = { name = "eot_Spawner_UpdateActive", size = 0xE8 }
+0x880C4620 = { name = "eot_Spawner_UpdatePendingOffCamera", size = 0xD8 }
+0x880C46F8 = { name = "eot_Spawner_EnterDelayedActive", size = 0x40 }
+0x880C47D0 = { name = "eot_Spawner_EnterActive", size = 0x74 }
+0x880C4848 = { name = "eot_Spawner_UpdatePendingPreSpawn", size = 0x7C }
+0x880C60B0 = { name = "eot_GLInstanciatePatrolPoint", size = 0x100 }
+0x880C67A8 = { name = "eot_GLInstanciateCamera3rdCombat", size = 0xE8 }
+0x880C7398 = { name = "eot_GLInstanciateEnemyCreature", size = 0xF8 }
+0x880C7BD0 = { name = "eot_EnemyCreature_EnterMutate", size = 0xB4 }
+0x880C8068 = { name = "eot_EnemyCreature_PlayRandomIdleAnimation", size = 0xC0 }
+0x880C8128 = { name = "eot_EnemyCreature_UpdateMutate", size = 0x134 }
+0x880C8FC0 = { name = "eot_GLInstanciateSpawnerVersatile", size = 0xD8 }
+0x880C9588 = { name = "eot_GLInstanciateEnemyZoneTrigger", size = 0x1F4 }
+0x880C99E0 = { name = "eot_EnemyZoneTrigger_UpdateActive", size = 0xA0 }
+0x880C9FE0 = { name = "eot_GLInstanciateEnemyShield", size = 0xBC }
+0x880CA2E8 = { name = "eot_GLInstanciateStealthSpawner", size = 0x400 }
+0x880CAA58 = { name = "eot_StealthSpawner_UpdateActive", size = 0x2FC }
+0x880CAD58 = { name = "eot_StealthSpawner_UpdateSuspended", size = 0xE4 }
+0x880CAE40 = { name = "eot_StealthSpawner_EnterExhausted", size = 0xB0 }
 0x880CBB40 = { size = 0x44 }
-0x880CBB88 = { size = 0x138 }
+0x880CBB88 = { name = "eot_GLInstanciateEnemy_BlackCat", size = 0x138 }
 0x880CDC98 = { size = 0x44 }
-0x880CDCE0 = { size = 0xA4 }
-0x880CE5F0 = { size = 0x88 }
-0x880CE678 = { size = 0x78 }
-0x880CE700 = { size = 0x8C }
-0x880CEA38 = { size = 0x2DC }
-0x880CED18 = { size = 0x1F4 }
-0x880CEF10 = { size = 0x1D0 }
-0x880CF100 = { size = 0x98 }
-0x880CF198 = { size = 0x8C }
-0x880CF228 = { size = 0x74 }
-0x880CF2A0 = { size = 0x1CC }
-0x880CF470 = { size = 0x19C }
-0x880CF610 = { size = 0x7C }
-0x880CF690 = { size = 0x4C }
-0x880CF6E0 = { size = 0xAC }
-0x880CF790 = { size = 0x94 }
-0x880CF828 = { size = 0x12C }
-0x880CFBD8 = { size = 0xD0 }
-0x880CFCA8 = { size = 0xF4 }
-0x880CFDD0 = { size = 0x28C }
-0x880D0068 = { size = 0x80 }
-0x880D00E8 = { size = 0x178 }
-0x880D0260 = { size = 0x368 }
+0x880CDCE0 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_SexyWalk", size = 0xA4 }
+0x880CE5F0 = { name = "eot_Enemy_BlackCat_EnterBlackCat_Berserk", size = 0x88 }
+0x880CE678 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_Berserk", size = 0x78 }
+0x880CE700 = { name = "eot_Enemy_BlackCat_EnterBlackCat_LeapAttackMissile", size = 0x8C }
+0x880CEA38 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_LeapAttackMissile", size = 0x2DC }
+0x880CED18 = { name = "eot_Enemy_BlackCat_EnterBlackCat_DashKick", size = 0x1F4 }
+0x880CEF10 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_DashKick", size = 0x1D0 }
+0x880CF100 = { name = "eot_Enemy_BlackCat_EnterBlackCat_CallTeamAttack", size = 0x98 }
+0x880CF198 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_CallTeamAttack", size = 0x8C }
+0x880CF228 = { name = "eot_Enemy_BlackCat_EnterBlackCat_TeamAttackKickSpidey", size = 0x74 }
+0x880CF2A0 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_TeamAttackKickSpidey", size = 0x1CC }
+0x880CF470 = { name = "eot_Enemy_BlackCat_EnterBlackCat_FrontFlipKick", size = 0x19C }
+0x880CF610 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_FrontFlipKick", size = 0x7C }
+0x880CF690 = { name = "eot_Enemy_BlackCat_EnterBlackCat_LaserGrab", size = 0x4C }
+0x880CF6E0 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_LaserGrab", size = 0xAC }
+0x880CF790 = { name = "eot_Enemy_BlackCat_EnterBlackCat_TeleportHurt", size = 0x94 }
+0x880CF828 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_TeleportHurt", size = 0x12C }
+0x880CFBD8 = { name = "eot_Enemy_BlackCat_EnterBlackCat_TeleportBackToSpawn", size = 0xD0 }
+0x880CFCA8 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_TeleportBackToSpawn", size = 0xF4 }
+0x880CFDD0 = { name = "eot_Enemy_BlackCat_EnterBlackCat_EvadeAttack", size = 0x28C }
+0x880D0068 = { name = "eot_Enemy_BlackCat_ExitBlackCat_EvadeAttack", size = 0x80 }
+0x880D00E8 = { name = "eot_Enemy_BlackCat_EnterBlackCat_FrontFlipKicker", size = 0x178 }
+0x880D0260 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_FrontFlipKicker", size = 0x368 }
 0x880D05C8 = { size = 0xB0 }
-0x880D0678 = { size = 0x14C }
-0x880D07C8 = { size = 0x78 }
-0x880D0840 = { size = 0x2A0 }
-0x880D0AE0 = { size = 0x62C }
-0x880D1110 = { size = 0x9C }
-0x880D11B0 = { size = 0x4C }
-0x880D1200 = { size = 0xAC }
-0x880D12C8 = { size = 0xE8 }
-0x880D13B0 = { size = 0x32C }
-0x880D16E0 = { size = 0x37C }
+0x880D0678 = { name = "eot_Enemy_BlackCat_EnterBlackCat_DashForward", size = 0x14C }
+0x880D07C8 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_DashForward", size = 0x78 }
+0x880D0840 = { name = "eot_Enemy_BlackCat_EnterBlackCat_DoubleHitCombo", size = 0x2A0 }
+0x880D0AE0 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_DoubleHitCombo", size = 0x62C }
+0x880D1110 = { name = "eot_Enemy_BlackCat_ExitBlackCat_DoubleHitCombo", size = 0x9C }
+0x880D11B0 = { name = "eot_Enemy_BlackCat_EnterBlackCat_Grab", size = 0x4C }
+0x880D1200 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_Grab", size = 0xAC }
+0x880D12C8 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_PrepareLeapAttack_A", size = 0xE8 }
+0x880D13B0 = { name = "eot_Enemy_BlackCat_EnterBlackCat_LeapAttackA", size = 0x32C }
+0x880D16E0 = { name = "eot_Enemy_BlackCat_UpdateBlackCat_LeapAttackA", size = 0x37C }
 0x880D1A60 = { size = 0x1F4 }
-0x880D1C58 = { size = 0x128 }
-0x880DA6B0 = { size = 0x1F0 }
-0x880DA8A0 = { size = 0x110 }
-0x880DA9B0 = { size = 0x130 }
-0x880DAAE0 = { size = 0xB0 }
-0x880DAB90 = { size = 0x70 }
-0x880DB068 = { size = 0x150 }
+0x880D1C58 = { name = "eot_Enemy_BlackCat_ExitBlackCat_LeapAttack_A", size = 0x128 }
+0x880DA6B0 = { name = "eot_BaseEnemy_EnterWebImpale", size = 0x1F0 }
+0x880DA8A0 = { name = "eot_BaseEnemy_UpdateSpawning", size = 0x110 }
+0x880DA9B0 = { name = "eot_BaseEnemy_ExitSpawning", size = 0x130 }
+0x880DAAE0 = { name = "eot_BaseEnemy_EnterSpawningSearch", size = 0xB0 }
+0x880DAB90 = { name = "eot_BaseEnemy_UpdateSpawningSearch", size = 0x70 }
+0x880DB068 = { name = "eot_BaseEnemy_UpdateWebStrike", size = 0x150 }
 0x880DB1E8 = { size = 0x2C }
-0x880DB328 = { size = 0x100 }
+0x880DB328 = { name = "eot_BaseEnemy_ExitCombatHurt", size = 0x100 }
 0x880DB448 = { size = 0x44 }
 0x880DB578 = { size = 0x2A8 }
-0x880DB820 = { size = 0x17C }
-0x880DB9A0 = { size = 0x78 }
-0x880DBA18 = { size = 0x158 }
-0x880DBB70 = { size = 0x290 }
-0x880DBE00 = { size = 0xF8 }
-0x880DBEF8 = { size = 0x2C8 }
-0x880DC1C0 = { size = 0xD0 }
-0x880DC290 = { size = 0x1F0 }
-0x880DC480 = { size = 0x224 }
-0x880DC6A8 = { size = 0xBC }
-0x880DC768 = { size = 0x78 }
-0x880DC7E0 = { size = 0x78 }
-0x880DC858 = { size = 0x368 }
-0x880DCBC0 = { size = 0xFC }
-0x880DCCC0 = { size = 0xBC }
-0x880DCD80 = { size = 0x80 }
-0x880DCE00 = { size = 0x60 }
-0x880DCE98 = { size = 0x90 }
-0x880DCF28 = { size = 0xC }
-0x880DCF38 = { size = 0x90 }
+0x880DB820 = { name = "eot_BaseEnemy_UpdateCombatHurtPushBack", size = 0x17C }
+0x880DB9A0 = { name = "eot_BaseEnemy_ExitCombatHurtPushBack", size = 0x78 }
+0x880DBA18 = { name = "eot_BaseEnemy_EnterCombatHurtKnockBack", size = 0x158 }
+0x880DBB70 = { name = "eot_BaseEnemy_UpdateCombatHurtKnockBack", size = 0x290 }
+0x880DBE00 = { name = "eot_BaseEnemy_EnterCombatHurtAerialKnockBack", size = 0xF8 }
+0x880DBEF8 = { name = "eot_BaseEnemy_UpdateCombatHurtAerialKnockBack", size = 0x2C8 }
+0x880DC1C0 = { name = "eot_BaseEnemy_ExitCombatHurtAerialKnockBack", size = 0xD0 }
+0x880DC290 = { name = "eot_BaseEnemy_EnterCombatHurtAirLaunch", size = 0x1F0 }
+0x880DC480 = { name = "eot_BaseEnemy_UpdateCombatHurtAirLaunch", size = 0x224 }
+0x880DC6A8 = { name = "eot_BaseEnemy_ExitCombatHurtAirLaunch", size = 0xBC }
+0x880DC768 = { name = "eot_BaseEnemy_EnterCombatHurtAttackCountered", size = 0x78 }
+0x880DC7E0 = { name = "eot_BaseEnemy_UpdateCombatHurtAttackCountered", size = 0x78 }
+0x880DC858 = { name = "eot_BaseEnemy_EnterCombatHurtAerial", size = 0x368 }
+0x880DCBC0 = { name = "eot_BaseEnemy_UpdateCombatHurtAerial", size = 0xFC }
+0x880DCCC0 = { name = "eot_BaseEnemy_ExitCombatHurtAerial", size = 0xBC }
+0x880DCD80 = { name = "eot_BaseEnemy_EnterCombatHurtAerialFall", size = 0x80 }
+0x880DCE00 = { name = "eot_BaseEnemy_UpdateCombatHurtAerialFall", size = 0x60 }
+0x880DCE98 = { name = "eot_BaseEnemy_UpdateCombatAware", size = 0x90 }
+0x880DCF28 = { name = "eot_BaseEnemy_ExitCombatAware", size = 0xC }
+0x880DCF38 = { name = "eot_BaseEnemy_EnterCombatHurtStuck", size = 0x90 }
 0x880DCFC8 = { size = 0x34C }
-0x880DD518 = { size = 0x9C }
-0x880DD5B8 = { size = 0x98 }
-0x880DD650 = { size = 0x84 }
+0x880DD518 = { name = "eot_BaseEnemy_EnterPunchedLand", size = 0x9C }
+0x880DD5B8 = { name = "eot_BaseEnemy_EnterCombatOrderIdle", size = 0x98 }
+0x880DD650 = { name = "eot_BaseEnemy_UpdateCombatOrderIdle", size = 0x84 }
 0x880DD8D8 = { size = 0xD8 }
-0x880DD9B0 = { size = 0x368 }
-0x880DE4D0 = { size = 0xBC }
-0x880DEE48 = { size = 0xAC }
-0x880DEEF8 = { size = 0x17C }
+0x880DD9B0 = { name = "eot_BaseEnemy_UpdateCombatMove", size = 0x368 }
+0x880DE4D0 = { name = "eot_BaseEnemy_ExitCombatMove", size = 0xBC }
+0x880DEE48 = { name = "eot_BaseEnemy_EnterCombatAttack", size = 0xAC }
+0x880DEEF8 = { name = "eot_BaseEnemy_ExitCombatAttack", size = 0x17C }
 0x880DF078 = { size = 0x1B8 }
-0x880DF230 = { size = 0x118 }
-0x880DF348 = { size = 0x6C }
-0x880DF3B8 = { size = 0x1B4 }
-0x880DF570 = { size = 0x1C8 }
-0x880DF738 = { size = 0xA8 }
-0x880DF948 = { size = 0x44 }
-0x880E03C8 = { size = 0x78 }
-0x880E0440 = { size = 0x1E0 }
-0x880E0620 = { size = 0x20C }
-0x880E0830 = { size = 0x40 }
+0x880DF230 = { name = "eot_BaseEnemy_UpdatePatrolMoveToInitialPos", size = 0x118 }
+0x880DF348 = { name = "eot_BaseEnemy_ExitRagdollDeath", size = 0x6C }
+0x880DF3B8 = { name = "eot_BaseEnemy_EnterSpawnMoveToInitialPos", size = 0x1B4 }
+0x880DF570 = { name = "eot_BaseEnemy_UpdateSpawnMoveToInitialPos", size = 0x1C8 }
+0x880DF738 = { name = "eot_BaseEnemy_ExitSpawnMoveToInitialPos", size = 0xA8 }
+0x880DF948 = { name = "eot_BaseEnemy_PreUpdatePatrol", size = 0x44 }
+0x880E03C8 = { name = "eot_BaseEnemy_ExitPatrolMove", size = 0x78 }
+0x880E0440 = { name = "eot_BaseEnemy_EnterPatrolEvent", size = 0x1E0 }
+0x880E0620 = { name = "eot_BaseEnemy_UpdatePatrolEvent", size = 0x20C }
+0x880E0830 = { name = "eot_BaseEnemy_ExitPatrolMoveToInitialPos", size = 0x40 }
 0x880E0870 = { size = 0x11C }
-0x880E0990 = { size = 0x84 }
-0x880E0A40 = { size = 0xA8 }
+0x880E0990 = { name = "eot_BaseEnemy_UpdatePatrolPoint", size = 0x84 }
+0x880E0A40 = { name = "eot_BaseEnemy_EnterPatrolIdle", size = 0xA8 }
 0x880E0B00 = { size = 0x170 }
 0x880E0C70 = { size = 0xAC }
 0x880E0D20 = { size = 0xD4 }
-0x880E0DF8 = { size = 0xD8 }
-0x880E0ED0 = { size = 0x9C }
-0x880E0F70 = { size = 0x194 }
+0x880E0DF8 = { name = "eot_BaseEnemy_UpdatePunchedLand", size = 0xD8 }
+0x880E0ED0 = { name = "eot_BaseEnemy_ExitAerialCloseGrabIn", size = 0x9C }
+0x880E0F70 = { name = "eot_BaseEnemy_EnterAerialHurtKnockDown", size = 0x194 }
 0x880E1108 = { size = 0x3F0 }
-0x880E1538 = { size = 0x354 }
-0x880E1890 = { size = 0x1B4 }
-0x880E1A48 = { size = 0x5C }
-0x880E1AA8 = { size = 0x2D0 }
-0x880E1D78 = { size = 0x2B0 }
-0x880E2028 = { size = 0x14C }
-0x880E2370 = { size = 0x258 }
+0x880E1538 = { name = "eot_BaseEnemy_EnterCombatHurtSmall", size = 0x354 }
+0x880E1890 = { name = "eot_BaseEnemy_UpdateCombatHurtSmall", size = 0x1B4 }
+0x880E1A48 = { name = "eot_BaseEnemy_ExitCombatHurtSmall", size = 0x5C }
+0x880E1AA8 = { name = "eot_BaseEnemy_EnterCombatHurtTimeParadox", size = 0x2D0 }
+0x880E1D78 = { name = "eot_BaseEnemy_UpdateCombatHurtTimeParadox", size = 0x2B0 }
+0x880E2028 = { name = "eot_BaseEnemy_ExitCombatHurtTimeParadox", size = 0x14C }
+0x880E2370 = { name = "eot_BaseEnemy_UpdateWebSlamOuch", size = 0x258 }
 0x880E25C8 = { size = 0x2F0 }
-0x880E28B8 = { size = 0x5C }
+0x880E28B8 = { name = "eot_BaseEnemy_ExitWebSlamOuch", size = 0x5C }
 0x880E2918 = { size = 0x1A8 }
 0x880E2AC0 = { size = 0x254 }
 0x880E2D18 = { size = 0x128 }
@@ -192,7 +192,7 @@ out_directory_path = "generated/gamelogic"
 0x880E2E98 = { size = 0x168 }
 0x880E3000 = { size = 0xEC }
 0x880E30F0 = { size = 0x74 }
-0x880E3168 = { size = 0x24C }
+0x880E3168 = { name = "eot_BaseEnemy_EnterAerialWebPull", size = 0x24C }
 0x880E33B8 = { size = 0x84 }
 0x880E3440 = { size = 0x88 }
 0x880E34C8 = { size = 0x178 }
@@ -200,55 +200,55 @@ out_directory_path = "generated/gamelogic"
 0x880E3898 = { size = 0x60 }
 0x880E38F8 = { size = 0x34C }
 0x880E3C48 = { size = 0x2DC }
-0x880E3F28 = { size = 0x3DC }
+0x880E3F28 = { name = "eot_BaseEnemy_EnterDead", size = 0x3DC }
 0x880E4308 = { size = 0x2AC }
-0x880E45B8 = { size = 0x218 }
-0x880E47D0 = { size = 0x298 }
-0x880E4A68 = { size = 0xE4 }
-0x880E4B50 = { size = 0xA4 }
-0x880E4BF8 = { size = 0x140 }
-0x880E4D80 = { size = 0x164 }
-0x880E4EE8 = { size = 0x1E0 }
-0x880E50C8 = { size = 0x1C }
-0x880E50E8 = { size = 0x14C }
-0x880E5238 = { size = 0x88 }
-0x880E5558 = { size = 0x2D4 }
-0x880E5830 = { size = 0x21C }
-0x880E5A50 = { size = 0x70 }
-0x880E5AC0 = { size = 0x140 }
-0x880E5C00 = { size = 0xD0 }
-0x880E5CD8 = { size = 0x78 }
-0x880E5D50 = { size = 0x74 }
-0x880E6380 = { size = 0x13C }
-0x880E64C0 = { size = 0x2A8 }
-0x880E6768 = { size = 0xD4 }
-0x880E6840 = { size = 0x13C }
-0x880E6980 = { size = 0x16C }
-0x880E6AF0 = { size = 0x7C }
-0x880E6B70 = { size = 0x94 }
-0x880E6C08 = { size = 0x78 }
-0x880E6C80 = { size = 0x1A4 }
-0x880E6E28 = { size = 0x134 }
-0x880E6F60 = { size = 0x230 }
-0x880E7190 = { size = 0x284 }
-0x880E7418 = { size = 0x94 }
-0x880E74B0 = { size = 0xC0 }
-0x880E7570 = { size = 0xB4 }
-0x880E7628 = { size = 0x8C }
-0x880E76B8 = { size = 0x78 }
-0x880E7730 = { size = 0x94 }
-0x880E77C8 = { size = 0x88 }
+0x880E45B8 = { name = "eot_BaseEnemy_EnterWebBlinded", size = 0x218 }
+0x880E47D0 = { name = "eot_BaseEnemy_UpdateWebBlinded", size = 0x298 }
+0x880E4A68 = { name = "eot_BaseEnemy_ExitWebBlinded", size = 0xE4 }
+0x880E4B50 = { name = "eot_BaseEnemy_EnterCombatStunned", size = 0xA4 }
+0x880E4BF8 = { name = "eot_BaseEnemy_UpdateCombatStunned", size = 0x140 }
+0x880E4D80 = { name = "eot_BaseEnemy_EnterCombatMezzed", size = 0x164 }
+0x880E4EE8 = { name = "eot_BaseEnemy_UpdateCombatMezzed", size = 0x1E0 }
+0x880E50C8 = { name = "eot_BaseEnemy_ExitCombatMezzed", size = 0x1C }
+0x880E50E8 = { name = "eot_BaseEnemy_EnterImpactGround", size = 0x14C }
+0x880E5238 = { name = "eot_BaseEnemy_UpdateImpactGround", size = 0x88 }
+0x880E5558 = { name = "eot_BaseEnemy_EnterSpawning", size = 0x2D4 }
+0x880E5830 = { name = "eot_BaseEnemy_UpdateDeathIn", size = 0x21C }
+0x880E5A50 = { name = "eot_BaseEnemy_UpdateStandUp", size = 0x70 }
+0x880E5AC0 = { name = "eot_BaseEnemy_EnterWebStrike", size = 0x140 }
+0x880E5C00 = { name = "eot_BaseEnemy_ExitWebGrabbed", size = 0xD0 }
+0x880E5CD8 = { name = "eot_BaseEnemy_UpdateOnGround", size = 0x78 }
+0x880E5D50 = { name = "eot_BaseEnemy_DisableFriction", size = 0x74 }
+0x880E6380 = { name = "eot_BaseEnemy_UpdateWebGrabPunch", size = 0x13C }
+0x880E64C0 = { name = "eot_BaseEnemy_UpdateJumpDown", size = 0x2A8 }
+0x880E6768 = { name = "eot_BaseEnemy_ExitJumpDown", size = 0xD4 }
+0x880E6840 = { name = "eot_BaseEnemy_EnterFall", size = 0x13C }
+0x880E6980 = { name = "eot_BaseEnemy_UpdateFall", size = 0x16C }
+0x880E6AF0 = { name = "eot_BaseEnemy_ExitFall", size = 0x7C }
+0x880E6B70 = { name = "eot_BaseEnemy_EnterLand", size = 0x94 }
+0x880E6C08 = { name = "eot_BaseEnemy_UpdateLand", size = 0x78 }
+0x880E6C80 = { name = "eot_BaseEnemy_EnterBlock", size = 0x1A4 }
+0x880E6E28 = { name = "eot_BaseEnemy_UpdateBlock", size = 0x134 }
+0x880E6F60 = { name = "eot_BaseEnemy_EnterThrownLand", size = 0x230 }
+0x880E7190 = { name = "eot_BaseEnemy_UpdateThrownLand", size = 0x284 }
+0x880E7418 = { name = "eot_BaseEnemy_ExitThrownLand", size = 0x94 }
+0x880E74B0 = { name = "eot_BaseEnemy_EnterOnGround", size = 0xC0 }
+0x880E7570 = { name = "eot_BaseEnemy_DeactivateAttackCol", size = 0xB4 }
+0x880E7628 = { name = "eot_BaseEnemy_EnterStandUp", size = 0x8C }
+0x880E76B8 = { name = "eot_BaseEnemy_ExitAerialWebPullIn", size = 0x78 }
+0x880E7730 = { name = "eot_BaseEnemy_ExitStandUp", size = 0x94 }
+0x880E77C8 = { name = "eot_BaseEnemy_UpdateAerialWebPull", size = 0x88 }
 0x880E7850 = { size = 0xAC }
 0x880E7900 = { size = 0xE0 }
-0x880E79E0 = { size = 0x5C }
-0x880E7A40 = { size = 0xBC }
+0x880E79E0 = { name = "eot_BaseEnemy_EnterRagdollRecovery", size = 0x5C }
+0x880E7A40 = { name = "eot_BaseEnemy_UpdateRagdollRecovery", size = 0xBC }
 0x880E7D10 = { size = 0x178 }
 0x880E7E88 = { size = 0xA8 }
 0x880E7F30 = { size = 0x98 }
-0x880E7FC8 = { size = 0x1DC }
-0x880E81A8 = { size = 0x534 }
-0x880E9460 = { size = 0x144 }
-0x880E95A8 = { size = 0x144 }
+0x880E7FC8 = { name = "eot_BaseEnemy_EnterOutOfZoneMoveBackToInitialPos", size = 0x1DC }
+0x880E81A8 = { name = "eot_BaseEnemy_UpdateOutOfZoneMoveBackToInitialPos", size = 0x534 }
+0x880E9460 = { name = "eot_BaseEnemy_EnterMoveBackFromAttack", size = 0x144 }
+0x880E95A8 = { name = "eot_BaseEnemy_UpdateMoveBackFromAttack", size = 0x144 }
 0x880E96F0 = { size = 0x78 }
 0x880E9768 = { size = 0x8C }
 0x880E97F8 = { size = 0xAC }
@@ -257,7 +257,7 @@ out_directory_path = "generated/gamelogic"
 0x880E9E98 = { size = 0xA4 }
 0x880E9F40 = { size = 0xE4 }
 0x880EA028 = { size = 0x1D8 }
-0x880EA200 = { size = 0xBC }
+0x880EA200 = { name = "eot_BaseEnemy_ExitWebStrikeCounter", size = 0xBC }
 0x880EA2C0 = { size = 0x1FC }
 0x880EA4C0 = { size = 0x208 }
 0x880EA6C8 = { size = 0x60 }
@@ -266,176 +266,176 @@ out_directory_path = "generated/gamelogic"
 0x880EA8D0 = { size = 0x44 }
 0x880EA918 = { size = 0x64 }
 0x880EA980 = { size = 0x78 }
-0x880EA9F8 = { size = 0xAC }
-0x880EAAA8 = { size = 0x28 }
-0x880EAAD0 = { size = 0xC4 }
+0x880EA9F8 = { name = "eot_BaseEnemy_EnterGrabbedThrowIn", size = 0xAC }
+0x880EAAA8 = { name = "eot_BaseEnemy_UpdateGrabbedThrowIn", size = 0x28 }
+0x880EAAD0 = { name = "eot_BaseEnemy_ExitGrabbedThrowIn", size = 0xC4 }
 0x880EAB98 = { size = 0x460 }
-0x880EAFF8 = { size = 0x64 }
-0x880EB060 = { size = 0x8C }
-0x880EB0F0 = { size = 0x18C }
-0x880EB280 = { size = 0x240 }
+0x880EAFF8 = { name = "eot_BaseEnemy_UpdateGrabbedThrow", size = 0x64 }
+0x880EB060 = { name = "eot_BaseEnemy_ExitGrabbedThrow", size = 0x8C }
+0x880EB0F0 = { name = "eot_BaseEnemy_EnterWebGrabbed", size = 0x18C }
+0x880EB280 = { name = "eot_BaseEnemy_UpdateThrownOnTarget", size = 0x240 }
 0x880EB4C0 = { size = 0xC0 }
-0x880EB580 = { size = 0x144 }
+0x880EB580 = { name = "eot_BaseEnemy_EnterWebGrabPunch", size = 0x144 }
 0x880EB6C8 = { size = 0xA8 }
-0x880EB770 = { size = 0x98 }
+0x880EB770 = { name = "eot_BaseEnemy_ExitWebGrabPunch", size = 0x98 }
 0x880EB808 = { size = 0x98 }
 0x880EB8A0 = { size = 0xF4 }
-0x880EB998 = { size = 0x1A8 }
+0x880EB998 = { name = "eot_BaseEnemy_EnterWebGrabWebAttack", size = 0x1A8 }
 0x880EBB40 = { size = 0x94 }
-0x880EBBD8 = { size = 0x7C }
+0x880EBBD8 = { name = "eot_BaseEnemy_ExitWebGrabWebAttack", size = 0x7C }
 0x880ECFA0 = { size = 0x560 }
 0x880ED500 = { size = 0x238 }
 0x880F2458 = { size = 0x7C }
 0x880F24D8 = { size = 0x7C }
 0x880F8D40 = { size = 0x4 }
-0x880F8D48 = { size = 0x130 }
-0x88105618 = { size = 0x16C }
+0x880F8D48 = { name = "eot_BaseAI_HandleTimer", size = 0x130 }
+0x88105618 = { name = "eot_GrabModule_EnterGrabIntro", size = 0x16C }
 0x88105788 = { size = 0x44 }
-0x881057D0 = { size = 0x8C8 }
-0x88106098 = { size = 0x13C }
-0x881061D8 = { size = 0x348 }
-0x88106520 = { size = 0x4C8 }
-0x881069E8 = { size = 0xC4 }
-0x88106AB0 = { size = 0x124 }
-0x88106BD8 = { size = 0xC8 }
-0x88106CA0 = { size = 0x88 }
-0x88106D28 = { size = 0x70 }
-0x88106D98 = { size = 0xC0 }
-0x881074E8 = { size = 0x174 }
-0x88107660 = { size = 0x94 }
-0x881076F8 = { size = 0x84 }
-0x88107780 = { size = 0x1A8 }
-0x88107928 = { size = 0x78 }
-0x881079A0 = { size = 0x190 }
-0x88107B30 = { size = 0xC2C }
-0x88108760 = { size = 0x1C8 }
-0x88108BC0 = { size = 0x64 }
-0x88108C28 = { size = 0x224 }
+0x881057D0 = { name = "eot_GrabModule_UpdatePostPhysicGrabIntro", size = 0x8C8 }
+0x88106098 = { name = "eot_GrabModule_ExitGrabIntro", size = 0x13C }
+0x881061D8 = { name = "eot_GrabModule_EnterGrabbed", size = 0x348 }
+0x88106520 = { name = "eot_GrabModule_UpdateGrabbed", size = 0x4C8 }
+0x881069E8 = { name = "eot_GrabModule_ExitGrabbed", size = 0xC4 }
+0x88106AB0 = { name = "eot_GrabModule_EnterGrabThrown", size = 0x124 }
+0x88106BD8 = { name = "eot_GrabModule_UpdateGrabThrown", size = 0xC8 }
+0x88106CA0 = { name = "eot_GrabModule_ExitGrabThrown", size = 0x88 }
+0x88106D28 = { name = "eot_GrabModule_EnterGrabLostTarget", size = 0x70 }
+0x88106D98 = { name = "eot_GrabModule_UpdateGrabLostTarget", size = 0xC0 }
+0x881074E8 = { name = "eot_EnemyHuman_EnterLaserBot_AirLauncher", size = 0x174 }
+0x88107660 = { name = "eot_EnemyHuman_UpdateLaserBot_AirLauncher", size = 0x94 }
+0x881076F8 = { name = "eot_EnemyHuman_ExitLaserBot_AirLauncher", size = 0x84 }
+0x88107780 = { name = "eot_EnemyHuman_EnterDashMoveSpecial", size = 0x1A8 }
+0x88107928 = { name = "eot_EnemyHuman_UpdateDashMoveSpecial", size = 0x78 }
+0x881079A0 = { name = "eot_EnemyHuman_EnterLaserBot_DoTAttackD", size = 0x190 }
+0x88107B30 = { name = "eot_EnemyHuman_UpdateLaserBot_DoTAttackD", size = 0xC2C }
+0x88108760 = { name = "eot_EnemyHuman_ExitLaserBot_DoTAttackD", size = 0x1C8 }
+0x88108BC0 = { name = "eot_EnemyHuman_EnterCleanerDashMoveSpecial", size = 0x64 }
+0x88108C28 = { name = "eot_EnemyHuman_UpdateCleanerDashMoveSpecial", size = 0x224 }
 0x88108E50 = { size = 0x8 }
-0x88108E58 = { size = 0xC8 }
-0x88108F20 = { size = 0xAC }
-0x88108FD0 = { size = 0xAC }
-0x88109080 = { size = 0x48 }
+0x88108E58 = { name = "eot_EnemyHuman_EnterCleaner_AerialAttack", size = 0xC8 }
+0x88108F20 = { name = "eot_EnemyHuman_EnterCleaner_Grab", size = 0xAC }
+0x88108FD0 = { name = "eot_EnemyHuman_UpdateCleaner_Grab", size = 0xAC }
+0x88109080 = { name = "eot_EnemyHuman_ExitCleaner_Grab", size = 0x48 }
 0x881099D0 = { size = 0x158 }
 0x88109B28 = { size = 0x310 }
-0x88109E38 = { size = 0x90 }
-0x88109EC8 = { size = 0xF4 }
+0x88109E38 = { name = "eot_EnemyHuman_InitClassLaserBot", size = 0x90 }
+0x88109EC8 = { name = "eot_EnemyHuman_UnInitClassRanger", size = 0xF4 }
 0x88109FC0 = { size = 0x234 }
 0x8810A1F8 = { size = 0x168 }
 0x8810A360 = { size = 0x25C }
-0x8810A5C0 = { size = 0x414 }
+0x8810A5C0 = { name = "eot_EnemyHuman_EnterStunner_StunAttack", size = 0x414 }
 0x8810A9D8 = { size = 0x360 }
-0x8810AD38 = { size = 0x264 }
-0x8810AFA0 = { size = 0xB0 }
+0x8810AD38 = { name = "eot_EnemyHuman_ExitStunner_StunAttack", size = 0x264 }
+0x8810AFA0 = { name = "eot_EnemyHuman_UnInitClassAndroid", size = 0xB0 }
 0x8810B050 = { size = 0x78 }
 0x8810B0C8 = { size = 0xEC }
 0x8810B1B8 = { size = 0x354 }
-0x8810B510 = { size = 0xC8 }
-0x8810BEF0 = { size = 0x68 }
-0x8810BF58 = { size = 0x26C }
-0x8810C1C8 = { size = 0x514 }
-0x8810C6E0 = { size = 0x154 }
-0x8810CA00 = { size = 0x15C }
-0x8810CB60 = { size = 0x164 }
-0x8810CD20 = { size = 0xF0 }
-0x8810CE10 = { size = 0x70 }
-0x8810D048 = { size = 0x1E8 }
-0x8810D230 = { size = 0x4F8 }
-0x8810D728 = { size = 0xAC }
-0x8810D7D8 = { size = 0xE8 }
-0x8810D8C0 = { size = 0x3CC }
-0x8810DC90 = { size = 0x100 }
-0x8810DD90 = { size = 0x74 }
-0x8810E298 = { size = 0x18C }
-0x8810E428 = { size = 0x420 }
-0x8810E848 = { size = 0xC0 }
-0x8810E908 = { size = 0xE8 }
-0x8810E9F0 = { size = 0x41C }
-0x8810EE10 = { size = 0x5F4 }
-0x8810F408 = { size = 0x1DC }
-0x8810F5E8 = { size = 0x1E8 }
-0x8810F7D0 = { size = 0x128 }
-0x8810F8F8 = { size = 0xF0 }
-0x8810F9E8 = { size = 0x128 }
-0x8810FB10 = { size = 0x104 }
-0x8810FC18 = { size = 0xFC }
+0x8810B510 = { name = "eot_EnemyHuman_ExitSMAStandard_AvoidWebShotRollA", size = 0xC8 }
+0x8810BEF0 = { name = "eot_EnemyHuman_ExitGunner_PATROLAttackB", size = 0x68 }
+0x8810BF58 = { name = "eot_EnemyHuman_EnterGunner_HoverAttack", size = 0x26C }
+0x8810C1C8 = { name = "eot_EnemyHuman_UpdateGunner_HoverAttack", size = 0x514 }
+0x8810C6E0 = { name = "eot_EnemyHuman_ExitGunner_HoverAttack", size = 0x154 }
+0x8810CA00 = { name = "eot_EnemyHuman_EnterBlocker_QuickBash", size = 0x15C }
+0x8810CB60 = { name = "eot_EnemyHuman_UpdateBlocker_QuickBash", size = 0x164 }
+0x8810CD20 = { name = "eot_EnemyHuman_EnterBlocker_GuardBreaker", size = 0xF0 }
+0x8810CE10 = { name = "eot_EnemyHuman_UpdateCleaner_AerialAttack", size = 0x70 }
+0x8810D048 = { name = "eot_EnemyHuman_EnterAndroid_AttackB", size = 0x1E8 }
+0x8810D230 = { name = "eot_EnemyHuman_UpdateAndroid_AttackB", size = 0x4F8 }
+0x8810D728 = { name = "eot_EnemyHuman_ExitAndroid_AttackB", size = 0xAC }
+0x8810D7D8 = { name = "eot_EnemyHuman_EnterAndroid_ThrowGrenade", size = 0xE8 }
+0x8810D8C0 = { name = "eot_EnemyHuman_UpdateAndroid_ThrowGrenade", size = 0x3CC }
+0x8810DC90 = { name = "eot_EnemyHuman_PostUpdateAndroid_ThrowGrenade", size = 0x100 }
+0x8810DD90 = { name = "eot_EnemyHuman_ExitAndroid_ThrowGrenade", size = 0x74 }
+0x8810E298 = { name = "eot_EnemyHuman_EnterBasher_MoveToAttackA", size = 0x18C }
+0x8810E428 = { name = "eot_EnemyHuman_UpdateBasher_MoveToAttackA", size = 0x420 }
+0x8810E848 = { name = "eot_Enemy_BlackCat_EnterBlackCat_PrepareLeapAttack_A", size = 0xC0 }
+0x8810E908 = { name = "eot_EnemyHuman_UpdateBasher_PrepareLeapAttack_A", size = 0xE8 }
+0x8810E9F0 = { name = "eot_EnemyHuman_EnterBasher_LeapAttackA", size = 0x41C }
+0x8810EE10 = { name = "eot_EnemyHuman_UpdateBasher_LeapAttackA", size = 0x5F4 }
+0x8810F408 = { name = "eot_EnemyHuman_Basher_CancelDamageGhostNear", size = 0x1DC }
+0x8810F5E8 = { name = "eot_EnemyHuman_ExitBasher_LeapAttack_A", size = 0x1E8 }
+0x8810F7D0 = { name = "eot_EnemyHuman_EnterBasher_LeapAttackCountered", size = 0x128 }
+0x8810F8F8 = { name = "eot_EnemyHuman_UpdateBasher_LeapAttackCountered", size = 0xF0 }
+0x8810F9E8 = { name = "eot_EnemyHuman_EnterBasher_StickAttackB", size = 0x128 }
+0x8810FB10 = { name = "eot_EnemyHuman_UpdateBasher_StickAttackB", size = 0x104 }
+0x8810FC18 = { name = "eot_EnemyHuman_ExitBasher_StickAttackB", size = 0xFC }
 0x8810FD18 = { size = 0x170 }
-0x881105F8 = { size = 0x1A0 }
-0x88110798 = { size = 0x3E4 }
-0x88110B80 = { size = 0x6C }
-0x88110BF0 = { size = 0x168 }
-0x88110D58 = { size = 0x9D4 }
-0x88111878 = { size = 0x68 }
+0x881105F8 = { name = "eot_EnemyHuman_EnterRanger_RangedMoveToAttackA", size = 0x1A0 }
+0x88110798 = { name = "eot_EnemyHuman_UpdateRanger_RangedMoveToAttackA", size = 0x3E4 }
+0x88110B80 = { name = "eot_EnemyHuman_ExitRanger_RangedMoveToAttackA", size = 0x6C }
+0x88110BF0 = { name = "eot_EnemyHuman_EnterRanger_PrepareRocketShootA", size = 0x168 }
+0x88110D58 = { name = "eot_EnemyHuman_UpdateRanger_PrepareRocketShootA", size = 0x9D4 }
+0x88111878 = { name = "eot_EnemyHuman_ExitRanger_PATROLPrepareRocketShootA", size = 0x68 }
 0x88111900 = { size = 0x3A0 }
-0x88111CA8 = { size = 0x178 }
-0x88111E20 = { size = 0x94 }
-0x88111EF0 = { size = 0x134 }
-0x88112028 = { size = 0x9A0 }
-0x881129C8 = { size = 0x128 }
-0x88113120 = { size = 0x1FC }
-0x88113320 = { size = 0x3BC }
-0x881136E0 = { size = 0x70 }
-0x88113750 = { size = 0x21C }
-0x88113970 = { size = 0x350 }
-0x88113CC0 = { size = 0x1F8 }
+0x88111CA8 = { name = "eot_EnemyHuman_EnterRanger_RangedBashC", size = 0x178 }
+0x88111E20 = { name = "eot_EnemyHuman_UpdateRanger_RangedBashC", size = 0x94 }
+0x88111EF0 = { name = "eot_EnemyHuman_EnterRanger_HoverAttack", size = 0x134 }
+0x88112028 = { name = "eot_EnemyHuman_UpdateRanger_HoverAttack", size = 0x9A0 }
+0x881129C8 = { name = "eot_EnemyHuman_ExitRanger_HoverAttack", size = 0x128 }
+0x88113120 = { name = "eot_EnemyCreatureMother_EnterMother_FistAttack", size = 0x1FC }
+0x88113320 = { name = "eot_EnemyCreatureMother_UpdateMother_FistAttack", size = 0x3BC }
+0x881136E0 = { name = "eot_EnemyCreatureMother_ExitMother_FistAttack", size = 0x70 }
+0x88113750 = { name = "eot_EnemyCreatureMother_EnterMother_LeapAttack", size = 0x21C }
+0x88113970 = { name = "eot_EnemyCreatureMother_UpdateMother_LeapAttack", size = 0x350 }
+0x88113CC0 = { name = "eot_EnemyCreatureMother_ExitMother_LeapAttack", size = 0x1F8 }
 0x88113EB8 = { size = 0x114 }
 0x88113FD0 = { size = 0xF0 }
-0x881140C0 = { size = 0xB0 }
-0x88114170 = { size = 0x134 }
-0x881142A8 = { size = 0x78 }
+0x881140C0 = { name = "eot_EnemyCreatureMother_EnterMother_CombatHurtBlock", size = 0xB0 }
+0x88114170 = { name = "eot_EnemyCreatureMother_EnterMother_StunAttack", size = 0x134 }
+0x881142A8 = { name = "eot_EnemyCreatureMother_UpdateMother_StunAttack", size = 0x78 }
 0x88114320 = { size = 0x104 }
 0x88114428 = { size = 0x1E4 }
-0x88114610 = { size = 0x650 }
+0x88114610 = { name = "eot_EnemyCreatureMother_UpdateMotherElectricAura", size = 0x650 }
 0x88114C60 = { size = 0x70 }
 0x88114E98 = { size = 0x68 }
 0x88114F00 = { size = 0x6C }
 0x88115098 = { size = 0x8C }
 0x88115128 = { size = 0x8 }
 0x88115130 = { name = "eot_Heavy_ShootA", size = 0x430 }
-0x881158C8 = { size = 0xF0 }
-0x881159B8 = { size = 0x118 }
-0x88115AD0 = { size = 0x78 }
-0x88115B48 = { size = 0xC4 }
-0x88115C10 = { size = 0x7C }
+0x881158C8 = { name = "eot_EnemyHeavy_EnterBerserkerMissileLaunch", size = 0xF0 }
+0x881159B8 = { name = "eot_EnemyHeavy_EnterBerserkerSpinAttack", size = 0x118 }
+0x88115AD0 = { name = "eot_EnemyHeavy_UpdateBerserkerSpinAttack", size = 0x78 }
+0x88115B48 = { name = "eot_EnemyHeavy_EnterBerserkerBerserkMode", size = 0xC4 }
+0x88115C10 = { name = "eot_EnemyHeavy_EnterBerserkerMultiMissileLaunch", size = 0x7C }
 0x88115C90 = { name = "eot_Heavy_MultiMissileUpdate", size = 0x1D0 }
-0x88116028 = { size = 0x148 }
-0x881164D8 = { size = 0x148 }
-0x88116620 = { size = 0x78 }
-0x88116698 = { size = 0x10C }
-0x881167A8 = { size = 0x110 }
-0x881168B8 = { size = 0xDC }
-0x88116998 = { size = 0x110 }
-0x88116AA8 = { size = 0x18C }
-0x88116C38 = { size = 0x78 }
+0x88116028 = { name = "eot_EnemyHeavy_SpinAttackAnimEndCallBack", size = 0x148 }
+0x881164D8 = { name = "eot_EnemyHeavy_EnterCrasherHugeStrike", size = 0x148 }
+0x88116620 = { name = "eot_EnemyHeavy_UpdateCrasherHugeStrike", size = 0x78 }
+0x88116698 = { name = "eot_EnemyHeavy_EnterCrasherStikeLeft", size = 0x10C }
+0x881167A8 = { name = "eot_EnemyHeavy_UpdateCrasherStikeLeft", size = 0x110 }
+0x881168B8 = { name = "eot_EnemyHeavy_EnterCrasherStrikeRight", size = 0xDC }
+0x88116998 = { name = "eot_EnemyHeavy_UpdateCrasherStrikeRight", size = 0x110 }
+0x88116AA8 = { name = "eot_EnemyHeavy_EnterCrasherStompAttack", size = 0x18C }
+0x88116C38 = { name = "eot_EnemyHeavy_UpdateCrasherStompAttack", size = 0x78 }
 0x88116CB0 = { size = 0xB8 }
-0x88118038 = { size = 0x1C4 }
-0x88118200 = { size = 0x14C }
-0x88118360 = { size = 0x2D4 }
-0x88118638 = { size = 0x198 }
-0x881187D0 = { size = 0x78 }
-0x88118848 = { size = 0xCC }
-0x88118918 = { size = 0x12C }
-0x88118A48 = { size = 0xA8 }
-0x88118AF0 = { size = 0x78 }
-0x88118B68 = { size = 0xEC }
-0x88118C58 = { size = 0x88 }
-0x88118CE0 = { size = 0x78 }
-0x88119668 = { size = 0xE4 }
-0x88119750 = { size = 0xD8 }
-0x88119D40 = { size = 0x1C0 }
-0x88119F00 = { size = 0xB8 }
-0x88119FB8 = { size = 0x1E4 }
-0x8811A1A0 = { size = 0x94 }
-0x8811A238 = { size = 0x104 }
-0x8811A340 = { size = 0xDC }
-0x8811A430 = { size = 0x1A8 }
-0x8811A5D8 = { size = 0x3AC }
+0x88118038 = { name = "eot_EnemyCreature_EnterHatchling_PerchedToGround_0", size = 0x1C4 }
+0x88118200 = { name = "eot_EnemyCreature_UpdateHatchling_PerchedToGround_0", size = 0x14C }
+0x88118360 = { name = "eot_EnemyCreature_EnterHatchling_Perched", size = 0x2D4 }
+0x88118638 = { name = "eot_EnemyCreature_UpdateHatchling_Perched", size = 0x198 }
+0x881187D0 = { name = "eot_EnemyCreature_ExitHatchling_Perched", size = 0x78 }
+0x88118848 = { name = "eot_EnemyCreature_UpdateHatchling_HatchlingAwaitingOrder", size = 0xCC }
+0x88118918 = { name = "eot_EnemyCreature_EnterHatchling_RangePerchFire", size = 0x12C }
+0x88118A48 = { name = "eot_EnemyCreature_UpdateHatchling_RangePerchFire", size = 0xA8 }
+0x88118AF0 = { name = "eot_EnemyCreature_ExitHatchling_RangePerchFire", size = 0x78 }
+0x88118B68 = { name = "eot_EnemyCreature_EnterHatchling_RangeGroundFire", size = 0xEC }
+0x88118C58 = { name = "eot_EnemyCreature_UpdateHatchling_RangeGroundFire", size = 0x88 }
+0x88118CE0 = { name = "eot_EnemyCreature_ExitHatchling_RangeGroundFire", size = 0x78 }
+0x88119668 = { name = "eot_EnemyCreature_EnterHatchling_TriggerBerserk", size = 0xE4 }
+0x88119750 = { name = "eot_EnemyCreature_UpdateHatchling_TriggerBerserk", size = 0xD8 }
+0x88119D40 = { name = "eot_EnemyCreature_EnterInfantEvo2099_Explode", size = 0x1C0 }
+0x88119F00 = { name = "eot_EnemyCreature_UpdateInfantEvo2099_Explode", size = 0xB8 }
+0x88119FB8 = { name = "eot_EnemyCreature_EnterInfantEvo2099_FistAttack", size = 0x1E4 }
+0x8811A1A0 = { name = "eot_Enemy_Zombie_UpdateZombie_FistAttack", size = 0x94 }
+0x8811A238 = { name = "eot_EnemyCreature_EnterInfantEvo2099_PreExplode", size = 0x104 }
+0x8811A340 = { name = "eot_EnemyCreature_UpdateInfantEvo2099_PreExplode", size = 0xDC }
+0x8811A430 = { name = "eot_EnemyCreature_EnterInfantEvo2099_RunToAggressor", size = 0x1A8 }
+0x8811A5D8 = { name = "eot_EnemyCreature_UpdateInfantEvo2099_RunToAggressor", size = 0x3AC }
 0x8811B260 = { size = 0x7C }
-0x8811B2E0 = { size = 0x38C }
+0x8811B2E0 = { name = "eot_BlackCatLaserGrabModule_UpdateGrabIntro", size = 0x38C }
 0x8811B670 = { size = 0x80 }
-0x8811C028 = { size = 0xC0 }
+0x8811C028 = { name = "eot_WebStunnedModule_EnterWebbed", size = 0xC0 }
 0x8811C0E8 = { size = 0xCC }
-0x8811D450 = { size = 0x1F8 }
+0x8811D450 = { name = "eot_WebImpaleModule_EnterWebImpaleIntro", size = 0x1F8 }
 0x8811D648 = { size = 0x240 }
 0x8811D888 = { size = 0x40 }
 0x8811D8D0 = { size = 0xC }
@@ -446,166 +446,166 @@ out_directory_path = "generated/gamelogic"
 0x88120028 = { size = 0xF0 }
 0x88120118 = { size = 0x1A4 }
 0x881202C0 = { size = 0x68 }
-0x88120600 = { size = 0x78 }
-0x88121318 = { size = 0x6C }
-0x88121430 = { size = 0xAC }
-0x881214E0 = { size = 0xFC }
-0x881215E0 = { size = 0x5A0 }
-0x88121B80 = { size = 0x2CC }
-0x88121E50 = { size = 0x11C }
-0x88121F70 = { size = 0x118 }
-0x88122088 = { size = 0xFC }
-0x88122188 = { size = 0x254 }
-0x881223E0 = { size = 0x184 }
-0x88122568 = { size = 0xB8 }
-0x88123A80 = { size = 0x390 }
+0x88120600 = { name = "eot_GLInstanciateSchmuSpot", size = 0x78 }
+0x88121318 = { name = "eot_SchmuSpot_EnterCooldown", size = 0x6C }
+0x88121430 = { name = "eot_SchmuSpot_EnterActive", size = 0xAC }
+0x881214E0 = { name = "eot_SchmuSpot_UpdateActive", size = 0xFC }
+0x881215E0 = { name = "eot_SchmuSpot_EnterSMTrapped", size = 0x5A0 }
+0x88121B80 = { name = "eot_SchmuSpot_UpdateSMTrapped", size = 0x2CC }
+0x88121E50 = { name = "eot_SchmuSpot_ExitSMTrapped", size = 0x11C }
+0x88121F70 = { name = "eot_SchmuSpot_EnterRecalled", size = 0x118 }
+0x88122088 = { name = "eot_SchmuSpot_UpdateRecalled", size = 0xFC }
+0x88122188 = { name = "eot_SchmuSpot_EnterFlying", size = 0x254 }
+0x881223E0 = { name = "eot_SchmuSpot_UpdateFlying", size = 0x184 }
+0x88122568 = { name = "eot_SchmuSpot_EnterAVSucked", size = 0xB8 }
+0x88123A80 = { name = "eot_GLInstanciateDamageZone", size = 0x390 }
 0x88124098 = { size = 0x4C }
-0x881240E8 = { size = 0x94 }
+0x881240E8 = { name = "eot_DamageZone_StartObjStateUpdateTimer", size = 0x94 }
 0x881242D8 = { size = 0x48 }
-0x88125988 = { size = 0x138 }
-0x88125D78 = { size = 0xEC }
-0x88125ED8 = { size = 0x144 }
-0x88127130 = { size = 0x280 }
-0x88127548 = { size = 0x230 }
-0x88127AC8 = { size = 0x78 }
-0x88128530 = { size = 0x8C }
+0x88125988 = { name = "eot_GLInstanciateRotatingStand", size = 0x138 }
+0x88125D78 = { name = "eot_GLInstanciateGameChronometer", size = 0xEC }
+0x88125ED8 = { name = "eot_GLInstanciateWebZipNode", size = 0x144 }
+0x88127130 = { name = "eot_GLInstanciatePromptFinish", size = 0x280 }
+0x88127548 = { name = "eot_PromptFinish_UpdateActive", size = 0x230 }
+0x88127AC8 = { name = "eot_GLInstanciateHUDGoalReminder", size = 0x78 }
+0x88128530 = { name = "eot_HUDGoalReminder_EnterInitialDelay", size = 0x8C }
 0x881285C0 = { size = 0xF8 }
-0x881286B8 = { size = 0x1E0 }
+0x881286B8 = { name = "eot_HUDGoalReminder_EnterActive", size = 0x1E0 }
 0x88128898 = { size = 0x128 }
 0x881289C0 = { size = 0x15C }
-0x88128B30 = { size = 0xCC }
-0x88128C00 = { size = 0x78 }
-0x88128CC0 = { size = 0xDC }
-0x88129778 = { size = 0x330 }
-0x88129B18 = { size = 0x5C }
-0x88129B78 = { size = 0x5C }
-0x8812A6B8 = { size = 0x10C }
-0x8812AD30 = { size = 0x114 }
-0x8812B090 = { size = 0x19C }
-0x8812C520 = { size = 0x314 }
+0x88128B30 = { name = "eot_HUDGoalReminder_UpdateInitialDelay", size = 0xCC }
+0x88128C00 = { name = "eot_HUDGoalReminder_EnterDisabled", size = 0x78 }
+0x88128CC0 = { name = "eot_HUDGoalReminder_UpdateHUDAnim", size = 0xDC }
+0x88129778 = { name = "eot_GLInstanciateBattleArenaControl", size = 0x330 }
+0x88129B18 = { name = "eot_BattleArenaControl_UpdateActive", size = 0x5C }
+0x88129B78 = { name = "eot_BattleArenaControl_EnterFinished", size = 0x5C }
+0x8812A6B8 = { name = "eot_GLInstanciateSplineStand", size = 0x10C }
+0x8812AD30 = { name = "eot_GLInstanciateAoeManager", size = 0x114 }
+0x8812B090 = { name = "eot_AoeManager_UpdateActive", size = 0x19C }
+0x8812C520 = { name = "eot_GLInstanciateButtonTip", size = 0x314 }
 0x8812C908 = { size = 0xCC }
 0x8812C9D8 = { size = 0x1C4 }
 0x8812CBA0 = { size = 0x1A0 }
 0x8812CD40 = { size = 0x1B8 }
-0x8812D078 = { size = 0x104 }
-0x8812DF98 = { size = 0xD8 }
-0x8812E508 = { size = 0x328 }
+0x8812D078 = { name = "eot_GLInstanciateHUDGenericTimer", size = 0x104 }
+0x8812DF98 = { name = "eot_GLInstanciateDamageSurface", size = 0xD8 }
+0x8812E508 = { name = "eot_GLInstanciateSlammerTentacle", size = 0x328 }
 0x8812ECF0 = { size = 0x184 }
-0x8812F6D0 = { size = 0x29C }
-0x8812FCA8 = { size = 0x174 }
-0x881306D8 = { size = 0x33C }
-0x88130F88 = { size = 0x348 }
-0x881312F0 = { size = 0x25C }
-0x88132650 = { size = 0xD4 }
-0x881329F8 = { size = 0x1EC }
-0x88132DE8 = { size = 0xD8 }
-0x881330D8 = { size = 0x168 }
-0x88134580 = { size = 0x1B8 }
-0x88134808 = { size = 0xE0 }
-0x881348E8 = { size = 0x7C }
-0x88134968 = { size = 0x60 }
-0x88134BA0 = { size = 0x1F4 }
+0x8812F6D0 = { name = "eot_GLInstanciateInLoopOutTentacle", size = 0x29C }
+0x8812FCA8 = { name = "eot_InLoopOutTentacle_EnterActive", size = 0x174 }
+0x881306D8 = { name = "eot_GLInstanciateHiddenSpider", size = 0x33C }
+0x88130F88 = { name = "eot_HiddenSpider_EnterPickUp", size = 0x348 }
+0x881312F0 = { name = "eot_HiddenSpider_UpdateTravelToHero", size = 0x25C }
+0x88132650 = { name = "eot_GLInstanciateHUDObjectiveCounter", size = 0xD4 }
+0x881329F8 = { name = "eot_GLInstanciateDebugGameText", size = 0x1EC }
+0x88132DE8 = { name = "eot_DebugGameText_EnterActive", size = 0xD8 }
+0x881330D8 = { name = "eot_GLInstanciateBaseStand", size = 0x168 }
+0x88134580 = { name = "eot_GLInstanciateLoadingTrigger", size = 0x1B8 }
+0x88134808 = { name = "eot_LoadingTrigger_EnterActive", size = 0xE0 }
+0x881348E8 = { name = "eot_LoadingTrigger_UpdateActive", size = 0x7C }
+0x88134968 = { name = "eot_LoadingTrigger_ExitActive", size = 0x60 }
+0x88134BA0 = { name = "eot_GLInstanciateButtonTrigger", size = 0x1F4 }
 0x88134F08 = { size = 0x108 }
 0x88135010 = { size = 0x178 }
 0x88135188 = { size = 0xA0 }
-0x88135900 = { size = 0x78 }
+0x88135900 = { name = "eot_GLInstanciateWebPP", size = 0x78 }
 0x881377A8 = { size = 0x38 }
-0x881377E0 = { size = 0x1F0 }
+0x881377E0 = { name = "eot_WebPP_EnterInactive", size = 0x1F0 }
 0x881379D0 = { size = 0x4C }
-0x88137A20 = { size = 0x270 }
-0x88137C90 = { size = 0x22C }
-0x88137EC0 = { size = 0x108 }
-0x88137FC8 = { size = 0x650 }
-0x88138618 = { size = 0x5A0 }
-0x88138BB8 = { size = 0x160 }
-0x88138D18 = { size = 0x1EC }
+0x88137A20 = { name = "eot_WebPP_EnterOpeningIntro", size = 0x270 }
+0x88137C90 = { name = "eot_WebPP_UpdateOpeningIntro", size = 0x22C }
+0x88137EC0 = { name = "eot_WebPP_ExitOpeningIntro", size = 0x108 }
+0x88137FC8 = { name = "eot_WebPP_EnterOpening", size = 0x650 }
+0x88138618 = { name = "eot_WebPP_UpdateOpening", size = 0x5A0 }
+0x88138BB8 = { name = "eot_WebPP_ExitOpening", size = 0x160 }
+0x88138D18 = { name = "eot_WebPP_EnterShutting", size = 0x1EC }
 0x88138F08 = { size = 0x3D8 }
-0x881392E0 = { size = 0x5C }
-0x88139340 = { size = 0x350 }
-0x88139690 = { size = 0x9C }
-0x8813BC40 = { size = 0x174 }
-0x8813D758 = { size = 0x13C }
+0x881392E0 = { name = "eot_WebPP_ExitShutting", size = 0x5C }
+0x88139340 = { name = "eot_WebPP_HeroIsInRange", size = 0x350 }
+0x88139690 = { name = "eot_WebPP_EnterOpened", size = 0x9C }
+0x8813BC40 = { name = "eot_GLInstanciateAnimatedObject", size = 0x174 }
+0x8813D758 = { name = "eot_AnimatedObject_EnterActive", size = 0x13C }
 0x8813DAA0 = { size = 0xE8 }
-0x8813E8B8 = { size = 0x10C }
-0x8813EF70 = { size = 0xF0 }
-0x8813F610 = { size = 0xD8 }
-0x881406E0 = { size = 0x78 }
+0x8813E8B8 = { name = "eot_GLInstanciateSpiderEssenceLauncher", size = 0x10C }
+0x8813EF70 = { name = "eot_GLInstanciateWebShotTarget", size = 0xF0 }
+0x8813F610 = { name = "eot_GLInstanciateStreamedLevelControl", size = 0xD8 }
+0x881406E0 = { name = "eot_GLInstanciateHUDTimeLine", size = 0x78 }
 0x88140EE0 = { size = 0x158 }
-0x881410D0 = { size = 0x3E8 }
+0x881410D0 = { name = "eot_HUDTimeLine_EnterIn", size = 0x3E8 }
 0x881414B8 = { size = 0x7C }
 0x88141538 = { size = 0x48 }
 0x88141580 = { size = 0xD0 }
 0x88141650 = { size = 0x74 }
 0x881416E8 = { size = 0xF8 }
 0x881417E0 = { size = 0x170 }
-0x88141F60 = { size = 0x9C }
-0x88142D00 = { size = 0x284 }
-0x88145510 = { size = 0x134 }
-0x881458D0 = { size = 0x78 }
-0x881461C0 = { size = 0x14 }
-0x881461D8 = { size = 0x148 }
+0x88141F60 = { name = "eot_GLInstanciateChunkHelper", size = 0x9C }
+0x88142D00 = { name = "eot_GLInstanciateTargetManager", size = 0x284 }
+0x88145510 = { name = "eot_GLInstanciateTutorialScreen", size = 0x134 }
+0x881458D0 = { name = "eot_GLInstanciateHUDPiPTimeLine", size = 0x78 }
+0x881461C0 = { name = "eot_HUDPiPTimeLine_EnterDisabled", size = 0x14 }
+0x881461D8 = { name = "eot_HUDPiPTimeLine_EnterInGameplay", size = 0x148 }
 0x88146320 = { size = 0x144 }
-0x88146468 = { size = 0xC4 }
+0x88146468 = { name = "eot_HUDPiPTimeLine_EnterInPiP", size = 0xC4 }
 0x88146530 = { size = 0xE0 }
-0x88146610 = { size = 0x50 }
+0x88146610 = { name = "eot_HUDPiPTimeLine_EnterActive", size = 0x50 }
 0x88146660 = { size = 0xD0 }
-0x88146758 = { size = 0xFC }
-0x88146BB8 = { size = 0x394 }
-0x88147538 = { size = 0x178 }
-0x881476B0 = { size = 0xB8 }
-0x88147768 = { size = 0x254 }
-0x881479C0 = { size = 0xDC }
-0x88147AD8 = { size = 0xC8 }
-0x88147BA0 = { size = 0x23C }
-0x881482A0 = { size = 0xF8 }
-0x88148538 = { size = 0xD4 }
-0x88148E98 = { size = 0x208 }
+0x88146758 = { name = "eot_HUDPiPTimeLine_UpdateOut", size = 0xFC }
+0x88146BB8 = { name = "eot_GLInstanciateHomingMine", size = 0x394 }
+0x88147538 = { name = "eot_HomingMine_EnterIdle", size = 0x178 }
+0x881476B0 = { name = "eot_HomingMine_UpdateIdle", size = 0xB8 }
+0x88147768 = { name = "eot_HomingMine_EnterTargetDetected", size = 0x254 }
+0x881479C0 = { name = "eot_HomingMine_PostUpdateTargetDetected", size = 0xDC }
+0x88147AD8 = { name = "eot_HomingMine_EnterHoming", size = 0xC8 }
+0x88147BA0 = { name = "eot_HomingMine_UpdateHoming", size = 0x23C }
+0x881482A0 = { name = "eot_GLInstanciateCooldownManager", size = 0xF8 }
+0x88148538 = { name = "eot_CooldownManager_UpdateActive", size = 0xD4 }
+0x88148E98 = { name = "eot_GLInstanciateHealthManager", size = 0x208 }
 0x88149338 = { size = 0x40 }
-0x88149378 = { size = 0x1D8 }
-0x8814A560 = { size = 0x17C }
+0x88149378 = { name = "eot_HealthManager_UpdateActive", size = 0x1D8 }
+0x8814A560 = { name = "eot_GLInstanciateBaseCannon", size = 0x17C }
 0x8814AD40 = { size = 0xFC }
-0x8814B538 = { size = 0x78 }
-0x8814BD90 = { size = 0x58 }
-0x8814BDE8 = { size = 0x3C }
-0x8814BE28 = { size = 0x2B8 }
-0x8814C0E0 = { size = 0xFC }
-0x8814C1E0 = { size = 0x350 }
-0x8814C530 = { size = 0x114 }
-0x8814C648 = { size = 0x308 }
-0x8814D0F0 = { size = 0x90 }
-0x8814D638 = { size = 0x138 }
-0x8814DD90 = { size = 0xB8 }
-0x8814E420 = { size = 0xF0 }
-0x8814E780 = { size = 0x130 }
-0x8814EA58 = { size = 0x110 }
-0x8814EDB0 = { size = 0x104 }
-0x8814F6F0 = { size = 0x3DC }
+0x8814B538 = { name = "eot_GLInstanciateKey", size = 0x78 }
+0x8814BD90 = { name = "eot_Key_EnterInactive", size = 0x58 }
+0x8814BDE8 = { name = "eot_Key_EnterActive", size = 0x3C }
+0x8814BE28 = { name = "eot_Key_UpdateActive", size = 0x2B8 }
+0x8814C0E0 = { name = "eot_Key_EnterTravel", size = 0xFC }
+0x8814C1E0 = { name = "eot_Key_UpdateTravel", size = 0x350 }
+0x8814C530 = { name = "eot_Key_EnterPickedUp", size = 0x114 }
+0x8814C648 = { name = "eot_Key_UpdatePickedUp", size = 0x308 }
+0x8814D0F0 = { name = "eot_GLInstanciatePiPNarrativeControl", size = 0x90 }
+0x8814D638 = { name = "eot_GLInstanciateHUDSpecialAttack", size = 0x138 }
+0x8814DD90 = { name = "eot_GLInstanciateSplineAnimatedObject", size = 0xB8 }
+0x8814E420 = { name = "eot_GLInstanciateSimpleCostumedObject", size = 0xF0 }
+0x8814E780 = { name = "eot_GLInstanciateSimpleHaloGameplayObj", size = 0x130 }
+0x8814EA58 = { name = "eot_GLInstanciateFacialVOTrigger", size = 0x110 }
+0x8814EDB0 = { name = "eot_GLInstanciateHUDDoorTimer", size = 0x104 }
+0x8814F6F0 = { name = "eot_GLInstanciatePiPWhiteFlash", size = 0x3DC }
 0x8814FB30 = { size = 0x140 }
 0x8814FC70 = { size = 0x138 }
 0x8814FDE0 = { size = 0xCC }
-0x8814FEB0 = { size = 0xCC }
-0x8814FF80 = { size = 0x94 }
-0x881503B0 = { size = 0x78 }
-0x88151180 = { size = 0x8C }
-0x88151210 = { size = 0x18C }
+0x8814FEB0 = { name = "eot_PiPWhiteFlash_UpdateFadeOut", size = 0xCC }
+0x8814FF80 = { name = "eot_PiPWhiteFlash_ExitFadeOut", size = 0x94 }
+0x881503B0 = { name = "eot_GLInstanciateCart", size = 0x78 }
+0x88151180 = { name = "eot_Cart_EnterIdle", size = 0x8C }
+0x88151210 = { name = "eot_Cart_EnterMoving", size = 0x18C }
 0x881513A0 = { size = 0xFC }
-0x881514A0 = { size = 0x64 }
-0x88151508 = { size = 0x114 }
-0x88151620 = { size = 0x138 }
-0x88151758 = { size = 0x54 }
-0x881517B0 = { size = 0x1D8 }
-0x88151988 = { size = 0x50 }
-0x881519D8 = { size = 0x9C }
-0x88153118 = { size = 0x1D4 }
+0x881514A0 = { name = "eot_Cart_ExitMoving", size = 0x64 }
+0x88151508 = { name = "eot_Cart_EnterObstacle", size = 0x114 }
+0x88151620 = { name = "eot_Cart_UpdateMoving", size = 0x138 }
+0x88151758 = { name = "eot_Cart_ExitObstacle", size = 0x54 }
+0x881517B0 = { name = "eot_Cart_EnterWaitingToPlug", size = 0x1D8 }
+0x88151988 = { name = "eot_Cart_EnterPlugged", size = 0x50 }
+0x881519D8 = { name = "eot_Cart_EnterDying", size = 0x9C }
+0x88153118 = { name = "eot_GLInstanciateTimerTrigger", size = 0x1D4 }
 0x88153400 = { size = 0x1C4 }
-0x88153D98 = { size = 0x98 }
-0x88154A38 = { size = 0x10C }
-0x88155AE8 = { size = 0xF4 }
-0x88155E30 = { size = 0x17C }
-0x881561B8 = { size = 0x330 }
-0x881569C8 = { size = 0x1B4 }
+0x88153D98 = { name = "eot_GLInstanciatePiPTVControl", size = 0x98 }
+0x88154A38 = { name = "eot_GLInstanciateCostumeManager", size = 0x10C }
+0x88155AE8 = { name = "eot_GLInstanciateRandomTimerTrigger", size = 0xF4 }
+0x88155E30 = { name = "eot_GLInstanciateDoTManager", size = 0x17C }
+0x881561B8 = { name = "eot_DoTManager_UpdateActive", size = 0x330 }
+0x881569C8 = { name = "eot_GLInstanciateTimeParadoxManager", size = 0x1B4 }
 0x88156ED8 = { size = 0x110 }
-0x88157730 = { size = 0x78 }
+0x88157730 = { name = "eot_GLInstanciateSoldierSIEGERocket", size = 0x78 }
 0x88158030 = { name = "eot_SiegeRocket_Launch", size = 0x35C }
 0x88201950 = { name = "eot_Camera3rd_ReadStick", size = 0x260 }
 0x881886D8 = { name = "eot_Projectile_Launch" }
@@ -617,8 +617,8 @@ out_directory_path = "generated/gamelogic"
 0x881879D0 = { name = "eot_Projectile_DirectEffect" }
 0x88115E60 = { name = "eot_Heavy_ShootB" }
 0x880D27E0 = { name = "eot_AI_IsAnimationCompleted" }
-0x88158390 = { size = 0x244 }
-0x881585D8 = { size = 0x6C }
+0x88158390 = { name = "eot_SoldierSIEGERocket_UpdateTrigger", size = 0x244 }
+0x881585D8 = { name = "eot_SoldierSIEGERocket_ExitTrigger", size = 0x6C }
 0x88158648 = { name = "eot_SiegeRocket_Tick", size = 0xD50 }
 0x88159D08 = { name = "eot_SiegeRocket_HandleMessage" }
 0x88159398 = { name = "eot_SiegeRocket_Explode" }
@@ -627,440 +627,440 @@ out_directory_path = "generated/gamelogic"
 0x88157F80 = { name = "eot_SiegeRocket_RemoveActive" }
 0x881598B8 = { name = "eot_SiegeRocket_OnCharacterContact" }
 0x88159A68 = { name = "eot_SiegeRocket_OnForceFieldContact" }
-0x8815A630 = { size = 0x2E0 }
-0x8815B040 = { size = 0xDC }
-0x8815B120 = { size = 0xD4 }
+0x8815A630 = { name = "eot_GLInstanciateReminderManager", size = 0x2E0 }
+0x8815B040 = { name = "eot_ReminderManager_CheckSpidersensePrecondition", size = 0xDC }
+0x8815B120 = { name = "eot_ReminderManager_CheckWebJumpPrecondition", size = 0xD4 }
 0x8815B278 = { size = 0x2B8 }
-0x8815B720 = { size = 0x78 }
-0x8815BDE0 = { size = 0xFC }
-0x8815BEE0 = { size = 0x58 }
-0x8815C2A0 = { size = 0x9C }
-0x8815C6F0 = { size = 0x110 }
-0x8815D040 = { size = 0x118 }
-0x8815D5C0 = { size = 0x2A8 }
-0x8815DCC0 = { size = 0x114 }
-0x8815DDD8 = { size = 0x6C }
-0x8815E298 = { size = 0x160 }
-0x8815EB18 = { size = 0x138 }
-0x88160090 = { size = 0x100 }
-0x881604F0 = { size = 0x398 }
-0x88161138 = { size = 0x178 }
-0x88161670 = { size = 0xF8 }
-0x88161F28 = { size = 0x20C }
-0x88162478 = { size = 0x218 }
-0x88163428 = { size = 0xE0 }
-0x88163BE0 = { size = 0xE4 }
-0x881641F8 = { size = 0x1EC }
-0x88164838 = { size = 0x9C }
-0x881649B0 = { size = 0xC8 }
-0x88164C68 = { size = 0x2D8 }
-0x88165958 = { size = 0x3C }
-0x88167570 = { size = 0x118 }
-0x88167B58 = { size = 0xB8 }
-0x88168D98 = { size = 0x78 }
-0x8816B308 = { size = 0x84 }
-0x8816B390 = { size = 0x8C }
-0x8816B420 = { size = 0x2A4 }
-0x8816B6C8 = { size = 0x70 }
-0x8816B738 = { size = 0x8C }
-0x8816B7C8 = { size = 0x180 }
-0x8816B948 = { size = 0x1F0 }
-0x8816BB38 = { size = 0x8C }
-0x8816BBC8 = { size = 0x3A4 }
-0x8816CC60 = { size = 0x1C8 }
+0x8815B720 = { name = "eot_GLInstanciateCollectible", size = 0x78 }
+0x8815BDE0 = { name = "eot_Collectible_UpdateActive", size = 0xFC }
+0x8815BEE0 = { name = "eot_Collectible_EnterPickedUp", size = 0x58 }
+0x8815C2A0 = { name = "eot_GLInstanciateEnemyGroupManager", size = 0x9C }
+0x8815C6F0 = { name = "eot_EnemyGroupManager_UpdateActive", size = 0x110 }
+0x8815D040 = { name = "eot_GLInstanciateObjectiveCounter", size = 0x118 }
+0x8815D5C0 = { name = "eot_GLInstanciateStaticMine", size = 0x2A8 }
+0x8815DCC0 = { name = "eot_StaticMine_EnterOpen", size = 0x114 }
+0x8815DDD8 = { name = "eot_StaticMine_ExitOpen", size = 0x6C }
+0x8815E298 = { name = "eot_GLInstanciateDialogManager", size = 0x160 }
+0x8815EB18 = { name = "eot_GLInstanciateSimpleScriptedEvents", size = 0x138 }
+0x88160090 = { name = "eot_GLInstanciatePickableManager", size = 0x100 }
+0x881604F0 = { name = "eot_PickableManager_UpdateActive", size = 0x398 }
+0x88161138 = { name = "eot_GLInstanciateEnvironmentDestructible", size = 0x178 }
+0x88161670 = { name = "eot_GLInstanciatePreparedCue", size = 0xF8 }
+0x88161F28 = { name = "eot_GLInstanciateSpecialAbilityManager", size = 0x20C }
+0x88162478 = { name = "eot_SpecialAbilityManager_UpdateActive", size = 0x218 }
+0x88163428 = { name = "eot_GLInstanciateLedgeRunSpline", size = 0xE0 }
+0x88163BE0 = { name = "eot_GLInstanciateExternalControlDummy", size = 0xE4 }
+0x881641F8 = { name = "eot_GLInstanciateCounterTrigger", size = 0x1EC }
+0x88164838 = { name = "eot_GLInstanciateGenericSectionControl", size = 0x9C }
+0x881649B0 = { name = "eot_GLInstanciateHUDWebPP", size = 0xC8 }
+0x88164C68 = { name = "eot_GLInstanciateSwitch", size = 0x2D8 }
+0x88165958 = { name = "eot_Switch_UpdateOff", size = 0x3C }
+0x88167570 = { name = "eot_GLInstanciateMultiTentacleManager", size = 0x118 }
+0x88167B58 = { name = "eot_MultiTentacleManager_UpdateHeaderActive", size = 0xB8 }
+0x88168D98 = { name = "eot_GLInstanciateWebRope", size = 0x78 }
+0x8816B308 = { name = "eot_WebRope_EnterStretching", size = 0x84 }
+0x8816B390 = { name = "eot_WebRope_UpdateStretching", size = 0x8C }
+0x8816B420 = { name = "eot_WebRope_UpdateStretchingAfterPhysic", size = 0x2A4 }
+0x8816B6C8 = { name = "eot_WebRope_EnterStretched", size = 0x70 }
+0x8816B738 = { name = "eot_WebRope_UpdateStretched", size = 0x8C }
+0x8816B7C8 = { name = "eot_WebRope_UpdateStretchedAfterPhysic", size = 0x180 }
+0x8816B948 = { name = "eot_WebRope_EnterFading", size = 0x1F0 }
+0x8816BB38 = { name = "eot_WebRope_UpdateFading", size = 0x8C }
+0x8816BBC8 = { name = "eot_WebRope_UpdateFadingAfterPhysic", size = 0x3A4 }
+0x8816CC60 = { name = "eot_GLInstanciateMultiTimerTrigger", size = 0x1C8 }
 0x8816D150 = { size = 0x1A8 }
-0x8816D748 = { size = 0x374 }
-0x8816F4E8 = { size = 0x78 }
-0x88170CB8 = { size = 0xC8 }
-0x88170D80 = { size = 0x80 }
-0x88170E00 = { size = 0x178 }
-0x88170F78 = { size = 0x10C }
-0x88171088 = { size = 0x94 }
-0x88171120 = { size = 0x118 }
-0x88171238 = { size = 0x28C }
-0x881714C8 = { size = 0x70 }
+0x8816D748 = { name = "eot_GLInstanciateHUDSpiderSense", size = 0x374 }
+0x8816F4E8 = { name = "eot_GLInstanciatePatrolStand", size = 0x78 }
+0x88170CB8 = { name = "eot_PatrolStand_ExitPreActive", size = 0xC8 }
+0x88170D80 = { name = "eot_PatrolStand_ActivateShield", size = 0x80 }
+0x88170E00 = { name = "eot_PatrolStand_EnterLostHero", size = 0x178 }
+0x88170F78 = { name = "eot_PatrolStand_UpdateLostHero", size = 0x10C }
+0x88171088 = { name = "eot_PatrolStand_UpdateScanning", size = 0x94 }
+0x88171120 = { name = "eot_PatrolStand_EnterWebBlind", size = 0x118 }
+0x88171238 = { name = "eot_PatrolStand_EnterWebBlindIn", size = 0x28C }
+0x881714C8 = { name = "eot_PatrolStand_SetNextWaitNode", size = 0x70 }
 0x88171710 = { size = 0x128 }
-0x88171838 = { size = 0x1F4 }
-0x88171AB8 = { size = 0x128 }
-0x88171BE0 = { size = 0xC0 }
-0x88171CA0 = { size = 0x50 }
-0x88171CF0 = { size = 0xC }
-0x88171D98 = { size = 0xF4 }
-0x88171E90 = { size = 0x120 }
-0x88174450 = { size = 0x2A4 }
-0x88174AB0 = { size = 0x170 }
-0x88174C20 = { size = 0xE4 }
-0x88174D08 = { size = 0x118 }
-0x881752F0 = { size = 0xC8 }
-0x88175EB0 = { size = 0x10C }
-0x881765F0 = { size = 0x78 }
-0x88176C78 = { size = 0xD0 }
-0x88176D48 = { size = 0x2A8 }
-0x88176FF0 = { size = 0x58 }
-0x88177060 = { size = 0x90 }
-0x88177B38 = { size = 0xAC }
-0x881784C0 = { size = 0x118 }
-0x88178818 = { size = 0x1F4 }
-0x88178E80 = { size = 0x120 }
-0x881793A0 = { size = 0x140 }
-0x88179F88 = { size = 0x3A8 }
-0x8817A510 = { size = 0xCC }
+0x88171838 = { name = "eot_PatrolStand_UpdatePreActive", size = 0x1F4 }
+0x88171AB8 = { name = "eot_PatrolStand_EnterWebBlindOut", size = 0x128 }
+0x88171BE0 = { name = "eot_PatrolStand_ForwardHitResult", size = 0xC0 }
+0x88171CA0 = { name = "eot_PatrolStand_UpdateWebBlindLoop", size = 0x50 }
+0x88171CF0 = { name = "eot_TrackingStand_EnterWebBlindIn", size = 0xC }
+0x88171D98 = { name = "eot_PatrolStand_PreUpdateWebBlind", size = 0xF4 }
+0x88171E90 = { name = "eot_PatrolStand_InitTargetSplineData", size = 0x120 }
+0x88174450 = { name = "eot_GLInstanciateSimpleDamageObject", size = 0x2A4 }
+0x88174AB0 = { name = "eot_SimpleDamageObject_UpdateInactive", size = 0x170 }
+0x88174C20 = { name = "eot_SimpleDamageObject_EnterInactive", size = 0xE4 }
+0x88174D08 = { name = "eot_SimpleDamageObject_UpdateActive", size = 0x118 }
+0x881752F0 = { name = "eot_GLInstanciatePiPDangerControl", size = 0xC8 }
+0x88175EB0 = { name = "eot_GLInstanciateFlameThrower", size = 0x10C }
+0x881765F0 = { name = "eot_GLInstanciateDestructibleChunk", size = 0x78 }
+0x88176C78 = { name = "eot_DestructibleChunk_EnterActive", size = 0xD0 }
+0x88176D48 = { name = "eot_DestructibleChunk_UpdateActive", size = 0x2A8 }
+0x88176FF0 = { name = "eot_DestructibleChunk_ExitActive", size = 0x58 }
+0x88177060 = { name = "eot_DestructibleChunk_UpdateFadeOut", size = 0x90 }
+0x88177B38 = { name = "eot_GLInstanciateSimple3DObjAnimated", size = 0xAC }
+0x881784C0 = { name = "eot_GLInstanciateRainChunkSpawnerManager", size = 0x118 }
+0x88178818 = { name = "eot_RainChunkSpawnerManager_EnterActive", size = 0x1F4 }
+0x88178E80 = { name = "eot_GLInstanciateHUDTutorialHints", size = 0x120 }
+0x881793A0 = { name = "eot_GLInstanciateHUDCombatSpider", size = 0x140 }
+0x88179F88 = { name = "eot_GLInstanciateSimpleCamMoment", size = 0x3A8 }
+0x8817A510 = { name = "eot_SimpleCamMoment_EnterIdle", size = 0xCC }
 0x8817A5E0 = { size = 0xA0 }
 0x8817A680 = { size = 0xD8 }
 0x8817A758 = { size = 0xB8 }
-0x8817ADC0 = { size = 0x2C4 }
+0x8817ADC0 = { name = "eot_GLInstanciatePickDropObject", size = 0x2C4 }
 0x8817B510 = { size = 0x4C }
-0x8817B848 = { size = 0x10C }
+0x8817B848 = { name = "eot_PickDropObject_EnterPlayAnim", size = 0x10C }
 0x8817B958 = { size = 0x38 }
-0x8817C0F0 = { size = 0x214 }
-0x8817C368 = { size = 0x270 }
-0x8817C978 = { size = 0x2CC }
-0x8817E408 = { size = 0x1FC }
-0x8817E930 = { size = 0x118 }
-0x8817F090 = { size = 0x408 }
+0x8817C0F0 = { name = "eot_GLInstanciateFXMatAnimByDistance", size = 0x214 }
+0x8817C368 = { name = "eot_FXMatAnimByDistance_UpdateActive", size = 0x270 }
+0x8817C978 = { name = "eot_GLInstanciateLaser", size = 0x2CC }
+0x8817E408 = { name = "eot_GLInstanciateZoneTrigger", size = 0x1FC }
+0x8817E930 = { name = "eot_ZoneTrigger_UpdateActive", size = 0x118 }
+0x8817F090 = { name = "eot_GLInstanciateInteractiveObject", size = 0x408 }
 0x8817FF68 = { size = 0xAC }
 0x88180018 = { size = 0xB8 }
 0x881800D0 = { size = 0x18 }
-0x88181AA8 = { size = 0x9C }
-0x88182B48 = { size = 0xF8 }
-0x881834D8 = { size = 0xF0 }
-0x88183BB8 = { size = 0x108 }
-0x88183EF8 = { size = 0x144 }
-0x88184A38 = { size = 0x12C }
-0x88184E48 = { size = 0x198 }
-0x88185468 = { size = 0xC8 }
-0x88185888 = { size = 0x178 }
-0x88189898 = { size = 0xF8 }
-0x8818A4E8 = { size = 0x1C4 }
-0x8818AAD8 = { size = 0x140 }
-0x8818B040 = { size = 0xE8 }
-0x8818B2A0 = { size = 0xEC }
-0x8818B558 = { size = 0x284 }
-0x8818C098 = { size = 0x324 }
+0x88181AA8 = { name = "eot_InteractiveObject_HandleAoeDot", size = 0x9C }
+0x88182B48 = { name = "eot_GLInstanciateVacuumManager", size = 0xF8 }
+0x881834D8 = { name = "eot_GLInstanciateEnvironmentManager", size = 0xF0 }
+0x88183BB8 = { name = "eot_GLInstanciateFXEnvForceFieldManager", size = 0x108 }
+0x88183EF8 = { name = "eot_GLInstanciateHUDTimeParadoxFlux", size = 0x144 }
+0x88184A38 = { name = "eot_GLInstanciateHUDFlash", size = 0x12C }
+0x88184E48 = { name = "eot_GLInstanciateDestructibleChunkManager", size = 0x198 }
+0x88185468 = { name = "eot_GLInstanciateHUDComboInput", size = 0xC8 }
+0x88185888 = { name = "eot_GLInstanciateSimpleProjectile", size = 0x178 }
+0x88189898 = { name = "eot_GLInstanciateAntiGravityManager", size = 0xF8 }
+0x8818A4E8 = { name = "eot_GLInstanciateDamageSurfaceManager", size = 0x1C4 }
+0x8818AAD8 = { name = "eot_DamageSurfaceManager_UpdateDamage", size = 0x140 }
+0x8818B040 = { name = "eot_GLInstanciateHUDGameTimer", size = 0xE8 }
+0x8818B2A0 = { name = "eot_GLInstanciateSyncObjGroup", size = 0xEC }
+0x8818B558 = { name = "eot_GLInstanciateDelayedHitManager", size = 0x284 }
+0x8818C098 = { name = "eot_GLInstanciateDestructible", size = 0x324 }
 0x8818CC38 = { size = 0x12C }
 0x8818CD68 = { size = 0x44 }
-0x8818CDB0 = { size = 0x1DC }
-0x8818DC48 = { size = 0x1C8 }
-0x8818DF28 = { size = 0xD8 }
-0x8818E000 = { size = 0x184 }
-0x8818E2C8 = { size = 0x78 }
+0x8818CDB0 = { name = "eot_Destructible_EnterExploded", size = 0x1DC }
+0x8818DC48 = { name = "eot_GLInstanciateHomingMineIndicator", size = 0x1C8 }
+0x8818DF28 = { name = "eot_HomingMineIndicator_EnterActive", size = 0xD8 }
+0x8818E000 = { name = "eot_HomingMineIndicator_UpdateActive", size = 0x184 }
+0x8818E2C8 = { name = "eot_GLInstanciateSecurityDoor", size = 0x78 }
 0x8818FF28 = { size = 0xA8 }
-0x8818FFD0 = { size = 0x138 }
+0x8818FFD0 = { name = "eot_SecurityDoor_IsObjInFront", size = 0x138 }
 0x88190108 = { size = 0x29C }
 0x881903A8 = { size = 0x48 }
-0x881903F0 = { size = 0xA8 }
-0x88190498 = { size = 0x80 }
-0x88190518 = { size = 0x40 }
+0x881903F0 = { name = "eot_SecurityDoor_SetMaterials", size = 0xA8 }
+0x88190498 = { name = "eot_SecurityDoor_UpdateClosed", size = 0x80 }
+0x88190518 = { name = "eot_SecurityDoor_EnterOpened", size = 0x40 }
 0x88190558 = { size = 0x2E0 }
-0x88190838 = { size = 0x78 }
+0x88190838 = { name = "eot_SecurityDoor_UpdateOpened", size = 0x78 }
 0x881908B0 = { size = 0x4 }
 0x881908B8 = { size = 0x224 }
 0x88190AE0 = { size = 0x4 }
-0x88192F70 = { size = 0x234 }
-0x881939A8 = { size = 0xFC }
-0x88194098 = { size = 0x31C }
-0x88194518 = { size = 0x138 }
-0x88194C68 = { size = 0x18C }
-0x88195378 = { size = 0x158 }
-0x88195F60 = { size = 0x114 }
-0x881963C0 = { size = 0xD8 }
-0x88196EE8 = { size = 0xF0 }
-0x88197108 = { size = 0x118 }
-0x88197440 = { size = 0x204 }
-0x88197A58 = { size = 0x2D8 }
-0x88199578 = { size = 0x78 }
-0x88199DB0 = { size = 0x74 }
-0x88199E28 = { size = 0xD4 }
-0x88199F00 = { size = 0x90 }
-0x88199F90 = { size = 0x108 }
-0x8819A098 = { size = 0x8C }
-0x8819A128 = { size = 0x104 }
-0x8819A798 = { size = 0x78 }
+0x88192F70 = { name = "eot_GLInstanciateHUDPrompt3D", size = 0x234 }
+0x881939A8 = { name = "eot_GLInstanciateVOTrigger", size = 0xFC }
+0x88194098 = { name = "eot_GLInstanciatePiPManager", size = 0x31C }
+0x88194518 = { name = "eot_PiPManager_UpdateWaitingToPlay", size = 0x138 }
+0x88194C68 = { name = "eot_GLInstanciateHUDContextualAction", size = 0x18C }
+0x88195378 = { name = "eot_GLInstanciateHUDKey", size = 0x158 }
+0x88195F60 = { name = "eot_GLInstanciateHomingProjectile", size = 0x114 }
+0x881963C0 = { name = "eot_GLInstanciateWebZipSpline", size = 0xD8 }
+0x88196EE8 = { name = "eot_GLInstanciateHUDPiP", size = 0xF0 }
+0x88197108 = { name = "eot_GLInstanciateNotificationsManager", size = 0x118 }
+0x88197440 = { name = "eot_GLInstanciateFXPortal", size = 0x204 }
+0x88197A58 = { name = "eot_FXPortal_UpdateActive", size = 0x2D8 }
+0x88199578 = { name = "eot_GLInstanciateForceField", size = 0x78 }
+0x88199DB0 = { name = "eot_ForceField_EnterDisabled", size = 0x74 }
+0x88199E28 = { name = "eot_ForceField_EnterVisible", size = 0xD4 }
+0x88199F00 = { name = "eot_ForceField_ExitVisible", size = 0x90 }
+0x88199F90 = { name = "eot_ForceField_EnterEnabling", size = 0x108 }
+0x8819A098 = { name = "eot_ForceField_EnterEnabled", size = 0x8C }
+0x8819A128 = { name = "eot_ForceField_EnterDisabling", size = 0x104 }
+0x8819A798 = { name = "eot_GLInstanciateTrackingStand", size = 0x78 }
 0x8819BBA8 = { size = 0xC8 }
-0x8819BC70 = { size = 0xAC }
-0x8819BD20 = { size = 0x108 }
-0x8819BE28 = { size = 0xE8 }
-0x8819BF10 = { size = 0xF8 }
+0x8819BC70 = { name = "eot_TrackingStand_EnterPopIn", size = 0xAC }
+0x8819BD20 = { name = "eot_TrackingStand_EnterPopOut", size = 0x108 }
+0x8819BE28 = { name = "eot_TrackingStand_EnterWaitingForActivation", size = 0xE8 }
+0x8819BF10 = { name = "eot_TrackingStand_UpdateWaitingForActivation", size = 0xF8 }
 0x8819C008 = { size = 0x134 }
-0x8819C140 = { size = 0x220 }
-0x8819C630 = { size = 0x12C }
-0x8819C760 = { size = 0x1F8 }
-0x8819CA60 = { size = 0xBC }
-0x8819CB20 = { size = 0x8 }
-0x8819CB28 = { size = 0xC }
-0x8819CBD0 = { size = 0xF4 }
-0x8819CCC8 = { size = 0xF8 }
-0x8819E7A8 = { size = 0x298 }
-0x8819ED30 = { size = 0x14C }
+0x8819C140 = { name = "eot_PatrolStand_CheckActivation", size = 0x220 }
+0x8819C630 = { name = "eot_TrackingStand_EnterPreActive", size = 0x12C }
+0x8819C760 = { name = "eot_TrackingStand_UpdatePreActive", size = 0x1F8 }
+0x8819CA60 = { name = "eot_TrackingStand_PreUpdateWebBlind", size = 0xBC }
+0x8819CB20 = { name = "eot_TrackingStand_ExitWebBlind", size = 0x8 }
+0x8819CB28 = { name = "eot_TrackingStand_EnterWebBlindLoop", size = 0xC }
+0x8819CBD0 = { name = "eot_TrackingStand_EnterWebBlindOut", size = 0xF4 }
+0x8819CCC8 = { name = "eot_TrackingStand_UpdateLostHero", size = 0xF8 }
+0x8819E7A8 = { name = "eot_GLInstanciateDialogPlayer", size = 0x298 }
+0x8819ED30 = { name = "eot_DialogPlayer_UpdateIdle", size = 0x14C }
 0x8819EE80 = { size = 0xFC }
 0x8819EF80 = { size = 0xD4 }
-0x8819FA68 = { size = 0x110 }
-0x881A02A0 = { size = 0xC }
-0x881A02B0 = { size = 0x188 }
-0x881A0438 = { size = 0x144 }
-0x881A05A0 = { size = 0x150 }
-0x881A06F0 = { size = 0x6C }
-0x881A0760 = { size = 0xDC }
-0x881A0DC0 = { size = 0x9C }
-0x881A0F18 = { size = 0xF4 }
-0x881A1930 = { size = 0xDC }
-0x881A1D10 = { size = 0x408 }
-0x881A2990 = { size = 0x110 }
-0x881A2AB8 = { size = 0x210 }
-0x881A34B0 = { size = 0x6C }
-0x881A3520 = { size = 0x1A4 }
-0x881A58C8 = { size = 0x1C0 }
+0x8819FA68 = { name = "eot_GLInstanciateHUDArenaResult", size = 0x110 }
+0x881A02A0 = { name = "eot_HUDArenaResult_UpdateHidden", size = 0xC }
+0x881A02B0 = { name = "eot_HUDArenaResult_EnterAppear", size = 0x188 }
+0x881A0438 = { name = "eot_HUDArenaResult_UpdateAppear", size = 0x144 }
+0x881A05A0 = { name = "eot_HUDArenaResult_UpdateMedal", size = 0x150 }
+0x881A06F0 = { name = "eot_HUDArenaResult_EnterDisappear", size = 0x6C }
+0x881A0760 = { name = "eot_HUDArenaResult_UpdateDisappear", size = 0xDC }
+0x881A0DC0 = { name = "eot_GLInstanciateBaseGameplayInitializer", size = 0x9C }
+0x881A0F18 = { name = "eot_GLInstanciateCannon", size = 0xF4 }
+0x881A1930 = { name = "eot_GLInstanciateObjectAnimPlacement", size = 0xDC }
+0x881A1D10 = { name = "eot_GLInstanciateMovingObject", size = 0x408 }
+0x881A2990 = { name = "eot_Simple3DObj_InitAutoDeactivate", size = 0x110 }
+0x881A2AB8 = { name = "eot_MovingObject_EnterMove", size = 0x210 }
+0x881A34B0 = { name = "eot_MovingObject_ActivateContactResponse", size = 0x6C }
+0x881A3520 = { name = "eot_MovingObject_ExitMove", size = 0x1A4 }
+0x881A58C8 = { name = "eot_GLInstanciateTimeParadoxSphere", size = 0x1C0 }
 0x881A5BD0 = { size = 0x18C }
 0x881A5DF0 = { size = 0x124 }
-0x881A6088 = { size = 0x31C }
-0x881A6ED8 = { size = 0x15C }
-0x881A86A0 = { size = 0x200 }
+0x881A6088 = { name = "eot_GLInstanciateSimple3DObj", size = 0x31C }
+0x881A6ED8 = { name = "eot_Simple3DObj_UpdateFade", size = 0x15C }
+0x881A86A0 = { name = "eot_GLInstanciateShieldManager", size = 0x200 }
 0x881A8B60 = { size = 0x48 }
-0x881A9C48 = { size = 0xF0 }
-0x881A9F78 = { size = 0xDC }
-0x881AB438 = { size = 0x128 }
-0x881ABCB8 = { size = 0x78 }
+0x881A9C48 = { name = "eot_GLInstanciateRelayTrigger", size = 0xF0 }
+0x881A9F78 = { name = "eot_GLInstanciatePiPTimerControl", size = 0xDC }
+0x881AB438 = { name = "eot_GLInstanciatePatternSpawner", size = 0x128 }
+0x881ABCB8 = { name = "eot_GLInstanciateSpiderTotem", size = 0x78 }
 0x881AC758 = { size = 0x54 }
 0x881AC7B0 = { size = 0xE0 }
-0x881AC890 = { size = 0x1F8 }
-0x881ACA88 = { size = 0x4C }
-0x881ACAD8 = { size = 0x280 }
-0x881ACD58 = { size = 0x84 }
-0x881AD988 = { size = 0x78 }
-0x881AE418 = { size = 0x15C }
-0x881AE578 = { size = 0x158 }
-0x881AE6D0 = { size = 0x15C }
+0x881AC890 = { name = "eot_SpiderTotem_EnterIdle", size = 0x1F8 }
+0x881ACA88 = { name = "eot_SpiderTotem_ExitIdle", size = 0x4C }
+0x881ACAD8 = { name = "eot_SpiderTotem_EnterPickUp", size = 0x280 }
+0x881ACD58 = { name = "eot_SpiderTotem_EnterPickedUpDontRespawn", size = 0x84 }
+0x881AD988 = { name = "eot_GLInstanciateSimpleDoor", size = 0x78 }
+0x881AE418 = { name = "eot_SimpleDoor_EnterClosed", size = 0x15C }
+0x881AE578 = { name = "eot_SimpleDoor_EnterOpened", size = 0x158 }
+0x881AE6D0 = { name = "eot_SimpleDoor_EnterClosing", size = 0x15C }
 0x881AE830 = { size = 0x118 }
-0x881AF570 = { size = 0x324 }
+0x881AF570 = { name = "eot_GLInstanciateHUDButtonTip", size = 0x324 }
 0x881AF9D0 = { size = 0xC }
 0x881AF9E0 = { size = 0xB4 }
 0x881AFA98 = { size = 0xB0 }
 0x881AFB48 = { size = 0xC }
-0x881AFDB0 = { size = 0xF0 }
-0x881B03A0 = { size = 0x78 }
-0x881B0AA8 = { size = 0x104 }
-0x881B0DA8 = { size = 0x280 }
-0x881B1028 = { size = 0xB8 }
-0x881B10E0 = { size = 0x3F0 }
-0x881B14D0 = { size = 0x80 }
-0x881B1550 = { size = 0x3A4 }
-0x881B18F8 = { size = 0x11C }
-0x881B1F10 = { size = 0x130 }
-0x881B2350 = { size = 0x78 }
-0x881B4380 = { size = 0x1BC }
-0x881B4540 = { size = 0x280 }
-0x881B47C0 = { size = 0x3E0 }
-0x881B4BA0 = { size = 0x4C }
-0x881B4BF0 = { size = 0x1E8 }
+0x881AFDB0 = { name = "eot_GLInstanciateContextualActionManager", size = 0xF0 }
+0x881B03A0 = { name = "eot_GLInstanciateSpiderEssence", size = 0x78 }
+0x881B0AA8 = { name = "eot_SpiderEssence_SetProperties", size = 0x104 }
+0x881B0DA8 = { name = "eot_SpiderEssence_UpdateSpawning", size = 0x280 }
+0x881B1028 = { name = "eot_SpiderEssence_EnterHoming", size = 0xB8 }
+0x881B10E0 = { name = "eot_SpiderEssence_UpdateHoming", size = 0x3F0 }
+0x881B14D0 = { name = "eot_SpiderEssence_EnterPickedUp", size = 0x80 }
+0x881B1550 = { name = "eot_SpiderEssence_UpdatePickedUp", size = 0x3A4 }
+0x881B18F8 = { name = "eot_SpiderEssence_EnterWaitToDie", size = 0x11C }
+0x881B1F10 = { name = "eot_GLInstanciateButtonPromptWindow", size = 0x130 }
+0x881B2350 = { name = "eot_GLInstanciateSpikeTentacle", size = 0x78 }
+0x881B4380 = { name = "eot_SpikeTentacle_EnterThrust", size = 0x1BC }
+0x881B4540 = { name = "eot_SpikeTentacle_EnterBlockPath", size = 0x280 }
+0x881B47C0 = { name = "eot_SpikeTentacle_UpdateBlockPath", size = 0x3E0 }
+0x881B4BA0 = { name = "eot_SpikeTentacle_ExitBlockPath", size = 0x4C }
+0x881B4BF0 = { name = "eot_SpikeTentacle_EnterRetract", size = 0x1E8 }
 0x881B4DE0 = { size = 0x38 }
-0x881B4E18 = { size = 0x1C }
-0x881B4E38 = { size = 0x114 }
-0x881B67E0 = { size = 0x78 }
-0x881B6E18 = { size = 0x40 }
-0x881B6E58 = { size = 0xD0 }
-0x881B6F58 = { size = 0x110 }
+0x881B4E18 = { name = "eot_SpikeTentacle_EnterHurt", size = 0x1C }
+0x881B4E38 = { name = "eot_SpikeTentacle_EnterSlam", size = 0x114 }
+0x881B67E0 = { name = "eot_GLInstanciateEvadeClone", size = 0x78 }
+0x881B6E18 = { name = "eot_EvadeClone_EnterEvadeEnemy", size = 0x40 }
+0x881B6E58 = { name = "eot_EvadeClone_UpdateEvadeDone", size = 0xD0 }
+0x881B6F58 = { name = "eot_EvadeClone_UpdateEvadeDoneFade", size = 0x110 }
 0x881B7068 = { size = 0x4 }
-0x881B76F8 = { size = 0xE4 }
-0x881B8198 = { size = 0xD8 }
-0x881B8730 = { size = 0x4C }
-0x881B8780 = { size = 0x80 }
-0x881B8800 = { size = 0xE0 }
-0x881B88F0 = { size = 0xD0 }
-0x881B89C0 = { size = 0x6C }
-0x881B8A30 = { size = 0xDC }
-0x881B8E88 = { size = 0x90 }
-0x881B92B0 = { size = 0x234 }
-0x881B9798 = { size = 0x2E4 }
-0x881B9EB8 = { size = 0x100 }
-0x881BA238 = { size = 0x8C }
-0x881BAC48 = { size = 0x100 }
-0x881BAF00 = { size = 0x258 }
+0x881B76F8 = { name = "eot_GLInstanciateChallengeWaypoint", size = 0xE4 }
+0x881B8198 = { name = "eot_GLInstanciateHUDArenaWave", size = 0xD8 }
+0x881B8730 = { name = "eot_HUDArenaWave_EnterHidden", size = 0x4C }
+0x881B8780 = { name = "eot_HUDArenaWave_EnterAppear", size = 0x80 }
+0x881B8800 = { name = "eot_HUDArenaWave_UpdateAppear", size = 0xE0 }
+0x881B88F0 = { name = "eot_HUDArenaWave_UpdateHold", size = 0xD0 }
+0x881B89C0 = { name = "eot_HUDArenaWave_EnterDisappear", size = 0x6C }
+0x881B8A30 = { name = "eot_HUDArenaWave_UpdateDisappear", size = 0xDC }
+0x881B8E88 = { name = "eot_GLInstanciateBoxSpawner", size = 0x90 }
+0x881B92B0 = { name = "eot_GLInstanciateProximityTrigger", size = 0x234 }
+0x881B9798 = { name = "eot_ProximityTrigger_UpdateActive", size = 0x2E4 }
+0x881B9EB8 = { name = "eot_GLInstanciateBulletManager", size = 0x100 }
+0x881BA238 = { name = "eot_BulletManager_UpdateActive", size = 0x8C }
+0x881BAC48 = { name = "eot_GLInstanciateSequenceTrigger", size = 0x100 }
+0x881BAF00 = { name = "eot_GLInstanciateContextualActionButton", size = 0x258 }
 0x881BB1B8 = { size = 0x8 }
 0x881BBA98 = { size = 0xAC }
 0x881BBB48 = { size = 0x78 }
 0x881BBBC0 = { size = 0x54 }
-0x881BCB08 = { size = 0xB0 }
-0x881BCBB8 = { size = 0x88 }
-0x881BCC40 = { size = 0xE8 }
-0x881BCD28 = { size = 0xA8 }
-0x881BCDD0 = { size = 0x44 }
+0x881BCB08 = { name = "eot_BaseTentacle_EnterHidden", size = 0xB0 }
+0x881BCBB8 = { name = "eot_BaseTentacle_ExitHidden", size = 0x88 }
+0x881BCC40 = { name = "eot_BaseTentacle_EnterAnticipation", size = 0xE8 }
+0x881BCD28 = { name = "eot_BaseTentacle_ExitAnticipation", size = 0xA8 }
+0x881BCDD0 = { name = "eot_BaseTentacle_CheckDamage_NoDamage", size = 0x44 }
 0x881C1CD8 = { size = 0x88 }
 0x881C1D60 = { size = 0x4F0 }
-0x881C2250 = { size = 0x128 }
-0x881C2378 = { size = 0x78 }
-0x881C23F0 = { size = 0x1B0 }
-0x881C25A0 = { size = 0x64 }
-0x881C2608 = { size = 0xCC }
-0x881C26D8 = { size = 0x7C }
-0x881C2758 = { size = 0xDC }
-0x881C2838 = { size = 0x78 }
-0x881C28C8 = { size = 0x140 }
-0x881C71B0 = { size = 0xEC }
-0x881C7990 = { size = 0x2B4 }
-0x881C7EA8 = { size = 0x118 }
-0x881C7FC0 = { size = 0x474 }
-0x881C8438 = { size = 0xD0 }
-0x881C8B18 = { size = 0x124 }
-0x881C9C60 = { size = 0xB0 }
-0x881CA840 = { size = 0x11C }
-0x881CAEA8 = { size = 0x78 }
+0x881C2250 = { name = "eot_PiPControl_UpdatePrePlay", size = 0x128 }
+0x881C2378 = { name = "eot_PiPControl_ExitPrePlay", size = 0x78 }
+0x881C23F0 = { name = "eot_PiPControl_EnterPlay", size = 0x1B0 }
+0x881C25A0 = { name = "eot_PiPControl_UpdatePlay", size = 0x64 }
+0x881C2608 = { name = "eot_PiPControl_ExitPlay", size = 0xCC }
+0x881C26D8 = { name = "eot_PiPControl_InstantStop", size = 0x7C }
+0x881C2758 = { name = "eot_PiPControl_UpdatePostPlay", size = 0xDC }
+0x881C2838 = { name = "eot_PiPControl_ExitPostPlay", size = 0x78 }
+0x881C28C8 = { name = "eot_PiPControl_PlayMatAnim", size = 0x140 }
+0x881C71B0 = { name = "eot_GLInstanciateUniverseManager", size = 0xEC }
+0x881C7990 = { name = "eot_GLInstanciateEarthquakeZone", size = 0x2B4 }
+0x881C7EA8 = { name = "eot_EarthquakeZone_UpdateIdle", size = 0x118 }
+0x881C7FC0 = { name = "eot_EarthquakeZone_UpdateActive", size = 0x474 }
+0x881C8438 = { name = "eot_EarthquakeZone_EnterActive", size = 0xD0 }
+0x881C8B18 = { name = "eot_GLInstanciateCameraDuoFocus", size = 0x124 }
+0x881C9C60 = { name = "eot_GLInstanciateCameraWebSwing", size = 0xB0 }
+0x881CA840 = { name = "eot_GLInstanciateFXListenerDistance", size = 0x11C }
+0x881CAEA8 = { name = "eot_GLInstanciateHUDHiddenSpidersHints", size = 0x78 }
 0x881CB8C0 = { size = 0xC }
 0x881CB8D0 = { size = 0x1AC }
-0x881CBA80 = { size = 0xE0 }
-0x881CBB78 = { size = 0x16C }
-0x881CC240 = { size = 0xC8 }
-0x881CC470 = { size = 0x118 }
-0x881CCDB8 = { size = 0x78 }
-0x881CCE30 = { size = 0x278 }
-0x881CD0A8 = { size = 0xCC }
-0x881CD178 = { size = 0x160 }
-0x881CDCC0 = { size = 0x108 }
-0x881CE8A8 = { size = 0x4B0 }
-0x881CEFE0 = { size = 0x94 }
-0x881D0660 = { size = 0x130 }
-0x881D12B8 = { size = 0x2AC }
-0x881D2620 = { size = 0x16C }
+0x881CBA80 = { name = "eot_HUDHiddenSpidersHints_EnterIn", size = 0xE0 }
+0x881CBB78 = { name = "eot_HUDHiddenSpidersHints_UpdateActive", size = 0x16C }
+0x881CC240 = { name = "eot_GLInstanciateHUDText", size = 0xC8 }
+0x881CC470 = { name = "eot_GLInstanciateFXSimpleInZoneSpawner", size = 0x118 }
+0x881CCDB8 = { name = "eot_FXSimpleInZoneSpawner_EnterActive", size = 0x78 }
+0x881CCE30 = { name = "eot_FXSimpleInZoneSpawner_UpdateActive", size = 0x278 }
+0x881CD0A8 = { name = "eot_FXSimpleInZoneSpawner_ExitActive", size = 0xCC }
+0x881CD178 = { name = "eot_FXSimpleInZoneSpawner_UpdateWaiting", size = 0x160 }
+0x881CDCC0 = { name = "eot_GLInstanciateFXBSplineObject", size = 0x108 }
+0x881CE8A8 = { name = "eot_FXBSplineObject_UpdateMove", size = 0x4B0 }
+0x881CEFE0 = { name = "eot_FXBSplineObject_UpdateRandomMove", size = 0x94 }
+0x881D0660 = { name = "eot_GLInstanciateRedirectionObj", size = 0x130 }
+0x881D12B8 = { name = "eot_GLInstanciateAchievementManager", size = 0x2AC }
+0x881D2620 = { name = "eot_GLInstanciateFXEmitterFadeOut", size = 0x16C }
 0x881D27F0 = { size = 0x48 }
-0x881D2838 = { size = 0xBC }
-0x881D2958 = { size = 0x1B0 }
-0x881D2D90 = { size = 0x14C }
+0x881D2838 = { name = "eot_FXEmitterFadeOut_UpdateFadeOut", size = 0xBC }
+0x881D2958 = { name = "eot_GLInstanciateFXBoneToBone", size = 0x1B0 }
+0x881D2D90 = { name = "eot_FXBoneToBone_EnterActive", size = 0x14C }
 0x881D2EE0 = { size = 0x64 }
-0x881D3F30 = { size = 0x144 }
-0x881D4F68 = { size = 0xF0 }
-0x881D53D0 = { size = 0x8C }
-0x881D5460 = { size = 0x158 }
-0x881D6368 = { size = 0xB0 }
-0x881D74D0 = { size = 0x36C }
-0x881D7A68 = { size = 0xF4 }
-0x881D7B70 = { size = 0x108 }
-0x881D7C78 = { size = 0x80 }
-0x881D7D18 = { size = 0xF4 }
-0x881D8398 = { size = 0xC8 }
-0x881D8800 = { size = 0xE4 }
-0x881D8F98 = { size = 0x114 }
-0x881D90B0 = { size = 0xD4 }
-0x881D91B0 = { size = 0xE4 }
-0x881D92B0 = { size = 0x1D8 }
-0x881D9488 = { size = 0x44 }
-0x881D94D0 = { size = 0xD8 }
-0x881D95A8 = { size = 0x88 }
-0x881D9630 = { size = 0xE4 }
-0x881DAAD0 = { size = 0x78 }
-0x881DB930 = { size = 0x60 }
-0x881DB9C0 = { size = 0x240 }
-0x881DBC00 = { size = 0x130 }
-0x881DBD30 = { size = 0x94 }
-0x881DBEE0 = { size = 0x244 }
-0x881DC128 = { size = 0x130 }
-0x881DC258 = { size = 0xA0 }
-0x881DC568 = { size = 0x288 }
-0x881DCB58 = { size = 0x118 }
-0x881DD078 = { size = 0x70 }
-0x881DD0E8 = { size = 0x140 }
-0x881DD228 = { size = 0x50 }
-0x881DD278 = { size = 0x10C }
-0x881DD498 = { size = 0xC0 }
-0x881DD558 = { size = 0x1C0 }
-0x881DDA20 = { size = 0x3E4 }
-0x881DDF48 = { size = 0xC4 }
-0x881DE010 = { size = 0x10C }
-0x881DE120 = { size = 0x1D8 }
-0x881DE2F8 = { size = 0x70 }
-0x881DE4E8 = { size = 0x1B0 }
+0x881D3F30 = { name = "eot_GLInstanciateBaseCameraControllerSM2011", size = 0x144 }
+0x881D4F68 = { name = "eot_GLInstanciateTimeScaleManager", size = 0xF0 }
+0x881D53D0 = { name = "eot_TimeScaleManager_UpdateActive", size = 0x8C }
+0x881D5460 = { name = "eot_TimeScaleManager_UpdateActiveAfterLogic", size = 0x158 }
+0x881D6368 = { name = "eot_GLInstanciateCamera3rdCrawlProto", size = 0xB0 }
+0x881D74D0 = { name = "eot_GLInstanciateEnvironmentMatAnim", size = 0x36C }
+0x881D7A68 = { name = "eot_EnvironmentMatAnim_EnterIn", size = 0xF4 }
+0x881D7B70 = { name = "eot_EnvironmentMatAnim_EnterLoop", size = 0x108 }
+0x881D7C78 = { name = "eot_EnvironmentMatAnim_UpdateLoop", size = 0x80 }
+0x881D7D18 = { name = "eot_EnvironmentMatAnim_EnterOut", size = 0xF4 }
+0x881D8398 = { name = "eot_GLInstanciateSMCloneRedirectionObj", size = 0xC8 }
+0x881D8800 = { name = "eot_GLInstanciateLevelStreamingManager", size = 0xE4 }
+0x881D8F98 = { name = "eot_LevelStreamingManager_EnterDeleting", size = 0x114 }
+0x881D90B0 = { name = "eot_LevelStreamingManager_UpdateDeleting", size = 0xD4 }
+0x881D91B0 = { name = "eot_LevelStreamingManager_UpdateLoading", size = 0xE4 }
+0x881D92B0 = { name = "eot_LevelStreamingManager_UpdateActivating", size = 0x1D8 }
+0x881D9488 = { name = "eot_LevelStreamingManager_EnterStreaming", size = 0x44 }
+0x881D94D0 = { name = "eot_LevelStreamingManager_UpdateStreaming", size = 0xD8 }
+0x881D95A8 = { name = "eot_LevelStreamingManager_EnterUnloading", size = 0x88 }
+0x881D9630 = { name = "eot_LevelStreamingManager_UpdateUnloading", size = 0xE4 }
+0x881DAAD0 = { name = "eot_GLInstanciateFXLightAnimated", size = 0x78 }
+0x881DB930 = { name = "eot_FXLightAnimated_PreUpdate", size = 0x60 }
+0x881DB9C0 = { name = "eot_FXLightAnimated_EnterLightIn", size = 0x240 }
+0x881DBC00 = { name = "eot_FXLightAnimated_UpdateLightIn", size = 0x130 }
+0x881DBD30 = { name = "eot_FXLightAnimated_EnterLightPendingOn", size = 0x94 }
+0x881DBEE0 = { name = "eot_FXLightAnimated_EnterLightOut", size = 0x244 }
+0x881DC128 = { name = "eot_FXLightAnimated_UpdateLightOut", size = 0x130 }
+0x881DC258 = { name = "eot_FXLightAnimated_EnterLightPendingOff", size = 0xA0 }
+0x881DC568 = { name = "eot_FXLightAnimated_UpdateFireLight", size = 0x288 }
+0x881DCB58 = { name = "eot_GLInstanciateFXEmitterLight", size = 0x118 }
+0x881DD078 = { name = "eot_FXEmitterLight_EnterFadeIn", size = 0x70 }
+0x881DD0E8 = { name = "eot_FXEmitterLight_UpdateFadeIn", size = 0x140 }
+0x881DD228 = { name = "eot_FXEmitterLight_EnterActive", size = 0x50 }
+0x881DD278 = { name = "eot_FXEmitterLight_UpdateActive", size = 0x10C }
+0x881DD498 = { name = "eot_FXEmitterLight_EnterFadeOut", size = 0xC0 }
+0x881DD558 = { name = "eot_FXEmitterLight_UpdateFadeOut", size = 0x1C0 }
+0x881DDA20 = { name = "eot_GLInstanciateSubtitleManager", size = 0x3E4 }
+0x881DDF48 = { name = "eot_SubtitleManager_EnterNextString", size = 0xC4 }
+0x881DE010 = { name = "eot_SubtitleManager_EnterSubTitleActive", size = 0x10C }
+0x881DE120 = { name = "eot_SubtitleManager_SubtitleUpdateActive", size = 0x1D8 }
+0x881DE2F8 = { name = "eot_SubtitleManager_EnterInactive", size = 0x70 }
+0x881DE4E8 = { name = "eot_GLInstanciateFlickerLight", size = 0x1B0 }
 0x881DE698 = { size = 0x58 }
 0x881DE6F0 = { size = 0xB4 }
-0x881DE980 = { size = 0x208 }
-0x881DEC10 = { size = 0x44 }
-0x881DF420 = { size = 0x90 }
-0x881DF8A0 = { size = 0x134 }
-0x881E0328 = { size = 0x78 }
-0x881E0D20 = { size = 0x74 }
-0x881E0D98 = { size = 0x74 }
-0x881E0E98 = { size = 0x44 }
-0x881E0EE0 = { size = 0x144 }
-0x881E1028 = { size = 0xB4 }
+0x881DE980 = { name = "eot_GLInstanciateOnlineManager", size = 0x208 }
+0x881DEC10 = { name = "eot_OnlineManager_UpdateActive", size = 0x44 }
+0x881DF420 = { name = "eot_GLInstanciateCameraEndCutscene", size = 0x90 }
+0x881DF8A0 = { name = "eot_GLInstanciateSimpleMusicManager", size = 0x134 }
+0x881E0328 = { name = "eot_GLInstanciateCutscenePlayer", size = 0x78 }
+0x881E0D20 = { name = "eot_CutscenePlayer_EnterNotLoaded", size = 0x74 }
+0x881E0D98 = { name = "eot_CutscenePlayer_EnterBeforeLoading", size = 0x74 }
+0x881E0E98 = { name = "eot_CutscenePlayer_EnterLoading", size = 0x44 }
+0x881E0EE0 = { name = "eot_CutscenePlayer_UpdateLoading", size = 0x144 }
+0x881E1028 = { name = "eot_CutscenePlayer_ExitLoading", size = 0xB4 }
 0x881E10F0 = { size = 0xF8 }
-0x881E11E8 = { size = 0x524 }
-0x881E1710 = { size = 0x128 }
-0x881E1838 = { size = 0x2B8 }
-0x881E1AF0 = { size = 0x10C }
-0x881E4970 = { size = 0xEC }
-0x881E5700 = { size = 0x90 }
-0x881E58E0 = { size = 0x10C }
-0x881E84E8 = { size = 0x2D4 }
-0x881E8D40 = { size = 0x144 }
-0x881E90D0 = { size = 0x31C }
+0x881E11E8 = { name = "eot_CutscenePlayer_EnterPlaying", size = 0x524 }
+0x881E1710 = { name = "eot_CutscenePlayer_UpdatePlaying", size = 0x128 }
+0x881E1838 = { name = "eot_CutscenePlayer_ExitPlaying", size = 0x2B8 }
+0x881E1AF0 = { name = "eot_CutscenePlayer_EnterStopping", size = 0x10C }
+0x881E4970 = { name = "eot_GLInstanciateCameraSplineCrawl", size = 0xEC }
+0x881E5700 = { name = "eot_GLInstanciateAudioManagerSM2011", size = 0x90 }
+0x881E58E0 = { name = "eot_GLInstanciateCameraChase", size = 0x10C }
+0x881E84E8 = { name = "eot_GLInstanciateLightManager", size = 0x2D4 }
+0x881E8D40 = { name = "eot_LightManager_UpdateActive", size = 0x144 }
+0x881E90D0 = { name = "eot_GLInstanciateHUDSaving", size = 0x31C }
 0x881E95A0 = { size = 0x4C }
 0x881E95F0 = { size = 0x28 }
 0x881E9618 = { size = 0x114 }
-0x881E99D0 = { size = 0xC8 }
-0x881E9F98 = { size = 0x78 }
-0x881EB240 = { size = 0x114 }
-0x881ED3A8 = { size = 0x78 }
-0x881ED8F0 = { size = 0x98 }
-0x881ED988 = { size = 0x6C }
-0x881ED9F8 = { size = 0x168 }
-0x881EDC30 = { size = 0x144 }
-0x881EE200 = { size = 0xDC }
-0x881EE8D0 = { size = 0x2D0 }
-0x881EEE28 = { size = 0x88 }
-0x881EF0F8 = { size = 0xD0 }
-0x881EF2F0 = { size = 0x138 }
-0x881EF818 = { size = 0x320 }
-0x881F0030 = { size = 0xBC }
-0x881F1278 = { size = 0x1E8 }
-0x881F1AA0 = { size = 0x168 }
-0x881F1C08 = { size = 0x188 }
-0x881F1F40 = { size = 0xF0 }
-0x881F21D8 = { size = 0x1F0 }
+0x881E99D0 = { name = "eot_GLInstanciateCameraRunningStart", size = 0xC8 }
+0x881E9F98 = { name = "eot_GLInstanciateHUDPopupManager", size = 0x78 }
+0x881EB240 = { name = "eot_GLInstanciateCameraFocusAdvance", size = 0x114 }
+0x881ED3A8 = { name = "eot_GLInstanciateFXTimeRewinder", size = 0x78 }
+0x881ED8F0 = { name = "eot_FXTimeRewinder_EnterActive", size = 0x98 }
+0x881ED988 = { name = "eot_FXTimeRewinder_EnterSlowingDown", size = 0x6C }
+0x881ED9F8 = { name = "eot_FXTimeRewinder_UpdateSlowingDown", size = 0x168 }
+0x881EDC30 = { name = "eot_FXTimeRewinder_UpdateAcceleration", size = 0x144 }
+0x881EE200 = { name = "eot_GLInstanciateCameraAerialAttack", size = 0xDC }
+0x881EE8D0 = { name = "eot_GLInstanciatePseudoThread", size = 0x2D0 }
+0x881EEE28 = { name = "eot_PseudoThread_UpdateActive", size = 0x88 }
+0x881EF0F8 = { name = "eot_GLInstanciateCutscenePlayerRedirector", size = 0xD0 }
+0x881EF2F0 = { name = "eot_GLInstanciateGlowManager", size = 0x138 }
+0x881EF818 = { name = "eot_GlowManager_UpdateGlow", size = 0x320 }
+0x881F0030 = { name = "eot_GLInstanciateGameStateManagerSM2011", size = 0xBC }
+0x881F1278 = { name = "eot_GLInstanciateManagedLight", size = 0x1E8 }
+0x881F1AA0 = { name = "eot_ManagedLight_UpdateFadeIn", size = 0x168 }
+0x881F1C08 = { name = "eot_ManagedLight_UpdateFadeOut", size = 0x188 }
+0x881F1F40 = { name = "eot_GLInstanciateTimeScaleRequest", size = 0xF0 }
+0x881F21D8 = { name = "eot_GLInstanciateHUDMiniLoading", size = 0x1F0 }
 0x881F2600 = { size = 0xE0 }
 0x881F26E0 = { size = 0xC0 }
-0x881F27A0 = { size = 0xCC }
-0x881F2A78 = { size = 0x90 }
-0x881F2B60 = { size = 0x1A0 }
-0x881F4FF0 = { size = 0x12C }
-0x881F5DA8 = { size = 0x9C }
-0x881F66F8 = { size = 0x190 }
+0x881F27A0 = { name = "eot_HUDMiniLoading_ExitEnabled", size = 0xCC }
+0x881F2A78 = { name = "eot_GLInstanciateCollectibleChallengeControl", size = 0x90 }
+0x881F2B60 = { name = "eot_GLInstanciateCameraFocus", size = 0x1A0 }
+0x881F4FF0 = { name = "eot_GLInstanciateChallengeTracker", size = 0x12C }
+0x881F5DA8 = { name = "eot_GLInstanciateShadowMapInitializer", size = 0x9C }
+0x881F66F8 = { name = "eot_GLInstanciatePostFXManager", size = 0x190 }
 0x881F6A00 = { name = "eot_PostFXManager_Tick", size = 0x280 }
-0x881FCF88 = { size = 0xF0 }
-0x881FD278 = { size = 0x3A0 }
-0x881FD6A0 = { size = 0xFC }
-0x881FD7A0 = { size = 0x98 }
-0x881FE250 = { size = 0x230 }
+0x881FCF88 = { name = "eot_GLInstanciateHUDCheckpoint", size = 0xF0 }
+0x881FD278 = { name = "eot_GLInstanciateHUDCharacterMenu", size = 0x3A0 }
+0x881FD6A0 = { name = "eot_HUDCharacterMenu_EnterOpening", size = 0xFC }
+0x881FD7A0 = { name = "eot_HUDCharacterMenu_EnterSelected", size = 0x98 }
+0x881FE250 = { name = "eot_GLInstanciateTimeStamp", size = 0x230 }
 0x881FE500 = { size = 0x90 }
-0x881FE590 = { size = 0x2D8 }
-0x881FE9E8 = { size = 0x2B0 }
+0x881FE590 = { name = "eot_GLInstanciateDebugPauseControl", size = 0x2D8 }
+0x881FE9E8 = { name = "eot_DebugPauseControl_UpdateIdle", size = 0x2B0 }
 0x881FEFB0 = { size = 0x40 }
-0x881FF788 = { size = 0x78 }
-0x881FFDB8 = { size = 0xF4 }
-0x88200260 = { size = 0x1B0 }
-0x882033B8 = { size = 0xC8 }
-0x88203588 = { size = 0x78 }
-0x88203F78 = { size = 0x84 }
-0x88204000 = { size = 0xCC }
-0x882040D0 = { size = 0xF8 }
-0x882041E8 = { size = 0x12C }
+0x881FF788 = { name = "eot_GLInstanciateHUDGenericSelectorPanel", size = 0x78 }
+0x881FFDB8 = { name = "eot_HUDGenericSelectorPanel_EnterClosed", size = 0xF4 }
+0x88200260 = { name = "eot_GLInstanciateCamera3rd", size = 0x1B0 }
+0x882033B8 = { name = "eot_GLInstanciateHUDTargetBase", size = 0xC8 }
+0x88203588 = { name = "eot_GLInstanciateHUDHiddenSpiders", size = 0x78 }
+0x88203F78 = { name = "eot_HUDHiddenSpiders_EnterDisabled", size = 0x84 }
+0x88204000 = { name = "eot_HUDHiddenSpiders_EnterIn", size = 0xCC }
+0x882040D0 = { name = "eot_HUDHiddenSpiders_UpdateIn", size = 0xF8 }
+0x882041E8 = { name = "eot_HUDHiddenSpiders_UpdateActive", size = 0x12C }
 0x88204318 = { size = 0x104 }
 0x88204420 = { size = 0x130 }
-0x88205318 = { size = 0x124 }
-0x88209168 = { size = 0x9C }
-0x882092C8 = { size = 0x144 }
-0x882098A0 = { size = 0x2C4 }
-0x8820B0C0 = { size = 0xC0 }
-0x8820C0C0 = { size = 0x78 }
+0x88205318 = { name = "eot_GLInstanciateChallengeManager", size = 0x124 }
+0x88209168 = { name = "eot_GLInstanciateDSParallaxControler", size = 0x9C }
+0x882092C8 = { name = "eot_GLInstanciateCheckpoint", size = 0x144 }
+0x882098A0 = { name = "eot_GLInstanciateCameraChucktastic", size = 0x2C4 }
+0x8820B0C0 = { name = "eot_GLInstanciateCameraRail", size = 0xC0 }
+0x8820C0C0 = { name = "eot_GLInstanciateHUDChallengeMedal", size = 0x78 }
 0x8820D410 = { size = 0x24 }
-0x8820D438 = { size = 0x20C }
+0x8820D438 = { name = "eot_HUDChallengeMedal_EnterIn", size = 0x20C }
 0x8820D648 = { size = 0x16C }
 0x8820D7B8 = { size = 0xB8 }
 0x8820D870 = { size = 0x6C }
 0x8820D8E0 = { size = 0x104 }
-0x8820D9E8 = { size = 0x374 }
+0x8820D9E8 = { name = "eot_HUDChallengeMedal_EnterSucceedAnimIn", size = 0x374 }
 0x8820DD60 = { size = 0x1D4 }
 0x8820DF38 = { size = 0x10C }
 0x8820E048 = { size = 0x6C }
 0x8820E0B8 = { size = 0xE0 }
 0x8820E198 = { size = 0xC4 }
-0x8820E260 = { size = 0xCC }
+0x8820E260 = { name = "eot_HUDChallengeMedal_UpdateOut", size = 0xCC }
 0x8820E330 = { size = 0xB4 }
 0x8820E3E8 = { size = 0x128 }
 0x8820E510 = { size = 0x160 }
@@ -1071,246 +1071,246 @@ out_directory_path = "generated/gamelogic"
 0x8820EB48 = { size = 0xE0 }
 0x8820EC58 = { size = 0x6C }
 0x8820ECC8 = { size = 0x160 }
-0x88210278 = { size = 0x90 }
-0x882105D8 = { size = 0x164 }
-0x88211438 = { size = 0x1A0 }
-0x88211680 = { size = 0x158 }
-0x88212F40 = { size = 0x110 }
-0x88214300 = { size = 0x41C }
-0x88214DB8 = { size = 0x3E8 }
-0x882151A0 = { size = 0x1AC }
-0x88215350 = { size = 0xC }
-0x88215360 = { size = 0x54 }
-0x882153B8 = { size = 0x8C }
-0x88215448 = { size = 0xC4 }
-0x882164D0 = { size = 0x100 }
-0x882192F0 = { size = 0xC8 }
-0x88219468 = { size = 0xEC }
-0x882198F8 = { size = 0x78 }
-0x8821A4D0 = { size = 0xB0 }
+0x88210278 = { name = "eot_GLInstanciateCameraRubberBand", size = 0x90 }
+0x882105D8 = { name = "eot_GLInstanciateSimple3DSound", size = 0x164 }
+0x88211438 = { name = "eot_GLInstanciateSimpleLight", size = 0x1A0 }
+0x88211680 = { name = "eot_tick", size = 0x158 }
+0x88212F40 = { name = "eot_GLInstanciateFXManager", size = 0x110 }
+0x88214300 = { name = "eot_GLInstanciateHUDLoadingScreen", size = 0x41C }
+0x88214DB8 = { name = "eot_HUDLoadingScreen_EnterEnabled", size = 0x3E8 }
+0x882151A0 = { name = "eot_HUDLoadingScreen_UpdateEnabled", size = 0x1AC }
+0x88215350 = { name = "eot_HUDLoadingScreen_ExitEnabled", size = 0xC }
+0x88215360 = { name = "eot_HUDLoadingScreen_EnterPressStart", size = 0x54 }
+0x882153B8 = { name = "eot_HUDLoadingScreen_UpdatePressStart", size = 0x8C }
+0x88215448 = { name = "eot_HUDLoadingScreen_EnterFadeOut", size = 0xC4 }
+0x882164D0 = { name = "eot_GLInstanciateGameManager", size = 0x100 }
+0x882192F0 = { name = "eot_GLInstanciateHUDChallengeStatus", size = 0xC8 }
+0x88219468 = { name = "eot_GLInstanciateHUDTempCutscene", size = 0xEC }
+0x882198F8 = { name = "eot_GLInstanciateHUDGenericSelector", size = 0x78 }
+0x8821A4D0 = { name = "eot_HUDGenericSelectorItem_HUDGenericSelectorItem", size = 0xB0 }
 0x8821A580 = { size = 0x140 }
-0x8821A6C0 = { size = 0x58 }
-0x8821AD38 = { size = 0x104 }
-0x8821AED8 = { size = 0x170 }
-0x8821B968 = { size = 0x2DC }
-0x8821C3A8 = { size = 0x78 }
-0x8821CC00 = { size = 0x1D0 }
-0x8821CDD0 = { size = 0x48 }
-0x8821CE18 = { size = 0x50 }
-0x8821CE68 = { size = 0x4E4 }
-0x8821D350 = { size = 0xE0 }
-0x8821D808 = { size = 0xA0 }
-0x8821D8A8 = { size = 0xD8 }
-0x8821E950 = { size = 0x154 }
-0x8821EE90 = { size = 0x78 }
+0x8821A6C0 = { name = "eot_HUDGenericSelector_EnterIntro", size = 0x58 }
+0x8821AD38 = { name = "eot_HUDGenericSelector_UpdateIntro", size = 0x104 }
+0x8821AED8 = { name = "eot_HUDGenericSelector_UpdateOutro", size = 0x170 }
+0x8821B968 = { name = "eot_GLInstanciateFXMatSwapper", size = 0x2DC }
+0x8821C3A8 = { name = "eot_GLInstanciateMoviePlayer", size = 0x78 }
+0x8821CC00 = { name = "eot_MoviePlayer_UpdateIdle", size = 0x1D0 }
+0x8821CDD0 = { name = "eot_MoviePlayer_EnterPreparing", size = 0x48 }
+0x8821CE18 = { name = "eot_MoviePlayer_ExitPreparing", size = 0x50 }
+0x8821CE68 = { name = "eot_MoviePlayer_EnterPlaying", size = 0x4E4 }
+0x8821D350 = { name = "eot_MoviePlayer_UpdatePlaying", size = 0xE0 }
+0x8821D808 = { name = "eot_MoviePlayer_EnterSkipping", size = 0xA0 }
+0x8821D8A8 = { name = "eot_MoviePlayer_UpdateSkipping", size = 0xD8 }
+0x8821E950 = { name = "eot_GLInstanciateSimpleVolumetricSoundCylinder", size = 0x154 }
+0x8821EE90 = { name = "eot_GLInstanciateDLCManager", size = 0x78 }
 0x8821F8C8 = { size = 0xC0 }
 0x8821F9A8 = { size = 0x16C }
 0x8821FB68 = { size = 0x514 }
-0x88220CC0 = { size = 0x224 }
+0x88220CC0 = { name = "eot_GLInstanciateFXDecalManager", size = 0x224 }
 0x88221040 = { size = 0x144 }
-0x88221950 = { size = 0x1C0 }
+0x88221950 = { name = "eot_GLInstanciateSimpleRPCDistance", size = 0x1C0 }
 0x88221BC8 = { size = 0xD0 }
 0x88221C98 = { size = 0x134 }
-0x88221F00 = { size = 0x134 }
-0x88222400 = { size = 0x1F0 }
+0x88221F00 = { name = "eot_GLInstanciateFXFogUtil", size = 0x134 }
+0x88222400 = { name = "eot_GLInstanciateFXVolumetricSoundZone", size = 0x1F0 }
 0x88222820 = { size = 0xCC }
-0x882228F0 = { size = 0x1A0 }
-0x88222D90 = { size = 0x2F4 }
+0x882228F0 = { name = "eot_FXVolumetricSoundZone_UpdateActive", size = 0x1A0 }
+0x88222D90 = { name = "eot_GLInstanciateStartupControlSM2011", size = 0x2F4 }
 0x882231C0 = { size = 0xAC }
 0x88223270 = { size = 0xB0 }
 0x88223320 = { size = 0x1B8 }
 0x882234D8 = { size = 0xE8 }
-0x882235C0 = { size = 0xB4 }
-0x88223790 = { size = 0x14C }
-0x88226B90 = { size = 0x78 }
-0x88227550 = { size = 0xD8 }
-0x88227628 = { size = 0x25C }
-0x88227888 = { size = 0x210 }
+0x882235C0 = { name = "eot_StartupControlSM2011_ExitLoading", size = 0xB4 }
+0x88223790 = { name = "eot_GLInstanciateFXEmitter", size = 0x14C }
+0x88226B90 = { name = "eot_GLInstanciateHUDNotification", size = 0x78 }
+0x88227550 = { name = "eot_HUDNotification_ExitInactive", size = 0xD8 }
+0x88227628 = { name = "eot_HUDNotification_EnterInactive", size = 0x25C }
+0x88227888 = { name = "eot_HUDNotification_ExitTransitIn", size = 0x210 }
 0x88227A98 = { size = 0x134 }
-0x88227BD0 = { size = 0xC8 }
-0x88227C98 = { size = 0x2E4 }
-0x88227FA0 = { size = 0xFC }
+0x88227BD0 = { name = "eot_HUDNotification_ExitActive", size = 0xC8 }
+0x88227C98 = { name = "eot_HUDNotification_EnterTransitIn", size = 0x2E4 }
+0x88227FA0 = { name = "eot_HUDNotification_ExitTransitOut", size = 0xFC }
 0x882280A0 = { size = 0x15C }
-0x88228200 = { size = 0x28 }
-0x88228238 = { size = 0x164 }
-0x88228FE0 = { size = 0x118 }
-0x88229930 = { size = 0xC8 }
-0x88229C50 = { size = 0x434 }
-0x8822B530 = { size = 0x78 }
-0x8822BF60 = { size = 0xB0 }
-0x8822C010 = { size = 0x11C }
+0x88228200 = { name = "eot_HUDNotification_UpdateActive", size = 0x28 }
+0x88228238 = { name = "eot_HUDNotification_UpdateChallengeTracking", size = 0x164 }
+0x88228FE0 = { name = "eot_GLInstanciateSaveGameManager", size = 0x118 }
+0x88229930 = { name = "eot_GLInstanciateVOManager", size = 0xC8 }
+0x88229C50 = { name = "eot_VOManager_UpdateActive", size = 0x434 }
+0x8822B530 = { name = "eot_GLInstanciateHUDCredits", size = 0x78 }
+0x8822BF60 = { name = "eot_HUDCredits_EnterInactive", size = 0xB0 }
+0x8822C010 = { name = "eot_HUDCredits_UpdateOpacity", size = 0x11C }
 0x8822C130 = { size = 0xC0 }
-0x8822C1F0 = { size = 0xEC }
-0x8822C2E0 = { size = 0x120 }
+0x8822C1F0 = { name = "eot_HUDCredits_EnterMainSection", size = 0xEC }
+0x8822C2E0 = { name = "eot_HUDCredits_UpdateMainSection", size = 0x120 }
 0x8822C400 = { size = 0x48 }
-0x8822C448 = { size = 0x78 }
-0x8822C4C0 = { size = 0x178 }
-0x8822C638 = { size = 0xC0 }
+0x8822C448 = { name = "eot_HUDCredits_EnterSecondarySection", size = 0x78 }
+0x8822C4C0 = { name = "eot_HUDCredits_UpdateSecondarySection", size = 0x178 }
+0x8822C638 = { name = "eot_HUDCredits_EnterFadeOut", size = 0xC0 }
 0x8822C6F8 = { size = 0xBC }
 0x8822C7B8 = { size = 0x4C }
 0x8822C808 = { size = 0xD8 }
-0x8822D360 = { size = 0xD8 }
-0x8822E3D8 = { size = 0x1A8 }
-0x8822E5E0 = { size = 0x8C }
-0x8822E718 = { size = 0x204 }
-0x8822ED18 = { size = 0xFC }
-0x8822F650 = { size = 0x138 }
-0x8822FCC0 = { size = 0x78 }
+0x8822D360 = { name = "eot_GLInstanciateChallengeControl", size = 0xD8 }
+0x8822E3D8 = { name = "eot_GLInstanciateFXEmitterPositionUpdater", size = 0x1A8 }
+0x8822E5E0 = { name = "eot_FXEmitterPositionUpdater_UpdateEmit", size = 0x8C }
+0x8822E718 = { name = "eot_GLInstanciateFXSplashOnCamera", size = 0x204 }
+0x8822ED18 = { name = "eot_FXSplashOnCamera_UpdateActive", size = 0xFC }
+0x8822F650 = { name = "eot_GLInstanciateSimpleAmbianceManager", size = 0x138 }
+0x8822FCC0 = { name = "eot_GLInstanciatePauseMenu", size = 0x78 }
 0x882305D8 = { name = "eot_PauseMenu_EnterOpening", size = 0x244 }
-0x88230820 = { size = 0x44 }
-0x88230868 = { size = 0x120 }
-0x88230D40 = { size = 0x120 }
-0x88230E60 = { size = 0x60 }
-0x88230EC0 = { size = 0x174 }
-0x88231038 = { size = 0xC0 }
-0x882310F8 = { size = 0x1AC }
-0x882312A8 = { size = 0x48 }
-0x882312F0 = { size = 0xF8 }
-0x88231A00 = { size = 0x54 }
-0x88231A58 = { size = 0xC8 }
-0x88231B20 = { size = 0xA0 }
-0x88231BC0 = { size = 0xD0 }
-0x88233550 = { size = 0x17C }
-0x882340B8 = { size = 0xD0 }
-0x88234560 = { size = 0x124 }
-0x88234688 = { size = 0xAC }
-0x88234738 = { size = 0xA8 }
-0x882347E0 = { size = 0x60 }
-0x88234840 = { size = 0x5C }
-0x882348A0 = { size = 0xA8 }
-0x88234948 = { size = 0xD4 }
-0x88234A20 = { size = 0x14C }
-0x88234FC0 = { size = 0xFC }
-0x88235FF0 = { size = 0xC0 }
-0x88236298 = { size = 0xF0 }
-0x88236718 = { size = 0x150 }
-0x88236868 = { size = 0x170 }
-0x882369D8 = { size = 0x54 }
-0x88236B20 = { size = 0x1AC }
-0x88236F60 = { size = 0x1F4 }
-0x88237528 = { size = 0xF8 }
-0x882376D8 = { size = 0x11C }
-0x88238238 = { size = 0x1C8 }
-0x88238640 = { size = 0x224 }
-0x88238CF8 = { size = 0xD0 }
-0x88238F00 = { size = 0xC0 }
-0x882395C0 = { size = 0xD0 }
-0x8823A990 = { size = 0xD0 }
+0x88230820 = { name = "eot_PauseMenu_UpdateOpening", size = 0x44 }
+0x88230868 = { name = "eot_PauseMenu_EnterOpenSelection", size = 0x120 }
+0x88230D40 = { name = "eot_PauseMenu_EnterMainMenuActive", size = 0x120 }
+0x88230E60 = { name = "eot_PauseMenu_ExitMainMenuActive", size = 0x60 }
+0x88230EC0 = { name = "eot_PauseMenu_EnterSaving", size = 0x174 }
+0x88231038 = { name = "eot_PauseMenu_ExitSaving", size = 0xC0 }
+0x882310F8 = { name = "eot_PauseMenu_EnterClosing", size = 0x1AC }
+0x882312A8 = { name = "eot_PauseMenu_UpdateClosing", size = 0x48 }
+0x882312F0 = { name = "eot_PauseMenu_EnterInactive", size = 0xF8 }
+0x88231A00 = { name = "eot_PauseMenu_Respawn", size = 0x54 }
+0x88231A58 = { name = "eot_PauseMenu_OpenSubMenu", size = 0xC8 }
+0x88231B20 = { name = "eot_PauseMenu_OpenOptions", size = 0xA0 }
+0x88231BC0 = { name = "eot_PauseMenu_ClosePauseMenu", size = 0xD0 }
+0x88233550 = { name = "eot_GLInstanciateFXEmitterAnimationTime", size = 0x17C }
+0x882340B8 = { name = "eot_GLInstanciateChallengePauseMenu", size = 0xD0 }
+0x88234560 = { name = "eot_ChallengePauseMenu_EnterOpening", size = 0x124 }
+0x88234688 = { name = "eot_ChallengePauseMenu_UpdateOpening", size = 0xAC }
+0x88234738 = { name = "eot_ChallengePauseMenu_EnterActive", size = 0xA8 }
+0x882347E0 = { name = "eot_ChallengePauseMenu_ExitActive", size = 0x60 }
+0x88234840 = { name = "eot_ChallengePauseMenu_EnterClosing", size = 0x5C }
+0x882348A0 = { name = "eot_ChallengePauseMenu_UpdateClosing", size = 0xA8 }
+0x88234948 = { name = "eot_ChallengePauseMenu_ExitClosing", size = 0xD4 }
+0x88234A20 = { name = "eot_ChallengePauseMenu_EnterInactive", size = 0x14C }
+0x88234FC0 = { name = "eot_GLInstanciateHUDTarget3D", size = 0xFC }
+0x88235FF0 = { name = "eot_GLInstanciateSimpleVolumetricSoundSphere", size = 0xC0 }
+0x88236298 = { name = "eot_GLInstanciateSimpleRPCSpeed", size = 0xF0 }
+0x88236718 = { name = "eot_SimpleRPCSpeed_EnterActive", size = 0x150 }
+0x88236868 = { name = "eot_SimpleRPCSpeed_UpdateActive", size = 0x170 }
+0x882369D8 = { name = "eot_SimpleRPCSpeed_ExitActive", size = 0x54 }
+0x88236B20 = { name = "eot_GLInstanciateMinimizeHitChallengeControl", size = 0x1AC }
+0x88236F60 = { name = "eot_MinimizeHitChallengeControl_UpdateActive", size = 0x1F4 }
+0x88237528 = { name = "eot_GLInstanciateRenderToTextureCam", size = 0xF8 }
+0x882376D8 = { name = "eot_GLInstanciateCameraWebStrike", size = 0x11C }
+0x88238238 = { name = "eot_GLInstanciateTimerChallengeControl", size = 0x1C8 }
+0x88238640 = { name = "eot_TimerChallengeControl_UpdateActive", size = 0x224 }
+0x88238CF8 = { name = "eot_GLInstanciateCameraTriggerHandler", size = 0xD0 }
+0x88238F00 = { name = "eot_GLInstanciateCheatsManagerSM2011", size = 0xC0 }
+0x882395C0 = { name = "eot_GLInstanciateCameraSpline", size = 0xD0 }
+0x8823A990 = { name = "eot_GLInstanciateFXDecalObj", size = 0xD0 }
 0x8823AAC0 = { name = "eot_HUDOptionsScreen_Construct", size = 0x420 }
 0x8823B130 = { name = "eot_HUDOptionsScreen_BuildBar", size = 0x160 }
-0x8823B290 = { size = 0x94 }
-0x8823B888 = { size = 0x84 }
-0x8823BD50 = { size = 0xC8 }
-0x8823C0B0 = { size = 0x1C4 }
+0x8823B290 = { name = "eot_HUDOptionsScreen_EnterActive", size = 0x94 }
+0x8823B888 = { name = "eot_HUDOptionsScreen_Back", size = 0x84 }
+0x8823BD50 = { name = "eot_GLInstanciateCameraPiPFocus", size = 0xC8 }
+0x8823C0B0 = { name = "eot_GLInstanciateFXZoneActivator", size = 0x1C4 }
 0x8823C410 = { size = 0x38 }
-0x8823CB40 = { size = 0x204 }
+0x8823CB40 = { name = "eot_GLInstanciateInputEventHelper", size = 0x204 }
 0x8823CFD8 = { size = 0x188 }
-0x8823D370 = { size = 0xBC }
-0x8823D9A0 = { size = 0x1C0 }
+0x8823D370 = { name = "eot_GLInstanciateHUDManagerSM2011", size = 0xBC }
+0x8823D9A0 = { name = "eot_GLInstanciatePathfindingManager", size = 0x1C0 }
 0x8823DCC0 = { size = 0x8C }
-0x8823DD50 = { size = 0x208 }
-0x882431A8 = { size = 0x9C }
-0x88244108 = { size = 0xD0 }
-0x882443D0 = { size = 0x270 }
+0x8823DD50 = { name = "eot_PathfindingManager_UpdateActiveAfterLogic", size = 0x208 }
+0x882431A8 = { name = "eot_GLInstanciatePostFXInitializer", size = 0x9C }
+0x88244108 = { name = "eot_GLInstanciateFXHandleAnimationMessage", size = 0xD0 }
+0x882443D0 = { name = "eot_GLInstanciateDebugPauseMenu", size = 0x270 }
 0x88244640 = { size = 0xEC }
-0x88244A10 = { size = 0x148 }
-0x88244B58 = { size = 0x3E4 }
-0x88244F40 = { size = 0x54 }
-0x88245448 = { size = 0x274 }
-0x88246898 = { size = 0xF8 }
-0x88246B98 = { size = 0xC4 }
-0x88246C60 = { size = 0x144 }
-0x88247280 = { size = 0x208 }
+0x88244A10 = { name = "eot_DebugPauseMenu_EnterActive", size = 0x148 }
+0x88244B58 = { name = "eot_DebugPauseMenu_UpdateActive", size = 0x3E4 }
+0x88244F40 = { name = "eot_DebugPauseMenu_ExitActive", size = 0x54 }
+0x88245448 = { name = "eot_GLInstanciateHUDTransitionScreen", size = 0x274 }
+0x88246898 = { name = "eot_GLInstanciateStressTester", size = 0xF8 }
+0x88246B98 = { name = "eot_StressTester_EnterLoadLevels", size = 0xC4 }
+0x88246C60 = { name = "eot_StressTester_UpdateLoadLevels", size = 0x144 }
+0x88247280 = { name = "eot_GLInstanciateHUDNewControlerLayout", size = 0x208 }
 0x882475E0 = { size = 0xF4 }
 0x882476D8 = { size = 0x6C }
-0x88247C18 = { size = 0x244 }
-0x88247EC0 = { size = 0x270 }
-0x88248430 = { size = 0x15C }
-0x88248930 = { size = 0x98 }
-0x88248DF8 = { size = 0xC8 }
-0x8824AB90 = { size = 0x278 }
-0x8824B798 = { size = 0x90 }
-0x8824B9E0 = { size = 0x78 }
-0x8824C540 = { size = 0x64 }
-0x8824C5A8 = { size = 0x108 }
-0x8824C6B0 = { size = 0xB4 }
-0x8824C768 = { size = 0xF8 }
-0x8824C880 = { size = 0x200 }
-0x8824D078 = { size = 0x168 }
-0x8824D7D8 = { size = 0x148 }
-0x8824E0A8 = { size = 0x78 }
-0x8824E838 = { size = 0x108 }
-0x8824E940 = { size = 0xC0 }
-0x8824EA00 = { size = 0x50 }
-0x8824EA50 = { size = 0x58 }
-0x8824EAA8 = { size = 0x104 }
-0x8824EBB0 = { size = 0x84 }
-0x8824F4F8 = { size = 0x248 }
-0x8824F740 = { size = 0xDC }
-0x8824FB50 = { size = 0x218 }
-0x88251678 = { size = 0x78 }
+0x88247C18 = { name = "eot_GLInstanciateAmbianceZonesManager", size = 0x244 }
+0x88247EC0 = { name = "eot_AmbianceZonesManager_UpdateActive", size = 0x270 }
+0x88248430 = { name = "eot_GLInstanciateSimpleVolumetricSoundBox", size = 0x15C }
+0x88248930 = { name = "eot_GLInstanciateCameraHolderSM2011", size = 0x98 }
+0x88248DF8 = { name = "eot_GLInstanciateHUDChallengeResult", size = 0xC8 }
+0x8824AB90 = { name = "eot_GLInstanciateFXGravityControl", size = 0x278 }
+0x8824B798 = { name = "eot_GLInstanciateCamera1st", size = 0x90 }
+0x8824B9E0 = { name = "eot_GLInstanciateHUDSpiderEssence", size = 0x78 }
+0x8824C540 = { name = "eot_HUDSpiderEssence_UpdateDisabled", size = 0x64 }
+0x8824C5A8 = { name = "eot_HUDSpiderEssence_EnterDisabled", size = 0x108 }
+0x8824C6B0 = { name = "eot_HUDSpiderEssence_EnterIn", size = 0xB4 }
+0x8824C768 = { name = "eot_HUDSpiderEssence_UpdateIn", size = 0xF8 }
+0x8824C880 = { name = "eot_HUDSpiderEssence_UpdateActive", size = 0x200 }
+0x8824D078 = { name = "eot_GLInstanciateFXMultipleEmitterOnObject", size = 0x168 }
+0x8824D7D8 = { name = "eot_GLInstanciateCameraMarketing", size = 0x148 }
+0x8824E0A8 = { name = "eot_GLInstanciateFX3dObj", size = 0x78 }
+0x8824E838 = { name = "eot_FX3dObj_UpdateFadeIn", size = 0x108 }
+0x8824E940 = { name = "eot_FX3dObj_EnterFullVisibility", size = 0xC0 }
+0x8824EA00 = { name = "eot_FX3dObj_ExitFullVisibility", size = 0x50 }
+0x8824EA50 = { name = "eot_FX3dObj_EnterFadeOut", size = 0x58 }
+0x8824EAA8 = { name = "eot_FX3dObj_UpdateFadeOut", size = 0x104 }
+0x8824EBB0 = { name = "eot_FX3dObj_EnterDead", size = 0x84 }
+0x8824F4F8 = { name = "eot_GLInstanciateEndLevelManager", size = 0x248 }
+0x8824F740 = { name = "eot_EndLevelManager_UpdateActive", size = 0xDC }
+0x8824FB50 = { name = "eot_GLInstanciateCameraHolder", size = 0x218 }
+0x88251678 = { name = "eot_GLInstanciateHUDNotificationBonus", size = 0x78 }
 0x88251FF8 = { size = 0xA4 }
-0x882520A0 = { size = 0x28C }
-0x88252330 = { size = 0x48C }
-0x882527C0 = { size = 0x23C }
-0x88252A10 = { size = 0x16C }
-0x88252B80 = { size = 0x1DC }
-0x88252D60 = { size = 0x1B4 }
+0x882520A0 = { name = "eot_HUDNotificationBonus_UpdateInactive", size = 0x28C }
+0x88252330 = { name = "eot_HUDNotificationBonus_EnterTransitIn", size = 0x48C }
+0x882527C0 = { name = "eot_HUDNotificationBonus_UpdateTransitIn", size = 0x23C }
+0x88252A10 = { name = "eot_HUDNotificationBonus_UpdateActive", size = 0x16C }
+0x88252B80 = { name = "eot_HUDNotificationBonus_EnterTransitOut", size = 0x1DC }
+0x88252D60 = { name = "eot_HUDNotificationBonus_UpdateTransitOut", size = 0x1B4 }
 0x88252F18 = { size = 0xC }
-0x88253318 = { size = 0x134 }
-0x88254118 = { size = 0xB8 }
-0x88254258 = { size = 0x78 }
-0x882542E0 = { size = 0xD8 }
-0x882543B8 = { size = 0x3E0 }
-0x88254798 = { size = 0x1EC }
-0x88254988 = { size = 0x164 }
-0x88256750 = { size = 0xB8 }
-0x882572E8 = { size = 0xF4 }
-0x882576E0 = { size = 0x208 }
-0x88257960 = { size = 0x168 }
-0x88258170 = { size = 0xE0 }
-0x882585E8 = { size = 0x158 }
-0x88259018 = { size = 0x90 }
-0x88259220 = { size = 0x388 }
+0x88253318 = { name = "eot_GLInstanciateFXPhysicObject", size = 0x134 }
+0x88254118 = { name = "eot_FXPhysicObject_EnterActive", size = 0xB8 }
+0x88254258 = { name = "eot_FXPhysicObject_ExitActive", size = 0x78 }
+0x882542E0 = { name = "eot_FXPhysicObject_SfxIdleLoop", size = 0xD8 }
+0x882543B8 = { name = "eot_FXPhysicObject_EnterTryRespawn", size = 0x3E0 }
+0x88254798 = { name = "eot_FXPhysicObject_UpdateTryRespawn", size = 0x1EC }
+0x88254988 = { name = "eot_FXPhysicObject_StartFXIdle", size = 0x164 }
+0x88256750 = { name = "eot_GLInstanciateCamera3rdCrawl", size = 0xB8 }
+0x882572E8 = { name = "eot_GLInstanciateFXClutUtil", size = 0xF4 }
+0x882576E0 = { name = "eot_FXClutUtil_UpdateActive", size = 0x208 }
+0x88257960 = { name = "eot_FXClutUtil_UpdateHold", size = 0x168 }
+0x88258170 = { name = "eot_GLInstanciateCameraManagerSM2011", size = 0xE0 }
+0x882585E8 = { name = "eot_GLInstanciateCameraFix", size = 0x158 }
+0x88259018 = { name = "eot_GLInstanciateCameraShoulder", size = 0x90 }
+0x88259220 = { name = "eot_GLInstanciateHUDPriorityManager", size = 0x388 }
 0x88259690 = { size = 0x204 }
 0x88259898 = { size = 0x1A4 }
 0x88259A40 = { size = 0x114 }
 0x88259B58 = { size = 0xE4 }
-0x8825A2B8 = { size = 0x78 }
-0x8825A330 = { size = 0xD8 }
+0x8825A2B8 = { name = "eot_GLInstanciateHUDGlobals", size = 0x78 }
+0x8825A330 = { name = "eot_HUDGlobals_AnimOpenVerticalDelayed", size = 0xD8 }
 0x8825B390 = { size = 0x18C }
 0x8825B520 = { size = 0x178 }
-0x8825B698 = { size = 0x138 }
-0x8825B7D0 = { size = 0xC0 }
-0x8825B890 = { size = 0x190 }
+0x8825B698 = { name = "eot_HUDGlobals_EnterOpening", size = 0x138 }
+0x8825B7D0 = { name = "eot_HUDGlobals_UpdateOpening", size = 0xC0 }
+0x8825B890 = { name = "eot_HUDGlobals_UpdateMoving", size = 0x190 }
 0x8825BA20 = { size = 0x124 }
 0x8825BB48 = { size = 0xDC }
 0x8825BC28 = { size = 0xB4 }
-0x8825BCE0 = { size = 0x140 }
-0x8825BE20 = { size = 0x1B8 }
-0x8825BFD8 = { size = 0x5C }
-0x8825D8D8 = { size = 0x13C }
-0x8825E0D0 = { size = 0x140 }
+0x8825BCE0 = { name = "eot_HUDGlobals_EnterClosing", size = 0x140 }
+0x8825BE20 = { name = "eot_HUDGlobals_UpdateClosing", size = 0x1B8 }
+0x8825BFD8 = { name = "eot_HUDGlobals_EnterInactive", size = 0x5C }
+0x8825D8D8 = { name = "eot_GLInstanciateFXMatAnimWorld", size = 0x13C }
+0x8825E0D0 = { name = "eot_GLInstanciatePathfindingConflictManager", size = 0x140 }
 0x8825E448 = { size = 0x8C }
 0x8825E4D8 = { size = 0x5C }
-0x88260160 = { size = 0xBC }
-0x88260220 = { size = 0xE0 }
-0x88260958 = { size = 0x9C }
-0x88260D88 = { size = 0x22C }
-0x882611D8 = { size = 0xA0 }
-0x88261278 = { size = 0x8C }
-0x88261308 = { size = 0x98 }
-0x88261BE8 = { size = 0x90 }
-0x88261D08 = { size = 0x88 }
-0x88262C10 = { size = 0x78 }
-0x882632C0 = { size = 0xB0 }
-0x88263370 = { size = 0x138 }
-0x88263530 = { size = 0xA4 }
-0x882635D8 = { size = 0x94 }
-0x88263670 = { size = 0xBC }
-0x88263730 = { size = 0xD8 }
-0x88263BE8 = { size = 0x100 }
-0x882647B0 = { size = 0xBC }
+0x88260160 = { name = "eot_GLInstanciateDataMining", size = 0xBC }
+0x88260220 = { name = "eot_GLInstanciateFXLayeredDecalObj", size = 0xE0 }
+0x88260958 = { name = "eot_GLInstanciateCameraFollowBone", size = 0x9C }
+0x88260D88 = { name = "eot_GLInstanciateFXPhysicObjectSpawner", size = 0x22C }
+0x882611D8 = { name = "eot_FXPhysicObjectSpawner_EnterSpawning", size = 0xA0 }
+0x88261278 = { name = "eot_FXPhysicObjectSpawner_UpdateSpawning", size = 0x8C }
+0x88261308 = { name = "eot_FXPhysicObjectSpawner_ExitSpawning", size = 0x98 }
+0x88261BE8 = { name = "eot_GLInstanciateComboChallengeControl", size = 0x90 }
+0x88261D08 = { name = "eot_GLInstanciateInputManagerSM2011", size = 0x88 }
+0x88262C10 = { name = "eot_GLInstanciateHUDSpecialThanks", size = 0x78 }
+0x882632C0 = { name = "eot_HUDSpecialThanks_EnterInactive", size = 0xB0 }
+0x88263370 = { name = "eot_HUDSpecialThanks_EnterFadeIn", size = 0x138 }
+0x88263530 = { name = "eot_HUDSpecialThanks_EnterMainSection", size = 0xA4 }
+0x882635D8 = { name = "eot_HUDSpecialThanks_EnterFadeOut", size = 0x94 }
+0x88263670 = { name = "eot_HUDSpecialThanks_UpdateFadeOut", size = 0xBC }
+0x88263730 = { name = "eot_HUDSpecialThanks_UpdateOpacity", size = 0xD8 }
+0x88263BE8 = { name = "eot_GLInstanciateCameraWebStrikeEvade", size = 0x100 }
+0x882647B0 = { name = "eot_GLInstanciateProfileControl", size = 0xBC }
 0x8826C548 = { size = 0x10C }
 0x8826C690 = { size = 0x1E8 }
 0x8826CE58 = { size = 0x58 }
@@ -1320,41 +1320,41 @@ out_directory_path = "generated/gamelogic"
 0x8826DB48 = { size = 0x19C }
 0x8826DCE8 = { size = 0x1BC }
 0x8826DEA8 = { size = 0xBC }
-0x8826ED60 = { size = 0x118 }
-0x8826EE78 = { size = 0xB8 }
+0x8826ED60 = { name = "eot_SaveGameManagerSaveModule_Enter_Save", size = 0x118 }
+0x8826EE78 = { name = "eot_SaveGameManagerSaveModule_Enter_SaveDone", size = 0xB8 }
 0x8826F930 = { size = 0xCC }
 0x8826FA00 = { size = 0x1F0 }
 0x8826FBF0 = { size = 0x14C }
 0x8826FD40 = { size = 0x1AC }
 0x8826FEF0 = { size = 0xDC }
-0x882753C0 = { size = 0x194 }
-0x882755E0 = { size = 0x190 }
-0x88275910 = { size = 0xF8 }
-0x88275DB8 = { size = 0xEC }
-0x88276320 = { size = 0x1B4 }
-0x88277168 = { size = 0x17C }
-0x88277A60 = { size = 0x344 }
-0x88278008 = { size = 0x78 }
-0x882795F0 = { size = 0x158 }
-0x8827B308 = { size = 0x1E4 }
-0x8827B7B0 = { size = 0x1EC }
-0x8827C3E8 = { size = 0x26C }
-0x8827CCA8 = { size = 0x368 }
-0x8827D3A8 = { size = 0x28C }
-0x8827DE40 = { size = 0x16C }
+0x882753C0 = { name = "eot_GLInstanciateQuitGameManager", size = 0x194 }
+0x882755E0 = { name = "eot_QuitGameManager_UpdateCheck", size = 0x190 }
+0x88275910 = { name = "eot_GLInstanciateExternTimer", size = 0xF8 }
+0x88275DB8 = { name = "eot_GLInstanciateZoneManager", size = 0xEC }
+0x88276320 = { name = "eot_ZoneManager_UpdateActive", size = 0x1B4 }
+0x88277168 = { name = "eot_GLInstanciateRumbleManager", size = 0x17C }
+0x88277A60 = { name = "eot_RumbleManager_UpdateActive", size = 0x344 }
+0x88278008 = { name = "eot_GLInstanciateLogger", size = 0x78 }
+0x882795F0 = { name = "eot_GLInstanciateAudioManager", size = 0x158 }
+0x8827B308 = { name = "eot_GLInstanciateLevelManager", size = 0x1E4 }
+0x8827B7B0 = { name = "eot_LevelManager_UpdateLoad", size = 0x1EC }
+0x8827C3E8 = { name = "eot_GLInstanciateHUDButtonHelper", size = 0x26C }
+0x8827CCA8 = { name = "eot_GLInstanciateHUDManager", size = 0x368 }
+0x8827D3A8 = { name = "eot_HUDManager_PostUpdate", size = 0x28C }
+0x8827DE40 = { name = "eot_GLInstanciateOpacityManager", size = 0x16C }
 0x8827E0D0 = { size = 0xD4 }
-0x8827EF70 = { size = 0x18C }
-0x8827F988 = { size = 0xE8 }
-0x8827FA70 = { size = 0x7C }
+0x8827EF70 = { name = "eot_GLInstanciateCamPropertiesManager", size = 0x18C }
+0x8827F988 = { name = "eot_GLInstanciateHUDAnimHelper", size = 0xE8 }
+0x8827FA70 = { name = "eot_HUDAnimHelper_AnimSinAlpha", size = 0x7C }
 0x8827FD98 = { size = 0x13C }
-0x88280030 = { size = 0x9C }
-0x88280408 = { size = 0x9C }
+0x88280030 = { name = "eot_GLInstanciateSoundPlacementObj", size = 0x9C }
+0x88280408 = { name = "eot_GLInstanciateVolumeManager", size = 0x9C }
 0x88280680 = { size = 0xF8 }
-0x88280E58 = { size = 0xB8 }
-0x882814D0 = { size = 0xA8 }
-0x88281B18 = { size = 0x78 }
-0x882827F0 = { size = 0x138 }
-0x88282928 = { size = 0x98 }
+0x88280E58 = { name = "eot_GLInstanciateBaseWindowComponentObj", size = 0xB8 }
+0x882814D0 = { name = "eot_GLInstanciateInputManagerMain", size = 0xA8 }
+0x88281B18 = { name = "eot_GLInstanciateHUDWindowManager", size = 0x78 }
+0x882827F0 = { name = "eot_HUDWindowManager_UpdateAnimations", size = 0x138 }
+0x88282928 = { name = "eot_HUDWindowManager_EnterIdle", size = 0x98 }
 0x882829C0 = { name = "eot_TCRWindow_IdleUpdate", size = 0x2D0 }
 0x88282C90 = { name = "eot_TCRWindow_OpeningEnter", size = 0x20C }
 0x88282EA0 = { name = "eot_TCRWindow_OpeningUpdate", size = 0x17C }
@@ -1363,175 +1363,175 @@ out_directory_path = "generated/gamelogic"
 0x88283170 = { name = "eot_TCRWindow_ActiveUpdate", size = 0x1A4 }
 0x88283318 = { name = "eot_TCRWindow_ActiveExit", size = 0x54 }
 0x88283370 = { name = "eot_TCRWindow_ClosingEnter", size = 0x248 }
-0x882835B8 = { size = 0x1A0 }
-0x88283C90 = { size = 0x388 }
-0x88284480 = { size = 0x7C }
-0x88284500 = { size = 0x60 }
-0x88286D98 = { size = 0x1E8 }
+0x882835B8 = { name = "eot_HUDWindowManager_UpdateOut", size = 0x1A0 }
+0x88283C90 = { name = "eot_GLInstanciateCameraManager", size = 0x388 }
+0x88284480 = { name = "eot_CameraManager_EnterActive", size = 0x7C }
+0x88284500 = { name = "eot_CameraManager_ExitActive", size = 0x60 }
+0x88286D98 = { name = "eot_GLInstanciateStartupControl", size = 0x1E8 }
 0x882872A8 = { size = 0x54 }
 0x8828D2D0 = { size = 0xD0 }
-0x8828DD90 = { size = 0x228 }
+0x8828DD90 = { name = "eot_BaseHUDElement_EnterTransitionIn", size = 0x228 }
 0x8828DFB8 = { size = 0x280 }
-0x8828E288 = { size = 0xD8 }
+0x8828E288 = { name = "eot_BaseHUDElement_UpdateTransition", size = 0xD8 }
 0x8828E360 = { size = 0x21C }
-0x8828E5A0 = { size = 0x9C }
-0x8828EA00 = { size = 0x74 }
-0x8828EA78 = { size = 0xD8 }
-0x8828EB50 = { size = 0x80 }
-0x8828EBD0 = { size = 0xDC }
-0x882982E0 = { size = 0x2E0 }
-0x8829B7F0 = { size = 0x1F8 }
-0x8829F458 = { size = 0xAC }
-0x8829F508 = { size = 0x64 }
-0x8829F570 = { size = 0x40 }
-0x8829F5B0 = { size = 0x7C }
-0x8829F630 = { size = 0x4C }
-0x8829F680 = { size = 0x8C }
-0x8829F710 = { size = 0xA0 }
-0x8829F7B0 = { size = 0x1A4 }
-0x8829F958 = { size = 0x45C }
-0x8829FDB8 = { size = 0xF4 }
-0x8829FEB0 = { size = 0x1BC }
-0x882A0070 = { size = 0x5C }
-0x882A00D0 = { size = 0x64 }
-0x882A0138 = { size = 0x60 }
-0x882A0198 = { size = 0xFC }
-0x882A03A8 = { size = 0xA8 }
-0x882A0450 = { size = 0x1CC }
-0x882A0620 = { size = 0x148 }
-0x882A0768 = { size = 0x854 }
-0x882A0FC0 = { size = 0x1A8 }
-0x882A1168 = { size = 0xEC }
-0x882A1258 = { size = 0x168 }
-0x882A13C0 = { size = 0x160 }
-0x882A1520 = { size = 0x60 }
-0x882A1580 = { size = 0x114 }
-0x882A1698 = { size = 0x200 }
-0x882A1898 = { size = 0x48 }
-0x882A18E0 = { size = 0x3A0 }
-0x882A1C80 = { size = 0x8C }
-0x882A6CD8 = { size = 0x378 }
-0x882A7050 = { size = 0x128 }
-0x882A7178 = { size = 0xE4 }
-0x882A7260 = { size = 0x150 }
-0x882A73B0 = { size = 0x64 }
-0x882A7480 = { size = 0x58 }
-0x882A74D8 = { size = 0x140 }
-0x882A7640 = { size = 0x80 }
-0x882A76C0 = { size = 0x164 }
-0x882A7828 = { size = 0x110 }
-0x882A7938 = { size = 0x8C }
+0x8828E5A0 = { name = "eot_BaseHUDElement_UpdateHidden", size = 0x9C }
+0x8828EA00 = { name = "eot_BaseHUDElement_EnterFade", size = 0x74 }
+0x8828EA78 = { name = "eot_BaseHUDElement_UpdateFadeOutState", size = 0xD8 }
+0x8828EB50 = { name = "eot_BaseHUDElement_EnterFadeOut", size = 0x80 }
+0x8828EBD0 = { name = "eot_BaseHUDElement_UpdateForceFadeIn", size = 0xDC }
+0x882982E0 = { name = "eot_CheatsManager_UpdateDetectCheats", size = 0x2E0 }
+0x8829B7F0 = { name = "eot_GLInstanciateMonsterOck", size = 0x1F8 }
+0x8829F458 = { name = "eot_MonsterOck_UpdateSwipe", size = 0xAC }
+0x8829F508 = { name = "eot_MonsterOck_EnterCombat", size = 0x64 }
+0x8829F570 = { name = "eot_MonsterOck_ExitCombat", size = 0x40 }
+0x8829F5B0 = { name = "eot_MonsterOck_EnterStart", size = 0x7C }
+0x8829F630 = { name = "eot_MonsterOck_UpdateStart", size = 0x4C }
+0x8829F680 = { name = "eot_MonsterOck_EnterIdle", size = 0x8C }
+0x8829F710 = { name = "eot_MonsterOck_UpdateIdle", size = 0xA0 }
+0x8829F7B0 = { name = "eot_MonsterOck_EnterWalk", size = 0x1A4 }
+0x8829F958 = { name = "eot_MonsterOck_UpdateWalk", size = 0x45C }
+0x8829FDB8 = { name = "eot_MonsterOck_EnterSlowWalk", size = 0xF4 }
+0x8829FEB0 = { name = "eot_MonsterOck_UpdateSlowWalk", size = 0x1BC }
+0x882A0070 = { name = "eot_MonsterOck_EnterRangeTaunt", size = 0x5C }
+0x882A00D0 = { name = "eot_MonsterOck_UpdateRangeTaunt", size = 0x64 }
+0x882A0138 = { name = "eot_MonsterOck_EnterRangeTauntIdle", size = 0x60 }
+0x882A0198 = { name = "eot_MonsterOck_UpdateRangeTauntIdle", size = 0xFC }
+0x882A03A8 = { name = "eot_MonsterOck_EnterRotate", size = 0xA8 }
+0x882A0450 = { name = "eot_MonsterOck_UpdateRotate", size = 0x1CC }
+0x882A0620 = { name = "eot_MonsterOck_EnterGrab", size = 0x148 }
+0x882A0768 = { name = "eot_MonsterOck_UpdateGrab", size = 0x854 }
+0x882A0FC0 = { name = "eot_MonsterOck_ExitGrab", size = 0x1A8 }
+0x882A1168 = { name = "eot_MonsterOck_EnterDead", size = 0xEC }
+0x882A1258 = { name = "eot_MonsterOck_EnterTeleport", size = 0x168 }
+0x882A13C0 = { name = "eot_MonsterOck_UpdateTeleport", size = 0x160 }
+0x882A1520 = { name = "eot_MonsterOck_ExitTeleport", size = 0x60 }
+0x882A1580 = { name = "eot_MonsterOck_EnterFloorAttack", size = 0x114 }
+0x882A1698 = { name = "eot_MonsterOck_UpdateFloorAttack", size = 0x200 }
+0x882A1898 = { name = "eot_MonsterOck_ExitFloorAttack", size = 0x48 }
+0x882A18E0 = { name = "eot_MonsterOck_EnterWebShottedAngry", size = 0x3A0 }
+0x882A1C80 = { name = "eot_MonsterOck_UpdateWebShottedAngry", size = 0x8C }
+0x882A6CD8 = { name = "eot_MonsterOck_EnterElectrocuted", size = 0x378 }
+0x882A7050 = { name = "eot_MonsterOck_UpdateElectrocuted", size = 0x128 }
+0x882A7178 = { name = "eot_MonsterOck_ExitElectrocuted", size = 0xE4 }
+0x882A7260 = { name = "eot_MonsterOck_EnterElectrocutedOut", size = 0x150 }
+0x882A73B0 = { name = "eot_MonsterOck_UpdateElectrocutedOut", size = 0x64 }
+0x882A7480 = { name = "eot_MonsterOck_EnterStunHurt", size = 0x58 }
+0x882A74D8 = { name = "eot_MonsterOck_UpdateStunHurt", size = 0x140 }
+0x882A7640 = { name = "eot_MonsterOck_EnterTendrilPull", size = 0x80 }
+0x882A76C0 = { name = "eot_MonsterOck_EnterSwipe", size = 0x164 }
+0x882A7828 = { name = "eot_MonsterOck_ExitStart", size = 0x110 }
+0x882A7938 = { name = "eot_MonsterOck_ExitSwipe", size = 0x8C }
 0x882A8CB0 = { size = 0xD4 }
-0x882A8D88 = { size = 0x2B0 }
-0x882A9038 = { size = 0x378 }
+0x882A8D88 = { name = "eot_MonsterOck_EnterGasChoke", size = 0x2B0 }
+0x882A9038 = { name = "eot_MonsterOck_UpdateGasChoke", size = 0x378 }
 0x882A93B0 = { size = 0x64 }
-0x882A9418 = { size = 0x250 }
-0x882A9668 = { size = 0x128 }
-0x882A9790 = { size = 0x5C }
+0x882A9418 = { name = "eot_MonsterOck_EnterDNAExtraction", size = 0x250 }
+0x882A9668 = { name = "eot_MonsterOck_UpdateDNAExtraction", size = 0x128 }
+0x882A9790 = { name = "eot_MonsterOck_ExitDNAExtraction", size = 0x5C }
 0x882A97F0 = { size = 0x150 }
 0x882A9940 = { size = 0x2F4 }
 0x882A9C38 = { size = 0x84 }
-0x882A9CC0 = { size = 0x2E0 }
-0x882AA6F8 = { size = 0x88 }
-0x882AA780 = { size = 0xCC }
-0x882AAA68 = { size = 0x258 }
-0x882AAD20 = { size = 0x24C }
-0x882AAF70 = { size = 0x1A0 }
-0x882ABE40 = { size = 0xF0 }
-0x882AC2C0 = { size = 0x318 }
-0x882AC638 = { size = 0x1A0 }
-0x882AC888 = { size = 0xD0 }
-0x882ACAD0 = { size = 0x9C }
-0x882ACC28 = { size = 0x1CC }
-0x882ADA80 = { size = 0x1FC }
-0x882AEED0 = { size = 0x144 }
-0x882AF198 = { size = 0xF4 }
-0x882AF3F0 = { size = 0xF0 }
-0x882AF678 = { size = 0xD8 }
-0x882AFA30 = { size = 0x1A4 }
-0x882B0118 = { size = 0x40C }
+0x882A9CC0 = { name = "eot_GLInstanciateHUDComboMeter", size = 0x2E0 }
+0x882AA6F8 = { name = "eot_HUDComboMeter_UpdateHidden", size = 0x88 }
+0x882AA780 = { name = "eot_HUDComboMeter_UpdateActive", size = 0xCC }
+0x882AAA68 = { name = "eot_GLInstanciateCrawlCamOverrideZone", size = 0x258 }
+0x882AAD20 = { name = "eot_CrawlCamOverrideZone_UpdateActive", size = 0x24C }
+0x882AAF70 = { name = "eot_GLInstanciateHUDSpecialAbility", size = 0x1A0 }
+0x882ABE40 = { name = "eot_GLInstanciateHUDCombo", size = 0xF0 }
+0x882AC2C0 = { name = "eot_GLInstanciateTeleportZone", size = 0x318 }
+0x882AC638 = { name = "eot_TeleportZone_UpdateActive", size = 0x1A0 }
+0x882AC888 = { name = "eot_GLInstanciateRunningStartTrigger", size = 0xD0 }
+0x882ACAD0 = { name = "eot_GLInstanciateBaseHeroInitializer", size = 0x9C }
+0x882ACC28 = { name = "eot_GLInstanciateHUDBossHealthBar", size = 0x1CC }
+0x882ADA80 = { name = "eot_GLInstanciateHUDHealth", size = 0x1FC }
+0x882AEED0 = { name = "eot_GLInstanciateSMAnimatedCrawlTrigger", size = 0x144 }
+0x882AF198 = { name = "eot_GLInstanciateHUDNoWebSwing", size = 0xF4 }
+0x882AF3F0 = { name = "eot_GLInstanciateSMForceWalkTrigger", size = 0xF0 }
+0x882AF678 = { name = "eot_GLInstanciateNoSwingZoneWatcher", size = 0xD8 }
+0x882AFA30 = { name = "eot_GLInstanciateComboScoreManager", size = 0x1A4 }
+0x882B0118 = { name = "eot_GLInstanciateFallingElevator", size = 0x40C }
 0x882B0CF8 = { size = 0x8C }
 0x882B0D88 = { size = 0x48C }
-0x882B1230 = { size = 0x15C }
-0x882B1390 = { size = 0x2A4 }
+0x882B1230 = { name = "eot_FallingElevator_EnterInteractedWith", size = 0x15C }
+0x882B1390 = { name = "eot_FallingElevator_UpdateInteractedWith", size = 0x2A4 }
 0x882B1638 = { size = 0x8 }
-0x882B1640 = { size = 0x130 }
-0x882B1770 = { size = 0x178 }
-0x882B1C38 = { size = 0x128 }
-0x882B1EB8 = { size = 0x1DC }
+0x882B1640 = { name = "eot_FallingElevator_EnterChangeSpline", size = 0x130 }
+0x882B1770 = { name = "eot_FallingElevator_UpdateChangeSpline", size = 0x178 }
+0x882B1C38 = { name = "eot_GLInstanciateConfinedCrawl", size = 0x128 }
+0x882B1EB8 = { name = "eot_GLInstanciateObjectShooter", size = 0x1DC }
 0x882B21C0 = { size = 0x84 }
 0x882B2248 = { size = 0x180 }
-0x882B30C0 = { size = 0xB4 }
-0x882B3178 = { size = 0x104 }
-0x882B3280 = { size = 0xAC }
-0x882B3330 = { size = 0x170 }
-0x882B34A0 = { size = 0x148 }
-0x882B35E8 = { size = 0xA0 }
-0x882B3688 = { size = 0x44 }
-0x882B36D0 = { size = 0x40 }
-0x882B3710 = { size = 0xA0 }
-0x882B37B0 = { size = 0x44 }
-0x882B37F8 = { size = 0x44 }
+0x882B30C0 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_EnterPaused", size = 0xB4 }
+0x882B3178 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_UpdatePaused", size = 0x104 }
+0x882B3280 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_EnterCrawling", size = 0xAC }
+0x882B3330 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_UpdateCrawling", size = 0x170 }
+0x882B34A0 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_InputCallback", size = 0x148 }
+0x882B35E8 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_PlayFootstepA", size = 0xA0 }
+0x882B3688 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_NotifyHeroPhase3", size = 0x44 }
+0x882B36D0 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_NotifyHeroPhase0", size = 0x40 }
+0x882B3710 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_PlayFootstepB", size = 0xA0 }
+0x882B37B0 = { name = "eot_SMAnimatedCrawlTrigger_CrawlModule_NotifyHeroPhase2", size = 0x44 }
+0x882B37F8 = { name = "eot_SMForceWalkModule_StartHoldedObjectAdditiveAnim", size = 0x44 }
 0x882B4670 = { size = 0x154 }
 0x882B47C8 = { size = 0x108 }
 0x882B48D0 = { size = 0xF0 }
 0x882B49C0 = { size = 0xB4 }
 0x882B4A78 = { size = 0x1A0 }
 0x882B4C18 = { size = 0x8 }
-0x882B5430 = { size = 0xE4 }
-0x882B5518 = { size = 0xD8 }
-0x882B55F0 = { size = 0x90 }
-0x882B5680 = { size = 0x17C }
-0x882B5800 = { size = 0xC8 }
-0x882B58E8 = { size = 0x14C }
-0x882B5A38 = { size = 0x188 }
-0x882C2F40 = { size = 0xB0 }
+0x882B5430 = { name = "eot_SMElevatorWebPPModule_EnterThrowWebs", size = 0xE4 }
+0x882B5518 = { name = "eot_SMElevatorWebPPModule_EnterGetToAndOn", size = 0xD8 }
+0x882B55F0 = { name = "eot_SMElevatorWebPPModule_UpdateGetToAndOn", size = 0x90 }
+0x882B5680 = { name = "eot_SMElevatorWebPPModule_EnterWebPPIn", size = 0x17C }
+0x882B5800 = { name = "eot_SMElevatorWebPPModule_UpdateWebPPIn", size = 0xC8 }
+0x882B58E8 = { name = "eot_SMElevatorWebPPModule_EnterWebPPOut", size = 0x14C }
+0x882B5A38 = { name = "eot_SMElevatorWebPPModule_UpdateWebPPOut", size = 0x188 }
+0x882C2F40 = { name = "eot_BaseHeroSM_EnterInactive", size = 0xB0 }
 0x882C2FF0 = { size = 0x108 }
 0x882C30F8 = { size = 0xA4 }
-0x882C31A0 = { size = 0x2AC }
-0x882C3450 = { size = 0x210 }
-0x882C3660 = { size = 0x15C }
+0x882C31A0 = { name = "eot_BaseHeroSM_EnterIdle", size = 0x2AC }
+0x882C3450 = { name = "eot_BaseHeroSM_UpdateIdle", size = 0x210 }
+0x882C3660 = { name = "eot_BaseHeroSM_ExitIdle", size = 0x15C }
 0x882C3BB8 = { size = 0x2B0 }
-0x882C3E68 = { size = 0x134 }
-0x882C3FA0 = { size = 0x320 }
-0x882C42C0 = { size = 0x8C }
-0x882C4350 = { size = 0x228 }
-0x882C4578 = { size = 0xA4 }
+0x882C3E68 = { name = "eot_BaseHeroSM_EnterRun", size = 0x134 }
+0x882C3FA0 = { name = "eot_BaseHeroSM_UpdateRun", size = 0x320 }
+0x882C42C0 = { name = "eot_BaseHeroSM_ExitRun", size = 0x8C }
+0x882C4350 = { name = "eot_BaseHeroSM_EnterForceWalkIdle", size = 0x228 }
+0x882C4578 = { name = "eot_BaseHeroSM_UpdateForceWalkIdle", size = 0xA4 }
 0x882C4620 = { size = 0xA8 }
-0x882C46C8 = { size = 0x114 }
-0x882C61D0 = { size = 0x108 }
-0x882C62D8 = { size = 0x174 }
-0x882C6450 = { size = 0x50 }
-0x882C6958 = { size = 0x230 }
-0x882C6B88 = { size = 0x21C }
-0x882C6DA8 = { size = 0x88 }
-0x882C91C0 = { size = 0x1B4 }
-0x882C9378 = { size = 0x180 }
-0x882C94F8 = { size = 0x68 }
+0x882C46C8 = { name = "eot_BaseHeroSM_UpdateForceWalkMove", size = 0x114 }
+0x882C61D0 = { name = "eot_BaseHeroSM_EnterLedgeRun", size = 0x108 }
+0x882C62D8 = { name = "eot_BaseHeroSM_UpdateLedgeRun", size = 0x174 }
+0x882C6450 = { name = "eot_BaseHeroSM_ExitLedgeRun", size = 0x50 }
+0x882C6958 = { name = "eot_BaseHeroSM_EnterCrawlIdle", size = 0x230 }
+0x882C6B88 = { name = "eot_BaseHeroSM_UpdateCrawldle", size = 0x21C }
+0x882C6DA8 = { name = "eot_BaseHeroSM_ExitCrawlIdle", size = 0x88 }
+0x882C91C0 = { name = "eot_BaseHeroSM_EnterJump", size = 0x1B4 }
+0x882C9378 = { name = "eot_BaseHeroSM_UpdateJump", size = 0x180 }
+0x882C94F8 = { name = "eot_BaseHeroSM_ExitJump", size = 0x68 }
 0x882C9560 = { size = 0x5C }
-0x882C95C0 = { size = 0x144 }
-0x882C9928 = { size = 0x18C }
-0x882C9AB8 = { size = 0x124 }
-0x882C9BE0 = { size = 0x90 }
-0x882C9C70 = { size = 0x254 }
-0x882C9EC8 = { size = 0x1F0 }
-0x882CA0B8 = { size = 0x58 }
-0x882CA110 = { size = 0x5C }
-0x882CA170 = { size = 0x2CC }
-0x882CA440 = { size = 0x22C }
-0x882CA670 = { size = 0x144 }
-0x882CA7B8 = { size = 0x154 }
-0x882CA938 = { size = 0x80 }
-0x882CA9B8 = { size = 0x48 }
+0x882C95C0 = { name = "eot_BaseHeroSM_UpdateJumpOut", size = 0x144 }
+0x882C9928 = { name = "eot_BaseHeroSM_EnterJumpToWebSwing", size = 0x18C }
+0x882C9AB8 = { name = "eot_BaseHeroSM_UpdateJumpToWebSwing", size = 0x124 }
+0x882C9BE0 = { name = "eot_BaseHeroSM_ExitJumpToWebSwing", size = 0x90 }
+0x882C9C70 = { name = "eot_BaseHeroSM_EnterDoubleJump", size = 0x254 }
+0x882C9EC8 = { name = "eot_BaseHeroSM_UpdateDoubleJump", size = 0x1F0 }
+0x882CA0B8 = { name = "eot_BaseHeroSM_ExitDoubleJump", size = 0x58 }
+0x882CA110 = { name = "eot_BaseHeroSM_EnterFailJump", size = 0x5C }
+0x882CA170 = { name = "eot_BaseHeroSM_EnterFall", size = 0x2CC }
+0x882CA440 = { name = "eot_BaseHeroSM_UpdateFall", size = 0x22C }
+0x882CA670 = { name = "eot_BaseHeroSM_ExitFall", size = 0x144 }
+0x882CA7B8 = { name = "eot_BaseHeroSM_EnterOffLimitPushBack", size = 0x154 }
+0x882CA938 = { name = "eot_BaseHeroSM_EnterHurtFall", size = 0x80 }
+0x882CA9B8 = { name = "eot_BaseHeroSM_UpdateHurtFall", size = 0x48 }
 0x882CAA00 = { size = 0x3C0 }
 0x882CADC0 = { size = 0xE4 }
-0x882CAEA8 = { size = 0x120 }
-0x882CAFC8 = { size = 0x678 }
-0x882CB640 = { size = 0x348 }
-0x882CB988 = { size = 0xDC }
-0x882CBA68 = { size = 0x54 }
+0x882CAEA8 = { name = "eot_BaseHeroSM_ExitWebThrowOnTarget", size = 0x120 }
+0x882CAFC8 = { name = "eot_BaseHeroSM_EnterLand", size = 0x678 }
+0x882CB640 = { name = "eot_BaseHeroSM_UpdateLand", size = 0x348 }
+0x882CB988 = { name = "eot_BaseHeroSM_ExitLand", size = 0xDC }
+0x882CBA68 = { name = "eot_BaseHeroSM_EnterHurt", size = 0x54 }
 0x882CBAC0 = { size = 0x4 }
-0x882CBAC8 = { size = 0xB4 }
+0x882CBAC8 = { name = "eot_BaseHeroSM_ExitHurt", size = 0xB4 }
 0x882CBD28 = { size = 0x48 }
 0x882CBD70 = { size = 0xB0 }
 0x882CBE20 = { size = 0x224 }
@@ -1548,23 +1548,23 @@ out_directory_path = "generated/gamelogic"
 0x882CCCE8 = { size = 0x74 }
 0x882CCD60 = { size = 0xE0 }
 0x882CCE68 = { size = 0x11C }
-0x882CCF88 = { size = 0x104 }
+0x882CCF88 = { name = "eot_BaseHeroSM_UpdateHurtElectricRecover", size = 0x104 }
 0x882CD0A8 = { size = 0x260 }
-0x882CD308 = { size = 0x7C }
+0x882CD308 = { name = "eot_BaseHeroSM_UpdateHurtPropelled", size = 0x7C }
 0x882CD388 = { size = 0xE4 }
-0x882CD470 = { size = 0x5C }
+0x882CD470 = { name = "eot_BaseHeroSM_UpdateHurtPropelledInWall", size = 0x5C }
 0x882CD4D0 = { size = 0xF4 }
 0x882CDDE8 = { size = 0x5D4 }
-0x882CE660 = { size = 0x284 }
+0x882CE660 = { name = "eot_BaseHeroSM_EnterWebZipLeap", size = 0x284 }
 0x882CE8E8 = { size = 0x2FC }
 0x882CEBE8 = { size = 0xF8 }
 0x882CECE0 = { size = 0x49C }
-0x882CF180 = { size = 0x25C }
-0x882CF5B0 = { size = 0x1B4 }
+0x882CF180 = { name = "eot_BaseHeroSM_UpdateWebZipPerch", size = 0x25C }
+0x882CF5B0 = { name = "eot_BaseHeroSM_EnterWebSwingIn", size = 0x1B4 }
 0x882CF768 = { size = 0x220 }
 0x882CF988 = { size = 0x84 }
 0x882CFA10 = { size = 0x1DC }
-0x882CFBF0 = { size = 0xB0 }
+0x882CFBF0 = { name = "eot_BaseHeroSM_UpdateWebClimb", size = 0xB0 }
 0x882CFCA0 = { size = 0x78 }
 0x882CFD18 = { size = 0x1CC }
 0x882CFEE8 = { size = 0x738 }
@@ -1580,657 +1580,657 @@ out_directory_path = "generated/gamelogic"
 0x882D14A8 = { size = 0x9C }
 0x882D1548 = { size = 0x464 }
 0x882D19B0 = { size = 0xE8 }
-0x882D1A98 = { size = 0x170 }
-0x882D1E90 = { size = 0x128 }
-0x882D1FB8 = { size = 0xC0 }
-0x882D2208 = { size = 0x180 }
+0x882D1A98 = { name = "eot_BaseHeroSM_ExitWebGrab", size = 0x170 }
+0x882D1E90 = { name = "eot_BaseHeroSM_EnterWebThrow", size = 0x128 }
+0x882D1FB8 = { name = "eot_BaseHeroSM_UpdateWebThrow", size = 0xC0 }
+0x882D2208 = { name = "eot_BaseHeroSM_StartFootFX", size = 0x180 }
 0x882D2388 = { size = 0x5C }
-0x882D23E8 = { size = 0x11C }
+0x882D23E8 = { name = "eot_BaseHeroSM_EnterWebThrowKickObjectIn", size = 0x11C }
 0x882D2510 = { size = 0x80 }
 0x882D2590 = { size = 0x6C8 }
 0x882D2C58 = { size = 0x170 }
 0x882D2DC8 = { size = 0x148 }
-0x882D2F10 = { size = 0x3F4 }
+0x882D2F10 = { name = "eot_BaseHeroSM_UpdateRunIK", size = 0x3F4 }
 0x882D3308 = { size = 0xC4 }
 0x882D33D0 = { size = 0xB4 }
-0x882D3888 = { size = 0x128 }
-0x882D39B0 = { size = 0x68 }
-0x882D3A18 = { size = 0x434 }
+0x882D3888 = { name = "eot_BaseHeroSM_EnterHurtAir", size = 0x128 }
+0x882D39B0 = { name = "eot_BaseHeroSM_EnterJumpOut", size = 0x68 }
+0x882D3A18 = { name = "eot_BaseHeroSM_EnterWebGrab", size = 0x434 }
 0x882D3E50 = { size = 0x3C }
-0x882D4048 = { size = 0x54 }
-0x882D43C8 = { size = 0xE0 }
-0x882D44A8 = { size = 0x60 }
-0x882DFDB8 = { size = 0x180 }
+0x882D4048 = { name = "eot_BaseHeroSM_ExitWebClimb", size = 0x54 }
+0x882D43C8 = { name = "eot_BaseHeroSM_EnterLedgeIdle", size = 0xE0 }
+0x882D44A8 = { name = "eot_BaseHeroSM_UpdateLedgeIdle", size = 0x60 }
+0x882DFDB8 = { name = "eot_BaseHeroSM_EnterGrabNothing", size = 0x180 }
 0x882DFF38 = { size = 0x9C }
-0x882EA500 = { size = 0x2AC }
-0x882EA7B0 = { size = 0x2E8 }
+0x882EA500 = { name = "eot_BaseHeroSM_HandleJumpAnimEnd", size = 0x2AC }
+0x882EA7B0 = { name = "eot_BaseHeroSM_ManageCueOverride", size = 0x2E8 }
 0x882EAA98 = { size = 0x49C }
-0x882EAF38 = { size = 0x12C }
-0x882F35B0 = { size = 0x150 }
-0x882F3700 = { size = 0x158 }
-0x882F3858 = { size = 0x8C }
-0x882F4398 = { size = 0xC }
+0x882EAF38 = { name = "eot_BaseHeroSM_UpdateCrawlToRoof", size = 0x12C }
+0x882F35B0 = { name = "eot_BaseHeroSM_WallCrawlFootStepFX", size = 0x150 }
+0x882F3700 = { name = "eot_BaseHeroSM_CheckWebGrabAndCombo", size = 0x158 }
+0x882F3858 = { name = "eot_BaseHeroSM_EnableMoveByAnimYVel", size = 0x8C }
+0x882F4398 = { name = "eot_BaseHeroSM_EnterAttack", size = 0xC }
 0x882F43B8 = { size = 0x38 }
-0x882F4728 = { size = 0x4C }
+0x882F4728 = { name = "eot_BaseHeroSM_EnterComboOutro", size = 0x4C }
 0x882F51E8 = { size = 0x7C }
 0x882F5268 = { size = 0x6C }
-0x882F52D8 = { size = 0x48 }
-0x882F5320 = { size = 0x2DC }
+0x882F52D8 = { name = "eot_BaseHeroSM_EnterEagleKick", size = 0x48 }
+0x882F5320 = { name = "eot_BaseHeroSM_UpdateEagleKick", size = 0x2DC }
 0x882F5600 = { size = 0x45C }
 0x882F5A60 = { size = 0x344 }
-0x882F5DA8 = { size = 0x98 }
+0x882F5DA8 = { name = "eot_BaseHeroSM_ExitEagleKick", size = 0x98 }
 0x882F5E90 = { size = 0x4 }
-0x882F5EC0 = { size = 0x208 }
-0x882F60C8 = { size = 0x44 }
-0x882F6110 = { size = 0x218 }
-0x882F6328 = { size = 0x168 }
-0x882F6490 = { size = 0x20C }
-0x882F66A0 = { size = 0x7C }
-0x882F6720 = { size = 0x114 }
-0x882F6838 = { size = 0xA0 }
-0x882F68D8 = { size = 0x78 }
+0x882F5EC0 = { name = "eot_BaseHeroSM_EnterAirLauncher", size = 0x208 }
+0x882F60C8 = { name = "eot_BaseHeroSM_UpdateAirLauncher", size = 0x44 }
+0x882F6110 = { name = "eot_BaseHeroSM_EnterWebStrike", size = 0x218 }
+0x882F6328 = { name = "eot_BaseHeroSM_UpdateWebStrike", size = 0x168 }
+0x882F6490 = { name = "eot_BaseHeroSM_ExitWebStrike", size = 0x20C }
+0x882F66A0 = { name = "eot_BaseHeroSM_EnterWebStrikeOutro", size = 0x7C }
+0x882F6720 = { name = "eot_BaseHeroSM_UpdateWebStrikeOutro", size = 0x114 }
+0x882F6838 = { name = "eot_BaseHeroSM_ExitWebStrikeOutro", size = 0xA0 }
+0x882F68D8 = { name = "eot_BaseHeroSM_EnterComboGrabIntro", size = 0x78 }
 0x882F6990 = { size = 0xA4 }
-0x882F6A38 = { size = 0x104 }
-0x882F6B40 = { size = 0x1E8 }
-0x882F6D28 = { size = 0xA4 }
-0x882F6DD0 = { size = 0x60 }
-0x882F6E30 = { size = 0x50 }
-0x882F6E80 = { size = 0x5C }
-0x882F6EE0 = { size = 0x9C }
-0x882F6F80 = { size = 0x80 }
-0x882F7120 = { size = 0x9C }
-0x882F71C0 = { size = 0x1B8 }
-0x882F7378 = { size = 0x554 }
-0x882F78D0 = { size = 0xC0 }
-0x882F7990 = { size = 0x2A8 }
-0x882F7C38 = { size = 0x48 }
+0x882F6A38 = { name = "eot_BaseHeroSM_EnterComboGrab", size = 0x104 }
+0x882F6B40 = { name = "eot_BaseHeroSM_UpdateComboGrab", size = 0x1E8 }
+0x882F6D28 = { name = "eot_BaseHeroSM_ExitComboGrab", size = 0xA4 }
+0x882F6DD0 = { name = "eot_BaseHeroSM_EnterComboGrabOutro", size = 0x60 }
+0x882F6E30 = { name = "eot_BaseHeroSM_UpdateComboGrabOutro", size = 0x50 }
+0x882F6E80 = { name = "eot_BaseHeroSM_ExitComboGrabOutro", size = 0x5C }
+0x882F6EE0 = { name = "eot_BaseHeroSM_EnterComboSpiderRush", size = 0x9C }
+0x882F6F80 = { name = "eot_BaseHeroSM_UpdateComboSpiderRush", size = 0x80 }
+0x882F7120 = { name = "eot_BaseHeroSM_ExitComboSpiderRush", size = 0x9C }
+0x882F71C0 = { name = "eot_BaseHeroSM_EnterComboIterativeChargedAttack", size = 0x1B8 }
+0x882F7378 = { name = "eot_BaseHeroSM_UpdateComboIterativeChargedAttack", size = 0x554 }
+0x882F78D0 = { name = "eot_BaseHeroSM_ExitComboIterativeChargedAttack", size = 0xC0 }
+0x882F7990 = { name = "eot_BaseHeroSM_EnterComboAerialGrab", size = 0x2A8 }
+0x882F7C38 = { name = "eot_BaseHeroSM_UpdateComboAerialGrab", size = 0x48 }
 0x882F7C80 = { size = 0xE8 }
-0x882F7D68 = { size = 0x8C }
+0x882F7D68 = { name = "eot_BaseHeroSM_EnterComboAerialGrabThrow", size = 0x8C }
 0x882F7DF8 = { size = 0xB4 }
 0x882F7EB0 = { size = 0xA8 }
-0x882F7F58 = { size = 0x1C4 }
-0x882F8120 = { size = 0x7C }
-0x882F81A0 = { size = 0x170 }
-0x882F8310 = { size = 0x120 }
+0x882F7F58 = { name = "eot_BaseHeroSM_EnterWebStrikeInAirOutro", size = 0x1C4 }
+0x882F8120 = { name = "eot_BaseHeroSM_UpdateWebStrikeInAirOutro", size = 0x7C }
+0x882F81A0 = { name = "eot_BaseHeroSM_ExitWebStrikeInAirOutro", size = 0x170 }
+0x882F8310 = { name = "eot_BaseHeroSM_EnterAerialWebStrikeSlam", size = 0x120 }
 0x882F8430 = { size = 0xAC }
 0x882F84E0 = { size = 0xB4 }
 0x882F85C8 = { size = 0x84 }
 0x882F8650 = { size = 0xFC }
-0x882F8750 = { size = 0x1B8 }
-0x882F8908 = { size = 0x144 }
-0x882F8A50 = { size = 0xDC }
-0x882F8B30 = { size = 0x208 }
+0x882F8750 = { name = "eot_BaseHeroSM_EnterWebStrikePunchPerch", size = 0x1B8 }
+0x882F8908 = { name = "eot_BaseHeroSM_UpdateWebStrikePunchPerch", size = 0x144 }
+0x882F8A50 = { name = "eot_BaseHeroSM_UpdateWebStrikeEvade", size = 0xDC }
+0x882F8B30 = { name = "eot_BaseHeroSM_EnterWebStrikeEvade", size = 0x208 }
 0x882F8D38 = { size = 0x48 }
-0x882F8D80 = { size = 0x1C0 }
+0x882F8D80 = { name = "eot_BaseHeroSM_CheckGiantHurtWallHit", size = 0x1C0 }
 0x882F8F40 = { size = 0x54 }
 0x882F8F98 = { size = 0x50 }
-0x882F8FE8 = { size = 0x160 }
+0x882F8FE8 = { name = "eot_BaseHeroSM_EnterAerialAttackOutro", size = 0x160 }
 0x882F9148 = { size = 0x114 }
 0x882F9290 = { size = 0x74 }
-0x883043F8 = { size = 0x104 }
-0x88304500 = { size = 0x1C0 }
-0x883046C0 = { size = 0x90 }
-0x88304750 = { size = 0x104 }
+0x883043F8 = { name = "eot_BaseHeroSM_EnterCrawlMove", size = 0x104 }
+0x88304500 = { name = "eot_BaseHeroSM_UpdateCrawlMove", size = 0x1C0 }
+0x883046C0 = { name = "eot_BaseHeroSM_ExitCrawlMove", size = 0x90 }
+0x88304750 = { name = "eot_BaseHeroSM_EnterCrawlToRoof", size = 0x104 }
 0x88304858 = { size = 0x240 }
-0x88304A98 = { size = 0xB0 }
+0x88304A98 = { name = "eot_BaseHeroSM_ExitCrawlToRoof", size = 0xB0 }
 0x88304B48 = { size = 0x3E4 }
 0x88305FF0 = { size = 0x23C }
-0x88306230 = { size = 0xB0 }
-0x883062E0 = { size = 0xE4 }
+0x88306230 = { name = "eot_BaseHeroSM_ExitTransitToCrawl", size = 0xB0 }
+0x883062E0 = { name = "eot_BaseHeroSM_EnterCrawlToFloor", size = 0xE4 }
 0x883063C8 = { size = 0xDC }
-0x883064A8 = { size = 0x84 }
-0x88306530 = { size = 0x104 }
-0x88306638 = { size = 0xD4 }
-0x88306710 = { size = 0x190 }
+0x883064A8 = { name = "eot_BaseHeroSM_ExitCrawlToFloor", size = 0x84 }
+0x88306530 = { name = "eot_BaseHeroSM_EnterCrawlToJump", size = 0x104 }
+0x88306638 = { name = "eot_BaseHeroSM_UpdateCrawlToJump", size = 0xD4 }
+0x88306710 = { name = "eot_BaseHeroSM_EnterCrawlToSwing", size = 0x190 }
 0x883068A0 = { size = 0x80 }
-0x88306920 = { size = 0x70 }
-0x88306990 = { size = 0x230 }
+0x88306920 = { name = "eot_BaseHeroSM_ExitCrawlToSwing", size = 0x70 }
+0x88306990 = { name = "eot_BaseHeroSM_EnterTransitToCrawl", size = 0x230 }
 0x88306BC0 = { size = 0x58 }
-0x8830D110 = { size = 0x10 }
-0x8830D148 = { size = 0x168 }
-0x88310608 = { size = 0x78 }
-0x88312AE8 = { size = 0x164 }
-0x88312C50 = { size = 0x23C }
-0x88312E90 = { size = 0x64 }
-0x88312EF8 = { size = 0x90 }
-0x88314DE0 = { size = 0x78 }
-0x883155B0 = { size = 0x90 }
-0x88315640 = { size = 0x7C }
-0x883156C0 = { size = 0xA0 }
-0x88315760 = { size = 0xE8 }
-0x88315848 = { size = 0x58 }
-0x883164E8 = { size = 0x78 }
-0x88318878 = { size = 0x104 }
-0x88318980 = { size = 0x13C }
-0x88318AC0 = { size = 0xA4 }
-0x88318B68 = { size = 0x190 }
-0x88318CF8 = { size = 0x94 }
-0x88318F08 = { size = 0x15C }
-0x88319068 = { size = 0x88 }
-0x883190F0 = { size = 0x74 }
-0x88319168 = { size = 0x150 }
-0x883192B8 = { size = 0x180 }
-0x88319588 = { size = 0x74 }
-0x88319600 = { size = 0x10 }
-0x883199A0 = { size = 0x22C }
-0x88319BD0 = { size = 0x1C4 }
-0x88319D98 = { size = 0x164 }
-0x8831B838 = { size = 0xCC }
-0x88320630 = { size = 0x98 }
-0x88320C40 = { size = 0x98 }
-0x883211D0 = { size = 0x78 }
-0x88321C30 = { size = 0xB0 }
-0x88321CE0 = { size = 0xB0 }
-0x88321D90 = { size = 0x104 }
-0x88321E98 = { size = 0xB0 }
-0x88322880 = { size = 0x98 }
-0x88322D60 = { size = 0xD0 }
-0x88323370 = { size = 0x1AC }
-0x88323610 = { size = 0x130 }
-0x88323968 = { size = 0x134 }
-0x88323DC8 = { size = 0x224 }
-0x883248E0 = { size = 0x2DC }
-0x883253C8 = { size = 0xF8 }
-0x88326768 = { size = 0x178 }
-0x883268E0 = { size = 0x2A8 }
-0x88326B88 = { size = 0x138 }
+0x8830D110 = { name = "eot_SMWebshotModule_ExitStandardShot", size = 0x10 }
+0x8830D148 = { name = "eot_SMWebshotModule_UpdateAirTimeShot", size = 0x168 }
+0x88310608 = { name = "eot_GLInstanciateSM2099", size = 0x78 }
+0x88312AE8 = { name = "eot_SM2099_EnterHurtShieldKnockback", size = 0x164 }
+0x88312C50 = { name = "eot_SM2099_EnterGhostEvade", size = 0x23C }
+0x88312E90 = { name = "eot_SM2099_UpdateGhostEvade", size = 0x64 }
+0x88312EF8 = { name = "eot_SM2099_ExitGhostEvade", size = 0x90 }
+0x88314DE0 = { name = "eot_GLInstanciateDropShip", size = 0x78 }
+0x883155B0 = { name = "eot_DropShip_UpdateIdle", size = 0x90 }
+0x88315640 = { name = "eot_DropShip_UpdateArriving", size = 0x7C }
+0x883156C0 = { name = "eot_DropShip_UpdateLanded", size = 0xA0 }
+0x88315760 = { name = "eot_DropShip_EnterLanded", size = 0xE8 }
+0x88315848 = { name = "eot_DropShip_UpdateDeparting", size = 0x58 }
+0x883164E8 = { name = "eot_GLInstanciateSM2099_CombatGhost", size = 0x78 }
+0x88318878 = { name = "eot_SM2099_CombatGhost_InitComboData", size = 0x104 }
+0x88318980 = { name = "eot_SM2099_CombatGhost_UpdateUpByVel", size = 0x13C }
+0x88318AC0 = { name = "eot_SM2099_CombatGhost_PostStateUpdate", size = 0xA4 }
+0x88318B68 = { name = "eot_SM2099_CombatGhost_EnterIdle", size = 0x190 }
+0x88318CF8 = { name = "eot_SM2099_CombatGhost_UpdateIdle", size = 0x94 }
+0x88318F08 = { name = "eot_SM2099_CombatGhost_EnterFall", size = 0x15C }
+0x88319068 = { name = "eot_SM2099_CombatGhost_UpdateFall", size = 0x88 }
+0x883190F0 = { name = "eot_SM2099_CombatGhost_ExitFall", size = 0x74 }
+0x88319168 = { name = "eot_SM2099_CombatGhost_EnterLand", size = 0x150 }
+0x883192B8 = { name = "eot_SM2099_CombatGhost_UpdateLand", size = 0x180 }
+0x88319588 = { name = "eot_SM2099_CombatGhost_ExitCombo", size = 0x74 }
+0x88319600 = { name = "eot_SM2099_CombatGhost_EnterComboOutro", size = 0x10 }
+0x883199A0 = { name = "eot_SM2099_CombatGhost_EnterSpecialAttack", size = 0x22C }
+0x88319BD0 = { name = "eot_SM2099_CombatGhost_UpdateSpecialAttack", size = 0x1C4 }
+0x88319D98 = { name = "eot_SM2099_CombatGhost_ExitSpecialAttack", size = 0x164 }
+0x8831B838 = { name = "eot_SM2099_CombatGhost_DefaultComboAnimEndCallback", size = 0xCC }
+0x88320630 = { name = "eot_GLInstanciateStaticFreefallCam", size = 0x98 }
+0x88320C40 = { name = "eot_GLInstanciateSimpleFloatingObject", size = 0x98 }
+0x883211D0 = { name = "eot_GLInstanciateSM2099Ghost", size = 0x78 }
+0x88321C30 = { name = "eot_SM2099Ghost_EnterIdle", size = 0xB0 }
+0x88321CE0 = { name = "eot_SM2099Ghost_EnterCrawlIdle", size = 0xB0 }
+0x88321D90 = { name = "eot_SM2099Ghost_EnterFall", size = 0x104 }
+0x88321E98 = { name = "eot_SM2099Ghost_EnterLand", size = 0xB0 }
+0x88322880 = { name = "eot_GLInstanciateDynamicFreefallCam", size = 0x98 }
+0x88322D60 = { name = "eot_GLInstanciateStartFreefall", size = 0xD0 }
+0x88323370 = { name = "eot_GLInstanciateFreefallSpeedFX", size = 0x1AC }
+0x88323610 = { name = "eot_FreefallSpeedFX_UpdateActive", size = 0x130 }
+0x88323968 = { name = "eot_GLInstanciateFreefallCamTarget", size = 0x134 }
+0x88323DC8 = { name = "eot_GLInstanciateFlyingCarSpawner", size = 0x224 }
+0x883248E0 = { name = "eot_FlyingCarSpawner_UpdateActive", size = 0x2DC }
+0x883253C8 = { name = "eot_GLInstanciateFlyingCar", size = 0xF8 }
+0x88326768 = { name = "eot_SM2099_UpdateFreefallHurt", size = 0x178 }
+0x883268E0 = { name = "eot_SM2099_CommonUpdateFreefall", size = 0x2A8 }
+0x88326B88 = { name = "eot_SM2099_EnterGhostStrikeWait", size = 0x138 }
 0x883279A8 = { size = 0x58 }
-0x88327A00 = { size = 0x78 }
-0x88327A90 = { size = 0x540 }
+0x88327A00 = { name = "eot_SM2099_UpdateMainAbilityOffensivePress", size = 0x78 }
+0x88327A90 = { name = "eot_SM2099_UpdateMainAbilityOffensiveHold", size = 0x540 }
 0x8832C038 = { size = 0x20C }
-0x8832C248 = { size = 0x19C }
+0x8832C248 = { name = "eot_SM2099_UpdateFreefallIdleMove", size = 0x19C }
 0x8832C3E8 = { size = 0xD8 }
-0x8832C4C0 = { size = 0xE8 }
-0x8832C5A8 = { size = 0x70 }
-0x8832C618 = { size = 0x6C }
+0x8832C4C0 = { name = "eot_SM2099_EnterFreefallBoostMove", size = 0xE8 }
+0x8832C5A8 = { name = "eot_SM2099_UpdateFreefallBoostMove", size = 0x70 }
+0x8832C618 = { name = "eot_SM2099_ExitFreefallBoostMove", size = 0x6C }
 0x8832C688 = { size = 0x264 }
 0x8832C8F8 = { size = 0xF0 }
 0x8832C9E8 = { size = 0x1B0 }
 0x8832CB98 = { size = 0xB4 }
-0x8832DC38 = { size = 0x3AC }
+0x8832DC38 = { name = "eot_GLInstanciateHUDUpgrade", size = 0x3AC }
 0x8832E600 = { size = 0xD8 }
 0x8832E6D8 = { size = 0x10C }
 0x8832E7F8 = { size = 0x48 }
-0x8832F168 = { size = 0x37C }
-0x8832F548 = { size = 0x104 }
-0x8832F650 = { size = 0x1E4 }
-0x8832F838 = { size = 0x58 }
-0x8832F890 = { size = 0x128 }
-0x8832F9B8 = { size = 0x148 }
-0x88330938 = { size = 0x29C }
+0x8832F168 = { name = "eot_GLInstanciateWebOfChallengeControl", size = 0x37C }
+0x8832F548 = { name = "eot_WebOfChallengeControl_EnterFadeIn", size = 0x104 }
+0x8832F650 = { name = "eot_WebOfChallengeControl_UpdateFadeIn", size = 0x1E4 }
+0x8832F838 = { name = "eot_WebOfChallengeControl_EnterFadeOut", size = 0x58 }
+0x8832F890 = { name = "eot_WebOfChallengeControl_UpdateFadeOut", size = 0x128 }
+0x8832F9B8 = { name = "eot_WebOfChallengeControl_ExitFadeOut", size = 0x148 }
+0x88330938 = { name = "eot_GLInstanciateWebOfChallengeHUD", size = 0x29C }
 0x88330D30 = { size = 0x48 }
-0x88330F50 = { size = 0x78 }
+0x88330F50 = { name = "eot_GLInstanciateHUDCurrentSession", size = 0x78 }
 0x88331A20 = { size = 0x198 }
-0x88331BB8 = { size = 0x20C }
-0x88331DC8 = { size = 0x144 }
+0x88331BB8 = { name = "eot_HUDCurrentSession_EnterTransitIn", size = 0x20C }
+0x88331DC8 = { name = "eot_HUDCurrentSession_UpdateTransitIn", size = 0x144 }
 0x88331F10 = { size = 0xC4 }
 0x88331FD8 = { size = 0x100 }
 0x883320D8 = { size = 0x140 }
 0x88332218 = { size = 0xC }
-0x88332450 = { size = 0x78 }
-0x88332BD8 = { size = 0xE0 }
-0x88332CB8 = { size = 0xF0 }
+0x88332450 = { name = "eot_GLInstanciateWebOfChallengeAdvertiser", size = 0x78 }
+0x88332BD8 = { name = "eot_WebOfChallengeAdvertiser_EnterAdvertiseMain", size = 0xE0 }
+0x88332CB8 = { name = "eot_WebOfChallengeAdvertiser_EnterAdvertiseConnected", size = 0xF0 }
 0x88332DA8 = { size = 0xC8 }
-0x88333088 = { size = 0x344 }
+0x88333088 = { name = "eot_GLInstanciateWebOfChallengeCamera", size = 0x344 }
 0x88333560 = { size = 0xF0 }
-0x88333650 = { size = 0x2E8 }
-0x88333D58 = { size = 0x78 }
-0x88334890 = { size = 0x26C }
-0x88334B08 = { size = 0x4 }
-0x88334B10 = { size = 0xB4 }
+0x88333650 = { name = "eot_WebOfChallengeCamera_UpdateMoving", size = 0x2E8 }
+0x88333D58 = { name = "eot_GLInstanciateHUDMemo", size = 0x78 }
+0x88334890 = { name = "eot_HUDMemo_EnterOpening", size = 0x26C }
+0x88334B08 = { name = "eot_HUDMemo_UpdateActive", size = 0x4 }
+0x88334B10 = { name = "eot_HUDMemo_EnterFadeOut", size = 0xB4 }
 0x88334BC8 = { size = 0xEC }
-0x88334CB8 = { size = 0xD0 }
+0x88334CB8 = { name = "eot_HUDMemo_EnterFadeIn", size = 0xD0 }
 0x88334D88 = { size = 0xEC }
-0x88334E78 = { size = 0xC8 }
+0x88334E78 = { name = "eot_HUDMemo_EnterClosing", size = 0xC8 }
 0x88334F40 = { size = 0xAC }
-0x883357B0 = { size = 0x78 }
-0x883361A8 = { size = 0x164 }
-0x88336310 = { size = 0x68 }
-0x88336378 = { size = 0x160 }
-0x883364D8 = { size = 0x6C }
-0x88337400 = { size = 0x378 }
+0x883357B0 = { name = "eot_GLInstanciateWebOfChallengeDetailsHUD", size = 0x78 }
+0x883361A8 = { name = "eot_WebOfChallengeDetailsHUD_UpdateDisabled", size = 0x164 }
+0x88336310 = { name = "eot_WebOfChallengeDetailsHUD_EnterTransitionIn", size = 0x68 }
+0x88336378 = { name = "eot_WebOfChallengeDetailsHUD_UpdateTransitionIn", size = 0x160 }
+0x883364D8 = { name = "eot_WebOfChallengeDetailsHUD_EnterEnabled", size = 0x6C }
+0x88337400 = { name = "eot_GLInstanciateHUDUnlockableStats", size = 0x378 }
 0x88337B50 = { size = 0xC4 }
 0x88337C20 = { size = 0xD0 }
-0x88338728 = { size = 0x78 }
-0x88339578 = { size = 0x5C0 }
-0x88339B38 = { size = 0x2F8 }
-0x88339E30 = { size = 0x2F8 }
-0x8833A148 = { size = 0x80 }
-0x8833A1C8 = { size = 0x220 }
-0x8833A3E8 = { size = 0x90 }
-0x8833A478 = { size = 0xFC }
-0x8833A578 = { size = 0x100 }
-0x8833B028 = { size = 0x78 }
-0x8833B918 = { size = 0x284 }
-0x8833BBA0 = { size = 0x190 }
+0x88338728 = { name = "eot_GLInstanciateHUDNewspaper", size = 0x78 }
+0x88339578 = { name = "eot_HUDNewspaper_EnterOpening", size = 0x5C0 }
+0x88339B38 = { name = "eot_HUDNewspaper_EnterLoading", size = 0x2F8 }
+0x88339E30 = { name = "eot_HUDNewspaper_UpdateLoading", size = 0x2F8 }
+0x8833A148 = { name = "eot_HUDNewspaper_EnterActive", size = 0x80 }
+0x8833A1C8 = { name = "eot_HUDNewspaper_UpdateActive", size = 0x220 }
+0x8833A3E8 = { name = "eot_HUDNewspaper_ExitActive", size = 0x90 }
+0x8833A478 = { name = "eot_HUDNewspaper_EnterClosing", size = 0xFC }
+0x8833A578 = { name = "eot_HUDNewspaper_EnterInactive", size = 0x100 }
+0x8833B028 = { name = "eot_GLInstanciateWebOfChallengeObj", size = 0x78 }
+0x8833B918 = { name = "eot_WebOfChallengeObj_DrawWeb", size = 0x284 }
+0x8833BBA0 = { name = "eot_WebOfChallengeObj_EnterOpen", size = 0x190 }
 0x8833BD30 = { size = 0x48 }
-0x8833BD78 = { size = 0x13C }
-0x8833BEB8 = { size = 0x334 }
-0x8833C1F0 = { size = 0x68 }
-0x8833C258 = { size = 0xB0 }
-0x8833C308 = { size = 0x88 }
-0x8833D5F0 = { size = 0x290 }
-0x8833D960 = { size = 0xC4 }
-0x8833DA28 = { size = 0xC8 }
-0x88345D68 = { size = 0x78 }
-0x88346588 = { size = 0xA8 }
-0x88346630 = { size = 0x3A8 }
-0x88346E48 = { size = 0xA4 }
-0x88346EF0 = { size = 0x40 }
-0x88346F30 = { size = 0xB4 }
+0x8833BD78 = { name = "eot_WebOfChallengeObj_EnterClosing", size = 0x13C }
+0x8833BEB8 = { name = "eot_WebOfChallengeObj_EnterAdvertisingNext", size = 0x334 }
+0x8833C1F0 = { name = "eot_WebOfChallengeObj_UpdateAdvertisingWaiting", size = 0x68 }
+0x8833C258 = { name = "eot_WebOfChallengeObj_EnterFreeRoaming", size = 0xB0 }
+0x8833C308 = { name = "eot_WebOfChallengeObj_UpdateFreeRoaming", size = 0x88 }
+0x8833D5F0 = { name = "eot_GLInstanciateWebOfChallengeBackground", size = 0x290 }
+0x8833D960 = { name = "eot_WebOfChallengeBackground_EnterOpen", size = 0xC4 }
+0x8833DA28 = { name = "eot_WebOfChallengeBackground_EnterClosing", size = 0xC8 }
+0x88345D68 = { name = "eot_GLInstanciateHUDSavegameSelect", size = 0x78 }
+0x88346588 = { name = "eot_HUDSavegameSelect_EnterOpening", size = 0xA8 }
+0x88346630 = { name = "eot_HUDSavegameSelect_EnterActive", size = 0x3A8 }
+0x88346E48 = { name = "eot_HUDSavegameSelect_UpdateActive", size = 0xA4 }
+0x88346EF0 = { name = "eot_HUDSavegameSelect_ExitActive", size = 0x40 }
+0x88346F30 = { name = "eot_HUDSavegameSelect_EnterClosing", size = 0xB4 }
 0x88346FE8 = { size = 0xB0 }
-0x88347098 = { size = 0x60 }
-0x88347A38 = { size = 0x60 }
-0x88347AC0 = { size = 0x60 }
-0x883480E8 = { size = 0x78 }
+0x88347098 = { name = "eot_HUDSavegameSelect_ExitClosing", size = 0x60 }
+0x88347A38 = { name = "eot_HUDSavegameSelect_StartNewGame", size = 0x60 }
+0x88347AC0 = { name = "eot_HUDSavegameSelect_EnterInactive", size = 0x60 }
+0x883480E8 = { name = "eot_GLInstanciateHUDStartScreen", size = 0x78 }
 0x88348C80 = { size = 0xF0 }
-0x88348D70 = { size = 0xBC }
+0x88348D70 = { name = "eot_HUDStartScreen_EnterOpening", size = 0xBC }
 0x88348E30 = { size = 0x1FC }
 0x88349030 = { size = 0x8C }
 0x883490C0 = { size = 0x4 }
-0x88349290 = { size = 0x150 }
-0x883493E0 = { size = 0x1FC }
-0x883495E0 = { size = 0xFC }
+0x88349290 = { name = "eot_HUDStartScreen_EnterSigningIn", size = 0x150 }
+0x883493E0 = { name = "eot_HUDStartScreen_UpdateSigningIn", size = 0x1FC }
+0x883495E0 = { name = "eot_HUDStartScreen_EnterLoading", size = 0xFC }
 0x883496E0 = { name = "eot_HUDStartScreen_EnterSDCheck", size = 0x94 }
-0x88349778 = { size = 0x14C }
-0x883498C8 = { size = 0x1F8 }
-0x88349AC0 = { size = 0x1A0 }
+0x88349778 = { name = "eot_HUDStartScreen_UpdateIntro", size = 0x14C }
+0x883498C8 = { name = "eot_HUDStartScreen_UpdateClosing", size = 0x1F8 }
+0x88349AC0 = { name = "eot_HUDStartScreen_EnterClosing", size = 0x1A0 }
 0x88349EC8 = { size = 0x1D8 }
 0x8834A0A0 = { size = 0xD0 }
-0x8834AD70 = { size = 0x78 }
-0x8834B400 = { size = 0x98 }
-0x8834B498 = { size = 0xC8 }
-0x8834B578 = { size = 0xC8 }
-0x8834B640 = { size = 0x6C }
-0x8834B6B0 = { size = 0xC4 }
-0x8834BA18 = { size = 0x78 }
-0x8834C3C8 = { size = 0x74 }
+0x8834AD70 = { name = "eot_GLInstanciateHUDMOTD", size = 0x78 }
+0x8834B400 = { name = "eot_HUDMOTD_EnterAppear", size = 0x98 }
+0x8834B498 = { name = "eot_HUDMOTD_UpdateAppear", size = 0xC8 }
+0x8834B578 = { name = "eot_HUDMOTD_UpdateScroll", size = 0xC8 }
+0x8834B640 = { name = "eot_HUDMOTD_EnterDisappear", size = 0x6C }
+0x8834B6B0 = { name = "eot_HUDMOTD_UpdateDisappear", size = 0xC4 }
+0x8834BA18 = { name = "eot_GLInstanciateFrontScreenControl", size = 0x78 }
+0x8834C3C8 = { name = "eot_FrontScreenControl_UpdateLoading", size = 0x74 }
 0x8834C440 = { size = 0x104 }
-0x8834C548 = { size = 0x70 }
+0x8834C548 = { name = "eot_FrontScreenControl_EnterLoading", size = 0x70 }
 0x8834C5B8 = { size = 0x134 }
-0x8834C718 = { size = 0x474 }
-0x8834CB90 = { size = 0x108 }
-0x8834CC98 = { size = 0xA0 }
-0x8834E0B8 = { size = 0x20C }
+0x8834C718 = { name = "eot_FrontScreenControl_EnterActive", size = 0x474 }
+0x8834CB90 = { name = "eot_FrontScreenControl_UpdateActive", size = 0x108 }
+0x8834CC98 = { name = "eot_FrontScreenControl_ExitActive", size = 0xA0 }
+0x8834E0B8 = { name = "eot_GLInstanciateCacheManager", size = 0x20C }
 0x8834E428 = { name = "eot_GLInstanciateHUDLevelSelect", size = 0x78 }
-0x8834F318 = { size = 0x3B8 }
-0x8834F6D0 = { size = 0xC8 }
-0x8834F798 = { size = 0x60 }
-0x8834F7F8 = { size = 0x13C }
-0x8834F938 = { size = 0xC4 }
+0x8834F318 = { name = "eot_HUDLevelSelect_EnterIntro", size = 0x3B8 }
+0x8834F6D0 = { name = "eot_HUDLevelSelect_UpdateIntro", size = 0xC8 }
+0x8834F798 = { name = "eot_HUDLevelSelect_EnterIdle", size = 0x60 }
+0x8834F7F8 = { name = "eot_HUDLevelSelect_UpdateIdle", size = 0x13C }
+0x8834F938 = { name = "eot_HUDLevelSelect_ExitIdle", size = 0xC4 }
 0x8834FA00 = { size = 0xC0 }
-0x88350470 = { size = 0x1A0 }
+0x88350470 = { name = "eot_HUDLevelSelect_StartLevel", size = 0x1A0 }
 0x88350610 = { size = 0xC4 }
-0x883509D0 = { size = 0x78 }
-0x88351278 = { size = 0x1FC }
-0x88351478 = { size = 0x15C }
-0x883515D8 = { size = 0xE0 }
-0x883516B8 = { size = 0xDC }
-0x88351798 = { size = 0x70 }
-0x88351808 = { size = 0xBC }
+0x883509D0 = { name = "eot_GLInstanciateHUDGameScreen", size = 0x78 }
+0x88351278 = { name = "eot_HUDGameScreen_EnterOpening", size = 0x1FC }
+0x88351478 = { name = "eot_HUDGameScreen_EnterActive", size = 0x15C }
+0x883515D8 = { name = "eot_HUDGameScreen_ExitActive", size = 0xE0 }
+0x883516B8 = { name = "eot_HUDGameScreen_EnterClosing", size = 0xDC }
+0x88351798 = { name = "eot_HUDGameScreen_UpdateClosing", size = 0x70 }
+0x88351808 = { name = "eot_HUDGameScreen_EnterSelected", size = 0xBC }
 0x883518C8 = { size = 0x88 }
 0x88351958 = { size = 0x94 }
 0x88351B80 = { size = 0xDC }
-0x88352478 = { size = 0x60 }
-0x883535F8 = { size = 0x78 }
-0x88353DB8 = { size = 0x218 }
-0x88353FD0 = { size = 0xC8 }
-0x88354098 = { size = 0x80 }
-0x88354130 = { size = 0x88 }
-0x883542E0 = { size = 0x6C }
-0x88354350 = { size = 0xE4 }
-0x883549B0 = { size = 0xC4 }
+0x88352478 = { name = "eot_HUDGameScreen_SelectStorageDevice", size = 0x60 }
+0x883535F8 = { name = "eot_GLInstanciateHUDArenaSelect", size = 0x78 }
+0x88353DB8 = { name = "eot_HUDArenaSelect_EnterAppear", size = 0x218 }
+0x88353FD0 = { name = "eot_HUDArenaSelect_UpdateAppear", size = 0xC8 }
+0x88354098 = { name = "eot_HUDArenaSelect_EnterActive", size = 0x80 }
+0x88354130 = { name = "eot_HUDArenaSelect_ExitActive", size = 0x88 }
+0x883542E0 = { name = "eot_HUDArenaSelect_EnterDisappear", size = 0x6C }
+0x88354350 = { name = "eot_HUDArenaSelect_UpdateDisappear", size = 0xE4 }
+0x883549B0 = { name = "eot_HUDArenaSelect_OnBackToMenu", size = 0xC4 }
 0x88354C50 = { name = "eot_GLInstanciateHUDDebugLevelSelection", size = 0x218 }
-0x88355170 = { size = 0x124 }
+0x88355170 = { name = "eot_HUDDebugLevelSelection_EnterActive", size = 0x124 }
 0x88355298 = { name = "eot_HUDDebugLevelSelection_Update", size = 0x460 }
-0x883556F8 = { size = 0x5C }
-0x883562D0 = { size = 0x78 }
-0x88356B50 = { size = 0x188 }
-0x88356CD8 = { size = 0xC8 }
-0x88356DA0 = { size = 0x80 }
-0x88356E20 = { size = 0x60 }
-0x88356E80 = { size = 0x44 }
+0x883556F8 = { name = "eot_HUDDebugLevelSelection_ExitActive", size = 0x5C }
+0x883562D0 = { name = "eot_GLInstanciateHUDDLCCode", size = 0x78 }
+0x88356B50 = { name = "eot_HUDDLCCode_EnterAppear", size = 0x188 }
+0x88356CD8 = { name = "eot_HUDDLCCode_UpdateAppear", size = 0xC8 }
+0x88356DA0 = { name = "eot_HUDDLCCode_EnterActive", size = 0x80 }
+0x88356E20 = { name = "eot_HUDDLCCode_UpdateActive", size = 0x60 }
+0x88356E80 = { name = "eot_HUDDLCCode_ExitActive", size = 0x44 }
 0x88356EC8 = { name = "eot_HUDDLCCode_Validate", size = 0x300 }
-0x883571C8 = { size = 0x128 }
-0x883572F0 = { size = 0x9C }
-0x88357AF0 = { size = 0x334 }
-0x88358050 = { size = 0x118 }
-0x88358168 = { size = 0x1AC }
-0x88358318 = { size = 0x74 }
-0x883585F8 = { size = 0x78 }
+0x883571C8 = { name = "eot_HUDDLCCode_EnterValidated", size = 0x128 }
+0x883572F0 = { name = "eot_HUDDLCCode_EnterDisappear", size = 0x9C }
+0x88357AF0 = { name = "eot_GLInstanciateGalleryControl", size = 0x334 }
+0x88358050 = { name = "eot_GalleryControl_UpdateBeforeActive", size = 0x118 }
+0x88358168 = { name = "eot_GalleryControl_EnterActive", size = 0x1AC }
+0x88358318 = { name = "eot_GalleryControl_ExitActive", size = 0x74 }
+0x883585F8 = { name = "eot_GLInstanciateHUDCostumesOp", size = 0x78 }
 0x88358DB0 = { size = 0x6B8 }
 0x88359468 = { size = 0x178 }
-0x883595E0 = { size = 0x350 }
+0x883595E0 = { name = "eot_HUDCostumesOp_EnterIntro", size = 0x350 }
 0x88359930 = { size = 0xF8 }
-0x88359A28 = { size = 0x1A8 }
-0x88359BD0 = { size = 0xF8 }
-0x88359CC8 = { size = 0x44 }
-0x8835AFC0 = { size = 0x78 }
-0x8835B9D8 = { size = 0x7C }
-0x8835BA78 = { size = 0x270 }
-0x8835BCE8 = { size = 0x200 }
-0x8835BF08 = { size = 0x298 }
-0x8835C228 = { size = 0x110 }
-0x8835C338 = { size = 0x14C }
-0x8835C488 = { size = 0xB0 }
-0x8835C538 = { size = 0x360 }
-0x8835C898 = { size = 0xE8 }
-0x8835CA28 = { size = 0x154 }
-0x8835CB80 = { size = 0x90 }
-0x8835D360 = { size = 0x78 }
+0x88359A28 = { name = "eot_HUDCostumesOp_EnterIdle", size = 0x1A8 }
+0x88359BD0 = { name = "eot_HUDCostumesOp_UpdateIdle", size = 0xF8 }
+0x88359CC8 = { name = "eot_HUDCostumesOp_ExitIdle", size = 0x44 }
+0x8835AFC0 = { name = "eot_GLInstanciateActionFigureControl", size = 0x78 }
+0x8835B9D8 = { name = "eot_ActionFigureControl_EnterDisabled", size = 0x7C }
+0x8835BA78 = { name = "eot_ActionFigureControl_EnterLoading", size = 0x270 }
+0x8835BCE8 = { name = "eot_ActionFigureControl_UpdateLoading", size = 0x200 }
+0x8835BF08 = { name = "eot_ActionFigureControl_EnterBrowsing", size = 0x298 }
+0x8835C228 = { name = "eot_ActionFigureControl_EnterEnteringViewing", size = 0x110 }
+0x8835C338 = { name = "eot_ActionFigureControl_UpdateEnteringViewing", size = 0x14C }
+0x8835C488 = { name = "eot_ActionFigureControl_EnterViewing", size = 0xB0 }
+0x8835C538 = { name = "eot_ActionFigureControl_UpdateViewing", size = 0x360 }
+0x8835C898 = { name = "eot_ActionFigureControl_ExitViewing", size = 0xE8 }
+0x8835CA28 = { name = "eot_ActionFigureControl_UpdateExitingViewing", size = 0x154 }
+0x8835CB80 = { name = "eot_ActionFigureControl_ExitExitingViewing", size = 0x90 }
+0x8835D360 = { name = "eot_GLInstanciateHUDConceptArtViewer", size = 0x78 }
 0x8835DB68 = { size = 0x7C }
-0x8835DBE8 = { size = 0xE0 }
-0x8835DCC8 = { size = 0xFC }
-0x8835DDC8 = { size = 0xC4 }
-0x8835DE90 = { size = 0x5C }
+0x8835DBE8 = { name = "eot_HUDConceptArtViewer_EnterFadeIn", size = 0xE0 }
+0x8835DCC8 = { name = "eot_HUDConceptArtViewer_UpdateFadeIn", size = 0xFC }
+0x8835DDC8 = { name = "eot_HUDConceptArtViewer_EnterViewing", size = 0xC4 }
+0x8835DE90 = { name = "eot_HUDConceptArtViewer_EnterFadeTransition", size = 0x5C }
 0x8835DEF0 = { size = 0xC8 }
-0x8835DFB8 = { size = 0xAC }
-0x8835E068 = { size = 0xE0 }
+0x8835DFB8 = { name = "eot_HUDConceptArtViewer_EnterFadeOut", size = 0xAC }
+0x8835E068 = { name = "eot_HUDConceptArtViewer_UpdateFadeOut", size = 0xE0 }
 0x8835E148 = { size = 0xE4 }
 0x8835E230 = { size = 0x94 }
-0x8835E2C8 = { size = 0x19C }
-0x8835E468 = { size = 0x78 }
-0x8835EBD0 = { size = 0x4B0 }
-0x8835F080 = { size = 0xFC }
-0x8835F180 = { size = 0x170 }
-0x8835F2F0 = { size = 0x178 }
-0x8835F468 = { size = 0x44 }
-0x8835F900 = { size = 0xFC }
-0x8835FA18 = { size = 0xDC }
-0x8835FAF8 = { size = 0x84 }
-0x8835FFE8 = { size = 0x4C }
-0x883604A0 = { size = 0x3E8 }
-0x88360940 = { size = 0x4E8 }
-0x88360E28 = { size = 0xF8 }
-0x88360F20 = { size = 0x1A4 }
-0x883610C8 = { size = 0x150 }
-0x88361C80 = { size = 0x3E8 }
-0x88362120 = { size = 0x404 }
-0x88362528 = { size = 0xF8 }
-0x88362620 = { size = 0x14C }
-0x88362770 = { size = 0x21C }
-0x88362E30 = { size = 0x78 }
-0x88363608 = { size = 0x48C }
-0x88363A98 = { size = 0x100 }
-0x88363B98 = { size = 0x48 }
-0x88363BE0 = { size = 0x168 }
-0x88363D48 = { size = 0x44 }
-0x883648A8 = { size = 0x78 }
-0x88365348 = { size = 0xE0 }
-0x88365B00 = { size = 0x100 }
-0x88365C00 = { size = 0xBC }
-0x88365CC0 = { size = 0xDC }
-0x88365DA0 = { size = 0x88 }
-0x88365E28 = { size = 0xC0 }
-0x88365EE8 = { size = 0xE8 }
-0x88366060 = { size = 0x60 }
-0x88366E10 = { size = 0xDC }
-0x88367220 = { size = 0x278 }
+0x8835E2C8 = { name = "eot_HUDConceptArtViewer_SetNextImage", size = 0x19C }
+0x8835E468 = { name = "eot_GLInstanciateHUDConceptArtOp", size = 0x78 }
+0x8835EBD0 = { name = "eot_HUDConceptArtOp_EnterIntro", size = 0x4B0 }
+0x8835F080 = { name = "eot_HUDConceptArtOp_UpdateIntro", size = 0xFC }
+0x8835F180 = { name = "eot_HUDConceptArtOp_EnterIdle", size = 0x170 }
+0x8835F2F0 = { name = "eot_HUDConceptArtOp_UpdateIdle", size = 0x178 }
+0x8835F468 = { name = "eot_HUDGalleryOptions_ExitActive", size = 0x44 }
+0x8835F900 = { name = "eot_HUDConceptArtOp_EnterContentFadeIn", size = 0xFC }
+0x8835FA18 = { name = "eot_HUDConceptArtOp_EnterShowingContent", size = 0xDC }
+0x8835FAF8 = { name = "eot_HUDConceptArtOp_ExitShowingContent", size = 0x84 }
+0x8835FFE8 = { name = "eot_HUDConceptArtOp_EnterContentFadeOut", size = 0x4C }
+0x883604A0 = { name = "eot_GLInstanciateHUDComicsMoviesOp", size = 0x3E8 }
+0x88360940 = { name = "eot_HUDComicsMoviesOp_EnterIntro", size = 0x4E8 }
+0x88360E28 = { name = "eot_HUDComicsMoviesOp_UpdateIntro", size = 0xF8 }
+0x88360F20 = { name = "eot_HUDComicsMoviesOp_EnterIdle", size = 0x1A4 }
+0x883610C8 = { name = "eot_HUDComicsMoviesOp_UpdateIdle", size = 0x150 }
+0x88361C80 = { name = "eot_GLInstanciateHUDCharacterBiosOp", size = 0x3E8 }
+0x88362120 = { name = "eot_HUDCharacterBiosOp_EnterIntro", size = 0x404 }
+0x88362528 = { name = "eot_HUDCharacterBiosOp_UpdateIntro", size = 0xF8 }
+0x88362620 = { name = "eot_HUDCharacterBiosOp_EnterIdle", size = 0x14C }
+0x88362770 = { name = "eot_HUDCharacterBiosOp_UpdateIdle", size = 0x21C }
+0x88362E30 = { name = "eot_GLInstanciateHUDActionsFiguresOp", size = 0x78 }
+0x88363608 = { name = "eot_HUDActionsFiguresOp_EnterIntro", size = 0x48C }
+0x88363A98 = { name = "eot_HUDActionsFiguresOp_UpdateIntro", size = 0x100 }
+0x88363B98 = { name = "eot_HUDActionsFiguresOp_EnterIdle", size = 0x48 }
+0x88363BE0 = { name = "eot_HUDActionsFiguresOp_UpdateIdle", size = 0x168 }
+0x88363D48 = { name = "eot_HUDActionsFiguresOp_ExitIdle", size = 0x44 }
+0x883648A8 = { name = "eot_GLInstanciateHUDGalleryOptions", size = 0x78 }
+0x88365348 = { name = "eot_HUDGalleryOptions_EnterActive", size = 0xE0 }
+0x88365B00 = { name = "eot_HUDGalleryOptions_EnterClosing", size = 0x100 }
+0x88365C00 = { name = "eot_HUDGalleryOptions_EnterSaving", size = 0xBC }
+0x88365CC0 = { name = "eot_HUDGalleryOptions_ReturnToFrontScreen", size = 0xDC }
+0x88365DA0 = { name = "eot_HUDGalleryOptions_PendingSelectAndInactivate", size = 0x88 }
+0x88365E28 = { name = "eot_HUDGalleryOptions_Save", size = 0xC0 }
+0x88365EE8 = { name = "eot_HUDGalleryOptions_CloseMenu", size = 0xE8 }
+0x88366060 = { name = "eot_HUDGalleryOptions_UpdateAnims", size = 0x60 }
+0x88366E10 = { name = "eot_GLInstanciateAntiVenom_WebShot", size = 0xDC }
+0x88367220 = { name = "eot_GLInstanciateAntiVenomController", size = 0x278 }
 0x88367E10 = { size = 0xB4 }
-0x88369C70 = { size = 0x98 }
-0x8836B1D8 = { size = 0x2F8 }
+0x88369C70 = { name = "eot_GLInstanciateAntiVenom5", size = 0x98 }
+0x8836B1D8 = { name = "eot_GLInstanciateAntiVenom6Controller", size = 0x2F8 }
 0x8836B6D8 = { size = 0x13C }
 0x8836B818 = { size = 0xE8 }
 0x8836B900 = { size = 0x90 }
 0x8836B990 = { size = 0x1CC }
 0x8836BB60 = { size = 0x4 }
 0x8836BB68 = { size = 0x88 }
-0x8836D580 = { size = 0x174 }
-0x8836E5E0 = { size = 0x78 }
+0x8836D580 = { name = "eot_GLInstanciateAntiVenom1", size = 0x174 }
+0x8836E5E0 = { name = "eot_AntiVenom1_EnterStruggling", size = 0x78 }
 0x8836E658 = { size = 0x208 }
-0x8836E8F8 = { size = 0x78 }
-0x8836F0D8 = { size = 0xBC }
-0x8836F198 = { size = 0x138 }
-0x8836F2D0 = { size = 0x8C }
-0x8836F360 = { size = 0x148 }
-0x8836F4A8 = { size = 0x64 }
-0x8836F510 = { size = 0x25C }
-0x8836F770 = { size = 0xF0 }
-0x8836F860 = { size = 0x524 }
-0x8836FD88 = { size = 0x104 }
-0x88372938 = { size = 0x228 }
-0x88377CD0 = { size = 0x70 }
-0x88377D40 = { size = 0x84 }
-0x88377DC8 = { size = 0xCC }
-0x88377EC8 = { size = 0x344 }
-0x88378220 = { size = 0x1E8 }
-0x88378408 = { size = 0x120 }
+0x8836E8F8 = { name = "eot_GLInstanciateAntiVenom1Controller", size = 0x78 }
+0x8836F0D8 = { name = "eot_AntiVenom1Controller_EnterEvadeSlowMo", size = 0xBC }
+0x8836F198 = { name = "eot_AntiVenom1Controller_UpdateEvadeSlowMo", size = 0x138 }
+0x8836F2D0 = { name = "eot_AntiVenom1Controller_EnterFightStart", size = 0x8C }
+0x8836F360 = { name = "eot_AntiVenom1Controller_UpdateFightStart", size = 0x148 }
+0x8836F4A8 = { name = "eot_AntiVenom1Controller_EnterFirstTips", size = 0x64 }
+0x8836F510 = { name = "eot_AntiVenom1Controller_UpdateFirstTips", size = 0x25C }
+0x8836F770 = { name = "eot_AntiVenom1Controller_EnterFirstEvade", size = 0xF0 }
+0x8836F860 = { name = "eot_AntiVenom1Controller_UpdateFirstEvade", size = 0x524 }
+0x8836FD88 = { name = "eot_AntiVenom1Controller_ExitFirstEvade", size = 0x104 }
+0x88372938 = { name = "eot_GLInstanciateBaseAntiVenom", size = 0x228 }
+0x88377CD0 = { name = "eot_BaseAntiVenom_EnterStart", size = 0x70 }
+0x88377D40 = { name = "eot_BaseAntiVenom_EnterIdle", size = 0x84 }
+0x88377DC8 = { name = "eot_BaseAntiVenom_UpdateIdle", size = 0xCC }
+0x88377EC8 = { name = "eot_BaseAntiVenom_UpdateHurt", size = 0x344 }
+0x88378220 = { name = "eot_BaseAntiVenom_EnterWalk", size = 0x1E8 }
+0x88378408 = { name = "eot_BaseAntiVenom_UpdateWalk", size = 0x120 }
 0x88378528 = { size = 0xE8 }
-0x88378610 = { size = 0x144 }
-0x88378758 = { size = 0x32C }
-0x88378AC0 = { size = 0x268 }
-0x88378D28 = { size = 0x6DC }
-0x88379408 = { size = 0x124 }
-0x88379530 = { size = 0xB0 }
-0x883795E0 = { size = 0x128 }
-0x88379708 = { size = 0x74 }
-0x88379B98 = { size = 0x54 }
+0x88378610 = { name = "eot_BaseAntiVenom_EnterRun", size = 0x144 }
+0x88378758 = { name = "eot_BaseAntiVenom_UpdateRun", size = 0x32C }
+0x88378AC0 = { name = "eot_BaseAntiVenom_EnterCharge", size = 0x268 }
+0x88378D28 = { name = "eot_BaseAntiVenom_UpdateCharge", size = 0x6DC }
+0x88379408 = { name = "eot_BaseAntiVenom_ExitCharge", size = 0x124 }
+0x88379530 = { name = "eot_BaseAntiVenom_EnterBlindedRun", size = 0xB0 }
+0x883795E0 = { name = "eot_BaseAntiVenom_UpdateBlindedRun", size = 0x128 }
+0x88379708 = { name = "eot_BaseAntiVenom_ExitBlindedRun", size = 0x74 }
+0x88379B98 = { name = "eot_BaseAntiVenom_CheckNoDestructibleHit", size = 0x54 }
 0x88379BF0 = { size = 0x54 }
 0x88379C48 = { size = 0xBC }
-0x88379E80 = { size = 0x78 }
-0x88379EF8 = { size = 0x218 }
+0x88379E80 = { name = "eot_BaseAntiVenom_EnterSonicSlash", size = 0x78 }
+0x88379EF8 = { name = "eot_BaseAntiVenom_UpdateSonicSlash", size = 0x218 }
 0x8837A110 = { size = 0x1B4 }
-0x8837A2C8 = { size = 0x5C }
-0x8837A350 = { size = 0x274 }
-0x8837A5C8 = { size = 0x2F8 }
-0x8837A8C0 = { size = 0x4C }
-0x8837A910 = { size = 0x78 }
-0x8837A988 = { size = 0x70 }
-0x8837A9F8 = { size = 0x74 }
-0x8837AA70 = { size = 0x70 }
-0x8837AAE0 = { size = 0x108 }
-0x8837ABE8 = { size = 0x264 }
-0x8837AE50 = { size = 0x8C }
-0x8837AEE0 = { size = 0xE8 }
-0x8837AFC8 = { size = 0xBC }
-0x8837B088 = { size = 0xAC }
-0x8837B188 = { size = 0xA0 }
-0x8837B228 = { size = 0x70 }
-0x8837B298 = { size = 0x114 }
-0x8837B3B0 = { size = 0x100 }
+0x8837A2C8 = { name = "eot_BaseAntiVenom_EnterDead", size = 0x5C }
+0x8837A350 = { name = "eot_BaseAntiVenom_EnterBlocking", size = 0x274 }
+0x8837A5C8 = { name = "eot_BaseAntiVenom_UpdateBlocking", size = 0x2F8 }
+0x8837A8C0 = { name = "eot_BaseAntiVenom_ExitBlocking", size = 0x4C }
+0x8837A910 = { name = "eot_BaseAntiVenom_EnterSearching", size = 0x78 }
+0x8837A988 = { name = "eot_BaseAntiVenom_UpdateSearching", size = 0x70 }
+0x8837A9F8 = { name = "eot_BaseAntiVenom_EnterScreaming", size = 0x74 }
+0x8837AA70 = { name = "eot_BaseAntiVenom_UpdateScreaming", size = 0x70 }
+0x8837AAE0 = { name = "eot_BaseAntiVenom_EnterDizzy", size = 0x108 }
+0x8837ABE8 = { name = "eot_BaseAntiVenom_UpdateDizzy", size = 0x264 }
+0x8837AE50 = { name = "eot_BaseAntiVenom_ExitDizzy", size = 0x8C }
+0x8837AEE0 = { name = "eot_BaseAntiVenom_EnterSpecialDizzy", size = 0xE8 }
+0x8837AFC8 = { name = "eot_BaseAntiVenom_UpdateSpecialDizzy", size = 0xBC }
+0x8837B088 = { name = "eot_BaseAntiVenom_EnterWebBlinded", size = 0xAC }
+0x8837B188 = { name = "eot_BaseAntiVenom_EnterTaunt", size = 0xA0 }
+0x8837B228 = { name = "eot_BaseAntiVenom_UpdateTaunt", size = 0x70 }
+0x8837B298 = { name = "eot_BaseAntiVenom_EnterFistStomp", size = 0x114 }
+0x8837B3B0 = { name = "eot_BaseAntiVenom_UpdateFistStomp", size = 0x100 }
 0x8837B4B0 = { size = 0xBC }
-0x8837B570 = { size = 0x12C }
-0x8837B6A0 = { size = 0x9C }
-0x8837B740 = { size = 0xE4 }
-0x8837B828 = { size = 0x1E0 }
-0x8837BA28 = { size = 0xD0 }
-0x8837BAF8 = { size = 0x9C }
-0x8837BB98 = { size = 0x170 }
-0x8837BD08 = { size = 0x200 }
+0x8837B570 = { name = "eot_BaseAntiVenom_EnterFistUppercut", size = 0x12C }
+0x8837B6A0 = { name = "eot_BaseAntiVenom_UpdateFistUppercut", size = 0x9C }
+0x8837B740 = { name = "eot_BaseAntiVenom_EnterFistCombo", size = 0xE4 }
+0x8837B828 = { name = "eot_BaseAntiVenom_UpdateFistCombo", size = 0x1E0 }
+0x8837BA28 = { name = "eot_BaseAntiVenom_EnterFistAntiAir", size = 0xD0 }
+0x8837BAF8 = { name = "eot_BaseAntiVenom_UpdateFistAntiAir", size = 0x9C }
+0x8837BB98 = { name = "eot_BaseAntiVenom_EnterWebShot", size = 0x170 }
+0x8837BD08 = { name = "eot_BaseAntiVenom_UpdateWebShot", size = 0x200 }
 0x8837BF08 = { size = 0x4 }
-0x8837BF10 = { size = 0xF8 }
-0x8837C008 = { size = 0x100 }
-0x8837C108 = { size = 0x350 }
-0x8837C458 = { size = 0x280 }
-0x8837C6D8 = { size = 0x35C }
-0x8837CA38 = { size = 0x5D0 }
-0x8837D008 = { size = 0x9C }
-0x8837D0A8 = { size = 0x98 }
-0x8837D140 = { size = 0x148 }
-0x8837D288 = { size = 0x98 }
-0x8837D320 = { size = 0x150 }
-0x8837D470 = { size = 0x64 }
-0x8837D4D8 = { size = 0x3DC }
-0x8837D8B8 = { size = 0x1E8 }
-0x8837DAA0 = { size = 0x108 }
-0x8837DBA8 = { size = 0x12C }
-0x8837DCD8 = { size = 0x248 }
-0x8837DF20 = { size = 0x190 }
+0x8837BF10 = { name = "eot_BaseAntiVenom_EnterRegen", size = 0xF8 }
+0x8837C008 = { name = "eot_BaseAntiVenom_UpdateRegen", size = 0x100 }
+0x8837C108 = { name = "eot_BaseAntiVenom_EnterGrabIntro", size = 0x350 }
+0x8837C458 = { name = "eot_BaseAntiVenom_UpdateGrabIntro", size = 0x280 }
+0x8837C6D8 = { name = "eot_BaseAntiVenom_EnterGrabMassiveStomp", size = 0x35C }
+0x8837CA38 = { name = "eot_BaseAntiVenom_UpdateGrabMassiveStomp", size = 0x5D0 }
+0x8837D008 = { name = "eot_BaseAntiVenom_ExitGrabMassiveStomp", size = 0x9C }
+0x8837D0A8 = { name = "eot_BaseAntiVenom_EnterGrabRun", size = 0x98 }
+0x8837D140 = { name = "eot_BaseAntiVenom_UpdateGrabRun", size = 0x148 }
+0x8837D288 = { name = "eot_BaseAntiVenom_EnterGrabWall", size = 0x98 }
+0x8837D320 = { name = "eot_BaseAntiVenom_UpdateGrabWall", size = 0x150 }
+0x8837D470 = { name = "eot_BaseAntiVenom_ExitGrabWall", size = 0x64 }
+0x8837D4D8 = { name = "eot_BaseAntiVenom_EnterGrabSmash", size = 0x3DC }
+0x8837D8B8 = { name = "eot_BaseAntiVenom_UpdateGrabSmash", size = 0x1E8 }
+0x8837DAA0 = { name = "eot_BaseAntiVenom_UpdateGrabSmashPostPhysic", size = 0x108 }
+0x8837DBA8 = { name = "eot_BaseAntiVenom_ExitGrabSmash", size = 0x12C }
+0x8837DCD8 = { name = "eot_BaseAntiVenom_EnterGrabRam", size = 0x248 }
+0x8837DF20 = { name = "eot_BaseAntiVenom_UpdateGrabRam", size = 0x190 }
 0x8837E0B0 = { size = 0xD4 }
-0x8837E188 = { size = 0x8C }
-0x8837E218 = { size = 0x3F8 }
-0x8837E610 = { size = 0x138 }
+0x8837E188 = { name = "eot_BaseAntiVenom_ExitGrabRam", size = 0x8C }
+0x8837E218 = { name = "eot_BaseAntiVenom_EnterRepel", size = 0x3F8 }
+0x8837E610 = { name = "eot_BaseAntiVenom_UpdateRepel", size = 0x138 }
 0x8837E748 = { size = 0x170 }
 0x8837E8B8 = { size = 0x1E0 }
-0x8837EA98 = { size = 0x1C4 }
-0x8837EC60 = { size = 0x70 }
-0x8837ECD0 = { size = 0x4F8 }
-0x8837F1C8 = { size = 0xD8 }
+0x8837EA98 = { name = "eot_BaseAntiVenom_EnterThrown", size = 0x1C4 }
+0x8837EC60 = { name = "eot_BaseAntiVenom_UpdateThrown", size = 0x70 }
+0x8837ECD0 = { name = "eot_BaseAntiVenom_EnterFall", size = 0x4F8 }
+0x8837F1C8 = { name = "eot_BaseAntiVenom_UpdateFall", size = 0xD8 }
 0x8837F2A0 = { size = 0x1B0 }
 0x8837F450 = { size = 0x58 }
-0x8837F4A8 = { size = 0xEC }
-0x8837F598 = { size = 0x1B4 }
-0x8837F750 = { size = 0xB0 }
-0x8837F800 = { size = 0xD0 }
-0x8837F8D0 = { size = 0x84 }
-0x8837F958 = { size = 0x244 }
+0x8837F4A8 = { name = "eot_BaseAntiVenom_EnterMassiveStomp", size = 0xEC }
+0x8837F598 = { name = "eot_BaseAntiVenom_UpdateMassiveStomp", size = 0x1B4 }
+0x8837F750 = { name = "eot_BaseAntiVenom_EnterClawAttack", size = 0xB0 }
+0x8837F800 = { name = "eot_BaseAntiVenom_UpdateClawAttack", size = 0xD0 }
+0x8837F8D0 = { name = "eot_BaseAntiVenom_EnterFinalIdle", size = 0x84 }
+0x8837F958 = { name = "eot_BaseAntiVenom_UpdateFinalIdle", size = 0x244 }
 0x8837FBA0 = { size = 0x64 }
-0x8837FC08 = { size = 0xE4 }
-0x8837FCF0 = { size = 0x48C }
-0x883801B8 = { size = 0xA0 }
-0x88380258 = { size = 0xD4 }
-0x88380330 = { size = 0x164 }
-0x88380498 = { size = 0x7C }
-0x88380518 = { size = 0x54 }
-0x88380570 = { size = 0x160 }
-0x883806D0 = { size = 0x88 }
+0x8837FC08 = { name = "eot_BaseAntiVenom_EnterStandStill", size = 0xE4 }
+0x8837FCF0 = { name = "eot_BaseAntiVenom_UpdateStandStill", size = 0x48C }
+0x883801B8 = { name = "eot_BaseAntiVenom_EnterFinalAttack", size = 0xA0 }
+0x88380258 = { name = "eot_BaseAntiVenom_UpdateFinalAttack", size = 0xD4 }
+0x88380330 = { name = "eot_BaseAntiVenom_EnterFinalMove", size = 0x164 }
+0x88380498 = { name = "eot_BaseAntiVenom_UpdateFinalMove", size = 0x7C }
+0x88380518 = { name = "eot_BaseAntiVenom_ExitFinalMove", size = 0x54 }
+0x88380570 = { name = "eot_BaseAntiVenom_EnterTurn", size = 0x160 }
+0x883806D0 = { name = "eot_BaseAntiVenom_UpdateTurn", size = 0x88 }
 0x88380758 = { size = 0xF0 }
-0x88380848 = { size = 0x52C }
-0x88380D78 = { size = 0x1AC }
-0x88380F28 = { size = 0xDC }
-0x88381008 = { size = 0xB8 }
-0x883810C0 = { size = 0x94 }
+0x88380848 = { name = "eot_BaseAntiVenom_EnterScisorBlade", size = 0x52C }
+0x88380D78 = { name = "eot_BaseAntiVenom_UpdateScisorBlade", size = 0x1AC }
+0x88380F28 = { name = "eot_BaseAntiVenom_EnterBladesOfFury", size = 0xDC }
+0x88381008 = { name = "eot_BaseAntiVenom_EnterWebZip", size = 0xB8 }
+0x883810C0 = { name = "eot_BaseAntiVenom_UpdateBladesOfFury", size = 0x94 }
 0x88381158 = { size = 0x40 }
 0x88381198 = { size = 0x1F8 }
-0x88381390 = { size = 0x454 }
-0x883817E8 = { size = 0x84 }
-0x88381870 = { size = 0x10C }
+0x88381390 = { name = "eot_BaseAntiVenom_UpdateLeapAttack", size = 0x454 }
+0x883817E8 = { name = "eot_BaseAntiVenom_ExitWebZip", size = 0x84 }
+0x88381870 = { name = "eot_BaseAntiVenom_EnterLeapAttack", size = 0x10C }
 0x88381980 = { size = 0x35C }
 0x88381CE0 = { size = 0x1AC }
 0x88381E90 = { size = 0x40 }
 0x88381ED0 = { size = 0x5C }
 0x88381F30 = { size = 0xF4 }
-0x88382028 = { size = 0x110 }
+0x88382028 = { name = "eot_BaseAntiVenom_EnterPossessed", size = 0x110 }
 0x88382138 = { size = 0x4A0 }
 0x883825D8 = { size = 0x5C }
-0x88382638 = { size = 0xB4 }
+0x88382638 = { name = "eot_BaseAntiVenom_EnterWeakPossessed", size = 0xB4 }
 0x883826F0 = { size = 0x350 }
 0x88382A40 = { size = 0x8 }
-0x88382A48 = { size = 0xBC }
+0x88382A48 = { name = "eot_BaseAntiVenom_EnterPossessedShort", size = 0xBC }
 0x88382B08 = { size = 0x9C }
-0x88382BA8 = { size = 0x2AC }
-0x88382E58 = { size = 0x17C }
-0x88389CD8 = { size = 0x17C }
-0x8838AB00 = { size = 0xC4 }
-0x8838ABC8 = { size = 0x148 }
-0x8838BF18 = { size = 0x78 }
-0x8838C768 = { size = 0xF0 }
+0x88382BA8 = { name = "eot_BaseAntiVenom_EnterThrowsSM", size = 0x2AC }
+0x88382E58 = { name = "eot_BaseAntiVenom_UpdateThrowsSM", size = 0x17C }
+0x88389CD8 = { name = "eot_GLInstanciateAntiVenom6", size = 0x17C }
+0x8838AB00 = { name = "eot_AntiVenom6_EnterForcedWalk", size = 0xC4 }
+0x8838ABC8 = { name = "eot_AntiVenom6_ResetPhysic", size = 0x148 }
+0x8838BF18 = { name = "eot_GLInstanciateLegalScreen", size = 0x78 }
+0x8838C768 = { name = "eot_LegalScreen_UpdateStrapReminderIn", size = 0xF0 }
 0x8838C858 = { size = 0x58 }
 0x8838C8B0 = { size = 0x1C0 }
 0x8838CA70 = { size = 0x38 }
 0x8838CAB8 = { size = 0x110 }
-0x8838CBC8 = { size = 0xDC }
+0x8838CBC8 = { name = "eot_LegalScreen_EnterLegalScreen", size = 0xDC }
 0x8838CCA8 = { size = 0x1E0 }
 0x8838CE88 = { size = 0x8 }
-0x8838CE90 = { size = 0x94 }
-0x8838D020 = { size = 0x214 }
-0x8838D298 = { size = 0x64 }
-0x8838D300 = { size = 0x80 }
-0x8838D590 = { size = 0x1D4 }
-0x88390B40 = { size = 0xAC }
-0x88390BF0 = { size = 0x78 }
-0x88390C68 = { size = 0x24 }
-0x88390C90 = { size = 0xD0 }
-0x88390D60 = { size = 0xCC }
-0x88390E30 = { size = 0x128 }
-0x88390F58 = { size = 0x568 }
-0x883914C0 = { size = 0x12C }
-0x883915F0 = { size = 0x2B4 }
-0x883918A8 = { size = 0x64 }
-0x88391A10 = { size = 0x94 }
-0x88391AA8 = { size = 0x178 }
-0x88391E20 = { size = 0x88 }
-0x88391EA8 = { size = 0x74 }
-0x88391F20 = { size = 0x3F4 }
-0x88392318 = { size = 0x108 }
-0x88392420 = { size = 0x74 }
-0x88392498 = { size = 0x198 }
-0x88392630 = { size = 0x134 }
-0x88392768 = { size = 0xF8 }
-0x88392860 = { size = 0xE4 }
-0x88392948 = { size = 0xBC }
-0x88392A08 = { size = 0x168 }
-0x88392B70 = { size = 0xB0 }
-0x88392C20 = { size = 0xC0 }
-0x88392CE0 = { size = 0x1CC }
-0x88392EB0 = { size = 0xBC }
-0x88392F70 = { size = 0xCC }
-0x88393040 = { size = 0x198 }
-0x883931D8 = { size = 0xB0 }
-0x88393288 = { size = 0xB0 }
-0x88393338 = { size = 0x1A4 }
-0x883934E0 = { size = 0x104 }
-0x883935E8 = { size = 0x238 }
-0x88393820 = { size = 0xCC }
-0x883938F0 = { size = 0xD4 }
-0x883939C8 = { size = 0x200 }
-0x88393BC8 = { size = 0x78 }
-0x88393C40 = { size = 0x158 }
-0x88393E00 = { size = 0x150 }
+0x8838CE90 = { name = "eot_LegalScreen_EnterLoading", size = 0x94 }
+0x8838D020 = { name = "eot_GLInstanciateLegalControl", size = 0x214 }
+0x8838D298 = { name = "eot_LegalControl_EnterLoading", size = 0x64 }
+0x8838D300 = { name = "eot_LegalControl_UpdateLoading", size = 0x80 }
+0x8838D590 = { name = "eot_GLInstanciateCEO", size = 0x1D4 }
+0x88390B40 = { name = "eot_CEO_PreStateUpdate", size = 0xAC }
+0x88390BF0 = { name = "eot_CEO_EnterStart", size = 0x78 }
+0x88390C68 = { name = "eot_CEO_UpdateStart", size = 0x24 }
+0x88390C90 = { name = "eot_CEO_EnterIdle", size = 0xD0 }
+0x88390D60 = { name = "eot_CEO_UpdateIdle", size = 0xCC }
+0x88390E30 = { name = "eot_CEO_EnterWalk", size = 0x128 }
+0x88390F58 = { name = "eot_CEO_UpdateWalk", size = 0x568 }
+0x883914C0 = { name = "eot_CEO_EnterRun", size = 0x12C }
+0x883915F0 = { name = "eot_CEO_UpdateRun", size = 0x2B4 }
+0x883918A8 = { name = "eot_CEO_ExitWalk", size = 0x64 }
+0x88391A10 = { name = "eot_CEO_EnterRotate", size = 0x94 }
+0x88391AA8 = { name = "eot_CEO_UpdateRotate", size = 0x178 }
+0x88391E20 = { name = "eot_CEO_EnterDead", size = 0x88 }
+0x88391EA8 = { name = "eot_CEO_EnterVictory", size = 0x74 }
+0x88391F20 = { name = "eot_CEO_EnterDashStrafe", size = 0x3F4 }
+0x88392318 = { name = "eot_CEO_UpdateDashStrafe", size = 0x108 }
+0x88392420 = { name = "eot_CEO_EnterLeap", size = 0x74 }
+0x88392498 = { name = "eot_CEO_UpdateLeap", size = 0x198 }
+0x88392630 = { name = "eot_CEO_EnterEvade", size = 0x134 }
+0x88392768 = { name = "eot_CEO_UpdateEvade", size = 0xF8 }
+0x88392860 = { name = "eot_CEO_ExitEvade", size = 0xE4 }
+0x88392948 = { name = "eot_CEO_EnterClawStrike", size = 0xBC }
+0x88392A08 = { name = "eot_CEO_UpdateClawStrike", size = 0x168 }
+0x88392B70 = { name = "eot_CEO_ExitClawStrike", size = 0xB0 }
+0x88392C20 = { name = "eot_CEO_EnterHeavyPounce", size = 0xC0 }
+0x88392CE0 = { name = "eot_CEO_UpdateHeavyPounce", size = 0x1CC }
+0x88392EB0 = { name = "eot_CEO_ExitHeavyPounce", size = 0xBC }
+0x88392F70 = { name = "eot_CEO_EnterGroundCombo", size = 0xCC }
+0x88393040 = { name = "eot_CEO_UpdateGroundCombo", size = 0x198 }
+0x883931D8 = { name = "eot_CEO_ExitGroundCombo", size = 0xB0 }
+0x88393288 = { name = "eot_CEO_EnterMultiRocket", size = 0xB0 }
+0x88393338 = { name = "eot_CEO_UpdateMultiRocket", size = 0x1A4 }
+0x883934E0 = { name = "eot_CEO_EnterWebShot", size = 0x104 }
+0x883935E8 = { name = "eot_CEO_UpdateWebShot", size = 0x238 }
+0x88393820 = { name = "eot_CEO_ExitWebShot", size = 0xCC }
+0x883938F0 = { name = "eot_CEO_EnterEnergyRay", size = 0xD4 }
+0x883939C8 = { name = "eot_CEO_UpdateEnergyRay", size = 0x200 }
+0x88393BC8 = { name = "eot_CEO_EnterHeavyPounce_Opening", size = 0x78 }
+0x88393C40 = { name = "eot_CEO_UpdateHeavyPounce_Opening", size = 0x158 }
+0x88393E00 = { name = "eot_CEO_EnterWebZip", size = 0x150 }
 0x88393F50 = { size = 0x390 }
 0x883942E0 = { size = 0x78 }
-0x88394358 = { size = 0x140 }
-0x88394498 = { size = 0x240 }
+0x88394358 = { name = "eot_CEO_EnterPerch", size = 0x140 }
+0x88394498 = { name = "eot_CEO_UpdatePerch", size = 0x240 }
 0x883946D8 = { size = 0x4C }
-0x88394728 = { size = 0xC0 }
-0x883947E8 = { size = 0x170 }
-0x88394968 = { size = 0x15C }
-0x88394AC8 = { size = 0x344 }
-0x88394F90 = { size = 0x1A8 }
-0x88395138 = { size = 0x32C }
-0x88395468 = { size = 0x3D0 }
-0x88395838 = { size = 0xC8 }
-0x88395900 = { size = 0x59C }
-0x88395EA0 = { size = 0x2D4 }
-0x88396178 = { size = 0x1EC }
-0x88396368 = { size = 0x2A0 }
-0x88396608 = { size = 0x20C }
-0x88396818 = { size = 0x1EC }
-0x88396A08 = { size = 0x98 }
-0x88396AA0 = { size = 0xD4 }
-0x88396BA8 = { size = 0x160 }
-0x88396D08 = { size = 0x170 }
-0x88396E78 = { size = 0x70 }
-0x88396EE8 = { size = 0x78 }
-0x88396F60 = { size = 0x238 }
-0x88397198 = { size = 0xAC }
-0x88397248 = { size = 0x74 }
-0x883972C0 = { size = 0x64 }
+0x88394728 = { name = "eot_CEO_EnterPerchWebShot", size = 0xC0 }
+0x883947E8 = { name = "eot_CEO_UpdatePerchWebShot", size = 0x170 }
+0x88394968 = { name = "eot_CEO_EnterStomp", size = 0x15C }
+0x88394AC8 = { name = "eot_CEO_UpdateStomp", size = 0x344 }
+0x88394F90 = { name = "eot_CEO_ExitStomp", size = 0x1A8 }
+0x88395138 = { name = "eot_CEO_EnterStompGrab", size = 0x32C }
+0x88395468 = { name = "eot_CEO_UpdateStompGrab", size = 0x3D0 }
+0x88395838 = { name = "eot_CEO_ExitStompGrab", size = 0xC8 }
+0x88395900 = { name = "eot_CEO_EnterGrabbed", size = 0x59C }
+0x88395EA0 = { name = "eot_CEO_UpdateGrabbed", size = 0x2D4 }
+0x88396178 = { name = "eot_CEO_ExitGrabbed", size = 0x1EC }
+0x88396368 = { name = "eot_CEO_EnterTentacleSlammed", size = 0x2A0 }
+0x88396608 = { name = "eot_CEO_UpdateTentacleSlammed", size = 0x20C }
+0x88396818 = { name = "eot_CEO_ExitTentacleSlammed", size = 0x1EC }
+0x88396A08 = { name = "eot_CEO_EnterGotoPortal", size = 0x98 }
+0x88396AA0 = { name = "eot_CEO_UpdateGotoPortal", size = 0xD4 }
+0x88396BA8 = { name = "eot_CEO_EnterPortalMount", size = 0x160 }
+0x88396D08 = { name = "eot_CEO_UpdatePortalMount", size = 0x170 }
+0x88396E78 = { name = "eot_CEO_ExitPortalMount", size = 0x70 }
+0x88396EE8 = { name = "eot_CEO_EnterPortalShoot", size = 0x78 }
+0x88396F60 = { name = "eot_CEO_UpdatePortalShoot", size = 0x238 }
+0x88397198 = { name = "eot_CEO_ExitPortalShoot", size = 0xAC }
+0x88397248 = { name = "eot_CEO_EnterPortalJumpDown", size = 0x74 }
+0x883972C0 = { name = "eot_CEO_UpdatePortalJumpDown", size = 0x64 }
 0x88397328 = { size = 0x100 }
-0x88397428 = { size = 0x1D8 }
-0x88397600 = { size = 0x3E8 }
-0x883979E8 = { size = 0x260 }
-0x88397C48 = { size = 0x7C }
+0x88397428 = { name = "eot_CEO_EnterPortalFall", size = 0x1D8 }
+0x88397600 = { name = "eot_CEO_UpdatePortalFall", size = 0x3E8 }
+0x883979E8 = { name = "eot_CEO_ExitPortalFall", size = 0x260 }
+0x88397C48 = { name = "eot_CEO_EnterStagedTentacle", size = 0x7C }
 0x8839D460 = { size = 0x280 }
 0x8839D760 = { size = 0xD8 }
 0x8839DD50 = { size = 0x258 }
-0x8839E300 = { size = 0x174 }
-0x8839ECB0 = { size = 0xF0 }
-0x8839F048 = { size = 0x98 }
-0x8839F318 = { size = 0x2CC }
+0x8839E300 = { name = "eot_GLInstanciateSMAEvadeTrailClone", size = 0x174 }
+0x8839ECB0 = { name = "eot_SMAEvadeTrailClone_UpdateActive", size = 0xF0 }
+0x8839F048 = { name = "eot_GLInstanciateSpiderSense2099", size = 0x98 }
+0x8839F318 = { name = "eot_GLInstanciateSMAmazing", size = 0x2CC }
 0x883A3208 = { size = 0x5F8 }
 0x883A5F90 = { size = 0x148 }
 0x883A60D8 = { size = 0x168 }
 0x883A6240 = { size = 0xC8 }
-0x883A8EC0 = { size = 0x78 }
-0x883A8F38 = { size = 0x15C }
-0x883A9098 = { size = 0x8 }
-0x883A90A0 = { size = 0x78 }
-0x883A9118 = { size = 0x104 }
-0x883A9220 = { size = 0x78 }
-0x883A9298 = { size = 0x104 }
-0x883A93A0 = { size = 0xD8 }
-0x883A9478 = { size = 0x28 }
-0x883A94A0 = { size = 0xD8 }
-0x883A9578 = { size = 0xC8 }
-0x883A9640 = { size = 0x5C }
-0x883AA568 = { size = 0x178 }
+0x883A8EC0 = { name = "eot_SMSplineStrafeModule_EnterIdle", size = 0x78 }
+0x883A8F38 = { name = "eot_SMSplineStrafeModule_UpdateIdle", size = 0x15C }
+0x883A9098 = { name = "eot_SMSplineStrafeModule_GetStrafeSpeed", size = 0x8 }
+0x883A90A0 = { name = "eot_SMSplineStrafeModule_EnterStrafeLeft", size = 0x78 }
+0x883A9118 = { name = "eot_SMSplineStrafeModule_UpdateStrafeLeft", size = 0x104 }
+0x883A9220 = { name = "eot_SMSplineStrafeModule_EnterStrafeRight", size = 0x78 }
+0x883A9298 = { name = "eot_SMSplineStrafeModule_UpdateStrafeRight", size = 0x104 }
+0x883A93A0 = { name = "eot_SMSplineStrafeModule_EnterDodgeLeft", size = 0xD8 }
+0x883A9478 = { name = "eot_SMSplineStrafeModule_UpdateDodgeLeft", size = 0x28 }
+0x883A94A0 = { name = "eot_SMSplineStrafeModule_EnterDodgeRight", size = 0xD8 }
+0x883A9578 = { name = "eot_SMSplineStrafeModule_EnterHurt", size = 0xC8 }
+0x883A9640 = { name = "eot_SMSplineStrafeModule_EnterEnding", size = 0x5C }
+0x883AA568 = { name = "eot_SMCrawlToDeathModule_EnterIdle", size = 0x178 }
 0x883AA6E0 = { size = 0xF0 }
-0x883AA7D0 = { size = 0x6C }
-0x883AA840 = { size = 0x140 }
-0x883AA980 = { size = 0x9C }
-0x883AAA60 = { size = 0x9C }
-0x883AAB00 = { size = 0xC8 }
+0x883AA7D0 = { name = "eot_SMCrawlToDeathModule_EnterCrawlForward", size = 0x6C }
+0x883AA840 = { name = "eot_SMCrawlToDeathModule_UpdateCrawlForward", size = 0x140 }
+0x883AA980 = { name = "eot_SMCrawlToDeathModule_UpdateWantedCameraPhase", size = 0x9C }
+0x883AAA60 = { name = "eot_SMCrawlToDeathModule_HandlePSRedirectorPreUpdate", size = 0x9C }
+0x883AAB00 = { name = "eot_SMCrawlToDeathModule_EnterHurt", size = 0xC8 }
 0x883AD888 = { size = 0xC }
 0x883AD8A0 = { size = 0x58 }
 0x883ADCF0 = { size = 0x8 }
