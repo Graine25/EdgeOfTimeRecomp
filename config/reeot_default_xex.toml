@@ -1902,246 +1902,246 @@ out_directory_path = "generated/default_xex"
 0x8237DA30 = { name = "eot_UnwindNestedFrames" }
 
 # IDA Generated
-0x820838D8 = { size = 0x34 }
-0x82086AE0 = { size = 0xAC }
-0x82087E98 = { size = 0x40 }
-0x820A7D70 = { size = 0x124 }
-0x820A9948 = { size = 0x58 }
-0x820AABF8 = { size = 0x90 }
-0x820AC808 = { size = 0x8C }
-0x820AE250 = { size = 0xB8 }
+0x820838D8 = { name = "eot_MV_ErrorCallback", size = 0x34 }
+0x82086AE0 = { name = "eot_MVAudio_Reset", size = 0xAC }
+0x82087E98 = { name = "eot_MVAudio_Signal", size = 0x40 }
+0x820A7D70 = { name = "eot_GLAPI3dObj_HierarchyGet", size = 0x124 }
+0x820A9948 = { name = "eot_GLAPI3dObj_GetBSphere", size = 0x58 }
+0x820AABF8 = { name = "eot_GLAPI3dObj_MaterialGetName", size = 0x90 }
+0x820AC808 = { name = "eot_GLAPIAnimation_AnimCueGetPlaying", size = 0x8C }
+0x820AE250 = { name = "eot_GLAPIAnimation_AnimProcUserGetObjSpaceMat", size = 0xB8 }
 0x820B4CE0 = { size = 0x108, name = "eot_GLAPICamera_PostFxGetRadialBlur" }
 0x820B61B0 = { size = 0x100, name = "eot_GLAPICamera_PostFxGetHalo" }
-0x820B7300 = { size = 0xD8 }
-0x820BA268 = { size = 0x120 }
-0x820BAB40 = { size = 0x4 }
-0x820BADF0 = { size = 0x30 }
-0x820BB650 = { size = 0x34 }
-0x820BF910 = { size = 0xC8 }
-0x820C3730 = { size = 0x48 }
-0x820C4750 = { size = 0x6C }
+0x820B7300 = { name = "eot_GLAPI_ResolveHandleSwitch2", size = 0xD8 }
+0x820BA268 = { name = "eot_GLAPIEmitter_GetFieldParams", size = 0x120 }
+0x820BAB40 = { name = "eot_GLAPIEngine_GetLocale", size = 0x4 }
+0x820BADF0 = { name = "eot_GLAPIEngine_ConvertHardwareTimeToSeconds", size = 0x30 }
+0x820BB650 = { name = "eot_GLAPIEnvironment_MaterialGetName", size = 0x34 }
+0x820BF910 = { name = "eot_GLAPIGameObj_GetScaleWithPackage", size = 0xC8 }
+0x820C3730 = { name = "eot_GLAPIHUD_SubTitleWndSetText", size = 0x48 }
+0x820C4750 = { name = "eot_GLAPIHUD_Wnd3DSetScaling", size = 0x6C }
 0x820C4BF0 = { name = "eot_HUD_RegisterGlyphTag", size = 0x80 }
-0x820C55E8 = { size = 0x40 }
-0x820CBE88 = { size = 0xB4 }
-0x820CBF40 = { size = 0xE4 }
-0x820CC028 = { size = 0xE4 }
-0x820CC110 = { size = 0x80 }
-0x820CC190 = { size = 0xC4 }
-0x820CC260 = { size = 0xAC }
-0x820CC360 = { size = 0x90 }
-0x820CC3F0 = { size = 0x94 }
-0x820CC4D8 = { size = 0x88 }
-0x820CC560 = { size = 0xB0 }
-0x820CC638 = { size = 0xB4 }
-0x820CC6F0 = { size = 0xB8 }
-0x820CC7E0 = { size = 0xA0 }
-0x820CC880 = { size = 0xCC }
-0x820CC950 = { size = 0xA0 }
-0x820CCA08 = { size = 0xB4 }
-0x820CCAC0 = { size = 0xB4 }
-0x820CCB78 = { size = 0xBC }
-0x820CCC38 = { size = 0x9C }
-0x820CCCD8 = { size = 0xA4 }
-0x820CCD80 = { size = 0xA4 }
-0x820CCE58 = { size = 0x78 }
-0x820CCF18 = { size = 0x60 }
-0x820CCF78 = { size = 0x88 }
-0x820CD000 = { size = 0x74 }
-0x820CD0A0 = { size = 0x64 }
-0x820CD128 = { size = 0x18 }
-0x820CD140 = { size = 0x1C }
-0x820CD188 = { size = 0xB4 }
-0x820CD240 = { size = 0xCC }
-0x820CD310 = { size = 0xBC }
-0x820CD448 = { size = 0x10 }
-0x820CD458 = { size = 0xB4 }
-0x820CD510 = { size = 0x90 }
-0x820CD5A0 = { size = 0x90 }
-0x820CD630 = { size = 0x14 }
-0x820CD648 = { size = 0x10 }
-0x820CD678 = { size = 0x64 }
-0x820CD6E0 = { size = 0x48 }
-0x820CDC00 = { size = 0x50 }
-0x820CDD88 = { size = 0x50 }
-0x820D0B08 = { size = 0xB4 }
-0x820D21D0 = { size = 0x80 }
-0x820D4758 = { size = 0xFC }
-0x820D4ED0 = { size = 0x74 }
+0x820C55E8 = { name = "eot_GLAPIHUD_TextWndSetDefaultStyle", size = 0x40 }
+0x820CBE88 = { name = "eot_GLAPINetwork_Slot17", size = 0xB4 }
+0x820CBF40 = { name = "eot_GLAPIGameObj_DestroyA", size = 0xE4 }
+0x820CC028 = { name = "eot_GLAPIGameObj_DestroyB", size = 0xE4 }
+0x820CC110 = { name = "eot_GLAPINetwork_GetPeerAddr", size = 0x80 }
+0x820CC190 = { name = "eot_GLAPINetwork_SetHostMode", size = 0xC4 }
+0x820CC260 = { name = "eot_GLAPINetwork_CreateFieldTable", size = 0xAC }
+0x820CC360 = { name = "eot_GLAPINetwork_GetPeer", size = 0x90 }
+0x820CC3F0 = { name = "eot_GLAPINetwork_SendToPeer", size = 0x94 }
+0x820CC4D8 = { name = "eot_GLAPINetwork_PeerCount", size = 0x88 }
+0x820CC560 = { name = "eot_GLAPINetwork_GetPeerName", size = 0xB0 }
+0x820CC638 = { name = "eot_GLAPINetwork_FirstPeer", size = 0xB4 }
+0x820CC6F0 = { name = "eot_GLAPINetwork_NextPeer", size = 0xB8 }
+0x820CC7E0 = { name = "eot_GLAPINetwork_CreateFieldTable2", size = 0xA0 }
+0x820CC880 = { name = "eot_GLAPINetwork_CreateReplica", size = 0xCC }
+0x820CC950 = { name = "eot_GLAPINetwork_DestroyReplica", size = 0xA0 }
+0x820CCA08 = { name = "eot_GLAPINetwork_CaptureAll", size = 0xB4 }
+0x820CCAC0 = { name = "eot_GLAPINetwork_Slot15", size = 0xB4 }
+0x820CCB78 = { name = "eot_GLAPINetwork_ReleaseReplica", size = 0xBC }
+0x820CCC38 = { name = "eot_GLAPINetwork_GetReplica", size = 0x9C }
+0x820CCCD8 = { name = "eot_GLAPINetwork_ReplicaHandle", size = 0xA4 }
+0x820CCD80 = { name = "eot_GLAPINetwork_ReplicaOwner", size = 0xA4 }
+0x820CCE58 = { name = "eot_GLAPINetwork_RegisterFields", size = 0x78 }
+0x820CCF18 = { name = "eot_GLAPIOnline_Reconnect", size = 0x60 }
+0x820CCF78 = { name = "eot_GLAPIOnline_GetNetStatus", size = 0x88 }
+0x820CD000 = { name = "eot_GLAPIOnline_GetSessionTask", size = 0x74 }
+0x820CD0A0 = { name = "eot_GLAPIOnline_HostSession", size = 0x64 }
+0x820CD128 = { name = "eot_GLAPIOnline_SendTo", size = 0x18 }
+0x820CD140 = { name = "eot_GLAPIOnline_SendTo2", size = 0x1C }
+0x820CD188 = { name = "eot_GLAPINetwork_Slot28", size = 0xB4 }
+0x820CD240 = { name = "eot_GLAPIOnline_CreateTask", size = 0xCC }
+0x820CD310 = { name = "eot_GLAPIOnline_CreateNamedTask", size = 0xBC }
+0x820CD448 = { name = "eot_GLAPIOnline_CancelTask", size = 0x10 }
+0x820CD458 = { name = "eot_GLAPINetwork_Slot35", size = 0xB4 }
+0x820CD510 = { name = "eot_GLAPIOnline_StartSession", size = 0x90 }
+0x820CD5A0 = { name = "eot_GLAPIOnline_StartSession2", size = 0x90 }
+0x820CD630 = { name = "eot_GLAPIOnline_SetSessionInfo", size = 0x14 }
+0x820CD648 = { name = "eot_GLAPIOnline_FillConnectParams", size = 0x10 }
+0x820CD678 = { name = "eot_GLAPIOnline_GetPeerHandle", size = 0x64 }
+0x820CD6E0 = { name = "eot_GLAPIOnline_GetLocalPeer", size = 0x48 }
+0x820CDC00 = { name = "eot_bdSingleton_bdNetImpl_destroyInstance", size = 0x50 }
+0x820CDD88 = { name = "eot_OLNet_GetPeerCount", size = 0x50 }
+0x820D0B08 = { name = "eot_GLAPIPhysic_GetMass", size = 0xB4 }
+0x820D21D0 = { name = "eot_GLAPIPhysic_ColPrimGetFlags", size = 0x80 }
+0x820D4758 = { name = "eot_GLAPIPhysic_ColPrimGetLocalPosWithParentBone", size = 0xFC }
+0x820D4ED0 = { name = "eot_GLAPIPhysic_ResetGJK", size = 0x74 }
 0x820D9C38 = { size = 0x4 }
 0x820D9C40 = { size = 0x4 }
-0x820D9C58 = { size = 0xA0 }
-0x820D9D18 = { size = 0x10 }
-0x820D9D28 = { size = 0x10 }
-0x820D9D50 = { size = 0xBC }
-0x820DC5A8 = { size = 0x40 }
-0x82188FE8 = { size = 0x3A8 }
-0x8218E188 = { size = 0xB0 }
-0x821B1A18 = { size = 0x21C }
-0x821B2598 = { size = 0x4C }
-0x821B2DC8 = { size = 0xFC }
-0x821B72D0 = { size = 0x3C }
-0x821C30B0 = { size = 0x54 }
-0x821C46F0 = { size = 0x38 }
-0x821C4728 = { size = 0x3C }
-0x821C4768 = { size = 0x9C }
-0x821C4808 = { size = 0x9C }
-0x821C5028 = { size = 0x54 }
-0x821C5080 = { size = 0x54 }
-0x821C50D8 = { size = 0x50 }
-0x821CE748 = { size = 0x84 }
-0x822317C0 = { size = 0x94 }
-0x822344F8 = { size = 0x1AC }
-0x8223CB88 = { size = 0x194 }
-0x8223F230 = { size = 0xEC }
-0x82241968 = { size = 0x34 }
+0x820D9C58 = { name = "eot_GLAPIString_Alloc", size = 0xA0 }
+0x820D9D18 = { name = "eot_GLAPIXBOX360_SetContextA", size = 0x10 }
+0x820D9D28 = { name = "eot_GLAPIXBOX360_SetContextB", size = 0x10 }
+0x820D9D50 = { name = "eot_GLAPIString_AllocN", size = 0xBC }
+0x820DC5A8 = { name = "eot_GLAPIUtil_MemoryAllocForLogic", size = 0x40 }
+0x82188FE8 = { name = "eot_ANAnimTree_HandleCommand", size = 0x3A8 }
+0x8218E188 = { name = "eot_CSCutsceneMgr_HandleAPICall", size = 0xB0 }
+0x821B1A18 = { name = "eot_Engine_InitMemoryAndThreads", size = 0x21C }
+0x821B2598 = { name = "eot_Engine_FatalDirtyDisc", size = 0x4C }
+0x821B2DC8 = { name = "eot_MTThreadMgr_FreeStaticThreadData", size = 0xFC }
+0x821B72D0 = { name = "eot_STRequest_Init2", size = 0x3C }
+0x821C30B0 = { name = "eot_OLNet_DestroyGameInfoFactory", size = 0x54 }
+0x821C46F0 = { name = "eot_OLNetMgr_AllocSlot", size = 0x38 }
+0x821C4728 = { name = "eot_OLNetMgr_AllocSlot2", size = 0x3C }
+0x821C4768 = { name = "eot_OLNetMgr_GrowArray", size = 0x9C }
+0x821C4808 = { name = "eot_OLNetMgr_GrowArray2", size = 0x9C }
+0x821C5028 = { name = "eot_OLNet_DestroySingletonA", size = 0x54 }
+0x821C5080 = { name = "eot_OLNet_DestroySingletonB", size = 0x54 }
+0x821C50D8 = { name = "eot_OLNet_ResetState", size = 0x50 }
+0x821CE748 = { name = "eot_OLLive_FreeRows", size = 0x84 }
+0x822317C0 = { name = "eot_D3D_InterruptCallback", size = 0x94 }
+0x822344F8 = { name = "eot_D3D_ProcessAsyncCallbacks", size = 0x1AC }
+0x8223CB88 = { name = "eot_D3DDevice_Present", size = 0x194 }
+0x8223F230 = { name = "eot_D3D_XpsInitState", size = 0xEC }
+0x82241968 = { name = "eot_D3D_XBMHandleVersionCheck", size = 0x34 }
 0x822419F8 = { size = 0x48 }
 0x82243960 = { size = 0x8C }
 0x822439F0 = { size = 0x60 }
-0x82243A50 = { size = 0x44 }
+0x82243A50 = { name = "eot_D3D_PixTimeSinceVBlank", size = 0x44 }
 0x82244A00 = { size = 0x3E4 }
 0x82244EF8 = { size = 0x9C }
 0x82246368 = { size = 0x4 }
 0x822464D8 = { size = 0xA0 }
 0x82246578 = { size = 0x1DC }
-0x8225BD88 = { size = 0x34 }
-0x8225BDC0 = { size = 0x30 }
-0x8225BE30 = { size = 0x50 }
-0x8225BE80 = { size = 0x40 }
+0x8225BD88 = { name = "eot_D3DXTex_d3dx_jpeg_error_exit", size = 0x34 }
+0x8225BDC0 = { name = "eot_D3DXTex_d3dx_jpeg_output_message", size = 0x30 }
+0x8225BE30 = { name = "eot_D3DXTex_empty_output_buffer", size = 0x50 }
+0x8225BE80 = { name = "eot_D3DXTex_term_destination", size = 0x40 }
 0x8225BEC0 = { size = 0x60 }
 0x8225BF20 = { size = 0x8 }
-0x8225BF28 = { size = 0x50 }
-0x8225EB98 = { size = 0x44 }
+0x8225BF28 = { name = "eot_D3DXTex_write_png_data", size = 0x50 }
+0x8225EB98 = { name = "eot_D3DXTex_init_destination", size = 0x44 }
 0x82262128 = { size = 0x48 }
 0x82262170 = { size = 0x48 }
-0x82273E00 = { size = 0x1A8 }
-0x82274308 = { size = 0x30C }
-0x82274618 = { size = 0xE4 }
-0x82274700 = { size = 0x154 }
-0x82274958 = { size = 0x4C }
-0x822749A8 = { size = 0x30 }
-0x822749D8 = { size = 0x8C }
-0x82274A68 = { size = 0x11C }
+0x82273E00 = { name = "eot_D3DX_get_interesting_appn", size = 0x1A8 }
+0x82274308 = { name = "eot_D3DX_read_markers", size = 0x30C }
+0x82274618 = { name = "eot_D3DX_read_restart_marker", size = 0xE4 }
+0x82274700 = { name = "eot_D3DX_jpeg_resync_to_restart", size = 0x154 }
+0x82274958 = { name = "eot_D3DX_error_exit", size = 0x4C }
+0x822749A8 = { name = "eot_D3DX_output_message", size = 0x30 }
+0x822749D8 = { name = "eot_emit_message", size = 0x8C }
+0x82274A68 = { name = "eot_D3DX_format_message", size = 0x11C }
 0x8227AB00 = { size = 0x148 }
 0x8227B470 = { size = 0x5C }
 0x8227B4D0 = { size = 0x5C }
 0x8227B530 = { size = 0x18 }
 0x8227B548 = { size = 0x18 }
-0x8227BD98 = { size = 0x12C }
+0x8227BD98 = { name = "eot_D3DX_consume_markers", size = 0x12C }
 0x8227BEC8 = { size = 0x7C }
-0x8227C4A8 = { size = 0x94 }
-0x8227C540 = { size = 0x94 }
-0x8227C5D8 = { size = 0x238 }
-0x8227C9D0 = { size = 0x1F0 }
-0x8227CBC0 = { size = 0x1F4 }
-0x8227CDB8 = { size = 0x184 }
-0x8227CF40 = { size = 0x1A8 }
-0x8227D9F0 = { size = 0x220 }
-0x8227DC10 = { size = 0x50 }
-0x8227EC10 = { size = 0x7C }
-0x8227EC90 = { size = 0x4 }
-0x8227EC98 = { size = 0x78 }
-0x8227ED10 = { size = 0x14C }
-0x8227EE60 = { size = 0x114 }
-0x8227EF78 = { size = 0x3C }
-0x8227EFB8 = { size = 0x17C }
-0x82284720 = { size = 0x98 }
-0x822847B8 = { size = 0x98 }
+0x8227C4A8 = { name = "eot_D3DX_request_virt_sarray", size = 0x94 }
+0x8227C540 = { name = "eot_D3DX_request_virt_barray", size = 0x94 }
+0x8227C5D8 = { name = "eot_D3DX_realize_virt_arrays", size = 0x238 }
+0x8227C9D0 = { name = "eot_D3DX_access_virt_sarray", size = 0x1F0 }
+0x8227CBC0 = { name = "eot_D3DX_access_virt_barray", size = 0x1F4 }
+0x8227CDB8 = { name = "eot_D3DX_free_pool", size = 0x184 }
+0x8227CF40 = { name = "eot_D3DX_self_destruct", size = 0x1A8 }
+0x8227D9F0 = { name = "eot_D3DX_prepare_for_output_pass", size = 0x220 }
+0x8227DC10 = { name = "eot_D3DX_finish_output_pass", size = 0x50 }
+0x8227EC10 = { name = "eot_write_marker_header", size = 0x7C }
+0x8227EC90 = { name = "eot_D3DX_emit_byte", size = 0x4 }
+0x8227EC98 = { name = "eot_D3DX_write_file_header", size = 0x78 }
+0x8227ED10 = { name = "eot_D3DX_write_frame_header", size = 0x14C }
+0x8227EE60 = { name = "eot_D3DX_write_scan_header", size = 0x114 }
+0x8227EF78 = { name = "eot_write_file_trailer", size = 0x3C }
+0x8227EFB8 = { name = "eot_D3DX_write_tables_only", size = 0x17C }
+0x82284720 = { name = "eot_D3DX_read_backing_store", size = 0x98 }
+0x822847B8 = { name = "eot_D3DX_write_backing_store", size = 0x98 }
 0x82284850 = { size = 0x8 }
-0x82284D00 = { size = 0xA4 }
-0x82284DA8 = { size = 0x1A4 }
+0x82284D00 = { name = "eot_D3DX_process_data_simple_main", size = 0xA4 }
+0x82284DA8 = { name = "eot_D3DX_process_data_context_main", size = 0x1A4 }
 0x82284F50 = { size = 0xA0 }
-0x822851B0 = { size = 0x29C }
-0x82285450 = { size = 0x260 }
-0x822856B0 = { size = 0x1B4 }
-0x82285A08 = { size = 0x7A8 }
-0x822861B0 = { size = 0x90 }
+0x822851B0 = { name = "eot_D3DX_decompress_onepass", size = 0x29C }
+0x82285450 = { name = "eot_D3DX_consume_data", size = 0x260 }
+0x822856B0 = { name = "eot_D3DX_decompress_data", size = 0x1B4 }
+0x82285A08 = { name = "eot_D3DX_decompress_smooth_data", size = 0x7A8 }
+0x822861B0 = { name = "eot_D3DX_start_output_pass", size = 0x90 }
 0x822869D8 = { size = 0x4D8 }
-0x82286EB0 = { size = 0x19C }
-0x82287170 = { size = 0x250 }
-0x822873C0 = { size = 0x260 }
-0x82287620 = { size = 0x118 }
-0x82287738 = { size = 0x458 }
-0x82287B90 = { size = 0x2E8 }
+0x82286EB0 = { name = "eot_D3DX_start_pass_huff_decoder", size = 0x19C }
+0x82287170 = { name = "eot_D3DX_decode_mcu_DC_first", size = 0x250 }
+0x822873C0 = { name = "eot_D3DX_decode_mcu_AC_first", size = 0x260 }
+0x82287620 = { name = "eot_D3DX_decode_mcu_DC_refine", size = 0x118 }
+0x82287738 = { name = "eot_D3DX_decode_mcu_AC_refine", size = 0x458 }
+0x82287B90 = { name = "eot_D3DX_start_pass_phuff_decoder", size = 0x2E8 }
 0x82287F50 = { size = 0x404 }
-0x822883F8 = { size = 0x98 }
+0x822883F8 = { name = "eot_D3DX_post_process_1pass", size = 0x98 }
 0x82288490 = { size = 0xB4 }
-0x82288620 = { size = 0x138 }
-0x82288770 = { size = 0xD4 }
-0x822888B0 = { size = 0x9C }
-0x82288FC8 = { size = 0xD0 }
-0x82289098 = { size = 0x88 }
-0x82289140 = { size = 0x64 }
-0x822891A8 = { size = 0xF0 }
-0x822896E8 = { size = 0x164 }
-0x82289850 = { size = 0x1C8 }
-0x82289E00 = { size = 0x104 }
-0x82289F08 = { size = 0x6C }
-0x82289F78 = { size = 0x144 }
-0x8228A628 = { size = 0x2AC }
-0x8228AB00 = { size = 0x21C }
+0x82288620 = { name = "eot_D3DX_sep_upsample", size = 0x138 }
+0x82288770 = { name = "eot_D3DX_int_upsample", size = 0xD4 }
+0x822888B0 = { name = "eot_D3DX_h2v2_upsample", size = 0x9C }
+0x82288FC8 = { name = "eot_D3DX_ycc_rgb_convert", size = 0xD0 }
+0x82289098 = { name = "eot_D3DX_null_convert", size = 0x88 }
+0x82289140 = { name = "eot_D3DX_gray_rgb_convert", size = 0x64 }
+0x822891A8 = { name = "eot_D3DX_ycck_cmyk_convert", size = 0xF0 }
+0x822896E8 = { name = "eot_D3DX_cmyk_rgb_convert", size = 0x164 }
+0x82289850 = { name = "eot_D3DX_ycck_rgb_convert", size = 0x1C8 }
+0x82289E00 = { name = "eot_D3DX_merged_2v_upsample", size = 0x104 }
+0x82289F08 = { name = "eot_D3DX_merged_1v_upsample", size = 0x6C }
+0x82289F78 = { name = "eot_D3DX_h2v1_merged_upsample", size = 0x144 }
+0x8228A628 = { name = "eot_D3DX_compress_data", size = 0x2AC }
+0x8228AB00 = { name = "eot_D3DX_compress_first_pass", size = 0x21C }
 0x8228AD20 = { size = 0x118 }
-0x8228B6D0 = { size = 0x18C }
-0x8228B860 = { size = 0xE8 }
+0x8228B6D0 = { name = "eot_D3DX_encode_mcu_huff", size = 0x18C }
+0x8228B860 = { name = "eot_D3DX_finish_pass_huff", size = 0xE8 }
 0x8228B948 = { size = 0x240 }
-0x8228BED8 = { size = 0x434 }
+0x8228BED8 = { name = "eot_D3DX_finish_pass_gather", size = 0x434 }
 0x8228C310 = { size = 0x1E0 }
-0x8228CAC8 = { size = 0x1DC }
-0x8228CCA8 = { size = 0x298 }
-0x8228CF40 = { size = 0x100 }
-0x8228D040 = { size = 0x300 }
-0x8228D340 = { size = 0x88 }
-0x8228D3C8 = { size = 0xF0 }
+0x8228CAC8 = { name = "eot_D3DX_encode_mcu_DC_first", size = 0x1DC }
+0x8228CCA8 = { name = "eot_D3DX_encode_mcu_AC_first", size = 0x298 }
+0x8228CF40 = { name = "eot_D3DX_encode_mcu_DC_refine", size = 0x100 }
+0x8228D040 = { name = "eot_D3DX_encode_mcu_AC_refine", size = 0x300 }
+0x8228D340 = { name = "eot_D3DX_finish_pass_phuff", size = 0x88 }
+0x8228D3C8 = { name = "eot_D3DX_finish_pass_gather_phuff", size = 0xF0 }
 0x8228D4B8 = { size = 0x1F8 }
 0x8228D720 = { size = 0x438 }
-0x8228DB58 = { size = 0x51C }
+0x8228DB58 = { name = "eot_D3DX_forward_DCT", size = 0x51C }
 0x8228E078 = { size = 0xA18 }
-0x8228EBA8 = { size = 0x78 }
-0x8228EC20 = { size = 0x234 }
-0x8228EE58 = { size = 0x258 }
-0x8228F320 = { size = 0x8C }
-0x8228F3B0 = { size = 0x198 }
-0x8228F548 = { size = 0x90 }
-0x8228F6D0 = { size = 0x2B4 }
-0x8228F988 = { size = 0x19C }
-0x8228FB28 = { size = 0xD0 }
-0x8228FE48 = { size = 0xD0 }
-0x8228FF18 = { size = 0x118 }
-0x82290030 = { size = 0x120 }
-0x82290150 = { size = 0xA0 }
-0x822901F0 = { size = 0xA8 }
-0x82290298 = { size = 0x13C }
-0x822903D8 = { size = 0x6C }
-0x82290448 = { size = 0x84 }
-0x82291358 = { size = 0x2A4 }
-0x82291600 = { size = 0x58 }
-0x82291658 = { size = 0xAC }
-0x822935C8 = { size = 0x5C }
+0x8228EBA8 = { name = "eot_D3DX_start_pass_prep", size = 0x78 }
+0x8228EC20 = { name = "eot_D3DX_pre_process_data", size = 0x234 }
+0x8228EE58 = { name = "eot_D3DX_pre_process_context", size = 0x258 }
+0x8228F320 = { name = "eot_D3DX_sep_downsample", size = 0x8C }
+0x8228F3B0 = { name = "eot_D3DX_int_downsample", size = 0x198 }
+0x8228F548 = { name = "eot_D3DX_fullsize_downsample", size = 0x90 }
+0x8228F6D0 = { name = "eot_D3DX_h2v2_smooth_downsample", size = 0x2B4 }
+0x8228F988 = { name = "eot_D3DX_fullsize_smooth_downsample", size = 0x19C }
+0x8228FB28 = { name = "eot_D3DX_h2v1_downsample", size = 0xD0 }
+0x8228FE48 = { name = "eot_D3DX_rgb_ycc_start", size = 0xD0 }
+0x8228FF18 = { name = "eot_D3DX_rgb_ycc_convert", size = 0x118 }
+0x82290030 = { name = "eot_D3DX_bgr_ycc_convert", size = 0x120 }
+0x82290150 = { name = "eot_D3DX_rgb_gray_convert", size = 0xA0 }
+0x822901F0 = { name = "eot_D3DX_bgr_gray_convert", size = 0xA8 }
+0x82290298 = { name = "eot_D3DX_cmyk_ycck_convert", size = 0x13C }
+0x822903D8 = { name = "eot_grayscale_convert_0", size = 0x6C }
+0x82290448 = { name = "eot_D3DX_null_convert_0448", size = 0x84 }
+0x82291358 = { name = "eot_D3DX_prepare_for_pass", size = 0x2A4 }
+0x82291600 = { name = "eot_D3DX_pass_startup", size = 0x58 }
+0x82291658 = { name = "eot_D3DX_finish_pass_master", size = 0xAC }
+0x822935C8 = { name = "eot_D3DX_zcalloc", size = 0x5C }
 0x82293628 = { size = 0xC }
 0x822940B8 = { size = 0x454 }
-0x82294510 = { size = 0x48C }
-0x822949A0 = { size = 0x4A4 }
-0x82294E48 = { size = 0x334 }
-0x82295180 = { size = 0x5D8 }
+0x82294510 = { name = "eot_D3DX_jpeg_idct_ifast", size = 0x48C }
+0x822949A0 = { name = "eot_D3DX_jpeg_idct_islow", size = 0x4A4 }
+0x82294E48 = { name = "eot_D3DX_jpeg_idct_4x4", size = 0x334 }
+0x82295180 = { name = "eot_D3DX_jpeg_idct_2x2", size = 0x5D8 }
 0x82295798 = { size = 0xE44 }
-0x822965E0 = { size = 0x32C }
-0x82296910 = { size = 0x2F0 }
-0x8229CB48 = { size = 0x7C }
-0x8229CBC8 = { size = 0x9C }
-0x8229CC68 = { size = 0x7C }
-0x8229CCE8 = { size = 0xA0 }
-0x8229D460 = { size = 0x4 }
-0x8229D468 = { size = 0x50 }
-0x8229D4B8 = { size = 0x48 }
-0x8229D500 = { size = 0x48 }
-0x8229D550 = { size = 0x4 }
-0x8229D6B8 = { size = 0x80 }
-0x8229D738 = { size = 0x98 }
-0x8229D7D0 = { size = 0x80 }
-0x8229D850 = { size = 0x98 }
-0x8229E4C0 = { size = 0x54 }
-0x8229E518 = { size = 0x4C }
-0x8229E568 = { size = 0x4C }
-0x8229E5B8 = { size = 0x68 }
+0x822965E0 = { name = "eot_D3DX_jpeg_fdct_ifast", size = 0x32C }
+0x82296910 = { name = "eot_D3DX_jpeg_fdct_islow", size = 0x2F0 }
+0x8229CB48 = { name = "eot_LoadTexel16", size = 0x7C }
+0x8229CBC8 = { name = "eot_LoadTexel16_16F", size = 0x9C }
+0x8229CC68 = { name = "eot_LoadTexel32", size = 0x7C }
+0x8229CCE8 = { name = "eot_LoadTexel32_16F", size = 0xA0 }
+0x8229D460 = { name = "eot_LoadTexelBlock_DXT_RGB", size = 0x4 }
+0x8229D468 = { name = "eot_LoadTexelBlock_DXT2", size = 0x50 }
+0x8229D4B8 = { name = "eot_LoadTexelBlock_DXT_RGBA23", size = 0x48 }
+0x8229D500 = { name = "eot_LoadTexelBlock_DXT3A", size = 0x48 }
+0x8229D550 = { name = "eot_LoadTexelBlock_DXT_RGRG", size = 0x4 }
+0x8229D6B8 = { name = "eot_StoreTexel16", size = 0x80 }
+0x8229D738 = { name = "eot_StoreTexel16_16F", size = 0x98 }
+0x8229D7D0 = { name = "eot_StoreTexel32", size = 0x80 }
+0x8229D850 = { name = "eot_StoreTexel32_16F", size = 0x98 }
+0x8229E4C0 = { name = "eot_LoadTexelBlock_DXT4", size = 0x54 }
+0x8229E518 = { name = "eot_LoadTexelBlock_DXT_RGBA45", size = 0x4C }
+0x8229E568 = { name = "eot_LoadTexelBlock_DXT5A", size = 0x4C }
+0x8229E5B8 = { name = "eot_LoadTexelBlock_DXN", size = 0x68 }
 0x822A0DC8 = { size = 0x48 }
 0x822A0E10 = { size = 0x48 }
 0x822B08A8 = { size = 0x148 }
@@ -2163,16 +2163,16 @@ out_directory_path = "generated/default_xex"
 0x822DA988 = { size = 0x1FC }
 0x822DAB88 = { size = 0x1E8 }
 0x822DB080 = { size = 0x170 }
-0x822E4830 = { size = 0x5C }
-0x822E4890 = { size = 0x30 }
-0x82305578 = { size = 0x34 }
-0x8230FB10 = { size = 0x8 }
+0x822E4830 = { name = "eot_CThreadBase_StaticGraphThreadProc", size = 0x5C }
+0x822E4890 = { name = "eot_CThreadBase_StaticWorkerThreadProc", size = 0x30 }
+0x82305578 = { name = "eot_BUThreadImp_Join", size = 0x34 }
+0x8230FB10 = { name = "eot_Zlib_FreeThunk", size = 0x8 }
 0x82315168 = { size = 0x10 }
-0x82315950 = { size = 0x1C4 }
-0x82317840 = { size = 0x9C }
-0x823178E0 = { size = 0x9C }
-0x82317980 = { size = 0x108 }
-0x82317A88 = { size = 0x108 }
+0x82315950 = { name = "eot_CriMvEasyPlayer_compareFrameTimeFluctuation", size = 0x1C4 }
+0x82317840 = { name = "eot_CriMvEasyPlayer_crimveasy_SupplyPcmDataByFloat32", size = 0x9C }
+0x823178E0 = { name = "eot_CriMvEasyPlayer_crimveasy_SupplyPcmDataBySint16", size = 0x9C }
+0x82317980 = { name = "eot_CriMvEasyPlayer_crimveasy_SupplySubAudioDataByFloat32", size = 0x108 }
+0x82317A88 = { name = "eot_CriMvEasyPlayer_crimveasy_SupplySubAudioDataBySint16", size = 0x108 }
 0x8231BC40 = { size = 0x98 }
 0x8231BCD8 = { size = 0xA4 }
 0x8231BD80 = { size = 0xA0 }
@@ -2180,7 +2180,7 @@ out_directory_path = "generated/default_xex"
 0x82323688 = { size = 0xC }
 0x8232A710 = { size = 0x8 }
 0x8232AFA0 = { size = 0xC8 }
-0x8233A548 = { size = 0x80 }
+0x8233A548 = { name = "eot_criUtfRtv_allocByCriHeap", size = 0x80 }
 0x8233A5C8 = { size = 0x4 }
 0x82344E88 = { size = 0x124C }
 0x823462A8 = { size = 0x8 }
@@ -2188,141 +2188,141 @@ out_directory_path = "generated/default_xex"
 0x823472E8 = { size = 0xC }
 0x8234D4A0 = { size = 0x8 }
 0x82357C80 = { size = 0x8 }
-0x82360120 = { size = 0x40 }
+0x82360120 = { name = "eot_Com_CloseLogfiles", size = 0x40 }
 0x82365218 = { size = 0x40 }
 0x8236F208 = { size = 0x64 }
 0x8236F270 = { size = 0x40 }
 0x8236F2B0 = { size = 0x40 }
 0x8236F2F0 = { size = 0x70 }
-0x82383C60 = { size = 0xBC }
-0x82383D20 = { size = 0xBC }
-0x82383DE0 = { size = 0xBC }
-0x82383EA0 = { size = 0xBC }
-0x82383F60 = { size = 0xBC }
-0x82384020 = { size = 0xBC }
-0x823840E0 = { size = 0xBC }
-0x823841A0 = { size = 0x50 }
-0x823841F0 = { size = 0x1C }
-0x82384210 = { size = 0x1C }
-0x82384230 = { size = 0xBC }
-0x823842F0 = { size = 0xBC }
-0x823843B0 = { size = 0xBC }
-0x82384470 = { size = 0xBC }
-0x82384530 = { size = 0xBC }
-0x823845F0 = { size = 0xBC }
-0x823846B0 = { size = 0xBC }
-0x82384770 = { size = 0xBC }
-0x82384830 = { size = 0xBC }
-0x823848F0 = { size = 0xBC }
-0x823849B0 = { size = 0xBC }
-0x82384A70 = { size = 0xBC }
-0x82384B30 = { size = 0x1C }
-0x82384B50 = { size = 0xBC }
-0x82384C10 = { size = 0xBC }
-0x82384CD0 = { size = 0xBC }
-0x82384D90 = { size = 0xBC }
-0x82384E50 = { size = 0x1C }
-0x82384E70 = { size = 0xBC }
-0x82384F30 = { size = 0xBC }
-0x82384FF0 = { size = 0xBC }
-0x823850C0 = { size = 0xBC }
-0x82385180 = { size = 0xBC }
-0x82385240 = { size = 0x58 }
-0x82385298 = { size = 0x58 }
-0x823852F0 = { size = 0x58 }
-0x82385348 = { size = 0x58 }
-0x823853A0 = { size = 0x58 }
-0x823853F8 = { size = 0x58 }
-0x82385450 = { size = 0xC }
-0x82385460 = { size = 0xC }
-0x82385470 = { size = 0xC }
-0x82385480 = { size = 0xC }
-0x82385490 = { size = 0xC }
-0x823854A0 = { size = 0xC }
-0x823854B0 = { size = 0xBC }
-0x82385570 = { size = 0xBC }
-0x82385630 = { size = 0x1C }
-0x82385670 = { size = 0x1C }
-0x823856B0 = { size = 0xBC }
-0x82385770 = { size = 0xBC }
-0x82385830 = { size = 0xBC }
-0x823858F0 = { size = 0xBC }
-0x823859B0 = { size = 0xBC }
-0x82385A70 = { size = 0xBC }
-0x82385B30 = { size = 0xBC }
-0x82385BF0 = { size = 0xBC }
-0x82385CB0 = { size = 0xBC }
-0x82385D70 = { size = 0xBC }
-0x82385E30 = { size = 0xBC }
-0x82385EF0 = { size = 0xBC }
-0x82385FB0 = { size = 0xBC }
-0x82386070 = { size = 0xBC }
-0x82386130 = { size = 0xBC }
-0x823861F0 = { size = 0xBC }
-0x823862B0 = { size = 0xBC }
-0x82386370 = { size = 0xBC }
-0x82386430 = { size = 0xBC }
-0x823864F0 = { size = 0xBC }
-0x823865B0 = { size = 0xBC }
-0x82386670 = { size = 0x1C }
-0x82386690 = { size = 0xBC }
-0x82386750 = { size = 0xBC }
-0x82386810 = { size = 0xBC }
-0x823868D0 = { size = 0x1C }
-0x823868F0 = { size = 0x1C }
-0x82386910 = { size = 0x1C }
-0x82386930 = { size = 0xBC }
-0x823869F0 = { size = 0xBC }
-0x82386AB0 = { size = 0xBC }
-0x82386B70 = { size = 0xBC }
-0x82386C30 = { size = 0x1C }
-0x82386C50 = { size = 0xBC }
-0x82386D10 = { size = 0x1C }
-0x82386D30 = { size = 0xBC }
-0x82386DF0 = { size = 0xBC }
-0x82386EB0 = { size = 0xBC }
-0x82386F70 = { size = 0xBC }
-0x82387030 = { size = 0xBC }
-0x823870F0 = { size = 0xBC }
-0x823871B0 = { size = 0xBC }
-0x82387270 = { size = 0xBC }
-0x82387330 = { size = 0xBC }
-0x823873F0 = { size = 0xBC }
-0x823874B0 = { size = 0xBC }
-0x823875A0 = { size = 0x6C }
-0x82387610 = { size = 0x1C }
-0x82387630 = { size = 0xBC }
-0x823876F0 = { size = 0xBC }
-0x823877B0 = { size = 0xBC }
-0x82387870 = { size = 0xBC }
-0x82387930 = { size = 0xBC }
-0x823879F0 = { size = 0xBC }
-0x82387AB0 = { size = 0xBC }
-0x82387B70 = { size = 0xBC }
-0x82387C30 = { size = 0xBC }
-0x82387CF0 = { size = 0xBC }
-0x82387DB0 = { size = 0xBC }
-0x82387E70 = { size = 0xBC }
-0x82387F30 = { size = 0xBC }
-0x82387FF0 = { size = 0x24 }
-0x82388018 = { size = 0x1C }
-0x82388038 = { size = 0xBC }
-0x823880F8 = { size = 0xBC }
-0x823881B8 = { size = 0x1C }
-0x823881D8 = { size = 0xBC }
-0x82388298 = { size = 0xBC }
-0x82388358 = { size = 0xBC }
-0x82388418 = { size = 0xBC }
-0x823884D8 = { size = 0x48 }
-0x82388538 = { size = 0xC }
+0x82383C60 = { name = "eot_StaticDtor_Pool_BUPool48_1A40", size = 0xBC }
+0x82383D20 = { name = "eot_StaticDtor_824E6760", size = 0xBC }
+0x82383DE0 = { name = "eot_StaticDtor_BUPool528_50F8", size = 0xBC }
+0x82383EA0 = { name = "eot_StaticDtor_BUPool96_5310", size = 0xBC }
+0x82383F60 = { name = "eot_StaticDtor_BUPool80_8768", size = 0xBC }
+0x82384020 = { name = "eot_StaticDtor_BUPool592_A8B0", size = 0xBC }
+0x823840E0 = { name = "eot_StaticDtor_APIAudioParameters", size = 0xBC }
+0x823841A0 = { name = "eot_StaticDtor_BUHashTableGlobal", size = 0x50 }
+0x823841F0 = { name = "eot_StaticDtor_824E6898", size = 0x1C }
+0x82384210 = { name = "eot_StaticDtor_824E6FDC", size = 0x1C }
+0x82384230 = { name = "eot_StaticDtor_BUPool160_C248", size = 0xBC }
+0x823842F0 = { name = "eot_StaticDtor_BUPool32_EE90", size = 0xBC }
+0x823843B0 = { name = "eot_StaticDtor_82552974", size = 0xBC }
+0x82384470 = { name = "eot_StaticDtor_BUPool48_F7E8", size = 0xBC }
+0x82384530 = { name = "eot_StaticDtor_BUPool64_FA00", size = 0xBC }
+0x823845F0 = { name = "eot_StaticDtor_GO3dObjNode832", size = 0xBC }
+0x823846B0 = { name = "eot_StaticDtor_Node288", size = 0xBC }
+0x82384770 = { name = "eot_StaticDtor_Node80", size = 0xBC }
+0x82384830 = { name = "eot_StaticDtor_GOCameraNode", size = 0xBC }
+0x823848F0 = { name = "eot_StaticDtor_GOEmitterNode", size = 0xBC }
+0x823849B0 = { name = "eot_StaticDtor_GOEmitterSlotNode", size = 0xBC }
+0x82384A70 = { name = "eot_StaticDtor_Node288B", size = 0xBC }
+0x82384B30 = { name = "eot_StaticDtor_824E725C", size = 0x1C }
+0x82384B50 = { name = "eot_StaticDtor_82552974_0", size = 0xBC }
+0x82384C10 = { name = "eot_StaticDtor_GOZoneNode", size = 0xBC }
+0x82384CD0 = { name = "eot_StaticDtor_GOSplineNode", size = 0xBC }
+0x82384D90 = { name = "eot_StaticDtor_LogicDataNode", size = 0xBC }
+0x82384E50 = { name = "eot_StaticDtor_824F7324", size = 0x1C }
+0x82384E70 = { name = "eot_StaticDtor_GO3dObjNode", size = 0xBC }
+0x82384F30 = { name = "eot_StaticDtor_GRLightNode", size = 0xBC }
+0x82384FF0 = { name = "eot_StaticDtor_GRLightingProxyNode", size = 0xBC }
+0x823850C0 = { name = "eot_StaticDtor_RTRecordNode", size = 0xBC }
+0x82385180 = { name = "eot_StaticDtor_ShaderBundleNode", size = 0xBC }
+0x82385240 = { name = "eot_StaticDtor_ShaderHeaderPool512", size = 0x58 }
+0x82385298 = { name = "eot_StaticDtor_ShaderHeaderPool1024", size = 0x58 }
+0x823852F0 = { name = "eot_StaticDtor_ShaderHeaderPool2048", size = 0x58 }
+0x82385348 = { name = "eot_StaticDtor_ShaderHeaderPool4096", size = 0x58 }
+0x823853A0 = { name = "eot_StaticDtor_ShaderHeaderPool6144", size = 0x58 }
+0x823853F8 = { name = "eot_StaticDtor_ShaderHeaderPool8192", size = 0x58 }
+0x82385450 = { name = "eot_StaticDtor_ShaderMicrocodePool512", size = 0xC }
+0x82385460 = { name = "eot_StaticDtor_ShaderMicrocodePool1024", size = 0xC }
+0x82385470 = { name = "eot_StaticDtor_ShaderMicrocodePool2048", size = 0xC }
+0x82385480 = { name = "eot_StaticDtor_ShaderMicrocodePool4096", size = 0xC }
+0x82385490 = { name = "eot_StaticDtor_ShaderMicrocodePool6144", size = 0xC }
+0x823854A0 = { name = "eot_StaticDtor_ShaderMicrocodePool8192", size = 0xC }
+0x823854B0 = { name = "eot_StaticDtor_VSCacheNode", size = 0xBC }
+0x82385570 = { name = "eot_StaticDtor_PSCacheNode", size = 0xBC }
+0x82385630 = { name = "eot_StaticDtor_82500D40", size = 0x1C }
+0x82385670 = { name = "eot_StaticDtor_82500D60", size = 0x1C }
+0x823856B0 = { name = "eot_StaticDtor_ClipCamNode", size = 0xBC }
+0x82385770 = { name = "eot_StaticDtor_g_CasterInfosPoolLock", size = 0xBC }
+0x82385830 = { name = "eot_StaticDtor_RZInstanceNode", size = 0xBC }
+0x823858F0 = { name = "eot_StaticDtor_BUPool144_26B0", size = 0xBC }
+0x823859B0 = { name = "eot_StaticDtor_RZSoundBankNode", size = 0xBC }
+0x82385A70 = { name = "eot_StaticDtor_RZSoundTypeNode", size = 0xBC }
+0x82385B30 = { name = "eot_StaticDtor_RZAudioReverbNode", size = 0xBC }
+0x82385BF0 = { name = "eot_StaticDtor_RZSoundEventNode", size = 0xBC }
+0x82385CB0 = { name = "eot_StaticDtor_RZAudioSampleNode", size = 0xBC }
+0x82385D70 = { name = "eot_StaticDtor_RZAudioCueNode", size = 0xBC }
+0x82385E30 = { name = "eot_StaticDtor_BUPool128_6AF0", size = 0xBC }
+0x82385EF0 = { name = "eot_StaticDtor_BUPool112_6D08", size = 0xBC }
+0x82385FB0 = { name = "eot_StaticDtor_RZSplineNode", size = 0xBC }
+0x82386070 = { name = "eot_StaticDtor_RZCurveNode", size = 0xBC }
+0x82386130 = { name = "eot_StaticDtor_BUPool224_9B78", size = 0xBC }
+0x823861F0 = { name = "eot_StaticDtor_BUPool32_B4F8", size = 0xBC }
+0x823862B0 = { name = "eot_StaticDtor_RZFontNode", size = 0xBC }
+0x82386370 = { name = "eot_StaticDtor_RZGeometryNode", size = 0xBC }
+0x82386430 = { name = "eot_StaticDtor_BUPool32_E2E0", size = 0xBC }
+0x823864F0 = { name = "eot_StaticDtor_RZHAnimNode", size = 0xBC }
+0x823865B0 = { name = "eot_StaticDtor_BUPool208_0360", size = 0xBC }
+0x82386670 = { name = "eot_StaticDtor_82501A1C", size = 0x1C }
+0x82386690 = { name = "eot_StaticDtor_RZVFXMaterialNode", size = 0xBC }
+0x82386750 = { name = "eot_StaticDtor_RZAudioSnapshotNode", size = 0xBC }
+0x82386810 = { name = "eot_StaticDtor_RZParticleTypeNode", size = 0xBC }
+0x823868D0 = { name = "eot_StaticDtor_82501AD8", size = 0x1C }
+0x823868F0 = { name = "eot_StaticDtor_82501AEC", size = 0x1C }
+0x82386910 = { name = "eot_StaticDtor_82501B04", size = 0x1C }
+0x82386930 = { name = "eot_StaticDtor_RZTextStyleNode", size = 0xBC }
+0x823869F0 = { name = "eot_StaticDtor_RZTextureNode", size = 0xBC }
+0x82386AB0 = { name = "eot_StaticDtor_BUPool20_FB18", size = 0xBC }
+0x82386B70 = { name = "eot_StaticDtor_BUPool20_0078", size = 0xBC }
+0x82386C30 = { name = "eot_StaticDtor_82531B94", size = 0x1C }
+0x82386C50 = { name = "eot_StaticDtor_BUPool96_DFD0", size = 0xBC }
+0x82386D10 = { name = "eot_StaticDtor_82541BEC", size = 0x1C }
+0x82386D30 = { name = "eot_StaticDtor_BUPool336_0FB8", size = 0xBC }
+0x82386DF0 = { name = "eot_StaticDtor_BUPool48_65A0", size = 0xBC }
+0x82386EB0 = { name = "eot_StaticDtor_BUPool80_7C10", size = 0xBC }
+0x82386F70 = { name = "eot_StaticDtor_BUPool32_8DD0", size = 0xBC }
+0x82387030 = { name = "eot_StaticDtor_BUPool32_8FE8", size = 0xBC }
+0x823870F0 = { name = "eot_StaticDtor_BUPool256_A7A8", size = 0xBC }
+0x823871B0 = { name = "eot_StaticDtor_BUPool272_ADA0", size = 0xBC }
+0x82387270 = { name = "eot_StaticDtor_BUPool64_B7A8", size = 0xBC }
+0x82387330 = { name = "eot_StaticDtor_BUPool48_C240", size = 0xBC }
+0x823873F0 = { name = "eot_StaticDtor_ANAnimMgr", size = 0xBC }
+0x823874B0 = { name = "eot_StaticDtor_BUPool20_FDF0", size = 0xBC }
+0x823875A0 = { name = "eot_StaticDtor_ANAnimMgrGlobals", size = 0x6C }
+0x82387610 = { name = "eot_StaticDtor_82541F38", size = 0x1C }
+0x82387630 = { name = "eot_StaticDtor_BUPool32_3518", size = 0xBC }
+0x823876F0 = { name = "eot_StaticDtor_BUPool288_3730", size = 0xBC }
+0x823877B0 = { name = "eot_StaticDtor_BUPool704_6BE8", size = 0xBC }
+0x82387870 = { name = "eot_StaticDtor_BUPool544_7A80", size = 0xBC }
+0x82387930 = { name = "eot_StaticDtor_BUPool128_A5A0", size = 0xBC }
+0x823879F0 = { name = "eot_StaticDtor_BUPool192_8530", size = 0xBC }
+0x82387AB0 = { name = "eot_StaticDtor_BUPool176_99E0", size = 0xBC }
+0x82387B70 = { name = "eot_StaticDtor_BUPool112_E2A0", size = 0xBC }
+0x82387C30 = { name = "eot_StaticDtor_BUPool96_1580", size = 0xBC }
+0x82387CF0 = { name = "eot_StaticDtor_BUPool128_3D08", size = 0xBC }
+0x82387DB0 = { name = "eot_StaticDtor_PSEnvColPrimInstances", size = 0xBC }
+0x82387E70 = { name = "eot_StaticDtor_BUPool240_14E8", size = 0xBC }
+0x82387F30 = { name = "eot_StaticDtor_PSRequestUtils", size = 0xBC }
+0x82387FF0 = { name = "eot_StaticDtor_PSRequestUtils_0", size = 0x24 }
+0x82388018 = { name = "eot_StaticDtor_8254D1F4", size = 0x1C }
+0x82388038 = { name = "eot_StaticDtor_BUPool128_DF70", size = 0xBC }
+0x823880F8 = { name = "eot_StaticDtor_BUPool48_E188", size = 0xBC }
+0x823881B8 = { name = "eot_StaticDtor_82551284", size = 0x1C }
+0x823881D8 = { name = "eot_StaticDtor_PSSoftBody", size = 0xBC }
+0x82388298 = { name = "eot_StaticDtor_BUPool1072_A0F0", size = 0xBC }
+0x82388358 = { name = "eot_StaticDtor_BUPool960_AD48", size = 0xBC }
+0x82388418 = { name = "eot_StaticDtor_BUPool608_E8F8", size = 0xBC }
+0x823884D8 = { name = "eot_StaticDtor_823A9AC4", size = 0x48 }
+0x82388538 = { name = "eot_StaticInit_DemonWareRegistry", size = 0xC }
 0x8238A970 = { size = 0x128 }
 0x8238AA98 = { size = 0xC4 }
 0x8238AB60 = { size = 0x140 }
 0x8238ACA0 = { size = 0x140 }
 0x8238ADE0 = { size = 0x158 }
-0x8238AF38 = { size = 0x98 }
-0x8238AFD0 = { size = 0xB0 }
-0x8238B118 = { size = 0x6CC }
+0x8238AF38 = { name = "eot_DCT_FzTrans6Blk", size = 0x98 }
+0x8238AFD0 = { name = "eot_DCT_FzTransCbp", size = 0xB0 }
+0x8238B118 = { name = "eot_DCTAFZ_DenseCbp", size = 0x6CC }
 0x8238CC20 = { size = 0x14C }
 0x8238CD70 = { size = 0x194 }
 0x8238CF08 = { size = 0x194 }
@@ -2793,3 +2793,61 @@ out_directory_path = "generated/default_xex"
 0x821B0718 = { name = "eot_PKPackageMgrBC_RequestActivation" }
 0x821B0D50 = { name = "eot_PKPackageMgrBC_Load" }
 0x821B7E70 = { name = "eot_Stream_Open" }
+
+0x8208CF98 = { name = "eot_BUStream_Read", size = 0xC0 }
+0x8208D058 = { name = "eot_BUStream_Read32", size = 0x80 }
+0x820B8FF0 = { name = "eot_BUStream_Write", size = 0xAC }
+0x820B9208 = { name = "eot_BUStream_DeletingDtor", size = 0x5C }
+0x820B9268 = { name = "eot_BUFileStream_DeletingDtor", size = 0x5C }
+0x820B92C8 = { name = "eot_BUStream_Fail", size = 0x8 }
+0x8210A7A0 = { name = "eot_BUStream_Read16", size = 0x80 }
+0x82119B98 = { name = "eot_BUStream_SetPos", size = 0xB4 }
+0x82161098 = { name = "eot_LDChunk_Read", size = 0x7C }
+0x82161118 = { name = "eot_LDChunk_ReadSub", size = 0xE4 }
+0x8216B808 = { name = "eot_BUMemStream_FreeChunks", size = 0x70 }
+0x8216B878 = { name = "eot_BUMemStream_DeletingDtor", size = 0x68 }
+0x821B61E8 = { name = "eot_STFile_Init", size = 0x10C }
+0x821B62F8 = { name = "eot_STFile_DeletingDtor2", size = 0x50 }
+0x821B6348 = { name = "eot_STFile_STFile_dtor", size = 0x9C }
+0x821B6648 = { name = "eot_STFile_ReadInternal", size = 0x1B4 }
+0x821B6800 = { name = "eot_STFile_ReadFileHeader", size = 0xD4 }
+0x821B68D8 = { name = "eot_STFile_FreeDynamicMemory", size = 0xBC }
+0x821B6998 = { name = "eot_STFile_AllocDynamicMemory", size = 0x90 }
+0x821B6A28 = { name = "eot_STFile_FindRequest", size = 0xA4 }
+0x821B7640 = { name = "eot_STFile_WriteInternal", size = 0xB0 }
+0x821B7D88 = { name = "eot_STIOStream_SetWindow", size = 0x7C }
+0x821B7E08 = { name = "eot_STIOStream_DeletingDtor", size = 0x68 }
+0x821B8210 = { name = "eot_STIOStream_Close", size = 0x1E8 }
+0x821B8450 = { name = "eot_STIOStream_UpdateBuf", size = 0x230 }
+0x821B8680 = { name = "eot_STIOStream_FlushBuf", size = 0x1B0 }
+0x821B8830 = { name = "eot_STIOStream_Read", size = 0x200 }
+0x821B8A30 = { name = "eot_STIOStream_ReadWindowed", size = 0xF0 }
+0x821B8B20 = { name = "eot_STIOStream_SetPos", size = 0x64 }
+0x821B8B88 = { name = "eot_STIOStream_WaitRequest", size = 0xEC }
+0x821B8C78 = { name = "eot_STIOStream_ClampRange", size = 0x98 }
+0x821B8D10 = { name = "eot_STIOStream_Fill", size = 0x1A4 }
+0x821B8EB8 = { name = "eot_STIOStream_CancelRequests", size = 0x128 }
+0x821B9070 = { name = "eot_STIOStream_IssueNext", size = 0xF4 }
+0x821B9260 = { name = "eot_STIOStream_ReadNotInline", size = 0x444 }
+0x821BCD48 = { name = "eot_STFile_IsSameFile", size = 0x30 }
+0x821BCDD0 = { name = "eot_STFile_Read", size = 0x268 }
+0x821BD038 = { name = "eot_STFile_Write", size = 0xF8 }
+0x821BD130 = { name = "eot_STFile_GetLastWriteDate", size = 0x8 }
+0x82307518 = { name = "eot_BUStream_BUStream_dtor", size = 0x10 }
+0x82307528 = { name = "eot_BUStream_ReadInt8BufEnd", size = 0xB8 }
+0x823075E0 = { name = "eot_BUStream_ReadNotInline", size = 0xF8 }
+0x823076D8 = { name = "eot_BUStream_ReadInt16BufEnd", size = 0xF4 }
+0x823077D0 = { name = "eot_BUStream_ReadText", size = 0xA0 }
+0x82307870 = { name = "eot_BUStream_Write8NotInline", size = 0x114 }
+0x82307988 = { name = "eot_BUStream_WriteNotInline", size = 0xE8 }
+0x82307A70 = { name = "eot_BUStream_ReadInt32BufEnd", size = 0xA4 }
+0x82307B18 = { name = "eot_BUStream_WriteText", size = 0x194 }
+0x82307E18 = { name = "eot_BUFileStream_Close", size = 0xC0 }
+0x823081B8 = { name = "eot_BUFileStream_Open", size = 0x220 }
+0x823083D8 = { name = "eot_BUFileStream_UpdateBuf", size = 0x220 }
+0x823085F8 = { name = "eot_BUFileStream_SetPos", size = 0x3F0 }
+0x823089E8 = { name = "eot_BUFileStream_FlushBuf", size = 0x1BC }
+0x8230A320 = { name = "eot_BUMemStream_UpdateBuf", size = 0x10 }
+0x8230A330 = { name = "eot_BUMemStream_FlushBuf", size = 0xC8 }
+0x8230A3F8 = { name = "eot_BUMemStream_SetPos", size = 0x204 }
+0x8230A600 = { name = "eot_BUMemStream_Close", size = 0x50 }
