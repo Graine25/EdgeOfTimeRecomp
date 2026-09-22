@@ -1086,10 +1086,6 @@ struct VertexMirror {
   u64 offset = 0;
   u32 size = 0;
   u64 lastUseFrame = 0;
-  mutable float bounds[6] = {};
-  mutable u32 boundsOffset = ~0u;
-  mutable plume::RenderFormat boundsFormat = plume::RenderFormat::UNKNOWN;
-  mutable u8 boundsState = 0;
   mutable plume::RenderBuffer *resident = nullptr;
   mutable u64 residentCapacity = 0;
   mutable u64 residentEpoch = 0;
@@ -1817,155 +1813,6 @@ bool ShadowTileWords(const u32 words[5]) {
   return (size_bits >> 18) + 1 == 1024 && ((size_bits >> 3) & 0x7FFF) + 1 == 1024;
 }
 
-constexpr float kMinCasterTexels = 4.0f;
-
-struct CasterRecipe {
-  u64 vsHash;
-  bool world;
-};
-constexpr CasterRecipe kCasterRecipes[] = {
-    {0x2c519a3b4d4331d1ull, false},
-    {0x31d7a46414d74bcfull, true},
-    {0xe6587b1e6b1e5cdbull, true},
-    {0xee75560f349d297eull, true},
-};
-
-const CasterRecipe *CasterRecipeFor(const GuestShader &vs) {
-  for (const CasterRecipe &r : kCasterRecipes)
-    if (r.vsHash == vs.hash)
-      return &r;
-  return nullptr;
-}
-
-bool CasterCulled(VideoState &s, DeviceView dev, const GuestShader &vs, const InputLayout &layout,
-                  const StreamInfo streams[16], u32 lo, u32 hi) {
-  const CasterRecipe *recipe = CasterRecipeFor(vs);
-  if (!recipe || hi < lo)
-    return false;
-  for (const VertexInput &in : vs.inputs) {
-    if (in.usage == static_cast<u8>(DeclUsage::BlendWeight) ||
-        in.usage == static_cast<u8>(DeclUsage::BlendIndices))
-      return false;
-  }
-  const plume::RenderInputElement *pos = nullptr;
-  for (const auto &e : layout.elements) {
-    if (std::strcmp(e.semanticName, "POSITION") == 0 && e.semanticIndex == 0 &&
-        e.slotIndex != kSyntheticVertexSlot) {
-      pos = &e;
-      break;
-    }
-  }
-  if (!pos || (pos->format != plume::RenderFormat::R32G32B32_FLOAT &&
-               pos->format != plume::RenderFormat::R32G32B32A32_FLOAT))
-    return false;
-  if (pos->slotIndex >= 16 || ((layout.morphStreams >> pos->slotIndex) & 1u))
-    return false;
-  const StreamInfo &st = streams[pos->slotIndex];
-  if (!st.data || !st.stride || pos->alignedByteOffset + 12 > st.stride)
-    return false;
-  const u64 first = u64(lo) * st.stride;
-  const u64 bytes = (u64(hi) - lo + 1) * st.stride;
-  if (st.sizeBytes && first + bytes > st.sizeBytes)
-    return false;
-  const VertexMirror *m = GetVertexMirror(s, st, first, bytes);
-  if (!m)
-    return false;
-  const u32 count = hi - lo + 1;
-  if (m->boundsState == 0 || m->boundsOffset != pos->alignedByteOffset ||
-      m->boundsFormat != pos->format) {
-    m->boundsOffset = pos->alignedByteOffset;
-    m->boundsFormat = pos->format;
-    m->boundsState = 2;
-    if (count <= 65536) {
-      float mn[3] = {INFINITY, INFINITY, INFINITY}, mx[3] = {-INFINITY, -INFINITY, -INFINITY};
-      bool ok = true;
-      for (u32 i = 0; i < count && ok; ++i) {
-        u8 tmp[16];
-        CopyVertexBytes(tmp, st.data + first + u64(i) * st.stride + pos->alignedByteOffset, 12);
-        for (u32 c = 0; c < 3 && ok; ++c) {
-          const float v = LaneToFloat(tmp, pos->format, c, &ok);
-          if (!std::isfinite(v))
-            ok = false;
-          mn[c] = std::min(mn[c], v);
-          mx[c] = std::max(mx[c], v);
-        }
-      }
-      if (ok) {
-        for (u32 c = 0; c < 3; ++c) {
-          m->bounds[c] = mn[c];
-          m->bounds[3 + c] = mx[c];
-        }
-        m->boundsState = 1;
-      }
-    }
-  }
-  if (m->boundsState != 1)
-    return false;
-  const u32 regs = recipe->world ? 7u : 4u;
-  const u8 *file = dev.Bytes(dev::kVsFloatConstants, regs * 16);
-  if (!file)
-    return false;
-  float c[28];
-  for (u32 i = 0; i < regs * 4; ++i) {
-    u32 raw;
-    std::memcpy(&raw, file + 4 * i, 4);
-    raw = (raw >> 24) | ((raw >> 8) & 0xFF00u) | ((raw << 8) & 0xFF0000u) | (raw << 24);
-    std::memcpy(&c[i], &raw, 4);
-  }
-  float rows[16];
-  if (!recipe->world) {
-    std::memcpy(rows, c, sizeof(rows));
-  } else {
-    const float w4[16] = {c[16], c[17], c[18], c[19], c[20], c[21], c[22], c[23],
-                          c[24], c[25], c[26], c[27], 0.0f,  0.0f,  0.0f,  1.0f};
-    for (u32 i = 0; i < 4; ++i)
-      for (u32 j = 0; j < 4; ++j)
-        rows[i * 4 + j] = c[i * 4] * w4[j] + c[i * 4 + 1] * w4[4 + j] + c[i * 4 + 2] * w4[8 + j] +
-                          c[i * 4 + 3] * w4[12 + j];
-  }
-  float x0 = INFINITY, y0 = INFINITY, x1 = -INFINITY, y1 = -INFINITY;
-  for (u32 k = 0; k < 8; ++k) {
-    const float p[3] = {k & 1 ? m->bounds[3] : m->bounds[0], k & 2 ? m->bounds[4] : m->bounds[1],
-                        k & 4 ? m->bounds[5] : m->bounds[2]};
-    const auto row = [&](u32 r) {
-      return rows[r * 4] * p[0] + rows[r * 4 + 1] * p[1] + rows[r * 4 + 2] * p[2] + rows[r * 4 + 3];
-    };
-    const float w = row(3);
-    if (!(w > 1e-6f))
-      return false;
-    const float x = row(0) / w, y = row(1) / w;
-    if (!std::isfinite(x) || !std::isfinite(y))
-      return false;
-    x0 = std::min(x0, x);
-    x1 = std::max(x1, x);
-    y0 = std::min(y0, y);
-    y1 = std::max(y1, y);
-  }
-  const float xs = std::fabs(dev.F32(dev::kVportXScale)), ys = std::fabs(dev.F32(dev::kVportYScale));
-  const float half_w = xs > 0.0f ? xs : 512.0f, half_h = ys > 0.0f ? ys : 512.0f;
-  const bool outside = x1 < -1.0f || x0 > 1.0f || y1 < -1.0f || y0 > 1.0f;
-  const float ex = (x1 - x0) * half_w, ey = (y1 - y0) * half_h;
-  const bool tiny = ex < kMinCasterTexels && ey < kMinCasterTexels;
-  if (outside)
-    s.perf.casters_outside++;
-  if (Settings::DiagVerbosity() >= 1) {
-    static u32 hist[9] = {};
-    static u64 last_print = 0;
-    const float e = std::max(ex, ey);
-    const u32 b = outside ? 8u : e < 1.0f ? 0u : e < 2.0f ? 1u : e < 4.0f ? 2u : e < 8.0f ? 3u
-                  : e < 16.0f ? 4u : e < 32.0f ? 5u : e < 64.0f ? 6u : 7u;
-    hist[b]++;
-    if (s.guest_frames - last_print >= 300) {
-      last_print = s.guest_frames;
-      EOT_INFO("[shadow] caster extents over {} frames (texels of the tile): <1 {} | 1-2 {} | 2-4 {} | "
-               "4-8 {} | 8-16 {} | 16-32 {} | 32-64 {} | 64+ {} | outside {}",
-               300, hist[0], hist[1], hist[2], hist[3], hist[4], hist[5], hist[6], hist[7], hist[8]);
-      std::memset(hist, 0, sizeof(hist));
-    }
-  }
-  return outside || tiny;
-}
-
 struct ShadowPassCensus {
   u64 frame = ~0ull;
   u32 pass = 0;
@@ -2371,20 +2218,8 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
   }
 
   if (!pk.targets.colorCount && pk.targets.depthVa && !ps && !geom.rectList &&
-      !geom.stream0OverrideVa && ShadowTileWords(pk.targets.depthWords)) {
+      !geom.stream0OverrideVa && ShadowTileWords(pk.targets.depthWords))
     NoteShadowCaster(s, dev, *vs, streams, lo, hi);
-    {
-      u32 n;
-      if (DiagShouldLog(0x6C40 ^ static_cast<u32>(vs->hash), &n) && n == 0)
-        EOT_INFO("[shadow] caster vs {:016x}: {} float registers, {} inputs: {}", vs->hash,
-                 vs->floatConstantRegs, vs->inputs.size(),
-                 CasterRecipeFor(*vs) ? "culled when tiny" : "no recipe, left alone");
-    }
-    if (CasterCulled(s, dev, *vs, *layout, streams, lo, hi)) {
-      s.perf.casters_culled++;
-      return false;
-    }
-  }
 
   pk.velocity = false;
   if (Settings::MotionVectors() && ps && !geom.rectList && vs->entry && ps->entry &&
