@@ -29,6 +29,19 @@ window Reeot_ControlsInfoTitle type=4 parent=Reeot_ControlsInfo prio=2 flags=0x1
 window Reeot_ControlsInfoText type=4 parent=Reeot_ControlsInfo prio=2 flags=0x1 rect=0.040,0.150,0.920,0.560 style=Reeot_Menu_Style_Body textflags=0x30000 align=1,0
 window Reeot_ControlsInfoValue type=4 parent=Reeot_ControlsInfo prio=2 flags=0x1 rect=0.040,0.730,0.920,0.100 style=Reeot_Menu_Style_Title textflags=0x30000 align=1,1
 window Reeot_ControlsInfoNote type=4 parent=Reeot_ControlsInfo prio=2 flags=0x1 rect=0.040,0.860,0.920,0.100 style=Reeot_Menu_Style_Body string=REEOT_DESC_RESTART textflags=0x30000 align=1,1
+window Reeot_ModsPanel type=0 prio=1 rect=0,0,1,1 wide=0,0,1,1
+window Reeot_ModsHead00 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.035,0.015,0.400,0.080 style=Reeot_Menu_Style_Title textflags=0x30000 string=REEOT_MODS_NAME align=0,1
+window Reeot_ModsHead01 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.450,0.015,0.210,0.080 style=Reeot_Menu_Style_Title textflags=0x30000 string=REEOT_MODS_CREATOR align=0,1
+window Reeot_ModsHead02 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.670,0.015,0.140,0.080 style=Reeot_Menu_Style_Title textflags=0x30000 string=REEOT_MODS_KIND align=0,1
+window Reeot_ModsHead03 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.820,0.015,0.145,0.080 style=Reeot_Menu_Style_Title textflags=0x30000 string=REEOT_MODS_STATE align=2,1
+windowgrid Reeot_ModsRow 1 6 type=0 parent=Reeot_ModsPanel prio=1 flags=0x1 rect=0.030,0.115,0.940,0.115 step=0,0.125
+windowgrid Reeot_ModsName 1 6 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.035,0.115,0.400,0.115 step=0,0.125 style=Reeot_Menu_Style_Body textflags=0x30000 align=0,1
+windowgrid Reeot_ModsCreator 1 6 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.450,0.115,0.210,0.115 step=0,0.125 style=Reeot_Menu_Style_Body textflags=0x30000 align=0,1
+windowgrid Reeot_ModsKind 1 6 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.670,0.115,0.140,0.115 step=0,0.125 style=Reeot_Menu_Style_Body textflags=0x30000 align=0,1
+windowgrid Reeot_ModsState 1 6 type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.820,0.115,0.145,0.115 step=0,0.125 style=Reeot_Menu_Style_Body textflags=0x30000 align=2,1
+window Reeot_ModsScrollUp type=1 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.470,-0.062,0.060,0.045 texture=Reeot_Menu_ScrollArrow_Tex
+window Reeot_ModsScrollDown type=1 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.470,0.938,0.060,0.045 texture=Reeot_Menu_ScrollArrow_Tex
+window Reeot_ModsInfo type=4 parent=Reeot_ModsPanel prio=2 flags=0x1 rect=0.035,0.870,0.930,0.120 style=Reeot_Menu_Style_Body textflags=0x30000 align=0,0
 window Reeot_Menu_TextureHolder type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Menu_ScrollArrow_Tex
 window Reeot_Menu_TextureHolderBox type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Menu_PopUpBox_Tex
 compress true
