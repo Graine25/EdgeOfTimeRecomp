@@ -4,6 +4,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "gamelogic/ui/button_prompts.h"
 #include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_HUDSavegameSelect_Construct); // (this r3, ...)
@@ -36,9 +37,46 @@ void ApplyRewrites() {
   }
 }
 
+uint32_t g_held[kPromptCount] = {};
+
 }
 
 REX_HOOK_RAW(eot_HUDSavegameSelect_Construct) {
   __imp__eot_HUDSavegameSelect_Construct(ctx, base);
   ApplyRewrites();
+}
+
+namespace eot::ui {
+
+void OverridePrompt(uint32_t id, const char *name) {
+  if (id >= kPromptCount)
+    return;
+  const uint32_t slot = kPromptTable + id * 4;
+  if (!g_held[id])
+    g_held[id] = eot::mem::load<uint32_t>(slot);
+  eot::mem::store<uint32_t>(slot, eot::ui::NameCrc(name));
+}
+
+void RestorePrompt(uint32_t id) {
+  if (id >= kPromptCount || !g_held[id])
+    return;
+  eot::mem::store<uint32_t>(kPromptTable + id * 4, g_held[id]);
+  g_held[id] = 0;
+}
+
+void SendPromptMask(const PPCContext &ctx, uint8_t *base, uint32_t zone, uint32_t mask, uint32_t scratch) {
+  constexpr uint32_t kApiLogicPtr = 0x883CA22C;
+  constexpr uint32_t kHudsDataPtr = 0x883CA288;
+  constexpr uint32_t kHelperOffset = 0xA4;
+  constexpr uint32_t kSetMaskMessage = 0xDCDC2E9F;
+  const uint32_t api = eot::mem::load<uint32_t>(kApiLogicPtr);
+  const uint32_t huds = eot::mem::load<uint32_t>(kHudsDataPtr);
+  if (!api || !huds || !scratch)
+    return;
+  const uint32_t helper = eot::mem::load<uint32_t>(huds + kHelperOffset);
+  eot::mem::store<uint32_t>(scratch, zone);
+  eot::mem::store<uint32_t>(scratch + 4, mask);
+  hud::CallAt(ctx, base, eot::mem::load<uint32_t>(api), helper, 0, kSetMaskMessage, scratch);
+}
+
 }

@@ -685,60 +685,7 @@ std::string LetGoOfLanguage(const Mod &mod) {
   return std::format(" The language setting was {} and goes back to auto.", mod.manifest.language);
 }
 
-bool AddLocked(const fs::path &path, std::string &message) {
-  std::error_code ec;
-  fs::create_directories(ModsDirLocked(), ec);
-  std::string folder;
-  std::string error;
-  const std::string named = Lower(Utf8(path.filename()));
-  if (!fs::exists(path, ec) && IsBundled(named)) {
-    folder = named;
-    g_state[folder] = State{};
-    ExtractBundled();
-  } else if (fs::is_directory(path, ec)) {
-    const fs::path manifest_path = path / kManifestFileName;
-    if (!fs::is_regular_file(manifest_path, ec)) {
-      message = std::format("{} holds no {}.", Utf8(path), kManifestFileName);
-      return false;
-    }
-    Manifest manifest;
-    if (!ParseManifest(ReadText(manifest_path), manifest, error)) {
-      message = std::format("{}: {}.", Utf8(manifest_path), error);
-      return false;
-    }
-    if (!fs::is_regular_file(path / PathFromUtf8(manifest.file), ec)) {
-      message = std::format("{} names {}, which is not beside it.", Utf8(manifest_path), manifest.file);
-      return false;
-    }
-    folder = FolderNameFor(Utf8(path.filename()));
-    const fs::path dir = ModDir(folder);
-    if (!fs::equivalent(path, dir, ec)) {
-      fs::remove_all(dir, ec);
-      if (!CopyFile(manifest_path, dir / kManifestFileName, error) ||
-          !CopyFile(path / PathFromUtf8(manifest.file), dir / PathFromUtf8(manifest.file), error)) {
-        message = error;
-        return false;
-      }
-    }
-  } else if (fs::is_regular_file(path, ec)) {
-    Manifest manifest;
-    if (!ManifestForFile(path, manifest, error)) {
-      message = error + ".";
-      return false;
-    }
-    folder = FolderNameFor(manifest.name);
-    const fs::path dir = ModDir(folder);
-    fs::remove_all(dir, ec);
-    if (!WriteText(dir / kManifestFileName, WriteManifest(manifest), error) ||
-        !CopyFile(path, dir / PathFromUtf8(manifest.file), error)) {
-      message = error;
-      return false;
-    }
-  } else {
-    message = std::format("{} is neither a folder nor a file{}.", Utf8(path),
-                          IsBundled(named) ? "" : ", nor the name of one of the port's own mods");
-    return false;
-  }
+bool AddedLocked(const std::string &folder, std::string &message) {
   g_state[folder] = State{};
   SaveState();
   Refresh();
@@ -751,6 +698,76 @@ bool AddLocked(const fs::path &path, std::string &message) {
   message = std::format("{} added as mods/{}: {}. Takes effect at the next start of the game.", Describe(*mod),
                         folder, mod->status);
   return true;
+}
+
+bool AddFolderLocked(const fs::path &path, std::string &message) {
+  std::error_code ec;
+  std::string error;
+  const fs::path manifest_path = path / kManifestFileName;
+  if (!fs::is_regular_file(manifest_path, ec)) {
+    message = std::format("{} holds no {}.", Utf8(path), kManifestFileName);
+    return false;
+  }
+  Manifest manifest;
+  if (!ParseManifest(ReadText(manifest_path), manifest, error)) {
+    message = std::format("{}: {}.", Utf8(manifest_path), error);
+    return false;
+  }
+  if (!fs::is_regular_file(path / PathFromUtf8(manifest.file), ec)) {
+    message = std::format("{} names {}, which is not beside it.", Utf8(manifest_path), manifest.file);
+    return false;
+  }
+  const std::string folder = FolderNameFor(Utf8(path.filename()));
+  const fs::path dir = ModDir(folder);
+  if (!fs::equivalent(path, dir, ec)) {
+    fs::remove_all(dir, ec);
+    if (!CopyFile(manifest_path, dir / kManifestFileName, error) ||
+        !CopyFile(path / PathFromUtf8(manifest.file), dir / PathFromUtf8(manifest.file), error)) {
+      message = error;
+      return false;
+    }
+  }
+  return AddedLocked(folder, message);
+}
+
+bool AddFileLocked(const fs::path &path, std::string &message) {
+  std::error_code ec;
+  std::string error;
+  Manifest manifest;
+  if (!ManifestForFile(path, manifest, error)) {
+    message = error + ".";
+    return false;
+  }
+  const std::string folder = FolderNameFor(manifest.name);
+  const fs::path dir = ModDir(folder);
+  fs::remove_all(dir, ec);
+  if (!WriteText(dir / kManifestFileName, WriteManifest(manifest), error) ||
+      !CopyFile(path, dir / PathFromUtf8(manifest.file), error)) {
+    message = error;
+    return false;
+  }
+  return AddedLocked(folder, message);
+}
+
+bool AddLocked(const fs::path &path, std::string &message) {
+  std::error_code ec;
+  fs::create_directories(ModsDirLocked(), ec);
+  const std::string named = Lower(Utf8(path.filename()));
+  if (!fs::exists(path, ec) && IsBundled(named)) {
+    g_state[named] = State{};
+    ExtractBundled();
+    return AddedLocked(named, message);
+  }
+  if (fs::is_directory(path, ec))
+    return AddFolderLocked(path, message);
+  if (fs::is_regular_file(path, ec)) {
+    if (named == kManifestFileName)
+      return AddFolderLocked(path.parent_path(), message);
+    return AddFileLocked(path, message);
+  }
+  message = std::format("{} is neither a folder nor a file, nor the name of one of the port's own mods.",
+                        Utf8(path));
+  return false;
 }
 
 void FinishImport(int32_t state, std::string message) {
@@ -792,20 +809,16 @@ void SDLCALL DialogDone(void *, const char *const *files, int) {
     finished.join();
 }
 
-void SDLCALL OpenDialog(void *userdata) {
-  static const SDL_DialogFileFilter kPakFilters[] = {{"Game packages", "pkz;pak"}, {"All files", "*"}};
-  static const SDL_DialogFileFilter kModelFilters[] = {{"Costume packages", "pak;pkz"}, {"All files", "*"}};
-  const int32_t slot = static_cast<int32_t>(reinterpret_cast<intptr_t>(userdata));
-  const SDL_DialogFileFilter *filters = slot == EOT_MOD_SLOT_MODEL ? kModelFilters : kPakFilters;
-  const char *title = slot == EOT_MOD_SLOT_MODEL ? "Add a costume package as a mod"
-                                                 : "Add a package in place of the game's own as a mod";
+void SDLCALL OpenDialog(void *) {
+  static const SDL_DialogFileFilter kFilters[] = {
+      {"A mod (mod.toml) or a package (pkz, pak)", "toml;pkz;pak"}, {"All files", "*"}};
   SDL_PropertiesID props = SDL_CreateProperties();
   if (props == 0) {
     FinishImport(EOT_MODS_FAILED, "The file browser could not open.");
     return;
   }
-  SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, title);
-  SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, const_cast<SDL_DialogFileFilter *>(filters));
+  SDL_SetStringProperty(props, SDL_PROP_FILE_DIALOG_TITLE_STRING, "Add a mod: its mod.toml, or a package file");
+  SDL_SetPointerProperty(props, SDL_PROP_FILE_DIALOG_FILTERS_POINTER, const_cast<SDL_DialogFileFilter *>(kFilters));
   SDL_SetNumberProperty(props, SDL_PROP_FILE_DIALOG_NFILTERS_NUMBER, 2);
   SDL_ShowFileDialogWithProperties(SDL_FILEDIALOG_OPENFILE, &DialogDone, nullptr, props);
   SDL_DestroyProperties(props);
@@ -818,8 +831,6 @@ void CopyOut(char *out, size_t size, const std::string &text) {
   std::memcpy(out, text.data(), n);
   out[n] = 0;
 }
-
-ModType SlotType(int32_t slot) { return slot == EOT_MOD_SLOT_MODEL ? ModType::kModel : ModType::kReplacement; }
 
 }
 
@@ -972,31 +983,53 @@ fs::path ModsDir() {
 
 using namespace eot::mods;
 
-extern "C" int32_t eot_mods_slot(int32_t slot, eot_mod_slot_info *out) {
-  if (!out || slot < 0 || slot >= EOT_MOD_SLOT_COUNT)
+namespace {
+
+void Fill(const Mod &mod, eot_mod_info *out) {
+  *out = eot_mod_info{};
+  CopyOut(out->folder, sizeof(out->folder), mod.folder);
+  CopyOut(out->name, sizeof(out->name), mod.manifest.name);
+  CopyOut(out->creator, sizeof(out->creator), mod.manifest.creator);
+  out->kind = static_cast<int32_t>(mod.manifest.type);
+  out->enabled = mod.enabled ? 1 : 0;
+  out->active = mod.active ? 1 : 0;
+  out->bundled = mod.bundled ? 1 : 0;
+  CopyOut(out->file, sizeof(out->file), mod.manifest.file);
+  CopyOut(out->status, sizeof(out->status), mod.status);
+}
+
+}
+
+extern "C" int32_t eot_mods_count(void) {
+  std::lock_guard lock(g_mutex);
+  return g_ready ? static_cast<int32_t>(g_mods.size()) : 0;
+}
+
+extern "C" int32_t eot_mods_get(int32_t index, eot_mod_info *out) {
+  if (!out)
     return 0;
   std::lock_guard lock(g_mutex);
-  *out = eot_mod_slot_info{};
-  if (!g_ready)
-    return 1;
-  if (slot == EOT_MOD_SLOT_BINARY) {
-    CopyOut(out->note, sizeof(out->note), "The binary slot is gone: a build goes in place of reeot.exe by hand.");
-    return 1;
-  }
-  std::string names;
-  for (const Mod &mod : g_mods) {
-    if (mod.manifest.type != SlotType(slot) || !mod.enabled)
-      continue;
-    names += (names.empty() ? "" : ", ") + mod.manifest.name + " (" + mod.manifest.file + ")";
-    ++out->installed;
-  }
-  CopyOut(out->files, sizeof(out->files), names);
+  if (!g_ready || index < 0 || static_cast<size_t>(index) >= g_mods.size())
+    return 0;
+  Fill(g_mods[static_cast<size_t>(index)], out);
   return 1;
 }
 
-extern "C" int32_t eot_mods_import_begin(int32_t slot) {
-  if (slot < 0 || slot >= EOT_MOD_SLOT_COUNT || slot == EOT_MOD_SLOT_BINARY)
-    return 0;
+extern "C" int32_t eot_mods_set_enabled(const char *folder, int32_t enabled, char *message, int32_t size) {
+  std::string text;
+  const bool ok = folder && SetEnabled(folder, enabled != 0, text);
+  CopyOut(message, message && size > 0 ? static_cast<size_t>(size) : 0, text);
+  return ok ? 1 : 0;
+}
+
+extern "C" int32_t eot_mods_remove(const char *folder, char *message, int32_t size) {
+  std::string text;
+  const bool ok = folder && Remove(folder, text);
+  CopyOut(message, message && size > 0 ? static_cast<size_t>(size) : 0, text);
+  return ok ? 1 : 0;
+}
+
+extern "C" int32_t eot_mods_add_begin(void) {
   {
     std::lock_guard lock(g_mutex);
     if (!g_ready)
@@ -1006,10 +1039,9 @@ extern "C" int32_t eot_mods_import_begin(int32_t slot) {
       return 0;
     g_import_message.clear();
   }
-  void *userdata = reinterpret_cast<void *>(static_cast<intptr_t>(slot));
-  if (!SDL_RunOnMainThread(&OpenDialog, userdata, false)) {
+  if (!SDL_RunOnMainThread(&OpenDialog, nullptr, false)) {
     EOT_WARN("[mods] SDL_RunOnMainThread failed ({}); opening the file browser from here", SDL_GetError());
-    OpenDialog(userdata);
+    OpenDialog(nullptr);
   }
   return 1;
 }
@@ -1036,30 +1068,6 @@ extern "C" void eot_mods_import_acknowledge(void) {
   }
   if (finished.joinable())
     finished.join();
-}
-
-extern "C" int32_t eot_mods_restore(int32_t slot, char *message, int32_t size) {
-  if (slot < 0 || slot >= EOT_MOD_SLOT_COUNT || slot == EOT_MOD_SLOT_BINARY)
-    return 0;
-  std::vector<std::string> folders;
-  {
-    std::lock_guard lock(g_mutex);
-    for (const Mod &mod : g_mods)
-      if (g_ready && mod.enabled && mod.manifest.type == SlotType(slot))
-        folders.push_back(mod.folder);
-  }
-  std::string text;
-  if (folders.empty()) {
-    text = slot == EOT_MOD_SLOT_MODEL ? "No costume package is in place." : "No package is replaced.";
-  } else {
-    for (const std::string &folder : folders) {
-      std::string one;
-      SetEnabled(folder, false, one);
-      text += (text.empty() ? "" : " ") + one;
-    }
-  }
-  CopyOut(message, message && size > 0 ? static_cast<size_t>(size) : 0, text);
-  return folders.empty() ? 0 : 1;
 }
 
 extern "C" int32_t eot_mods_languages(char *out, int32_t size) {

@@ -14,12 +14,18 @@
 extern "C" {
 #endif
 
-enum eot_mod_slot_t { EOT_MOD_SLOT_PAK = 0, EOT_MOD_SLOT_MODEL = 1, EOT_MOD_SLOT_BINARY = 2, EOT_MOD_SLOT_COUNT = 3 };
+enum eot_mod_kind_t { EOT_MOD_KIND_PACKAGE = 0, EOT_MOD_KIND_REPLACEMENT = 1, EOT_MOD_KIND_MODEL = 2 };
 
-struct eot_mod_slot_info {
-  int32_t installed;
-  char files[384];
-  char note[256];
+struct eot_mod_info {
+  char folder[64];
+  char name[96];
+  char creator[64];
+  int32_t kind;
+  int32_t enabled;
+  int32_t active;
+  int32_t bundled;
+  char file[64];
+  char status[256];
 };
 
 enum eot_mods_import_state_t {
@@ -30,11 +36,13 @@ enum eot_mods_import_state_t {
   EOT_MODS_FAILED = 4
 };
 
-EOT_MODS_API int32_t eot_mods_slot(int32_t slot, struct eot_mod_slot_info *out);
-EOT_MODS_API int32_t eot_mods_import_begin(int32_t slot);
+EOT_MODS_API int32_t eot_mods_count(void);
+EOT_MODS_API int32_t eot_mods_get(int32_t index, struct eot_mod_info *out);
+EOT_MODS_API int32_t eot_mods_set_enabled(const char *folder, int32_t enabled, char *message, int32_t size);
+EOT_MODS_API int32_t eot_mods_remove(const char *folder, char *message, int32_t size);
+EOT_MODS_API int32_t eot_mods_add_begin(void);
 EOT_MODS_API int32_t eot_mods_import_state(char *message, int32_t size);
 EOT_MODS_API void eot_mods_import_acknowledge(void);
-EOT_MODS_API int32_t eot_mods_restore(int32_t slot, char *message, int32_t size);
 EOT_MODS_API int32_t eot_mods_open_folder(void);
 EOT_MODS_API int32_t eot_mods_languages(char *out, int32_t size);
 
