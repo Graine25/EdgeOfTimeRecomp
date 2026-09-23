@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <rex/cvar.h>
 #include <rex/hook.h>
@@ -11,6 +12,7 @@
 #include "goliath/text/glyph_pages.h"
 #include "goliath/text/translation.h"
 #include "goliath/ui/menu_handles.h"
+#include "mods/mod_manager.h"
 #include "platform/language.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgr_LoadMainPackage);
@@ -125,25 +127,32 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
   using namespace eot::ui;
   struct Package {
     uint32_t id;
-    const char *name;
-    const char *language;
+    std::string name;
+    std::string language;
+    bool mod;
   };
-  static constexpr Package kPackages[] = {
-      {kReeotPackageId, kReeotPackageName, nullptr},
-      {kReeotMenuPackageId, kReeotMenuPackageName, nullptr},
-      {kReeotAchievementsPackageId, kReeotAchievementsPackageName, nullptr},
-      {kReeotIconsPackageId, kReeotIconsPackageName, nullptr},
-      {kReeotRussianPackageId, kReeotRussianPackageName, "ru"},
+  std::vector<Package> packages = {
+      {kReeotPackageId, kReeotPackageName, "", false},
+      {kReeotMenuPackageId, kReeotMenuPackageName, "", false},
+      {kReeotAchievementsPackageId, kReeotAchievementsPackageName, "", false},
+      {kReeotIconsPackageId, kReeotIconsPackageName, "", false},
   };
+  for (const eot::mods::PackageToLoad &mod : eot::mods::PackagesToLoad())
+    packages.push_back({mod.id, mod.name, mod.language, true});
   const std::string language = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));
-  for (const Package &p : kPackages) {
-    if (p.language && language != p.language)
+  for (const Package &p : packages) {
+    if (!p.language.empty() && language != p.language)
       continue;
     if (eot::mem::load<uint32_t>(kPackageMgr + kMgrPackages + p.id * 4)) {
       EOT_INFO("[pkg] {} (id {:#x}) is already loaded", p.name, p.id);
       continue;
     }
-    if (!RegisterPackage(ctx, base, p.id, p.name, kReeotPackageDependency))
+    if (p.mod && eot::mem::load<uint32_t>(kPackageMgr + kMgrRecords + p.id * 4)) {
+      EOT_WARN("[pkg] {}: package id {:#x} is one the game's own records hold; the mod is not loaded", p.name,
+               p.id);
+      continue;
+    }
+    if (!RegisterPackage(ctx, base, p.id, p.name.c_str(), kReeotPackageDependency))
       continue;
     const uint32_t package = LoadPackage(ctx, base, p.id);
     EOT_INFO("[pkg] queued {} as package id {:#x}: object {:#x}, handles {:#010x}+", p.name, p.id, package,
