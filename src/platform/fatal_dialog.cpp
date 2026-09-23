@@ -129,6 +129,16 @@ bool ShowConfirm(std::string_view title, std::string_view body) {
 #endif
 }
 
+bool ShowQuestion(std::string_view title, std::string_view body) {
+  EOT_INFO("{} - {}", title, body);
+#if defined(_WIN32)
+  return MessageBoxW(nullptr, Utf8ToWide(std::string(body)).c_str(), Utf8ToWide(std::string(title)).c_str(),
+                     MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 | MB_TOPMOST | MB_SETFOREGROUND) == IDYES;
+#else
+  return ShowChoice(title, body, "Yes", "No", SDL_MESSAGEBOX_INFORMATION, nullptr);
+#endif
+}
+
 bool ShowFatalErrorWithAction(std::string_view title, std::string_view body, std::string_view action,
                               rex::ui::Window *parent) {
   EOT_ERROR("Fatal: {} - {}", title, body);

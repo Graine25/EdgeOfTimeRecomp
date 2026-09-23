@@ -103,6 +103,9 @@ bool ParseManifest(std::string_view text, Manifest &out, std::string &error) {
     }
     m.package_id = static_cast<uint32_t>(id);
     m.language = StringAt(*section, "language");
+    m.language_name = StringAt(*section, "language_name");
+    if (!m.language.empty() && m.language_name.empty())
+      m.language_name = m.language;
   }
   out = std::move(m);
   return true;
@@ -122,6 +125,8 @@ std::string WriteManifest(const Manifest &manifest) {
     out += std::format("id = {:#x}\n", manifest.package_id);
     if (!manifest.language.empty())
       out += "language = " + Quoted(manifest.language) + "\n";
+    if (!manifest.language_name.empty())
+      out += "language_name = " + Quoted(manifest.language_name) + "\n";
   }
   return out;
 }

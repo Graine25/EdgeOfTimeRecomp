@@ -274,6 +274,26 @@ void ReeotApp::OnLoadXexImage(std::string &xex_image) {
   }
 }
 
+void ReeotApp::OfferLanguageMods() {
+  for (const eot::mods::LanguageMod &mod : eot::mods::LanguageMods()) {
+    if (mod.asked)
+      continue;
+    const bool yes = eot::platform::ShowQuestion(
+        "reeot - " + mod.name,
+        std::format("{} is in place: it brings the game in {}.\n\nStart the game in {} from now on?\n\n"
+                    "The language can be changed any time under Options > Game.",
+                    mod.name, mod.language_name, mod.language_name));
+    if (yes) {
+      rex::cvar::SetFlagByName("eot_language", mod.tag);
+      rex::cvar::InvokeCommand("eot_save_settings", "");
+      EOT_INFO("[mods] {} taken as the language: eot_language = {}", mod.name, mod.tag);
+    } else {
+      EOT_INFO("[mods] {} not taken as the language; the row under Options > Game offers it", mod.name);
+    }
+    eot::mods::LanguageAsked(mod.folder);
+  }
+}
+
 void ReeotApp::OnPostInitLogging() {
   EOT_INFO("reeot v" REEOT_VERSION_STRING " [" REXGLUE_BUILD_CONFIG "] " REEOT_BUILD_PLATFORM);
   EOT_INFO("  commit:  " REEOT_GIT_COMMIT " on " REEOT_GIT_BRANCH "{}",
@@ -309,6 +329,14 @@ void ReeotApp::OnPostInitLogging() {
   repair_requested_ = REXCVAR_GET(repair);
   REXCVAR_SET(repair, false);
 #endif
+
+  if (!install_root_.empty()) {
+    fs::path game = install_root_ / "game";
+    if (auto named = NamedGameFolder())
+      game = *named;
+    eot::mods::Initialize(install_root_, game, profile_root_);
+    OfferLanguageMods();
+  }
 
   {
     const std::string wanted = REXCVAR_GET(eot_language);

@@ -3,6 +3,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <rex/cvar.h>
 #include <rex/string/utf8.h>
 #include <rex/system/xam/content_device.h>
 #include <rex/system/xam/content_manager.h>
@@ -72,6 +73,7 @@ std::vector<Mod> g_mods;
 struct State {
   bool disabled = false;
   bool removed = false;
+  bool asked = false;
 };
 std::map<std::string, State> g_state;
 
@@ -233,21 +235,26 @@ void LoadState() {
     if (const toml::node *n = entry->get("removed"))
       if (const auto *b = n->as_boolean())
         state.removed = b->get();
+    if (const toml::node *n = entry->get("asked"))
+      if (const auto *b = n->as_boolean())
+        state.asked = b->get();
     g_state[std::string(key.str())] = state;
   }
 }
 
 void SaveState() {
-  std::string text = "# Written by reeot: the mods switched off, and the port's own mods removed.\n"
-                     "# A mod folder not listed here is on.\n";
+  std::string text = "# Written by reeot: the mods switched off, the port's own mods removed, and the\n"
+                     "# language mods whose language was offered at boot. A mod folder not listed here is on.\n";
   for (const auto &[folder, state] : g_state) {
-    if (!state.disabled && !state.removed)
+    if (!state.disabled && !state.removed && !state.asked)
       continue;
     text += std::format("\n[\"{}\"]\n", folder);
     if (state.disabled)
       text += "enabled = false\n";
     if (state.removed)
       text += "removed = true\n";
+    if (state.asked)
+      text += "asked = true\n";
   }
   std::error_code ec;
   fs::create_directories(ModsDirLocked(), ec);
@@ -665,6 +672,19 @@ std::string Describe(const Mod &mod) {
   return std::format("{} ({}, {})", mod.manifest.name, TypeName(mod.manifest.type), mod.manifest.file);
 }
 
+std::string LetGoOfLanguage(const Mod &mod) {
+  if (!mod.manifest.IsLanguage() || rex::cvar::GetFlagByName("eot_language") != mod.manifest.language)
+    return {};
+  for (const Mod &other : g_mods)
+    if (&other != &mod && other.active && other.manifest.IsLanguage() &&
+        other.manifest.language == mod.manifest.language)
+      return {};
+  rex::cvar::SetFlagByName("eot_language", "auto");
+  rex::cvar::InvokeCommand("eot_save_settings", "");
+  EOT_INFO("[mods] the language goes back to auto: {} carried {}", mod.manifest.name, mod.manifest.language);
+  return std::format(" The language setting was {} and goes back to auto.", mod.manifest.language);
+}
+
 bool AddLocked(const fs::path &path, std::string &message) {
   std::error_code ec;
   fs::create_directories(ModsDirLocked(), ec);
@@ -805,6 +825,8 @@ ModType SlotType(int32_t slot) { return slot == EOT_MOD_SLOT_MODEL ? ModType::kM
 
 void Initialize(const fs::path &install_root, const fs::path &game, const fs::path &profile) {
   std::lock_guard lock(g_mutex);
+  if (g_ready && g_install == install_root && g_game == game && g_profile == profile)
+    return;
   g_install = install_root;
   g_game = game;
   g_profile = profile;
@@ -866,14 +888,16 @@ bool Remove(std::string_view name, std::string &message) {
     message = std::format("{} could not be deleted: {}", Utf8(ModDir(folder)), ec.message());
     return false;
   }
+  const std::string language_note = LetGoOfLanguage(*mod);
   State &state = g_state[folder];
   state = State{};
   state.removed = IsBundled(folder);
   SaveState();
   Refresh();
   EOT_INFO("[mods] removed {} (mods/{})", described, folder);
-  message = std::format("{} removed{}. Takes effect at the next start of the game.", described,
-                        state.removed ? "; it is one of the port's own and stays away until added again" : "");
+  message = std::format("{} removed{}.{} Takes effect at the next start of the game.", described,
+                        state.removed ? "; it is one of the port's own and stays away until added again" : "",
+                        language_note);
   return true;
 }
 
@@ -895,13 +919,35 @@ bool SetEnabled(std::string_view name, bool enabled, std::string &message) {
     for (const Mod &other : g_mods)
       if (&other != mod && other.manifest.type == ModType::kModel)
         g_state[other.folder].disabled = true;
+  const std::string language_note = enabled ? std::string() : LetGoOfLanguage(*mod);
   SaveState();
   Refresh();
   mod = FindLocked(folder);
   EOT_INFO("[mods] {} switched {}: {}", Describe(*mod), enabled ? "on" : "off", mod->status);
-  message = std::format("{} is {}{}{}. Takes effect at the next start of the game.", Describe(*mod),
-                        enabled ? "on" : "off", mod->status.empty() ? "" : ": ", mod->status);
+  message = std::format("{} is {}{}{}.{} Takes effect at the next start of the game.", Describe(*mod),
+                        enabled ? "on" : "off", mod->status.empty() ? "" : ": ", mod->status, language_note);
   return true;
+}
+
+std::vector<LanguageMod> LanguageMods() {
+  std::lock_guard lock(g_mutex);
+  std::vector<LanguageMod> languages;
+  for (const Mod &mod : g_mods) {
+    if (!mod.active || !mod.manifest.IsLanguage())
+      continue;
+    const auto state = g_state.find(mod.folder);
+    languages.push_back({mod.folder, mod.manifest.name, mod.manifest.language, mod.manifest.language_name,
+                         state != g_state.end() && state->second.asked});
+  }
+  return languages;
+}
+
+void LanguageAsked(std::string_view folder) {
+  std::lock_guard lock(g_mutex);
+  if (!g_ready)
+    return;
+  g_state[std::string(folder)].asked = true;
+  SaveState();
 }
 
 std::vector<PackageToLoad> PackagesToLoad() {
@@ -1014,6 +1060,17 @@ extern "C" int32_t eot_mods_restore(int32_t slot, char *message, int32_t size) {
   }
   CopyOut(message, message && size > 0 ? static_cast<size_t>(size) : 0, text);
   return folders.empty() ? 0 : 1;
+}
+
+extern "C" int32_t eot_mods_languages(char *out, int32_t size) {
+  std::string text;
+  int32_t count = 0;
+  for (const LanguageMod &language : LanguageMods()) {
+    text += language.tag + "\t" + language.language_name + "\n";
+    ++count;
+  }
+  CopyOut(out, out && size > 0 ? static_cast<size_t>(size) : 0, text);
+  return count;
 }
 
 extern "C" int32_t eot_mods_open_folder(void) {

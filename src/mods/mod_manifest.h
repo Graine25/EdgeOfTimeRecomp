@@ -20,6 +20,9 @@ struct Manifest {
   std::string file;
   uint32_t package_id = 0;
   std::string language;
+  std::string language_name;
+
+  bool IsLanguage() const { return type == ModType::kPackage && !language.empty(); }
 };
 
 inline constexpr const char *kManifestFileName = "mod.toml";

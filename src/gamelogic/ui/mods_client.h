@@ -14,6 +14,7 @@ struct Host {
   void (*import_acknowledge)() = nullptr;
   int32_t (*restore)(int32_t, char *, int32_t) = nullptr;
   int32_t (*open_folder)() = nullptr;
+  int32_t (*languages)(char *, int32_t) = nullptr;
 
   bool Bound() const { return slot && import_begin && import_state && import_acknowledge && restore; }
 };
@@ -28,6 +29,7 @@ inline const Host &Api() {
         reinterpret_cast<decltype(h.import_acknowledge)>(HostEntryPoint("eot_mods_import_acknowledge"));
     h.restore = reinterpret_cast<decltype(h.restore)>(HostEntryPoint("eot_mods_restore"));
     h.open_folder = reinterpret_cast<decltype(h.open_folder)>(HostEntryPoint("eot_mods_open_folder"));
+    h.languages = reinterpret_cast<decltype(h.languages)>(HostEntryPoint("eot_mods_languages"));
     return h;
   }();
   return host;

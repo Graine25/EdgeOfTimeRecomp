@@ -11,3 +11,4 @@ type = "package"
 file = "ReeotRussian.pkz"
 id = 0x7EB
 language = "ru"
+language_name = "Russian"
