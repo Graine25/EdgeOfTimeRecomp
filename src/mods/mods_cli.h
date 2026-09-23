@@ -7,6 +7,6 @@ namespace eot::mods {
 
 inline constexpr const char *kCliCommand = "mods";
 
-int RunCli(const std::vector<std::string> &args);
+int RunCli(const std::vector<std::string> &positional);
 
 }
