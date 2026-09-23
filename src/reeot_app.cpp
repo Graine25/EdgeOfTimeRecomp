@@ -49,9 +49,8 @@
 #include "platform/crash_handler.h"
 #include "platform/desktop_shortcut.h"
 #include "platform/fatal_dialog.h"
-#include "platform/language.h"
-#include "platform/process.h"
 #include "platform/user_dirs.h"
+#include "platform/process.h"
 #include "ui/theme.h"
 
 REXCVAR_DEFINE_STRING(profile, "default", "EdgeOfTime/Config", "Active profile name")

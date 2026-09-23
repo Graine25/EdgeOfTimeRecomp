@@ -12,7 +12,7 @@
 #include "goliath/loading/resources.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
-#include "platform/language.h"
+#include "platform/user_dirs.h"
 
 REX_EXTERN(__imp__eot_RZTexture_TextureReplace); // (record r3, replacement r4)
 REX_EXTERN(__imp__eot_PKPackageMgrBC_Update);
