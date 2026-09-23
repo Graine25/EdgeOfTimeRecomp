@@ -23,7 +23,7 @@
 #include "gpu/surfaces.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
-#include "gpu/velocity.h"
+#include "gpu/taa.h"
 
 namespace eot::gpu {
 

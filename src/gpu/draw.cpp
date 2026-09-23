@@ -40,7 +40,6 @@
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
 #include "gpu/taa.h"
-#include "gpu/velocity.h"
 #include "gpu/trace.h"
 #include "gpu/vertex_layout.h"
 
