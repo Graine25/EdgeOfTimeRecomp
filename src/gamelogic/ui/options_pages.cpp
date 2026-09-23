@@ -581,7 +581,7 @@ constexpr uint32_t kComponentConfigOff = 36;
 constexpr uint32_t kInputAccept = 9;
 constexpr uint32_t kInputBack = 10;
 constexpr uint32_t kInputReset = 18;
-constexpr uint32_t kInputRemove = 17;
+constexpr uint32_t kInputRemove = 19;
 constexpr uint32_t kInputAxisX = 7;
 constexpr uint32_t kInputAxisY = 8;
 constexpr uint32_t kPadMask = 1;
@@ -778,6 +778,13 @@ void SetShade(const PPCContext &ctx, uint8_t *base, uint32_t window_ptr, const u
   call.r3.u32 = window_ptr;
   call.r4.u32 = colour;
   __imp__eot_Wnd_SetColorBytes(call, base);
+}
+
+void ShadeWindow(const PPCContext &ctx, uint8_t *base, uint32_t window, const uint8_t rgba[4]) {
+  if (window == hud::kNoWindow || !window)
+    return;
+  eot::mem::store<uint32_t>(g_block + kBlockHandles + 12, window);
+  SetShade(ctx, base, g_block + kBlockHandles + 12, rgba);
 }
 
 void SetStringHandle(const PPCContext &ctx, uint8_t *base, uint32_t window, uint32_t string_handle) {
@@ -1061,7 +1068,7 @@ void ShowModRows(const PPCContext &ctx, uint8_t *base) {
     SetStringHandle(ctx, base, w.state[row], StringHandle(ctx, base, mod.enabled ? "REEOT_VAL_ON" : "REEOT_VAL_OFF"));
     const uint8_t *shade = index == g_cursor ? kShadeSelected : mod.enabled ? kShadeIdle : kShadeDisabled;
     for (const uint32_t *column : {w.name, w.creator, w.kind, w.state})
-      SetShade(ctx, base, column[row], shade);
+      ShadeWindow(ctx, base, column[row], shade);
   }
   hud::Activate(ctx, base, w.scroll_up, g_first > 0);
   hud::Activate(ctx, base, w.scroll_down, g_first + kRows < count);
