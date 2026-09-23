@@ -178,6 +178,7 @@ constexpr Accessor kKeyboardMouse = {GetKeyboardMouse, SetKeyboardMouse, "false"
 struct Choice {
   const char *text;
   const char *value;
+  const char *literal = nullptr;
 };
 
 enum class Format { kPlain, kPercent, kSignedPercent, kFrameRate };
@@ -199,9 +200,12 @@ struct Setting {
   bool (*enabled)() = nullptr;
   const char *disabled_text = nullptr;
   int slot = -1;
+  std::span<const Choice> (*choices_of)() = nullptr;
 
-  bool IsSlider() const { return choices.empty(); }
+  bool IsSlider() const { return choices.empty() && !choices_of; }
 };
+
+std::span<const Choice> Choices(const Setting &s) { return s.choices_of ? s.choices_of() : s.choices; }
 
 constexpr const char *kActionImport = "import";
 constexpr const char *kActionRestore = "restore";
@@ -288,8 +292,41 @@ uint32_t LayoutIndex(const Layout *layout) { return layout == &kNarrow ? 1 : 0; 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
 constexpr Choice kOnOffSwapped[] = {{"REEOT_VAL_ON", "false"}, {"REEOT_VAL_OFF", "true"}};
 constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
-                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"},
-                                 {"REEOT_VAL_RUSSIAN", "ru"}};
+                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"}};
+std::vector<Choice> g_language_choices(std::begin(kLanguages), std::end(kLanguages));
+std::vector<std::string> g_language_strings;
+std::span<const Choice> LanguageChoices() { return g_language_choices; }
+
+void RefreshLanguageChoices() {
+  g_language_choices.assign(std::begin(kLanguages), std::end(kLanguages));
+  g_language_strings.clear();
+  char lines[1024] = {};
+  if (!mods::Api().languages || mods::Api().languages(lines, sizeof(lines)) <= 0)
+    return;
+  std::vector<std::pair<std::string, std::string>> found;
+  std::string_view rest(lines);
+  while (!rest.empty()) {
+    const size_t nl = rest.find('\n');
+    const std::string_view line = rest.substr(0, nl);
+    rest = nl == std::string_view::npos ? std::string_view() : rest.substr(nl + 1);
+    const size_t tab = line.find('\t');
+    if (tab == std::string_view::npos || tab == 0)
+      continue;
+    found.emplace_back(std::string(line.substr(0, tab)), std::string(line.substr(tab + 1)));
+  }
+  g_language_strings.reserve(found.size() * 2);
+  for (const auto &[tag, name] : found) {
+    bool shipped = false;
+    for (const Choice &c : kLanguages)
+      shipped = shipped || tag == c.value;
+    if (shipped)
+      continue;
+    g_language_strings.push_back(tag);
+    g_language_strings.push_back(name.empty() ? tag : name);
+  }
+  for (size_t i = 0; i + 1 < g_language_strings.size(); i += 2)
+    g_language_choices.push_back({nullptr, g_language_strings[i].c_str(), g_language_strings[i + 1].c_str()});
+}
 constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL_INVERTED", "true"}};
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
@@ -344,7 +381,7 @@ constexpr Setting kAudioSettings[] = {
     {.label = "REEOT_OPT_BATTLE_THEME", .description = "REEOT_DESC_BATTLE_THEME", .cvar = "eot_battle_theme",
      .choices = kOnOff},
     {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
-     .choices = kLanguages, .restart = true},
+     .restart = true, .choices_of = LanguageChoices},
 };
 
 constexpr Setting kVideoSettings[] = {
@@ -765,9 +802,10 @@ bool Enabled(const Setting &s) { return !s.enabled || s.enabled(); }
 
 int CurrentChoice(const Setting &s) {
   const std::string value = Value(s);
-  for (size_t i = 0; i < s.choices.size(); ++i) {
-    const bool same = s.numeric ? std::fabs(Number(s.choices[i].value) - Number(value)) < 1e-4
-                                : value == s.choices[i].value;
+  const std::span<const Choice> choices = Choices(s);
+  for (size_t i = 0; i < choices.size(); ++i) {
+    const bool same = s.numeric ? std::fabs(Number(choices[i].value) - Number(value)) < 1e-4
+                                : value == choices[i].value;
     if (same)
       return static_cast<int>(i);
   }
@@ -780,8 +818,9 @@ int NearestChoice(const Setting &s) {
   const double have = Number(Value(s));
   int best = 0;
   double best_gap = 1e300;
-  for (size_t i = 0; i < s.choices.size(); ++i) {
-    const double gap = std::fabs(Number(s.choices[i].value) - have);
+  const std::span<const Choice> choices = Choices(s);
+  for (size_t i = 0; i < choices.size(); ++i) {
+    const double gap = std::fabs(Number(choices[i].value) - have);
     if (gap < best_gap) {
       best_gap = gap;
       best = static_cast<int>(i);
@@ -805,10 +844,11 @@ const char *ImportValueText(const Setting &s) {
 
 void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, const Setting &s) {
   const int index = CurrentChoice(s);
+  const Choice *choice = index >= 0 ? &Choices(s)[static_cast<size_t>(index)] : nullptr;
   const char *busy = ImportValueText(s);
   const char *text = busy                             ? busy
                      : !Enabled(s) && s.disabled_text ? s.disabled_text
-                     : index >= 0                     ? s.choices[static_cast<size_t>(index)].text
+                     : choice                         ? choice->text
                                                       : nullptr;
   if (text) {
     PPCContext call = ctx;
@@ -817,7 +857,8 @@ void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, con
     __imp__eot_TextWnd_SetStringHandle(call, base);
     return;
   }
-  SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue), Value(s).c_str());
+  SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue),
+          choice && choice->literal ? choice->literal : Value(s).c_str());
 }
 
 void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Setting &s, bool selected) {
@@ -826,11 +867,13 @@ void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Set
   call.r3.u32 = control;
   call.r4.u32 = StringHandle(ctx, base, s.label);
   __imp__eot_MultiValueControl_SetLabel(call, base);
-  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceLeft), s.choices.size() > 1);
-  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceRight), s.choices.size() > 1);
-  const uint32_t count = std::min<uint32_t>(static_cast<uint32_t>(s.choices.size()), ctl::kChoiceHandleSlots);
+  const std::span<const Choice> choices = Choices(s);
+  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceLeft), choices.size() > 1);
+  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceRight), choices.size() > 1);
+  const uint32_t count = std::min<uint32_t>(static_cast<uint32_t>(choices.size()), ctl::kChoiceHandleSlots);
   for (uint32_t i = 0; i < count; ++i)
-    eot::mem::store<uint32_t>(control + ctl::kChoiceHandles + i * 4, StringHandle(ctx, base, s.choices[i].text));
+    eot::mem::store<uint32_t>(control + ctl::kChoiceHandles + i * 4,
+                              choices[i].text ? StringHandle(ctx, base, choices[i].text) : 0);
   eot::mem::store<uint32_t>(control + ctl::kChoiceCount, count);
   ShowChoiceValue(ctx, base, control, s);
   call = ctx;
@@ -840,12 +883,13 @@ void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Set
 }
 
 bool StepChoice(const Setting &s, int step) {
-  const int count = static_cast<int>(s.choices.size());
+  const std::span<const Choice> choices = Choices(s);
+  const int count = static_cast<int>(choices.size());
   int index = CurrentChoice(s);
   if (index < 0)
     index = NearestChoice(s) - (step > 0 ? 1 : 0);
   index = ((index + step) % count + count) % count;
-  return SetValue(s, s.choices[static_cast<size_t>(index)].value);
+  return SetValue(s, choices[static_cast<size_t>(index)].value);
 }
 
 int SliderStops(const Setting &s) {
@@ -1149,6 +1193,7 @@ void FillConfig(uint32_t c, uint32_t window, uint32_t title) {
 void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   CallScope scope(ctx, base);
   g_page = &page;
+  RefreshLanguageChoices();
   if (page.list) {
     g_import_message.clear();
     g_message_slot = -1;

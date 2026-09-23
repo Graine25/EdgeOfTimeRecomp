@@ -36,6 +36,7 @@ EOT_MODS_API int32_t eot_mods_import_state(char *message, int32_t size);
 EOT_MODS_API void eot_mods_import_acknowledge(void);
 EOT_MODS_API int32_t eot_mods_restore(int32_t slot, char *message, int32_t size);
 EOT_MODS_API int32_t eot_mods_open_folder(void);
+EOT_MODS_API int32_t eot_mods_languages(char *out, int32_t size);
 
 #ifdef __cplusplus
 }

@@ -43,6 +43,16 @@ struct PackageToLoad {
 };
 std::vector<PackageToLoad> PackagesToLoad();
 
+struct LanguageMod {
+  std::string folder;
+  std::string name;
+  std::string tag;
+  std::string language_name;
+  bool asked;
+};
+std::vector<LanguageMod> LanguageMods();
+void LanguageAsked(std::string_view folder);
+
 std::filesystem::path ModsDir();
 
 }

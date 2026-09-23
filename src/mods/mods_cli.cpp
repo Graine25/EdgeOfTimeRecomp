@@ -11,6 +11,8 @@
 #include <windows.h>
 #endif
 
+#include <rex/cvar.h>
+
 #include "core/logging.h"
 #include "mods/mod_manager.h"
 
@@ -27,6 +29,7 @@ void AttachConsole() {
     FILE *stream = nullptr;
     freopen_s(&stream, "CONOUT$", "w", stdout);
     freopen_s(&stream, "CONOUT$", "w", stderr);
+    freopen_s(&stream, "CONIN$", "r", stdin);
   }
 #endif
 }
@@ -35,6 +38,32 @@ void Print(const std::string &text) {
   std::fputs(text.c_str(), stdout);
   std::fputs("\n", stdout);
   std::fflush(stdout);
+}
+
+bool AskYesNo(const std::string &question) {
+  std::fputs((question + " [y/N] ").c_str(), stdout);
+  std::fflush(stdout);
+  char line[16] = {};
+  if (!std::fgets(line, sizeof(line), stdin))
+    return false;
+  return line[0] == 'y' || line[0] == 'Y';
+}
+
+void OfferLanguages() {
+  for (const LanguageMod &mod : LanguageMods()) {
+    if (mod.asked)
+      continue;
+    Print(std::format("{} brings the game in {}.", mod.name, mod.language_name));
+    if (AskYesNo(std::format("Start the game in {} from now on?", mod.language_name))) {
+      rex::cvar::SetFlagByName("eot_language", mod.tag);
+      rex::cvar::InvokeCommand("eot_save_settings", "");
+      Print(std::format("The language is {} (eot_language = {}); Options > Game changes it.", mod.language_name,
+                        mod.tag));
+    } else {
+      Print("The language is unchanged; the row under Options > Game offers it.");
+    }
+    LanguageAsked(mod.folder);
+  }
 }
 
 std::string Padded(std::string text, size_t width) {
@@ -120,6 +149,8 @@ int RunCli(const std::vector<std::string> &args) {
       return Usage();
     ok = Add(std::filesystem::absolute(std::filesystem::path(std::u8string(arg.begin(), arg.end()))), message);
     Print(message);
+    if (ok)
+      OfferLanguages();
   } else if (verb == "remove") {
     if (arg.empty())
       return Usage();
@@ -130,6 +161,8 @@ int RunCli(const std::vector<std::string> &args) {
       return Usage();
     ok = SetEnabled(arg, verb == "enable", message);
     Print(message);
+    if (ok && verb == "enable")
+      OfferLanguages();
   } else {
     return Usage();
   }
