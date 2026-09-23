@@ -17,7 +17,7 @@
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/menu_handles.h"
 #include "mods/mod_manager.h"
-#include "platform/language.h"
+#include "platform/user_dirs.h"
 
 REX_EXTERN(__imp__eot_GEEngineMgr_LoadMainPackage);
 REX_EXTERN(__imp__eot_MMMemoryMgr_Alloc);
