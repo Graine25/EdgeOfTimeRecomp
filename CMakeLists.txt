@@ -251,7 +251,6 @@ set(REEOT_SOURCES
     src/goliath/web_color.cpp
     src/goliath/text/glyph_pages.cpp
     src/gpu/taa.cpp
-    src/gpu/velocity.cpp
     src/gpu/shaders/guest_shaders.cpp
     src/gpu/hooks/stubs.cpp
     src/gpu/hooks/state.cpp
