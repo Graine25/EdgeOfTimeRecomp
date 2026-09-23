@@ -27,17 +27,43 @@ constexpr int kDone = 0;
 constexpr int kFailed = 1;
 constexpr int kUsage = 2;
 
+bool g_attached = false;
+
 void AttachConsole() {
 #if defined(_WIN32)
   const HANDLE out = ::GetStdHandle(STD_OUTPUT_HANDLE);
   if (out != nullptr && out != INVALID_HANDLE_VALUE)
     return;
   if (::AttachConsole(ATTACH_PARENT_PROCESS)) {
+    g_attached = true;
     FILE *stream = nullptr;
     freopen_s(&stream, "CONOUT$", "w", stdout);
     freopen_s(&stream, "CONOUT$", "w", stderr);
     freopen_s(&stream, "CONIN$", "r", stdin);
   }
+#endif
+}
+
+void ReturnToPrompt() {
+#if defined(_WIN32)
+  if (!g_attached)
+    return;
+  const HANDLE in = ::CreateFileW(L"CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                  OPEN_EXISTING, 0, nullptr);
+  if (in == INVALID_HANDLE_VALUE)
+    return;
+  INPUT_RECORD keys[2] = {};
+  for (int i = 0; i < 2; ++i) {
+    keys[i].EventType = KEY_EVENT;
+    keys[i].Event.KeyEvent.bKeyDown = i == 0 ? TRUE : FALSE;
+    keys[i].Event.KeyEvent.wRepeatCount = 1;
+    keys[i].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
+    keys[i].Event.KeyEvent.wVirtualScanCode = static_cast<WORD>(::MapVirtualKeyW(VK_RETURN, MAPVK_VK_TO_VSC));
+    keys[i].Event.KeyEvent.uChar.UnicodeChar = L'\r';
+  }
+  DWORD written = 0;
+  ::WriteConsoleInputW(in, keys, 2, &written);
+  ::CloseHandle(in);
 #endif
 }
 
@@ -112,61 +138,7 @@ constexpr std::string_view kCommands =
 void PrintUsage() {
   Print("usage: reeot mods <command> [<argument>]\n");
   Print(kCommands);
-  Print("\n<name> is a mod's folder under mods, or its name; case does not matter.\n"
-        "reeot mods --help explains the mods, their kinds and the mod.toml.");
-}
-
-void PrintHelp() {
-  Print("reeot mods -- the mods of the installed game, from the command line\n");
-  Print("usage: reeot mods <command> [<argument>]\n");
-  Print(kCommands);
-  Print(R"(
-<name> is a mod's folder under mods, or its name; case does not matter.
-Exit code 0 when the command is done, 1 when it failed (the line says why),
-2 for no command or one that is not known.
-
-A MOD
-  A folder under <install>\mods holding a mod.toml beside the one file it
-  brings. Add copies the folder in (or makes one up for a package file on
-  its own); the game reads every folder when it starts.
-
-    name = "Russian"                  what the Mods page and the list show
-    creator = "Graine25"
-    version = "1.0"                   optional
-    description = "..."               optional
-    type = "package"                  package, replacement or model
-
-    [package]                         a new package the game loads at boot
-    file = "ReeotRussian.pkz"         the file beside the manifest
-    id = 0x7EB                        the package id, 1 to 4095
-    language = "ru"                   optional: only when the game runs in this
-                                      language; the mod is then a language mod
-    language_name = "Russian"         optional: what the Options page calls it
-
-    [replacement]                     a package over one of the game's own
-    file = "Common.pkz"               named like the file in the game's Data folder;
-                                      the game's own is kept in mods\backup
-
-    [model]                           a costume package as downloadable content
-    file = "_DLC002.pak"              a raw DLC package (id 0xBB9 or 0xBBA) or a
-                                      _DLC00N.pkz; one costume mod is on at a time
-
-  Everything takes effect at the next start of the game. mods\mods.toml keeps
-  which mods are off. The port's own mods (russian, spiderverse-2099) come
-  out of the program at start unless removed; `reeot mods add <its folder
-  name>` puts a removed one back.
-
-LANGUAGE MODS
-  A language mod is never chosen on its own. The Options page's Language row
-  lists it, and the first start with it in place asks once whether the game
-  should run in it; add and enable ask the same here. Switching it off or
-  removing it while the game is set to its language puts the language back
-  to auto.
-
-OUTPUT
-  reeot is a windowed program: the lines go to the console it was started
-  from (the prompt may come back before they do), or to a file when
-  redirected (reeot mods list > mods.txt).)");
+  Print("\n<name> is a mod's folder under mods, or its name.");
 }
 
 std::string Padded(std::string text, size_t width) {
@@ -236,14 +208,22 @@ bool NeedsArgument(const std::string &verb, const std::string &arg, const char *
 
 }
 
+static int Run(const std::vector<std::string> &positional);
+
 int RunCli(const std::vector<std::string> &positional) {
   AttachConsole();
+  const int code = Run(positional);
+  ReturnToPrompt();
+  return code;
+}
+
+static int Run(const std::vector<std::string> &positional) {
   const std::vector<std::string> words = WordsAfterCommand(positional);
   const std::string verb = words.empty() ? std::string() : Lower(words[0]);
   const std::string arg = words.size() > 1 ? words[1] : std::string();
 
   if (std::any_of(words.begin(), words.end(), [](const std::string &w) { return IsHelpWord(w); })) {
-    PrintHelp();
+    PrintUsage();
     return kDone;
   }
   if (verb.empty()) {
