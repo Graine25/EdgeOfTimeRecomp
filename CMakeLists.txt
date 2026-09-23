@@ -150,11 +150,25 @@ reeot_embed_generated(
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ICONS_PACKAGE_SOURCE})
 reeot_embed_generated(
     INPUT       "${REEOT_RU_PKZ_OUTPUT}"
-    NAME        "pkz/ReeotRussian.pkz"
+    NAME        "mods/russian/ReeotRussian.pkz"
     ACCESSOR    EmbeddedRussianPackage
     HEADER      "${REEOT_GEN_DIR}/embedded_russian_package.h"
     SOURCES_VAR REEOT_EMBED_RU_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_RU_PACKAGE_SOURCE})
+set(REEOT_2099_PAK "${CMAKE_CURRENT_SOURCE_DIR}/modelimport/build/_DLC002.pak")
+if(EXISTS "${REEOT_2099_PAK}")
+    reeot_embed_generated(
+        INPUT       "${REEOT_2099_PAK}"
+        NAME        "mods/spiderverse-2099/_DLC002.pak"
+        ACCESSOR    Embedded2099Package
+        HEADER      "${REEOT_GEN_DIR}/embedded_2099_package.h"
+        SOURCES_VAR REEOT_EMBED_2099_SOURCE)
+    list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_2099_SOURCE})
+    set(REEOT_BUNDLED_2099 ON)
+else()
+    message(STATUS "reeot: modelimport/build/_DLC002.pak is not there; the 2099 suit is not bundled")
+    set(REEOT_BUNDLED_2099 OFF)
+endif()
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -194,6 +208,8 @@ set(REEOT_SOURCES
     src/installer/self_install.cpp
     src/installer/dlc_publish.cpp
     src/mods/mod_manager.cpp
+    src/mods/mod_manifest.cpp
+    src/mods/mods_cli.cpp
     ${REEOT_EMBED_SOURCES}
     ${REEOT_EMBED_PACKAGE_SOURCE}
     src/core/critical_section.cpp
@@ -368,12 +384,18 @@ endif()
 target_compile_definitions(reeot PRIVATE
     _ITERATOR_DEBUG_LEVEL=0
     $<$<BOOL:${REEOT_BUILD_INSTALLER}>:REEOT_BUILD_INSTALLER>
+    $<$<BOOL:${REEOT_BUNDLED_2099}>:REEOT_BUNDLED_2099>
     NOMINMAX
     WIN32_LEAN_AND_MEAN
     $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>
     $<$<OR:$<BOOL:${REEOT_PROFILING}>,$<NOT:$<CONFIG:Release>>>:EOT_PROFILING>)
 
-target_include_directories(reeot PRIVATE "${REXSDK_DIR}/thirdparty/imgui")
+# A source tree keeps these headers in its thirdparty folder.
+if(REXSDK_DIR)
+    target_include_directories(reeot PRIVATE
+        "${REXSDK_DIR}/thirdparty/imgui"
+        "${REXSDK_DIR}/thirdparty/tomlplusplus/include")
+endif()
 target_link_libraries(reeot PRIVATE
     plume
     reeot_shader_cache

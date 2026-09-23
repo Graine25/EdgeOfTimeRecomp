@@ -52,6 +52,7 @@ protected:
 
 private:
   std::optional<std::filesystem::path> NamedGameFolder() const;
+  void OfferLanguageMods();
   std::optional<std::filesystem::path> EarlyInstallRoot() const;
   void UseInstallRoot(const std::filesystem::path &root, rex::PathConfig &paths);
   void LoadTranslation(const std::filesystem::path &game);
