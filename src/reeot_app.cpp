@@ -206,10 +206,17 @@ ReeotApp::ReeotApp(rex::ui::WindowedAppContext &ctx) : rex::ReXApp(ctx, "reeot",
 
 ReeotApp::~ReeotApp() = default;
 
+bool IsCliCommand(std::string_view word) {
+  std::string lowered(word);
+  for (char &c : lowered)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return lowered == eot::mods::kCliCommand;
+}
+
 std::optional<fs::path> ReeotApp::NamedGameFolder() const {
   std::string named = REXCVAR_GET(game_data_root);
   if (named.empty())
-    if (auto positional = GetArgument("command"); positional && *positional != eot::mods::kCliCommand)
+    if (auto positional = GetArgument("command"); positional && !IsCliCommand(*positional))
       named = *positional;
   if (named.empty() || !GameFolderHolds(named))
     return std::nullopt;
@@ -309,7 +316,7 @@ void ReeotApp::OnPostInitLogging() {
     std::_Exit(0);
   }
 
-  if (auto command = GetArgument("command"); command && *command == eot::mods::kCliCommand) {
+  if (auto command = GetArgument("command"); command && IsCliCommand(*command)) {
     std::vector<std::string> args;
     for (const char *name : {"arg1", "arg2", "arg3"})
       if (auto arg = GetArgument(name))
