@@ -137,29 +137,51 @@ inline bool ExitIfConfirmed(uint32_t self, uint32_t message, uint32_t result,
 
 }
 
+namespace eot::ui {
+
+constexpr uint32_t kPromptA = 1;
+constexpr uint32_t kPromptBack = 15;
+constexpr uint32_t kPromptY = 20;
+constexpr uint32_t kPromptX = 27;
+
+void OverridePrompt(uint32_t id, const char *name);
+void RestorePrompt(uint32_t id);
+
+void SendPromptMask(const PPCContext &ctx, uint8_t *base, uint32_t zone, uint32_t mask, uint32_t scratch);
+
+}
+
 namespace eot::ui::mods {
 
 struct Host {
-  int32_t (*slot)(int32_t, eot_mod_slot_info *) = nullptr;
-  int32_t (*import_begin)(int32_t) = nullptr;
+  int32_t (*count)() = nullptr;
+  int32_t (*get)(int32_t, eot_mod_info *) = nullptr;
+  int32_t (*set_enabled)(const char *, int32_t, char *, int32_t) = nullptr;
+  int32_t (*remove)(const char *, char *, int32_t) = nullptr;
+  int32_t (*add_begin)() = nullptr;
   int32_t (*import_state)(char *, int32_t) = nullptr;
   void (*import_acknowledge)() = nullptr;
-  int32_t (*restore)(int32_t, char *, int32_t) = nullptr;
   int32_t (*open_folder)() = nullptr;
+  int32_t (*languages)(char *, int32_t) = nullptr;
 
-  bool Bound() const { return slot && import_begin && import_state && import_acknowledge && restore; }
+  bool Bound() const {
+    return count && get && set_enabled && remove && add_begin && import_state && import_acknowledge;
+  }
 };
 
 inline const Host &Api() {
   static const Host host = [] {
     Host h;
-    h.slot = reinterpret_cast<decltype(h.slot)>(HostEntryPoint("eot_mods_slot"));
-    h.import_begin = reinterpret_cast<decltype(h.import_begin)>(HostEntryPoint("eot_mods_import_begin"));
+    h.count = reinterpret_cast<decltype(h.count)>(HostEntryPoint("eot_mods_count"));
+    h.get = reinterpret_cast<decltype(h.get)>(HostEntryPoint("eot_mods_get"));
+    h.set_enabled = reinterpret_cast<decltype(h.set_enabled)>(HostEntryPoint("eot_mods_set_enabled"));
+    h.remove = reinterpret_cast<decltype(h.remove)>(HostEntryPoint("eot_mods_remove"));
+    h.add_begin = reinterpret_cast<decltype(h.add_begin)>(HostEntryPoint("eot_mods_add_begin"));
     h.import_state = reinterpret_cast<decltype(h.import_state)>(HostEntryPoint("eot_mods_import_state"));
     h.import_acknowledge =
         reinterpret_cast<decltype(h.import_acknowledge)>(HostEntryPoint("eot_mods_import_acknowledge"));
-    h.restore = reinterpret_cast<decltype(h.restore)>(HostEntryPoint("eot_mods_restore"));
     h.open_folder = reinterpret_cast<decltype(h.open_folder)>(HostEntryPoint("eot_mods_open_folder"));
+    h.languages = reinterpret_cast<decltype(h.languages)>(HostEntryPoint("eot_mods_languages"));
     return h;
   }();
   return host;

@@ -15,8 +15,8 @@
 
 #include "core/logging.h"
 #include "core/quit_client.h"
-#include "gamelogic/ui/hud_api.h"
 #include "gamelogic/ui/menu_common.h"
+#include "gamelogic/ui/hud_api.h"
 #include "goliath/ui/name_crc.h"
 #include "core/memory_helpers.h"
 
@@ -176,6 +176,7 @@ constexpr Accessor kKeyboardMouse = {GetKeyboardMouse, SetKeyboardMouse, "false"
 struct Choice {
   const char *text;
   const char *value;
+  const char *literal = nullptr;
 };
 
 enum class Format { kPlain, kPercent, kSignedPercent, kFrameRate };
@@ -196,32 +197,20 @@ struct Setting {
   bool restart = false;
   bool (*enabled)() = nullptr;
   const char *disabled_text = nullptr;
-  int slot = -1;
+  std::span<const Choice> (*choices_of)() = nullptr;
 
-  bool IsSlider() const { return choices.empty(); }
+  bool IsSlider() const { return choices.empty() && !choices_of; }
 };
 
-constexpr const char *kActionImport = "import";
-constexpr const char *kActionRestore = "restore";
-std::string g_slot_action[EOT_MOD_SLOT_COUNT];
+std::span<const Choice> Choices(const Setting &s) { return s.choices_of ? s.choices_of() : s.choices; }
 
-std::string Value(const Setting &s) {
-  if (s.slot >= 0)
-    return g_slot_action[s.slot].empty() ? kActionImport : g_slot_action[s.slot];
-  return s.accessor ? s.accessor->get() : rex::cvar::GetFlagByName(s.cvar);
-}
+std::string Value(const Setting &s) { return s.accessor ? s.accessor->get() : rex::cvar::GetFlagByName(s.cvar); }
 
 bool SetValue(const Setting &s, std::string_view value) {
-  if (s.slot >= 0) {
-    g_slot_action[s.slot] = value;
-    return true;
-  }
   return s.accessor ? s.accessor->set(value) : rex::cvar::SetFlagByName(s.cvar, value);
 }
 
 void ResetValue(const Setting &s) {
-  if (s.slot >= 0)
-    return;
   if (!s.accessor) {
     rex::cvar::ResetToDefault(s.cvar);
     return;
@@ -253,7 +242,7 @@ struct Page {
   const char *label;
   std::span<const Setting> settings;
   const Layout *layout;
-  bool list = false;
+  bool table = false;
 };
 
 constexpr Layout kWide = {"Reeot_OptionsPanel",
@@ -280,14 +269,60 @@ constexpr Layout kNarrow = {"Reeot_ControlsPanel",
                             0.660f,
                             0.260f,
                             0.004f};
-constexpr uint32_t kLayoutCount = 2;
-uint32_t LayoutIndex(const Layout *layout) { return layout == &kNarrow ? 1 : 0; }
+const Layout kTable = {"Reeot_ModsPanel",
+                           "Reeot_ModsRow",
+                           "Reeot_ModsScrollUp",
+                           "Reeot_ModsScrollDown",
+                           "Reeot_ModsNoTitle",
+                           "Reeot_ModsInfo",
+                           "Reeot_ModsNoValue",
+                           "Reeot_ModsNoNote",
+                           {0.06f, 0.20f, 0.805f, 0.60f},
+                           0.670f,
+                           0.170f,
+                           0.008f};
+constexpr uint32_t kLayoutCount = 3;
+extern const Layout kTable;
+uint32_t LayoutIndex(const Layout *layout) { return layout == &kNarrow ? 1 : layout == &kTable ? 2 : 0; }
 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
 constexpr Choice kOnOffSwapped[] = {{"REEOT_VAL_ON", "false"}, {"REEOT_VAL_OFF", "true"}};
 constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
-                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"},
-                                 {"REEOT_VAL_RUSSIAN", "ru"}};
+                                 {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"}};
+std::vector<Choice> g_language_choices(std::begin(kLanguages), std::end(kLanguages));
+std::vector<std::string> g_language_strings;
+std::span<const Choice> LanguageChoices() { return g_language_choices; }
+
+void RefreshLanguageChoices() {
+  g_language_choices.assign(std::begin(kLanguages), std::end(kLanguages));
+  g_language_strings.clear();
+  char lines[1024] = {};
+  if (!mods::Api().languages || mods::Api().languages(lines, sizeof(lines)) <= 0)
+    return;
+  std::vector<std::pair<std::string, std::string>> found;
+  std::string_view rest(lines);
+  while (!rest.empty()) {
+    const size_t nl = rest.find('\n');
+    const std::string_view line = rest.substr(0, nl);
+    rest = nl == std::string_view::npos ? std::string_view() : rest.substr(nl + 1);
+    const size_t tab = line.find('\t');
+    if (tab == std::string_view::npos || tab == 0)
+      continue;
+    found.emplace_back(std::string(line.substr(0, tab)), std::string(line.substr(tab + 1)));
+  }
+  g_language_strings.reserve(found.size() * 2);
+  for (const auto &[tag, name] : found) {
+    bool shipped = false;
+    for (const Choice &c : kLanguages)
+      shipped = shipped || tag == c.value;
+    if (shipped)
+      continue;
+    g_language_strings.push_back(tag);
+    g_language_strings.push_back(name.empty() ? tag : name);
+  }
+  for (size_t i = 0; i + 1 < g_language_strings.size(); i += 2)
+    g_language_choices.push_back({nullptr, g_language_strings[i].c_str(), g_language_strings[i + 1].c_str()});
+}
 constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL_INVERTED", "true"}};
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
@@ -342,7 +377,7 @@ constexpr Setting kAudioSettings[] = {
     {.label = "REEOT_OPT_BATTLE_THEME", .description = "REEOT_DESC_BATTLE_THEME", .cvar = "eot_battle_theme",
      .choices = kOnOff},
     {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
-     .choices = kLanguages, .restart = true},
+     .restart = true, .choices_of = LanguageChoices},
 };
 
 constexpr Setting kVideoSettings[] = {
@@ -433,43 +468,46 @@ constexpr Page kGraphicsPage = {"REEOT_GRAPHICS_TITLE", "Graphics", kGraphicsSet
 constexpr Page kGamePage = {"REEOT_GAME_TITLE", "Game", kGameSettings, &kWide};
 constexpr Page kControlsPage = {"REEOT_CONTROLS_TITLE", "Controls", kControlsSettings, &kNarrow};
 
-constexpr Choice kImportOnly[] = {{"REEOT_VAL_IMPORT", "import"}};
-constexpr Choice kImportRestore[] = {{"REEOT_VAL_IMPORT", "import"}, {"REEOT_VAL_RESTORE", "restore"}};
-struct SlotRow {
-  const char *label;
-  const char *description;
-};
-constexpr SlotRow kSlotRows[EOT_MOD_SLOT_COUNT] = {{"REEOT_OPT_PAK", "REEOT_DESC_PAK"},
-                                                   {"REEOT_OPT_MODEL", "REEOT_DESC_MODEL"},
-                                                   {"REEOT_OPT_BINARY", "REEOT_DESC_BINARY"}};
-eot_mod_slot_info g_slot_info[EOT_MOD_SLOT_COUNT] = {};
-std::vector<Setting> g_mod_rows;
-Page g_mods_page = {"REEOT_MODS_TITLE", "Mods", {}, &kNarrow, true};
+Page g_mods_page = {"REEOT_MODS_TITLE", "Mods", {}, &kTable, true};
+std::vector<eot_mod_info> g_mods;
+std::string g_remove_armed;
 int32_t g_import_state = EOT_MODS_IDLE;
-int32_t g_import_slot = -1;
-std::string g_import_message;
-int32_t g_message_slot = -1;
+std::string g_mods_message;
 bool g_mods_changed = false;
+bool g_prompts_sent = false;
 
 bool ImportIdle() { return g_import_state == EOT_MODS_IDLE; }
 
-void RebuildSlotRows() {
+void RefreshMods() {
+  g_mods.clear();
   const mods::Host &api = mods::Api();
-  g_mod_rows.clear();
-  for (int32_t i = 0; i < EOT_MOD_SLOT_COUNT; ++i) {
-    if (!api.slot || !api.slot(i, &g_slot_info[i]))
-      g_slot_info[i] = eot_mod_slot_info{};
-    if (g_slot_action[i].empty() || (g_slot_action[i] == kActionRestore && !g_slot_info[i].installed))
-      g_slot_action[i] = kActionImport;
-    g_mod_rows.push_back({.label = kSlotRows[i].label,
-                          .description = kSlotRows[i].description,
-                          .choices = g_slot_info[i].installed ? std::span<const Choice>(kImportRestore)
-                                                              : std::span<const Choice>(kImportOnly),
-                          .restart = true,
-                          .enabled = ImportIdle,
-                          .slot = i});
+  if (!api.count || !api.get)
+    return;
+  const int32_t count = api.count();
+  for (int32_t i = 0; i < count; ++i) {
+    eot_mod_info info;
+    if (api.get(i, &info))
+      g_mods.push_back(info);
   }
-  g_mods_page.settings = g_mod_rows;
+}
+
+std::string Narrow(std::string_view utf8) {
+  std::string out;
+  for (size_t i = 0; i < utf8.size();) {
+    const unsigned char c = static_cast<unsigned char>(utf8[i]);
+    if (c < 0x80) {
+      out.push_back(static_cast<char>(c));
+      ++i;
+    } else if ((c & 0xE0) == 0xC0 && i + 1 < utf8.size()) {
+      const uint32_t code = ((c & 0x1Fu) << 6) | (static_cast<unsigned char>(utf8[i + 1]) & 0x3Fu);
+      out.push_back(code < 0x100 ? static_cast<char>(code) : '?');
+      i += 2;
+    } else {
+      out.push_back('?');
+      i += (c & 0xF0) == 0xF0 ? 4 : (c & 0xE0) == 0xE0 ? 3 : 1;
+    }
+  }
+  return out;
 }
 
 constexpr uint32_t kRetailCount = 5;
@@ -543,6 +581,7 @@ constexpr uint32_t kComponentConfigOff = 36;
 constexpr uint32_t kInputAccept = 9;
 constexpr uint32_t kInputBack = 10;
 constexpr uint32_t kInputReset = 18;
+constexpr uint32_t kInputRemove = 17;
 constexpr uint32_t kInputAxisX = 7;
 constexpr uint32_t kInputAxisY = 8;
 constexpr uint32_t kPadMask = 1;
@@ -596,6 +635,7 @@ constexpr float kStartScale = 0.1f;
 }
 
 constexpr float kTextScale = 1.1f;
+constexpr float kHeaderScale = 0.7f;
 constexpr uint32_t kTextWndSetScale = 18;
 constexpr uint32_t kTextWndGetXYScale = 67;
 constexpr uint32_t kInfoTitleFits = 20;
@@ -622,6 +662,11 @@ int g_held_dir = 0;
 struct Windows {
   uint32_t panel = hud::kNoWindow;
   uint32_t row[kRows] = {};
+  uint32_t name[kRows] = {};
+  uint32_t creator[kRows] = {};
+  uint32_t kind[kRows] = {};
+  uint32_t state[kRows] = {};
+  uint32_t header[4] = {};
   uint32_t scroll_up = hud::kNoWindow;
   uint32_t scroll_down = hud::kNoWindow;
   uint32_t info_title = hud::kNoWindow;
@@ -763,9 +808,10 @@ bool Enabled(const Setting &s) { return !s.enabled || s.enabled(); }
 
 int CurrentChoice(const Setting &s) {
   const std::string value = Value(s);
-  for (size_t i = 0; i < s.choices.size(); ++i) {
-    const bool same = s.numeric ? std::fabs(Number(s.choices[i].value) - Number(value)) < 1e-4
-                                : value == s.choices[i].value;
+  const std::span<const Choice> choices = Choices(s);
+  for (size_t i = 0; i < choices.size(); ++i) {
+    const bool same = s.numeric ? std::fabs(Number(choices[i].value) - Number(value)) < 1e-4
+                                : value == choices[i].value;
     if (same)
       return static_cast<int>(i);
   }
@@ -778,8 +824,9 @@ int NearestChoice(const Setting &s) {
   const double have = Number(Value(s));
   int best = 0;
   double best_gap = 1e300;
-  for (size_t i = 0; i < s.choices.size(); ++i) {
-    const double gap = std::fabs(Number(s.choices[i].value) - have);
+  const std::span<const Choice> choices = Choices(s);
+  for (size_t i = 0; i < choices.size(); ++i) {
+    const double gap = std::fabs(Number(choices[i].value) - have);
     if (gap < best_gap) {
       best_gap = gap;
       best = static_cast<int>(i);
@@ -788,26 +835,10 @@ int NearestChoice(const Setting &s) {
   return best;
 }
 
-const char *ImportValueText(const Setting &s) {
-  if (s.slot < 0 || s.slot != g_import_slot)
-    return nullptr;
-  switch (g_import_state) {
-  case EOT_MODS_CHOOSING:
-    return "REEOT_VAL_CHOOSING";
-  case EOT_MODS_IMPORTING:
-    return "REEOT_VAL_IMPORTING";
-  default:
-    return nullptr;
-  }
-}
-
 void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, const Setting &s) {
   const int index = CurrentChoice(s);
-  const char *busy = ImportValueText(s);
-  const char *text = busy                             ? busy
-                     : !Enabled(s) && s.disabled_text ? s.disabled_text
-                     : index >= 0                     ? s.choices[static_cast<size_t>(index)].text
-                                                      : nullptr;
+  const Choice *choice = index >= 0 ? &Choices(s)[static_cast<size_t>(index)] : nullptr;
+  const char *text = !Enabled(s) && s.disabled_text ? s.disabled_text : choice ? choice->text : nullptr;
   if (text) {
     PPCContext call = ctx;
     call.r3.u32 = control + ctl::kChoiceValue;
@@ -815,7 +846,8 @@ void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, con
     __imp__eot_TextWnd_SetStringHandle(call, base);
     return;
   }
-  SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue), Value(s).c_str());
+  SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue),
+          choice && choice->literal ? choice->literal : Value(s).c_str());
 }
 
 void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Setting &s, bool selected) {
@@ -824,11 +856,13 @@ void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Set
   call.r3.u32 = control;
   call.r4.u32 = StringHandle(ctx, base, s.label);
   __imp__eot_MultiValueControl_SetLabel(call, base);
-  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceLeft), s.choices.size() > 1);
-  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceRight), s.choices.size() > 1);
-  const uint32_t count = std::min<uint32_t>(static_cast<uint32_t>(s.choices.size()), ctl::kChoiceHandleSlots);
+  const std::span<const Choice> choices = Choices(s);
+  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceLeft), choices.size() > 1);
+  hud::Activate(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceRight), choices.size() > 1);
+  const uint32_t count = std::min<uint32_t>(static_cast<uint32_t>(choices.size()), ctl::kChoiceHandleSlots);
   for (uint32_t i = 0; i < count; ++i)
-    eot::mem::store<uint32_t>(control + ctl::kChoiceHandles + i * 4, StringHandle(ctx, base, s.choices[i].text));
+    eot::mem::store<uint32_t>(control + ctl::kChoiceHandles + i * 4,
+                              choices[i].text ? StringHandle(ctx, base, choices[i].text) : 0);
   eot::mem::store<uint32_t>(control + ctl::kChoiceCount, count);
   ShowChoiceValue(ctx, base, control, s);
   call = ctx;
@@ -838,12 +872,13 @@ void BindChoiceRow(const PPCContext &ctx, uint8_t *base, uint32_t row, const Set
 }
 
 bool StepChoice(const Setting &s, int step) {
-  const int count = static_cast<int>(s.choices.size());
+  const std::span<const Choice> choices = Choices(s);
+  const int count = static_cast<int>(choices.size());
   int index = CurrentChoice(s);
   if (index < 0)
     index = NearestChoice(s) - (step > 0 ? 1 : 0);
   index = ((index + step) % count + count) % count;
-  return SetValue(s, s.choices[static_cast<size_t>(index)].value);
+  return SetValue(s, choices[static_cast<size_t>(index)].value);
 }
 
 int SliderStops(const Setting &s) {
@@ -992,28 +1027,12 @@ void FitInfoTitle(const PPCContext &ctx, uint8_t *base, uint32_t length) {
                 factor < 1.0f ? w.info_title_scale * factor : 0.0f);
 }
 
-std::string SlotInfoText(const PPCContext &ctx, uint8_t *base, const Setting &s) {
-  std::string text = s.slot == g_message_slot && !g_import_message.empty()
-                         ? g_import_message
-                         : ResolveText(ctx, base, StringHandle(ctx, base, s.description));
-  const eot_mod_slot_info &info = g_slot_info[s.slot];
-  if (info.note[0])
-    text += std::string("\n\n") + info.note;
-  text += "\n\n";
-  text += info.installed ? ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_IN_PLACE")) + " " + info.files
-                         : ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_NOTHING"));
-  return text;
-}
-
 void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   const Windows &w = CurrentWindows();
   const uint32_t label = StringHandle(ctx, base, s.label);
   FitInfoTitle(ctx, base, StringLength(ctx, base, label));
   SetStringHandle(ctx, base, w.info_title, label);
-  if (s.slot >= 0)
-    SetLine(ctx, base, w.info_text, SlotInfoText(ctx, base, s).c_str());
-  else
-    SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, s.description));
+  SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, s.description));
   hud::Activate(ctx, base, w.info_value, s.IsSlider());
   if (s.IsSlider()) {
     char now[32];
@@ -1023,7 +1042,52 @@ void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   hud::Activate(ctx, base, w.info_note, s.restart);
 }
 
+void ShowModRows(const PPCContext &ctx, uint8_t *base) {
+  const Windows &w = CurrentWindows();
+  const uint32_t count = static_cast<uint32_t>(g_mods.size());
+  static const char *const kKindStrings[] = {"REEOT_KIND_PACKAGE", "REEOT_KIND_REPLACEMENT", "REEOT_KIND_MODEL"};
+  for (uint32_t row = 0; row < kRows; ++row) {
+    const uint32_t index = g_first + row;
+    const bool used = index < count;
+    for (const uint32_t *column : {w.row, w.name, w.creator, w.kind, w.state})
+      hud::Activate(ctx, base, column[row], used);
+    if (!used)
+      continue;
+    const eot_mod_info &mod = g_mods[index];
+    SetLine(ctx, base, w.name[row], Narrow(mod.name).c_str());
+    SetLine(ctx, base, w.creator[row], Narrow(mod.creator).c_str());
+    const uint32_t kind = mod.kind >= 0 && mod.kind < 3 ? static_cast<uint32_t>(mod.kind) : 1;
+    SetStringHandle(ctx, base, w.kind[row], StringHandle(ctx, base, kKindStrings[kind]));
+    SetStringHandle(ctx, base, w.state[row], StringHandle(ctx, base, mod.enabled ? "REEOT_VAL_ON" : "REEOT_VAL_OFF"));
+    const uint8_t *shade = index == g_cursor ? kShadeSelected : mod.enabled ? kShadeIdle : kShadeDisabled;
+    for (const uint32_t *column : {w.name, w.creator, w.kind, w.state})
+      SetShade(ctx, base, column[row], shade);
+  }
+  hud::Activate(ctx, base, w.scroll_up, g_first > 0);
+  hud::Activate(ctx, base, w.scroll_down, g_first + kRows < count);
+  std::string footer;
+  if (g_import_state == EOT_MODS_CHOOSING || g_import_state == EOT_MODS_IMPORTING)
+    footer = ResolveText(ctx, base, StringHandle(ctx, base, g_import_state == EOT_MODS_CHOOSING
+                                                                ? "REEOT_MODS_CHOOSING"
+                                                                : "REEOT_MODS_IMPORTING"));
+  else if (!g_mods_message.empty())
+    footer = Narrow(g_mods_message);
+  else if (count == 0)
+    footer = ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_EMPTY"));
+  else if (g_cursor < count && !g_remove_armed.empty() && g_remove_armed == g_mods[g_cursor].folder)
+    footer = ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_MODS_REMOVE_ARMED"));
+  else if (g_cursor < count)
+    footer = Narrow(g_mods[g_cursor].file) + ": " + Narrow(g_mods[g_cursor].status);
+  if (g_mods_changed && g_mods_message.empty())
+    footer += " " + ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_DESC_RESTART"));
+  SetLine(ctx, base, w.info_text, footer.c_str());
+}
+
 void ShowRows(const PPCContext &ctx, uint8_t *base) {
+  if (g_page->table) {
+    ShowModRows(ctx, base);
+    return;
+  }
   const Windows &w = CurrentWindows();
   const uint32_t count = static_cast<uint32_t>(g_page->settings.size());
   for (uint32_t row = 0; row < kRows; ++row) {
@@ -1049,6 +1113,16 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
   const Layout &layout = CurrentLayout();
   if (w.built)
     return;
+  if (&layout == &kTable) {
+    for (uint32_t row = 0; row < kRows; ++row)
+      for (const uint32_t *column : {w.name, w.creator, w.kind, w.state})
+        ScaleText(ctx, base, column[row], kTextScale);
+    for (uint32_t i = 0; i < 4; ++i)
+      ScaleText(ctx, base, w.header[i], kHeaderScale);
+    w.built = true;
+    EOT_INFO("[menu] the mods table's {} strips sized", kRows);
+    return;
+  }
   const uint32_t handles = g_block + kBlockHandles;
   eot::mem::store<uint32_t>(handles, 0xFFFFFFFFu);
   eot::mem::store<uint32_t>(handles + 4, 0xFFFFFFFFu);
@@ -1103,6 +1177,25 @@ bool FindWindows(const PPCContext &ctx, uint8_t *base) {
     std::snprintf(name, sizeof(name), "%s%02u", layout.row_prefix, i);
     w.row[i] = hud::Find(ctx, base, NameCrc(name));
   }
+  if (&layout == &kTable) {
+    struct Column {
+      const char *prefix;
+      uint32_t *slots;
+    };
+    const Column columns[] = {{"Reeot_ModsName", w.name},
+                              {"Reeot_ModsCreator", w.creator},
+                              {"Reeot_ModsKind", w.kind},
+                              {"Reeot_ModsState", w.state},
+                              {"Reeot_ModsHead", w.header}};
+    for (const Column &column : columns) {
+      const uint32_t count = column.slots == w.header ? 4 : kRows;
+      for (uint32_t i = 0; i < count; ++i) {
+        char name[48];
+        std::snprintf(name, sizeof(name), "%s%02u", column.prefix, i);
+        column.slots[i] = hud::Find(ctx, base, NameCrc(name));
+      }
+    }
+  }
   w.found = w.panel != hud::kNoWindow;
   if (!w.found)
     EOT_WARN("[menu] {} is not there; is ReeotMenu.pkz mounted?", layout.panel);
@@ -1147,14 +1240,14 @@ void FillConfig(uint32_t c, uint32_t window, uint32_t title) {
 void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   CallScope scope(ctx, base);
   g_page = &page;
-  if (page.list) {
-    g_import_message.clear();
-    g_message_slot = -1;
+  RefreshLanguageChoices();
+  if (page.table) {
+    g_mods_message.clear();
+    g_remove_armed.clear();
     g_mods_changed = false;
+    g_prompts_sent = false;
     g_import_state = mods::Api().import_state ? mods::Api().import_state(nullptr, 0) : EOT_MODS_IDLE;
-    for (std::string &action : g_slot_action)
-      action = kActionImport;
-    RebuildSlotRows();
+    RefreshMods();
     if (!mods::Api().Bound())
       EOT_WARN("[menu] the host has no mods entry points; the Mods page can do nothing");
   }
@@ -1184,12 +1277,13 @@ void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   __imp__eot_YesNoWindow_Open(call, base);
   g_popup_id = call.r3.u32;
   g_popup_open = g_popup_id != 0xFFFFFFFFu;
-  EOT_INFO("[menu] {} page: {} settings, panel {:#x} -> pop-up id {:#x}", page.label, page.settings.size(),
+  EOT_INFO("[menu] {} page: {} {}, panel {:#x} -> pop-up id {:#x}", page.label,
+           page.table ? g_mods.size() : page.settings.size(), page.table ? "mods" : "settings",
            CurrentWindows().panel, g_popup_id);
 }
 
 bool RestartDue() {
-  if (g_page->list)
+  if (g_page->table)
     return g_mods_changed;
   for (size_t i = 0; i < g_page->settings.size() && i < g_opened_with.size(); ++i)
     if (g_page->settings[i].restart && Value(g_page->settings[i]) != g_opened_with[i])
@@ -1252,13 +1346,15 @@ void Close(const PPCContext &ctx, uint8_t *base, bool accept) {
       EOT_WARN("[menu] eot_save_settings is not registered; the settings hold until exit");
   }
   eot::mem::store<uint32_t>(g_config + cfg::kResult, result);
-  PlayCue(ctx, base, accept && !g_page->list ? kCueAccept : kCueBack);
+  PlayCue(ctx, base, accept && !g_page->table ? kCueAccept : kCueBack);
   if (restart)
     AskRestart(ctx, base);
 }
 
+uint32_t RowCount() { return static_cast<uint32_t>(g_page->table ? g_mods.size() : g_page->settings.size()); }
+
 void MoveCursor(const PPCContext &ctx, uint8_t *base, int step) {
-  const int count = static_cast<int>(g_page->settings.size());
+  const int count = static_cast<int>(RowCount());
   const int next = static_cast<int>(g_cursor) + step;
   if (next < 0 || next >= count)
     return;
@@ -1290,35 +1386,62 @@ void ChangeValue(const PPCContext &ctx, uint8_t *base, int step) {
   ShowRows(ctx, base);
 }
 
-void ActivateRow(const PPCContext &ctx, uint8_t *base) {
-  const Setting &s = g_page->settings[g_cursor];
+void NoteModsResult(const PPCContext &ctx, uint8_t *base, bool ok, const char *message) {
+  g_mods_message = message;
+  g_mods_changed = g_mods_changed || ok;
+  g_remove_armed.clear();
+  PlayCue(ctx, base, ok ? kCueAccept : kCueDenied);
+  EOT_INFO("[menu] mods: {}", g_mods_message);
+  RefreshMods();
+  if (g_cursor >= g_mods.size())
+    g_cursor = g_mods.empty() ? 0 : static_cast<uint32_t>(g_mods.size()) - 1;
+  if (g_first > g_cursor)
+    g_first = g_cursor;
+  ShowRows(ctx, base);
+}
+
+void ToggleMod(const PPCContext &ctx, uint8_t *base) {
   const mods::Host &api = mods::Api();
-  if (s.slot < 0 || !ImportIdle() || !api.Bound()) {
+  if (g_cursor >= g_mods.size() || !ImportIdle() || !api.Bound()) {
     PlayCue(ctx, base, kCueDenied);
     return;
   }
-  if (Value(s) == kActionRestore) {
-    char message[512];
-    const bool ok = api.restore(s.slot, message, sizeof(message)) != 0;
-    g_import_message = message;
-    g_message_slot = s.slot;
-    g_mods_changed = g_mods_changed || ok;
-    PlayCue(ctx, base, ok ? kCueAccept : kCueDenied);
-    EOT_INFO("[menu] mods: {}", g_import_message);
-    RebuildSlotRows();
+  const eot_mod_info &mod = g_mods[g_cursor];
+  char message[512];
+  const bool ok = api.set_enabled(mod.folder, mod.enabled ? 0 : 1, message, sizeof(message)) != 0;
+  NoteModsResult(ctx, base, ok, message);
+}
+
+void RemoveMod(const PPCContext &ctx, uint8_t *base) {
+  const mods::Host &api = mods::Api();
+  if (g_cursor >= g_mods.size() || !ImportIdle() || !api.Bound()) {
+    PlayCue(ctx, base, kCueDenied);
+    return;
+  }
+  const eot_mod_info &mod = g_mods[g_cursor];
+  if (g_remove_armed != mod.folder) {
+    g_remove_armed = mod.folder;
+    g_mods_message.clear();
+    PlayCue(ctx, base, kCueChange);
     ShowRows(ctx, base);
     return;
   }
-  if (!api.import_begin(s.slot)) {
+  char message[512];
+  const bool ok = api.remove(mod.folder, message, sizeof(message)) != 0;
+  NoteModsResult(ctx, base, ok, message);
+}
+
+void AddMod(const PPCContext &ctx, uint8_t *base) {
+  const mods::Host &api = mods::Api();
+  if (!ImportIdle() || !api.Bound() || !api.add_begin()) {
     PlayCue(ctx, base, kCueDenied);
     return;
   }
-  g_import_message.clear();
-  g_message_slot = -1;
+  g_mods_message.clear();
+  g_remove_armed.clear();
   g_import_state = EOT_MODS_CHOOSING;
-  g_import_slot = s.slot;
   PlayCue(ctx, base, kCueAccept);
-  EOT_INFO("[menu] mods: the file browser is up for slot {}", s.slot);
+  EOT_INFO("[menu] mods: the file browser is up");
   ShowRows(ctx, base);
 }
 
@@ -1331,19 +1454,34 @@ void PollImport(const PPCContext &ctx, uint8_t *base) {
     return;
   g_import_state = state;
   if (state == EOT_MODS_DONE || state == EOT_MODS_FAILED) {
-    g_import_message = message;
-    g_message_slot = g_import_slot;
-    g_mods_changed = g_mods_changed || state == EOT_MODS_DONE;
     mods::Api().import_acknowledge();
     g_import_state = EOT_MODS_IDLE;
-    g_import_slot = -1;
-    RebuildSlotRows();
-    PlayCue(ctx, base, state == EOT_MODS_DONE ? kCueAccept : kCueDenied);
-    EOT_INFO("[menu] mods: {}", g_import_message);
-  } else if (state == EOT_MODS_IDLE) {
-    g_import_slot = -1;
+    NoteModsResult(ctx, base, state == EOT_MODS_DONE, message);
+    return;
   }
   ShowRows(ctx, base);
+}
+
+void ShowTablePrompts(const PPCContext &ctx, uint8_t *base) {
+  if (g_prompts_sent)
+    return;
+  g_prompts_sent = true;
+  OverridePrompt(kPromptA, "REEOT_PROMPT_TOGGLE");
+  OverridePrompt(kPromptX, "REEOT_PROMPT_REMOVE");
+  OverridePrompt(kPromptY, "REEOT_PROMPT_ADD");
+  SendPromptMask(ctx, base, 0, (1u << kPromptA) | (1u << kPromptBack) | (1u << kPromptX) | (1u << kPromptY),
+                 g_block + kBlockColour);
+}
+
+void RestoreTablePrompts(const PPCContext &ctx, uint8_t *base) {
+  if (!g_prompts_sent)
+    return;
+  g_prompts_sent = false;
+  constexpr uint32_t kRetailPopupMask = 0x50020;
+  SendPromptMask(ctx, base, 0, kRetailPopupMask, g_block + kBlockColour);
+  RestorePrompt(kPromptA);
+  RestorePrompt(kPromptX);
+  RestorePrompt(kPromptY);
 }
 
 void PollHorizontal(const PPCContext &ctx, uint8_t *base, double dt) {
@@ -1476,25 +1614,35 @@ REX_HOOK_RAW(eot_GameOptionsPopup_OnUpdate) {
   CallScope scope(ctx, base);
   const double dt = ctx.f1.f64;
   ctx.r3.u32 = 0;
-  if (g_page->list)
+  if (g_page->table) {
+    ShowTablePrompts(ctx, base);
     PollImport(ctx, base);
-  if (Pressed(ctx, base, kInputAccept)) {
-    if (g_page->list) {
-      ActivateRow(ctx, base);
-    } else {
+    if (Pressed(ctx, base, kInputAccept)) {
+      ToggleMod(ctx, base);
+    } else if (Pressed(ctx, base, kInputBack)) {
       Close(ctx, base, true);
       ctx.r3.u32 = 1;
+    } else if (Pressed(ctx, base, kInputRemove)) {
+      RemoveMod(ctx, base);
+    } else if (Pressed(ctx, base, kInputReset)) {
+      AddMod(ctx, base);
+    } else if (Pressed(ctx, base, kInputAxisY)) {
+      g_remove_armed.clear();
+      MoveCursor(ctx, base, Axis(ctx, base, kInputAxisY) > 0.0 ? 1 : -1);
     }
+    return;
+  }
+  if (Pressed(ctx, base, kInputAccept)) {
+    Close(ctx, base, true);
+    ctx.r3.u32 = 1;
   } else if (Pressed(ctx, base, kInputBack)) {
-    Close(ctx, base, g_page->list);
+    Close(ctx, base, false);
     ctx.r3.u32 = 1;
   } else if (Pressed(ctx, base, kInputReset)) {
-    if (!g_page->list) {
-      for (const Setting &s : g_page->settings)
-        ResetValue(s);
-      PlayCue(ctx, base, kCueChange);
-      ShowRows(ctx, base);
-    }
+    for (const Setting &s : g_page->settings)
+      ResetValue(s);
+    PlayCue(ctx, base, kCueChange);
+    ShowRows(ctx, base);
   } else if (Pressed(ctx, base, kInputAxisY)) {
     MoveCursor(ctx, base, Axis(ctx, base, kInputAxisY) > 0.0 ? 1 : -1);
   } else {
@@ -1509,6 +1657,7 @@ REX_HOOK_RAW(eot_WindowComponent_Teardown) {
   CallScope scope(ctx, base);
   if (config && config == g_config) {
     g_popup_open = false;
+    RestoreTablePrompts(ctx, base);
     EOT_INFO("[menu] {} page closed (id {:#x})", g_page ? g_page->label : "?", g_popup_id);
   } else if (config && config == g_restart_config && g_restart_asked) {
     g_restart_asked = false;
@@ -1643,9 +1792,46 @@ void ApplyRewrites() {
   }
 }
 
+uint32_t g_prompt_held[kPromptCount] = {};
+
 }
 
 REX_HOOK_RAW(eot_HUDSavegameSelect_Construct) {
   __imp__eot_HUDSavegameSelect_Construct(ctx, base);
   ApplyRewrites();
+}
+
+namespace eot::ui {
+
+void OverridePrompt(uint32_t id, const char *name) {
+  if (id >= kPromptCount)
+    return;
+  const uint32_t slot = kPromptTable + id * 4;
+  if (!g_prompt_held[id])
+    g_prompt_held[id] = eot::mem::load<uint32_t>(slot);
+  eot::mem::store<uint32_t>(slot, eot::ui::NameCrc(name));
+}
+
+void RestorePrompt(uint32_t id) {
+  if (id >= kPromptCount || !g_prompt_held[id])
+    return;
+  eot::mem::store<uint32_t>(kPromptTable + id * 4, g_prompt_held[id]);
+  g_prompt_held[id] = 0;
+}
+
+void SendPromptMask(const PPCContext &ctx, uint8_t *base, uint32_t zone, uint32_t mask, uint32_t scratch) {
+  constexpr uint32_t kApiLogicPtr = 0x883CA22C;
+  constexpr uint32_t kHudsDataPtr = 0x883CA288;
+  constexpr uint32_t kHelperOffset = 0xA4;
+  constexpr uint32_t kSetMaskMessage = 0xDCDC2E9F;
+  const uint32_t api = eot::mem::load<uint32_t>(kApiLogicPtr);
+  const uint32_t huds = eot::mem::load<uint32_t>(kHudsDataPtr);
+  if (!api || !huds || !scratch)
+    return;
+  const uint32_t helper = eot::mem::load<uint32_t>(huds + kHelperOffset);
+  eot::mem::store<uint32_t>(scratch, zone);
+  eot::mem::store<uint32_t>(scratch + 4, mask);
+  hud::CallAt(ctx, base, eot::mem::load<uint32_t>(api), helper, 0, kSetMaskMessage, scratch);
+}
+
 }

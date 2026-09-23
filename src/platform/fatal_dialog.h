@@ -23,6 +23,8 @@ void ShowInfo(std::string_view title, std::string_view body);
 
 bool ShowConfirm(std::string_view title, std::string_view body);
 
+bool ShowQuestion(std::string_view title, std::string_view body);
+
 bool ShowFatalErrorWithAction(std::string_view title, std::string_view body, std::string_view action,
                               rex::ui::Window *parent);
 
