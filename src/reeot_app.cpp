@@ -40,6 +40,7 @@
 #include "platform/update_check.h"
 #include "installer/uninstall.h"
 #include "mods/mod_manager.h"
+#include "mods/mods_cli.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "platform/crash_handler.h"
@@ -197,6 +198,10 @@ std::unique_ptr<rex::ui::WindowedApp> ReeotApp::Create(rex::ui::WindowedAppConte
 
 ReeotApp::ReeotApp(rex::ui::WindowedAppContext &ctx) : rex::ReXApp(ctx, "reeot", PPCImageConfig) {
   ApplyReeotCvarDefaults();
+  AddPositionalOption("command");
+  AddPositionalOption("arg1");
+  AddPositionalOption("arg2");
+  AddPositionalOption("arg3");
 }
 
 ReeotApp::~ReeotApp() = default;
@@ -204,7 +209,7 @@ ReeotApp::~ReeotApp() = default;
 std::optional<fs::path> ReeotApp::NamedGameFolder() const {
   std::string named = REXCVAR_GET(game_data_root);
   if (named.empty())
-    if (auto positional = GetArgument("game_directory"))
+    if (auto positional = GetArgument("command"); positional && *positional != eot::mods::kCliCommand)
       named = *positional;
   if (named.empty() || !GameFolderHolds(named))
     return std::nullopt;
@@ -282,6 +287,22 @@ void ReeotApp::OnPostInitLogging() {
     eot::installer::RunUninstall();
     rex::FlushLogging();
     std::_Exit(0);
+  }
+
+  if (auto command = GetArgument("command"); command && *command == eot::mods::kCliCommand) {
+    std::vector<std::string> args;
+    for (const char *name : {"arg1", "arg2", "arg3"})
+      if (auto arg = GetArgument(name))
+        args.push_back(*arg);
+    if (!install_root_.empty()) {
+      fs::path game = install_root_ / "game";
+      if (auto named = NamedGameFolder())
+        game = *named;
+      eot::mods::Initialize(install_root_, game, profile_root_);
+    }
+    const int code = eot::mods::RunCli(args);
+    rex::FlushLogging();
+    std::_Exit(code);
   }
 
 #ifdef REEOT_BUILD_INSTALLER

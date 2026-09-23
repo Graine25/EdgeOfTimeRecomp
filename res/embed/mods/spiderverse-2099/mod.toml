@@ -1,0 +1,11 @@
+# The Spider-Man 2099 of Across the Spider-Verse as a costume: a package
+# in the free downloadable-content slot (_DLC002), published with the
+# game's own content and picked from the costume menu.
+name = "2099 Across the Spider-Verse"
+creator = "Graine25"
+version = "1.0"
+description = "Miguel O'Hara's suit from Across the Spider-Verse, on the game's own rig."
+type = "model"
+
+[model]
+file = "_DLC002.pak"

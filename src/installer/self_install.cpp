@@ -15,7 +15,6 @@
 #include "embedded_menu_package.h"
 #include "embedded_achievements_package.h"
 #include "embedded_icons_package.h"
-#include "embedded_russian_package.h"
 #include "embedded_package.h"
 #include "goliath/ui/menu_handles.h"
 #include "installer/program_files.h"
@@ -95,7 +94,7 @@ void WriteAsset(const EmbeddedAsset &asset, const fs::path &path, size_t &writte
 void WritePortFiles(const fs::path &game) {
   size_t written = 0;
   const EmbeddedAsset packages[] = {EmbeddedPortPackage(), EmbeddedMenuPackage(), EmbeddedAchievementsPackage(),
-                                    EmbeddedIconsPackage(), EmbeddedRussianPackage()};
+                                    EmbeddedIconsPackage()};
   for (const EmbeddedAsset &package : packages) {
     const fs::path name = fs::path(std::string(package.name)).filename();
     WriteAsset(package, game / "Data" / eot::ui::kReeotPackageFolder / name, written);
