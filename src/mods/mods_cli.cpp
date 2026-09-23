@@ -1,5 +1,7 @@
 #include "mods/mods_cli.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <filesystem>
 #include <format>
@@ -9,6 +11,7 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#include <shellapi.h>
 #endif
 
 #include <rex/cvar.h>
@@ -20,12 +23,19 @@ namespace eot::mods {
 
 namespace {
 
+constexpr int kDone = 0;
+constexpr int kFailed = 1;
+constexpr int kUsage = 2;
+
+bool g_attached = false;
+
 void AttachConsole() {
 #if defined(_WIN32)
   const HANDLE out = ::GetStdHandle(STD_OUTPUT_HANDLE);
   if (out != nullptr && out != INVALID_HANDLE_VALUE)
     return;
   if (::AttachConsole(ATTACH_PARENT_PROCESS)) {
+    g_attached = true;
     FILE *stream = nullptr;
     freopen_s(&stream, "CONOUT$", "w", stdout);
     freopen_s(&stream, "CONOUT$", "w", stderr);
@@ -34,9 +44,32 @@ void AttachConsole() {
 #endif
 }
 
-void Print(const std::string &text) {
-  std::fputs(text.c_str(), stdout);
-  std::fputs("\n", stdout);
+void ReturnToPrompt() {
+#if defined(_WIN32)
+  if (!g_attached)
+    return;
+  const HANDLE in = ::CreateFileW(L"CONIN$", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                  OPEN_EXISTING, 0, nullptr);
+  if (in == INVALID_HANDLE_VALUE)
+    return;
+  INPUT_RECORD keys[2] = {};
+  for (int i = 0; i < 2; ++i) {
+    keys[i].EventType = KEY_EVENT;
+    keys[i].Event.KeyEvent.bKeyDown = i == 0 ? TRUE : FALSE;
+    keys[i].Event.KeyEvent.wRepeatCount = 1;
+    keys[i].Event.KeyEvent.wVirtualKeyCode = VK_RETURN;
+    keys[i].Event.KeyEvent.wVirtualScanCode = static_cast<WORD>(::MapVirtualKeyW(VK_RETURN, MAPVK_VK_TO_VSC));
+    keys[i].Event.KeyEvent.uChar.UnicodeChar = L'\r';
+  }
+  DWORD written = 0;
+  ::WriteConsoleInputW(in, keys, 2, &written);
+  ::CloseHandle(in);
+#endif
+}
+
+void Print(std::string_view text) {
+  std::fwrite(text.data(), 1, text.size(), stdout);
+  std::fputc('\n', stdout);
   std::fflush(stdout);
 }
 
@@ -49,21 +82,63 @@ bool AskYesNo(const std::string &question) {
   return line[0] == 'y' || line[0] == 'Y';
 }
 
-void OfferLanguages() {
-  for (const LanguageMod &mod : LanguageMods()) {
-    if (mod.asked)
-      continue;
-    Print(std::format("{} brings the game in {}.", mod.name, mod.language_name));
-    if (AskYesNo(std::format("Start the game in {} from now on?", mod.language_name))) {
-      rex::cvar::SetFlagByName("eot_language", mod.tag);
-      rex::cvar::InvokeCommand("eot_save_settings", "");
-      Print(std::format("The language is {} (eot_language = {}); Options > Game changes it.", mod.language_name,
-                        mod.tag));
-    } else {
-      Print("The language is unchanged; the row under Options > Game offers it.");
+std::string Utf8(const std::filesystem::path &path) {
+  const std::u8string text = path.u8string();
+  return std::string(text.begin(), text.end());
+}
+
+std::filesystem::path PathFromUtf8(const std::string &text) {
+  return std::filesystem::path(std::u8string(text.begin(), text.end()));
+}
+
+std::string Lower(std::string text) {
+  for (char &c : text)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return text;
+}
+
+std::vector<std::string> WordsAfterCommand(const std::vector<std::string> &positional) {
+  std::vector<std::string> words;
+#if defined(_WIN32)
+  int argc = 0;
+  wchar_t **argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+  if (argv) {
+    bool after = false;
+    for (int i = 1; i < argc; ++i) {
+      const int n = ::WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, nullptr, 0, nullptr, nullptr);
+      std::string word(n > 0 ? static_cast<size_t>(n - 1) : 0, '\0');
+      if (n > 0)
+        ::WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, word.data(), n, nullptr, nullptr);
+      if (after)
+        words.push_back(word);
+      else if (Lower(word) == kCliCommand)
+        after = true;
     }
-    LanguageAsked(mod.folder);
+    ::LocalFree(argv);
+    if (after)
+      return words;
   }
+#endif
+  return positional;
+}
+
+bool IsHelpWord(std::string_view word) {
+  const std::string w = Lower(std::string(word));
+  return w == "--help" || w == "-h" || w == "--h" || w == "-?" || w == "/?" || w == "help";
+}
+
+constexpr std::string_view kCommands =
+    "  reeot mods list              every mod: on or off, name, creator, kind, folder, file\n"
+    "  reeot mods add <path>        add a mod: a mod folder (or its mod.toml), or a package file\n"
+    "  reeot mods remove <name>     take the mod's file back and delete its folder\n"
+    "  reeot mods enable <name>     switch a mod on\n"
+    "  reeot mods disable <name>    switch a mod off\n"
+    "  reeot mods folder            print where the mods live";
+
+void PrintUsage() {
+  Print("usage: reeot mods <command> [<argument>]\n");
+  Print(kCommands);
+  Print("\n<name> is a mod's folder under mods, or its name.");
 }
 
 std::string Padded(std::string text, size_t width) {
@@ -73,14 +148,9 @@ std::string Padded(std::string text, size_t width) {
   return text;
 }
 
-std::string Utf8(const std::filesystem::path &path) {
-  const std::u8string text = path.u8string();
-  return std::string(text.begin(), text.end());
-}
-
 void PrintTable(const std::vector<Mod> &mods) {
   if (mods.empty()) {
-    Print(std::format("No mods in {}.", Utf8(ModsDir())));
+    Print(std::format("No mods in {}. `reeot mods add <path>` adds one.", Utf8(ModsDir())));
     return;
   }
   size_t name_w = 4, creator_w = 7, folder_w = 6;
@@ -111,33 +181,60 @@ void PrintTable(const std::vector<Mod> &mods) {
                     Utf8(ModsDir())));
 }
 
-int Usage() {
-  Print("reeot mods                  the mods, on or off\n"
-        "reeot mods list\n"
-        "reeot mods add <path>       a folder with a mod.toml, or a package file on its own;\n"
-        "                            the name of one of the port's own mods puts it back\n"
-        "reeot mods remove <name>    the mod's file taken back and its folder deleted\n"
-        "reeot mods enable <name>\n"
-        "reeot mods disable <name>\n"
-        "reeot mods folder           where the mods live\n"
-        "\n"
-        "<name> is a mod's folder under mods/ or its name. A mod.toml names the mod, its creator\n"
-        "and its kind: package (a new package the game loads at boot: [package] file, id,\n"
-        "language), replacement (a package in place of one of the game's own: [replacement]\n"
-        "file), or model (a costume package published as downloadable content: [model] file).");
-  return 2;
+void OfferLanguages() {
+  for (const LanguageMod &mod : LanguageMods()) {
+    if (mod.asked)
+      continue;
+    Print(std::format("{} brings the game in {}.", mod.name, mod.language_name));
+    if (AskYesNo(std::format("Start the game in {} from now on?", mod.language_name))) {
+      rex::cvar::SetFlagByName("eot_language", mod.tag);
+      rex::cvar::InvokeCommand("eot_save_settings", "");
+      Print(std::format("The language is {} (eot_language = {}); Options > Game changes it.", mod.language_name,
+                        mod.tag));
+    } else {
+      Print("The language is unchanged; the row under Options > Game offers it.");
+    }
+    LanguageAsked(mod.folder);
+  }
+}
+
+bool NeedsArgument(const std::string &verb, const std::string &arg, const char *what) {
+  if (!arg.empty())
+    return false;
+  Print(std::format("reeot mods {} needs {}.", verb, what));
+  PrintUsage();
+  return true;
 }
 
 }
 
-int RunCli(const std::vector<std::string> &args) {
+static int Run(const std::vector<std::string> &positional);
+
+int RunCli(const std::vector<std::string> &positional) {
   AttachConsole();
+  const int code = Run(positional);
+  ReturnToPrompt();
+  return code;
+}
+
+static int Run(const std::vector<std::string> &positional) {
+  const std::vector<std::string> words = WordsAfterCommand(positional);
+  const std::string verb = words.empty() ? std::string() : Lower(words[0]);
+  const std::string arg = words.size() > 1 ? words[1] : std::string();
+
+  if (std::any_of(words.begin(), words.end(), [](const std::string &w) { return IsHelpWord(w); })) {
+    PrintUsage();
+    return kDone;
+  }
+  if (verb.empty()) {
+    PrintUsage();
+    return kUsage;
+  }
   if (!Ready()) {
     Print("No install: the game has not been installed on this machine (run reeot to install it).");
-    return 1;
+    return kFailed;
   }
-  const std::string verb = args.empty() ? "list" : args[0];
-  const std::string arg = args.size() > 1 ? args[1] : std::string();
+
   std::string message;
   bool ok = true;
   if (verb == "list") {
@@ -145,29 +242,31 @@ int RunCli(const std::vector<std::string> &args) {
   } else if (verb == "folder") {
     Print(Utf8(ModsDir()));
   } else if (verb == "add") {
-    if (arg.empty())
-      return Usage();
-    ok = Add(std::filesystem::absolute(std::filesystem::path(std::u8string(arg.begin(), arg.end()))), message);
+    if (NeedsArgument(verb, arg, "the path of a mod folder, its mod.toml, or a package file"))
+      return kUsage;
+    ok = Add(std::filesystem::absolute(PathFromUtf8(arg)), message);
     Print(message);
     if (ok)
       OfferLanguages();
   } else if (verb == "remove") {
-    if (arg.empty())
-      return Usage();
+    if (NeedsArgument(verb, arg, "the name of a mod"))
+      return kUsage;
     ok = Remove(arg, message);
     Print(message);
   } else if (verb == "enable" || verb == "disable") {
-    if (arg.empty())
-      return Usage();
+    if (NeedsArgument(verb, arg, "the name of a mod"))
+      return kUsage;
     ok = SetEnabled(arg, verb == "enable", message);
     Print(message);
     if (ok && verb == "enable")
       OfferLanguages();
   } else {
-    return Usage();
+    Print(std::format("reeot mods: {} is not a command.", words[0]));
+    PrintUsage();
+    return kUsage;
   }
   EOT_INFO("[mods] cli {} {}: {}", verb, arg, ok ? "ok" : message);
-  return ok ? 0 : 1;
+  return ok ? kDone : kFailed;
 }
 
 }
