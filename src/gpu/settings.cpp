@@ -1,13 +1,17 @@
 #include "gpu/settings.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <charconv>
+#include <cmath>
+#include <cstdlib>
+#include <string>
 #include <string_view>
 #include <system_error>
 
 #include <rex/cvar.h>
-#include <cstdlib>
-#include <string>
+
 #include "core/logging.h"
 
 REXCVAR_DEFINE_INT32(eot_trace_frames, 0, "EdgeOfTime/Debug", "Frames of D3D call tracing")
@@ -182,24 +186,43 @@ struct FullscreenWatch {
   }
 } g_fullscreen_watch;
 
+u32 PresetRows(std::string preset) {
+  for (char &c : preset)
+    c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  if (preset == "4k" || preset == "uhd")
+    return 2160;
+  if (preset == "2k" || preset == "qhd")
+    return 1440;
+  if (preset == "fhd")
+    return 1080;
+  if (preset == "hd")
+    return 720;
+  if (!preset.empty() && preset.back() == 'p')
+    preset.pop_back();
+  if (preset.empty() || preset.find_first_not_of("0123456789") != std::string::npos)
+    return 0;
+  const u32 rows = static_cast<u32>(std::strtoul(preset.c_str(), nullptr, 10));
+  return rows >= 360 && rows <= 4320 ? rows : 0;
+}
+
 f32 ComputeRenderScale() {
   const std::string preset = Settings::Resolution();
   u32 target_height = 0;
   if (!Settings::Fullscreen())
     target_height = g_auto_render_height;
-  else if (preset == "720p")
-    target_height = 720;
-  else if (preset == "1080p")
-    target_height = 1080;
-  else if (preset == "1440p")
-    target_height = 1440;
-  else if (preset == "2160p")
-    target_height = 2160;
   else if (preset == "display") {
     const u32 rows = g_display_height ? g_display_height : g_auto_render_height;
     target_height = std::max(
         kGuestRenderHeight,
         static_cast<u32>(std::lround(static_cast<f64>(rows) * Settings::DisplayScalePercent() / 100.0)));
+  } else if (preset != "native") {
+    target_height = PresetRows(preset);
+    if (target_height == 0) {
+      target_height = g_auto_render_height;
+      EOT_WARN("[gpu] eot_resolution \"{}\" is not a preset (native, 720p, 1080p, 1440p, 2160p, display); "
+               "rendering at the {} rows the display suggests",
+               preset, target_height);
+    }
   }
   const f64 scale = target_height != 0
                         ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
