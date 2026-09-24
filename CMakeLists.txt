@@ -219,9 +219,7 @@ set(REEOT_SOURCES
     src/gpu/resolve.cpp
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp
-    src/gpu/gpu_profiling.cpp
     src/gpu/gpu_timing.cpp
-    src/gpu/live_stats.cpp
     src/gpu/pipeline/pso_records.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/package_load.cpp

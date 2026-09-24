@@ -15,7 +15,6 @@
 #include "gpu/render_thread.h"
 #include "gpu/device.h"
 #include "gpu/draw.h"
-#include "gpu/gpu_profiling.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/format.h"
 

@@ -29,7 +29,6 @@
 #include "gpu/draw.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/imgui_overlay.h"
-#include "gpu/live_stats.h"
 #include "gpu/patches/aspect_ratio.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/settings.h"
