@@ -21,7 +21,8 @@ TEMPLATE_PREFIX = ["technique", "pass", "class", "biasKind"]
 
 
 def template_identity(t):
-    return tuple(t[c] for c in COLUMNS if c not in ("frame", "session", "package", "layoutKey"))
+    return tuple((t.get(c) or ("0" if c == "velocity" else "")) for c in COLUMNS
+                 if c not in ("frame", "session", "package", "layoutKey"))
 
 
 def read_raw(path):

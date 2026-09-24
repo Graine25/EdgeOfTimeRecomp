@@ -27,12 +27,12 @@ COMPARE_ALWAYS = 8
 DISABLED_BLEND_PREFIX = f"0|{BLEND_ONE}|{BLEND_ZERO}|{BLEND_OP_ADD}|{BLEND_ONE}|{BLEND_ZERO}|{BLEND_OP_ADD}"
 DISABLED_STENCIL_FACE = f"0|0|0|{COMPARE_ALWAYS}"
 
-CAPTURE_PREFIX = "pso_misses_"
+CAPTURE_PREFIXES = ("pso_drawn_", "pso_misses_")
 SIDE_FILE_PREFIXES = ("pso_pairs_", "pso_predicted_", "pso_used_", "pso_templates_", "shader_canon")
 
 
 def is_capture(path):
-    return path.name.startswith(CAPTURE_PREFIX)
+    return path.name.startswith(CAPTURE_PREFIXES)
 
 
 def is_pairs(path):
@@ -68,6 +68,16 @@ def upgrade_v2(columns, rows):
     return columns, rows
 
 
+def upgrade_v3(columns, rows):
+    if "velocity" not in columns:
+        i = columns.index("frame")
+        columns = columns[:i] + ["velocity"] + columns[i:]
+    for r in rows:
+        if not r.get("velocity"):
+            r["velocity"] = "0"
+    return columns, rows
+
+
 def read_rows(path):
     text = Path(path).read_text(encoding="utf-8", errors="replace")
     body = []
@@ -83,6 +93,7 @@ def read_rows(path):
     if "depthBias" in columns:
         columns, rows = upgrade_v1(columns, rows)
         columns, rows = upgrade_v2(columns, rows)
+        columns, rows = upgrade_v3(columns, rows)
     return columns, rows
 
 
