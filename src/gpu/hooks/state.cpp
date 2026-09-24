@@ -650,7 +650,7 @@ extern "C" REX_FUNC(D3DDevice_ClearF) {
   FlushPendingUpDraw();
   const u32 device = ctx.r3.u32, flags = ctx.r4.u32, rect = ctx.r5.u32, color = ctx.r6.u32;
   const float z = static_cast<float>(ctx.f1.f64);
-  const u32 stencil = ctx.r7.u32;
+  const u32 stencil = ctx.r8.u32;
   {
     PerfScopeSampled guest_scope(state().perf.guest_d3d_ms, state().perf.guest_d3d_calls);
     __imp__D3DDevice_ClearF(ctx, base);

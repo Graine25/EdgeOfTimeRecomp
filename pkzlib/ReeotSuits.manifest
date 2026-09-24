@@ -1,0 +1,21 @@
+package 0x7E9 ReeotSuits
+languages 1 2 5 3 4
+texture Reeot_SMA_State00_D dds ../res/textures/suits/Reeot_SMA_State00_D.dds
+texture Reeot_SMA_State00_N dds ../res/textures/suits/Reeot_SMA_State00_N.dds normal
+texture Reeot_SMA_State00_S dds ../res/textures/suits/Reeot_SMA_State00_S.dds linear
+texture Reeot_SMA_State03_D dds ../res/textures/suits/Reeot_SMA_State03_D.dds
+texture Reeot_SMA_State03_N dds ../res/textures/suits/Reeot_SMA_State03_N.dds normal
+texture Reeot_SMA_State03_S dds ../res/textures/suits/Reeot_SMA_State03_S.dds linear
+texture Reeot_SMA_State07_D dds ../res/textures/suits/Reeot_SMA_State07_D.dds
+texture Reeot_SMA_State07_N dds ../res/textures/suits/Reeot_SMA_State07_N.dds normal
+texture Reeot_SMA_State07_S dds ../res/textures/suits/Reeot_SMA_State07_S.dds linear
+window Reeot_TextureHolder_SMA00D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_D
+window Reeot_TextureHolder_SMA00N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_N
+window Reeot_TextureHolder_SMA00S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_S
+window Reeot_TextureHolder_SMA03D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State03_D
+window Reeot_TextureHolder_SMA03N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State03_N
+window Reeot_TextureHolder_SMA03S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State03_S
+window Reeot_TextureHolder_SMA07D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State07_D
+window Reeot_TextureHolder_SMA07N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State07_N
+window Reeot_TextureHolder_SMA07S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State07_S
+compress true
