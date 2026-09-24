@@ -1,5 +1,0 @@
-package 0x7EB ReeotRussian
-languages 1 2 5 3 4
-translation ../lang/ru.tsv Russian salt=0x52555353 lang=0x1
-translation generated/reeot_port_strings.ru.tsv RussianPort salt=0x52555353 lang=0x1
-compress true
