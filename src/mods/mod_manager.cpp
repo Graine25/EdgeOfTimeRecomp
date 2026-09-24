@@ -26,11 +26,6 @@
 #include <vector>
 
 #include "core/logging.h"
-#include "embedded.h"
-#include "embedded_russian_package.h"
-#if defined(REEOT_BUNDLED_2099)
-#include "embedded_2099_package.h"
-#endif
 #include "goliath/ui/menu_handles.h"
 #include "installer/disc_install.h"
 #include "mods/mods_api.h"
@@ -46,24 +41,11 @@ constexpr const char *kDataFolder = "Data";
 constexpr const char *kMarketplaceXuid = "0000000000000000";
 constexpr const char *kHeadersDir = "Headers";
 constexpr const char *kContentPrefix = "Mod_";
-constexpr const char *kLegacyModelContent = "Mod_Model";
 constexpr uint32_t kFirstDlcPackageId = 0xBB9;
 constexpr uint32_t kLastDlcPackageId = 0xBBA;
 constexpr uint32_t kDlcPackageIdBase = 0xBB8;
 constexpr uint32_t kPortPackageIds[] = {eot::ui::kReeotPackageId, eot::ui::kReeotMenuPackageId,
                                         eot::ui::kReeotAchievementsPackageId, eot::ui::kReeotIconsPackageId};
-
-struct Bundled {
-  const char *folder;
-  EmbeddedAsset manifest;
-  EmbeddedAsset file;
-};
-const Bundled kBundled[] = {
-    {"russian", Embedded("mods/russian/mod.toml"), EmbeddedRussianPackage()},
-#if defined(REEOT_BUNDLED_2099)
-    {"spiderverse-2099", Embedded("mods/spiderverse-2099/mod.toml"), Embedded2099Package()},
-#endif
-};
 
 std::mutex g_mutex;
 fs::path g_install, g_game, g_profile;
@@ -72,7 +54,6 @@ std::vector<Mod> g_mods;
 
 struct State {
   bool disabled = false;
-  bool removed = false;
   bool asked = false;
 };
 std::map<std::string, State> g_state;
@@ -232,9 +213,6 @@ void LoadState() {
     if (const toml::node *n = entry->get("enabled"))
       if (const auto *b = n->as_boolean())
         state.disabled = !b->get();
-    if (const toml::node *n = entry->get("removed"))
-      if (const auto *b = n->as_boolean())
-        state.removed = b->get();
     if (const toml::node *n = entry->get("asked"))
       if (const auto *b = n->as_boolean())
         state.asked = b->get();
@@ -243,16 +221,14 @@ void LoadState() {
 }
 
 void SaveState() {
-  std::string text = "# Written by reeot: the mods switched off, the port's own mods removed, and the\n"
-                     "# language mods whose language was offered at boot. A mod folder not listed here is on.\n";
+  std::string text = "# Written by reeot: the mods switched off, and the language mods whose language\n"
+                     "# was offered at boot. A mod folder not listed here is on.\n";
   for (const auto &[folder, state] : g_state) {
-    if (!state.disabled && !state.removed && !state.asked)
+    if (!state.disabled && !state.asked)
       continue;
     text += std::format("\n[\"{}\"]\n", folder);
     if (state.disabled)
       text += "enabled = false\n";
-    if (state.removed)
-      text += "removed = true\n";
     if (state.asked)
       text += "asked = true\n";
   }
@@ -260,46 +236,6 @@ void SaveState() {
   fs::create_directories(ModsDirLocked(), ec);
   std::ofstream out(ModsDirLocked() / kStateFileName, std::ios::binary | std::ios::trunc);
   out << text;
-}
-
-void ExtractBundled() {
-  for (const Bundled &bundled : kBundled) {
-    const auto state = g_state.find(bundled.folder);
-    if (state != g_state.end() && state->second.removed)
-      continue;
-    Manifest manifest;
-    std::string error;
-    if (!ParseManifest(bundled.manifest.text(), manifest, error)) {
-      EOT_WARN("[mods] the bundled {} manifest: {}", bundled.folder, error);
-      continue;
-    }
-    const fs::path dir = ModDir(bundled.folder);
-    const fs::path manifest_path = dir / kManifestFileName;
-    const fs::path file_path = dir / PathFromUtf8(manifest.file);
-    std::error_code ec;
-    bool written = false;
-    if (!fs::is_regular_file(manifest_path, ec) || ReadText(manifest_path) != bundled.manifest.text()) {
-      if (WriteFile(manifest_path, bundled.manifest.bytes(), error))
-        written = true;
-      else
-        EOT_WARN("[mods] {}", error);
-    }
-    if (!fs::is_regular_file(file_path, ec) || !SameBytes(file_path, bundled.file.bytes())) {
-      if (WriteFile(file_path, bundled.file.bytes(), error))
-        written = true;
-      else
-        EOT_WARN("[mods] {}", error);
-    }
-    if (written)
-      EOT_INFO("[mods] the port's {} written to {}", manifest.name, Utf8(dir));
-  }
-}
-
-bool IsBundled(std::string_view folder) {
-  for (const Bundled &bundled : kBundled)
-    if (folder == bundled.folder)
-      return true;
-  return false;
 }
 
 std::string ModelFileName(const fs::path &path, std::string &why) {
@@ -359,78 +295,6 @@ bool ManifestForFile(const fs::path &path, Manifest &out, std::string &why) {
   return true;
 }
 
-void MigrateSlotFile(const fs::path &file, const char *slot) {
-  std::error_code ec;
-  for (const Bundled &bundled : kBundled) {
-    if (SameBytes(file, bundled.file.bytes())) {
-      EOT_INFO("[mods] the {} slot's {} is the port's own {}: dropped for the bundled copy", slot,
-               Utf8(file.filename()), bundled.folder);
-      fs::remove(file, ec);
-      return;
-    }
-  }
-  Manifest manifest;
-  std::string why;
-  if (!ManifestForFile(file, manifest, why)) {
-    EOT_WARN("[mods] the {} slot's {} was not carried over: {}", slot, Utf8(file.filename()), why);
-    return;
-  }
-  const std::string folder = FolderNameFor(manifest.name);
-  const fs::path dir = ModDir(folder);
-  std::string error;
-  if (!WriteText(dir / kManifestFileName, WriteManifest(manifest), error) ||
-      !CopyFile(file, dir / PathFromUtf8(manifest.file), error)) {
-    EOT_WARN("[mods] the {} slot's {}: {}", slot, Utf8(file.filename()), error);
-    return;
-  }
-  fs::remove(file, ec);
-  EOT_INFO("[mods] the {} slot's {} is now the mod {} ({})", slot, Utf8(file.filename()), folder,
-           TypeName(manifest.type));
-}
-
-void MigrateSlots() {
-  std::error_code ec;
-  for (const char *slot : {"pak", "model"}) {
-    const fs::path dir = ModsDirLocked() / slot;
-    if (!fs::is_directory(dir, ec))
-      continue;
-    for (const auto &it : fs::directory_iterator(dir, ec))
-      if (it.is_regular_file())
-        MigrateSlotFile(it.path(), slot);
-    fs::remove(dir, ec);
-  }
-  const fs::path binary = ModsDirLocked() / "binary";
-  if (fs::is_directory(binary, ec)) {
-    for (const auto &it : fs::directory_iterator(binary, ec)) {
-      const fs::path backup = BackupDir() / it.path().filename();
-      const fs::path target = g_install / it.path().filename();
-      if (fs::is_regular_file(backup, ec)) {
-        fs::copy_file(backup, target, fs::copy_options::overwrite_existing, ec);
-        if (ec) {
-          ec.clear();
-          fs::rename(target, BackupDir() / (Utf8(it.path().filename()) + ".old"), ec);
-          fs::copy_file(backup, target, fs::copy_options::overwrite_existing, ec);
-        }
-        if (!ec) {
-          fs::remove(backup, ec);
-          EOT_INFO("[mods] {} put back; the binary slot is gone", Utf8(target));
-        } else {
-          EOT_WARN("[mods] {} could not be put back: {}", Utf8(target), ec.message());
-          continue;
-        }
-      }
-      fs::remove(it.path(), ec);
-    }
-    fs::remove(binary, ec);
-  }
-  const fs::path legacy = ContentDir() / kLegacyModelContent;
-  if (fs::is_directory(legacy, ec)) {
-    fs::remove_all(legacy, ec);
-    fs::remove(HeadersDir() / (std::string(kLegacyModelContent) + ".header"), ec);
-    EOT_INFO("[mods] content {} withdrawn: model mods publish under their own names", kLegacyModelContent);
-  }
-}
-
 void Scan() {
   g_mods.clear();
   std::error_code ec;
@@ -449,7 +313,6 @@ void Scan() {
     }
     const auto state = g_state.find(mod.folder);
     mod.enabled = state == g_state.end() || !state->second.disabled;
-    mod.bundled = IsBundled(mod.folder);
     if (!fs::is_regular_file(ModFile(mod), ec)) {
       mod.status = std::format("{} is missing from the mod's folder", mod.manifest.file);
       mod.enabled = false;
@@ -752,21 +615,14 @@ bool AddFileLocked(const fs::path &path, std::string &message) {
 bool AddLocked(const fs::path &path, std::string &message) {
   std::error_code ec;
   fs::create_directories(ModsDirLocked(), ec);
-  const std::string named = Lower(Utf8(path.filename()));
-  if (!fs::exists(path, ec) && IsBundled(named)) {
-    g_state[named] = State{};
-    ExtractBundled();
-    return AddedLocked(named, message);
-  }
   if (fs::is_directory(path, ec))
     return AddFolderLocked(path, message);
   if (fs::is_regular_file(path, ec)) {
-    if (named == kManifestFileName)
+    if (Lower(Utf8(path.filename())) == kManifestFileName)
       return AddFolderLocked(path.parent_path(), message);
     return AddFileLocked(path, message);
   }
-  message = std::format("{} is neither a folder nor a file, nor the name of one of the port's own mods.",
-                        Utf8(path));
+  message = std::format("{} is neither a folder nor a file.", Utf8(path));
   return false;
 }
 
@@ -847,8 +703,6 @@ void Initialize(const fs::path &install_root, const fs::path &game, const fs::pa
   std::error_code ec;
   fs::create_directories(ModsDirLocked(), ec);
   LoadState();
-  ExtractBundled();
-  MigrateSlots();
   Scan();
   ApplyAll();
   for (const Mod &mod : g_mods)
@@ -900,15 +754,11 @@ bool Remove(std::string_view name, std::string &message) {
     return false;
   }
   const std::string language_note = LetGoOfLanguage(*mod);
-  State &state = g_state[folder];
-  state = State{};
-  state.removed = IsBundled(folder);
+  g_state.erase(folder);
   SaveState();
   Refresh();
   EOT_INFO("[mods] removed {} (mods/{})", described, folder);
-  message = std::format("{} removed{}.{} Takes effect at the next start of the game.", described,
-                        state.removed ? "; it is one of the port's own and stays away until added again" : "",
-                        language_note);
+  message = std::format("{} removed.{} Takes effect at the next start of the game.", described, language_note);
   return true;
 }
 
@@ -993,7 +843,6 @@ void Fill(const Mod &mod, eot_mod_info *out) {
   out->kind = static_cast<int32_t>(mod.manifest.type);
   out->enabled = mod.enabled ? 1 : 0;
   out->active = mod.active ? 1 : 0;
-  out->bundled = mod.bundled ? 1 : 0;
   CopyOut(out->file, sizeof(out->file), mod.manifest.file);
   CopyOut(out->status, sizeof(out->status), mod.status);
 }

@@ -12,7 +12,6 @@ inline constexpr uint32_t kReeotIconsPackageId = 0x7EA;
 inline constexpr const char *kReeotPackageName = "L:/custom/ReeotUI.pak";
 inline constexpr const char *kReeotMenuPackageName = "L:/custom/ReeotMenu.pak";
 inline constexpr const char *kReeotAchievementsPackageName = "L:/custom/ReeotAchievements.pak";
-inline constexpr const char *kReeotRussianPackageName = "L:/custom/ReeotRussian.pak";
 inline constexpr const char *kReeotIconsPackageName = "L:/custom/ReeotIcons.pak";
 inline constexpr const char *kReeotPackageFolder = "custom";
 inline constexpr uint32_t kReeotPackageDependency = 2;

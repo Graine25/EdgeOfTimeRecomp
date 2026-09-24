@@ -80,6 +80,16 @@ uint32_t LoadPackage(const PPCContext &ctx, uint8_t *base, uint32_t id) {
   return call.r3.u32;
 }
 
+bool IsPortOrModPackage(uint32_t id) {
+  if (id == eot::ui::kReeotPackageId || id == eot::ui::kReeotMenuPackageId ||
+      id == eot::ui::kReeotAchievementsPackageId || id == eot::ui::kReeotIconsPackageId)
+    return true;
+  for (const eot::mods::PackageToLoad &mod : eot::mods::PackagesToLoad())
+    if (mod.id == id)
+      return true;
+  return false;
+}
+
 std::string GuestString(uint32_t addr, uint32_t max = 160) {
   std::string s;
   for (uint32_t i = 0; addr && i < max; ++i) {
@@ -101,9 +111,7 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
   EOT_DEBUG("[pkg] mount id {} '{}' -> flags {:#x} openFlags {:#x}", id, GuestString(record),
            package ? eot::mem::load<uint32_t>(package + 160) : 0u,
            package ? eot::mem::load<uint32_t>(package + 164) : 0u);
-  if (id != eot::ui::kReeotPackageId && id != eot::ui::kReeotMenuPackageId &&
-      id != eot::ui::kReeotAchievementsPackageId && id != eot::ui::kReeotRussianPackageId &&
-      id != eot::ui::kReeotIconsPackageId)
+  if (!IsPortOrModPackage(id))
     return;
   if (package) {
     const uint32_t flags = eot::mem::load<uint32_t>(package + 160);

@@ -119,34 +119,8 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/Reeot_Icons.dds"
     COMMENT "Authoring ReeotIcons.pkz from tools/pkz/ReeotIcons.manifest"
     VERBATIM)
-set(REEOT_RU_PORT_STRINGS "${REEOT_MENU_STRINGS_DIR}/reeot_port_strings.ru.tsv")
-add_custom_command(
-    OUTPUT "${REEOT_RU_PORT_STRINGS}"
-    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/make_port_translation.py"
-            ru "${REEOT_RU_PORT_STRINGS}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/make_port_translation.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_strings.py"
-            "${REEOT_MENU_STRINGS_TOML}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ui_strings.ru.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/reeot_ach_strings.ru.txt"
-            "${REEOT_ACH_STRINGS}"
-    COMMENT "Writing the port's own strings in Russian as translation rows"
-    VERBATIM)
-set(REEOT_RU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotRussian.pkz")
-add_custom_command(
-    OUTPUT "${REEOT_RU_PKZ_OUTPUT}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
-    COMMAND pkztool make "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotRussian.manifest" "${REEOT_RU_PKZ_OUTPUT}"
-            --paks "${REEOT_REFERENCE_PAKS}"
-    DEPENDS pkztool
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotRussian.manifest"
-            "${CMAKE_CURRENT_SOURCE_DIR}/tools/lang/ru.tsv"
-            "${REEOT_RU_PORT_STRINGS}"
-    COMMENT "Authoring ReeotRussian.pkz from tools/pkz/ReeotRussian.manifest"
-    VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}"
-                                        "${REEOT_ICONS_PKZ_OUTPUT}" "${REEOT_RU_PKZ_OUTPUT}")
+                                        "${REEOT_ICONS_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
@@ -174,27 +148,6 @@ reeot_embed_generated(
     HEADER      "${REEOT_GEN_DIR}/embedded_icons_package.h"
     SOURCES_VAR REEOT_EMBED_ICONS_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ICONS_PACKAGE_SOURCE})
-reeot_embed_generated(
-    INPUT       "${REEOT_RU_PKZ_OUTPUT}"
-    NAME        "mods/russian/ReeotRussian.pkz"
-    ACCESSOR    EmbeddedRussianPackage
-    HEADER      "${REEOT_GEN_DIR}/embedded_russian_package.h"
-    SOURCES_VAR REEOT_EMBED_RU_PACKAGE_SOURCE)
-list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_RU_PACKAGE_SOURCE})
-set(REEOT_2099_PAK "${CMAKE_CURRENT_SOURCE_DIR}/modelimport/build/_DLC002.pak")
-if(EXISTS "${REEOT_2099_PAK}")
-    reeot_embed_generated(
-        INPUT       "${REEOT_2099_PAK}"
-        NAME        "mods/spiderverse-2099/_DLC002.pak"
-        ACCESSOR    Embedded2099Package
-        HEADER      "${REEOT_GEN_DIR}/embedded_2099_package.h"
-        SOURCES_VAR REEOT_EMBED_2099_SOURCE)
-    list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_2099_SOURCE})
-    set(REEOT_BUNDLED_2099 ON)
-else()
-    message(STATUS "reeot: modelimport/build/_DLC002.pak is not there; the 2099 suit is not bundled")
-    set(REEOT_BUNDLED_2099 OFF)
-endif()
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -429,7 +382,6 @@ endif()
 target_compile_definitions(reeot PRIVATE
     _ITERATOR_DEBUG_LEVEL=0
     $<$<BOOL:${REEOT_BUILD_INSTALLER}>:REEOT_BUILD_INSTALLER>
-    $<$<BOOL:${REEOT_BUNDLED_2099}>:REEOT_BUNDLED_2099>
     NOMINMAX
     WIN32_LEAN_AND_MEAN
     $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>
