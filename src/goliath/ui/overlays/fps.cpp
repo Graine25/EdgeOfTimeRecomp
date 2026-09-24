@@ -12,7 +12,7 @@
 #include <rex/cvar.h>
 
 #include "core/memory_helpers.h"
-#include "gpu/live_stats.h"
+#include "gpu/gpu_timing.h"
 
 REXCVAR_DEFINE_BOOL(show_fps_overlay, false, "EdgeOfTime/Video", "Show the FPS overlay");
 

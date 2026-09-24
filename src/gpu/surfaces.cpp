@@ -18,7 +18,6 @@
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/format.h"
-#include "gpu/gpu_profiling.h"
 #include "gpu/gpu_timing.h"
 #include "gpu/settings.h"
 

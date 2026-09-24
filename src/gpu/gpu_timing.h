@@ -3,6 +3,7 @@
 #include <string>
 
 #include <rex/types.h>
+#include "core/profiling.h"
 
 namespace plume {
 struct RenderCommandList;
@@ -35,5 +36,65 @@ void GpuTimingDiagMark(VideoState &s, plume::RenderCommandList *cmd, std::string
 void GpuTimingFrameEnd(plume::RenderCommandList *cmd);
 void GpuTimingCollect(VideoState &s, u32 slot);
 std::string GpuTimingSummary(const PerfCounters &p);
+
+}
+
+#if defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING) && defined(EOT_D3D12)
+#define EOT_GPU_PROFILING 1
+#else
+#define EOT_GPU_PROFILING 0
+#endif
+
+#if EOT_GPU_PROFILING
+
+#include <plume_d3d12.h>
+#include <tracy/TracyD3D12.hpp>
+
+namespace eot::gpu {
+
+void InitGPUProfiler(ID3D12Device *device, ID3D12CommandQueue *queue);
+TracyD3D12Ctx GpuProfilerCtx();
+void SetGPUProfilerCommandList(ID3D12GraphicsCommandList *cmd);
+ID3D12GraphicsCommandList *GpuProfilerCommandList();
+
+}
+
+#define EOT_GPU_ZONE(name)                                                                         \
+  ZoneNamedN(___tracy_scoped_zone, name, TracyIsStarted);                                          \
+  static constexpr tracy::SourceLocationData TracyConcat(__tracy_gpu_sloc, TracyLine){             \
+      name, TracyFunction, TracyFile, (u32)TracyLine, 0};                                          \
+  tracy::D3D12ZoneScope TracyConcat(__tracy_gpu_zone, TracyLine) {                                 \
+    eot::gpu::GpuProfilerCtx(), eot::gpu::GpuProfilerCommandList(),                                \
+        &TracyConcat(__tracy_gpu_sloc, TracyLine), TracyIsStarted                                  \
+  }
+
+#elif defined(EOT_PROFILING) && defined(REXGLUE_ENABLE_PROFILING)
+
+#define EOT_GPU_ZONE(name) ZoneNamedN(___tracy_scoped_zone, name, TracyIsStarted)
+
+#else
+
+#define EOT_GPU_ZONE(name) ((void)0)
+
+#endif
+
+namespace eot::gpu {
+
+struct LiveStats {
+  u64 sequence = 0;
+  f32 wall_ms = 0, gpu_ms = 0, capture_ms = 0, present_wait_ms = 0, draw_ms = 0, record_ms = 0;
+  u32 draws = 0, resolves = 0;
+  struct Row {
+    char name[20] = {};
+    f32 ms = 0;
+    u32 draws = 0;
+  };
+  static constexpr u32 kMaxRows = 8;
+  Row rows[kMaxRows];
+  u32 row_count = 0;
+};
+
+void PublishLiveStats(const LiveStats &stats);
+bool ReadLiveStats(LiveStats *out);
 
 }
