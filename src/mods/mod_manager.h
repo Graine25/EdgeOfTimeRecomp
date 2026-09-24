@@ -17,7 +17,6 @@ struct Mod {
   Manifest manifest;
   bool enabled = true;
   bool active = false;
-  bool bundled = false;
   std::string status;
 };
 

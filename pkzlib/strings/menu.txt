@@ -153,7 +153,6 @@ REEOT_VAL_FRENCH	Français
 REEOT_VAL_ITALIAN	Italiano
 REEOT_VAL_GERMAN	Deutsch
 REEOT_VAL_SPANISH	Español
-REEOT_VAL_RUSSIAN	Russkij
 REEOT_DESC_LANGUAGE	The language of the text and, where the game has it, the speech. Auto follows the Windows display language. Read when the game starts.
 REEOT_DESC_RESTART	Takes effect after a restart.
 REEOT_RESTART_TITLE	Restart now?

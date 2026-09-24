@@ -23,7 +23,6 @@ struct eot_mod_info {
   int32_t kind;
   int32_t enabled;
   int32_t active;
-  int32_t bundled;
   char file[64];
   char status[256];
 };
