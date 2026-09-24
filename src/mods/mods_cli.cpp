@@ -14,8 +14,6 @@
 #include <shellapi.h>
 #endif
 
-#include <rex/cvar.h>
-
 #include "core/logging.h"
 #include "mods/mod_manager.h"
 
@@ -39,7 +37,6 @@ void AttachConsole() {
     FILE *stream = nullptr;
     freopen_s(&stream, "CONOUT$", "w", stdout);
     freopen_s(&stream, "CONOUT$", "w", stderr);
-    freopen_s(&stream, "CONIN$", "r", stdin);
   }
 #endif
 }
@@ -71,15 +68,6 @@ void Print(std::string_view text) {
   std::fwrite(text.data(), 1, text.size(), stdout);
   std::fputc('\n', stdout);
   std::fflush(stdout);
-}
-
-bool AskYesNo(const std::string &question) {
-  std::fputs((question + " [y/N] ").c_str(), stdout);
-  std::fflush(stdout);
-  char line[16] = {};
-  if (!std::fgets(line, sizeof(line), stdin))
-    return false;
-  return line[0] == 'y' || line[0] == 'Y';
 }
 
 std::string Utf8(const std::filesystem::path &path) {
@@ -181,20 +169,13 @@ void PrintTable(const std::vector<Mod> &mods) {
                     Utf8(ModsDir())));
 }
 
-void OfferLanguages() {
+void NoteLanguages() {
   for (const LanguageMod &mod : LanguageMods()) {
     if (mod.asked)
       continue;
-    Print(std::format("{} brings the game in {}.", mod.name, mod.language_name));
-    if (AskYesNo(std::format("Start the game in {} from now on?", mod.language_name))) {
-      rex::cvar::SetFlagByName("eot_language", mod.tag);
-      rex::cvar::InvokeCommand("eot_save_settings", "");
-      Print(std::format("The language is {} (eot_language = {}); Options > Game changes it.", mod.language_name,
-                        mod.tag));
-    } else {
-      Print("The language is unchanged; the row under Options > Game offers it.");
-    }
-    LanguageAsked(mod.folder);
+    Print(std::format("{} brings the game in {}: the next start of the game asks whether to run in it, and the "
+                      "Language row under Options > Game lists it either way.",
+                      mod.name, mod.language_name));
   }
 }
 
@@ -247,7 +228,7 @@ static int Run(const std::vector<std::string> &positional) {
     ok = Add(std::filesystem::absolute(PathFromUtf8(arg)), message);
     Print(message);
     if (ok)
-      OfferLanguages();
+      NoteLanguages();
   } else if (verb == "remove") {
     if (NeedsArgument(verb, arg, "the name of a mod"))
       return kUsage;
@@ -259,7 +240,7 @@ static int Run(const std::vector<std::string> &positional) {
     ok = SetEnabled(arg, verb == "enable", message);
     Print(message);
     if (ok && verb == "enable")
-      OfferLanguages();
+      NoteLanguages();
   } else {
     Print(std::format("reeot mods: {} is not a command.", words[0]));
     PrintUsage();
