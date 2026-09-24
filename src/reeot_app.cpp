@@ -292,14 +292,14 @@ void ReeotApp::OfferLanguageMods() {
     const bool yes = eot::platform::ShowQuestion(
         "reeot - " + mod.name,
         std::format("{} is in place: it brings the game in {}.\n\nStart the game in {} from now on?\n\n"
-                    "The language can be changed any time under Options > Game.",
+                    "The language can be changed any time under Options > Audio.",
                     mod.name, mod.language_name, mod.language_name));
     if (yes) {
       rex::cvar::SetFlagByName("eot_language", mod.tag);
       rex::cvar::InvokeCommand("eot_save_settings", "");
       EOT_INFO("[mods] {} taken as the language: eot_language = {}", mod.name, mod.tag);
     } else {
-      EOT_INFO("[mods] {} not taken as the language; the row under Options > Game offers it", mod.name);
+      EOT_INFO("[mods] {} not taken as the language; the row under Options > Audio offers it", mod.name);
     }
     eot::mods::LanguageAsked(mod.folder);
   }
