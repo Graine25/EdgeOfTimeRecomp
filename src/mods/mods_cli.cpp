@@ -174,7 +174,7 @@ void NoteLanguages() {
     if (mod.asked)
       continue;
     Print(std::format("{} brings the game in {}: the next start of the game asks whether to run in it, and the "
-                      "Language row under Options > Game lists it either way.",
+                      "Language row under Options > Audio lists it either way.",
                       mod.name, mod.language_name));
   }
 }
