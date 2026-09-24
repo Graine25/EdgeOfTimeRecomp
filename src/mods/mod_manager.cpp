@@ -45,7 +45,8 @@ constexpr uint32_t kFirstDlcPackageId = 0xBB9;
 constexpr uint32_t kLastDlcPackageId = 0xBBA;
 constexpr uint32_t kDlcPackageIdBase = 0xBB8;
 constexpr uint32_t kPortPackageIds[] = {eot::ui::kReeotPackageId, eot::ui::kReeotMenuPackageId,
-                                        eot::ui::kReeotAchievementsPackageId, eot::ui::kReeotIconsPackageId};
+                                        eot::ui::kReeotAchievementsPackageId, eot::ui::kReeotIconsPackageId,
+                                        eot::ui::kReeotSuitsPackageId};
 
 std::mutex g_mutex;
 fs::path g_install, g_game, g_profile;

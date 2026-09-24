@@ -119,8 +119,25 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/Reeot_Icons.dds"
     COMMENT "Authoring ReeotIcons.pkz from tools/pkz/ReeotIcons.manifest"
     VERBATIM)
+set(REEOT_SUITS_DDS "")
+foreach(state 00 03 07)
+    foreach(map D N S)
+        list(APPEND REEOT_SUITS_DDS "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/suits/Reeot_SMA_State${state}_${map}.dds")
+    endforeach()
+endforeach()
+set(REEOT_SUITS_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotSuits.pkz")
+add_custom_command(
+    OUTPUT "${REEOT_SUITS_PKZ_OUTPUT}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/pkz"
+    COMMAND pkztool make "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotSuits.manifest" "${REEOT_SUITS_PKZ_OUTPUT}"
+            --paks "${REEOT_REFERENCE_PAKS}"
+    DEPENDS pkztool
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotSuits.manifest"
+            ${REEOT_SUITS_DDS}
+    COMMENT "Authoring ReeotSuits.pkz from tools/pkz/ReeotSuits.manifest"
+    VERBATIM)
 add_custom_target(reeot_pkz ALL DEPENDS "${REEOT_PKZ_OUTPUT}" "${REEOT_MENU_PKZ_OUTPUT}" "${REEOT_ACH_PKZ_OUTPUT}"
-                                        "${REEOT_ICONS_PKZ_OUTPUT}")
+                                        "${REEOT_ICONS_PKZ_OUTPUT}" "${REEOT_SUITS_PKZ_OUTPUT}")
 reeot_embed_generated(
     INPUT       "${REEOT_PKZ_OUTPUT}"
     NAME        "pkz/ReeotUI.pkz"
@@ -148,6 +165,13 @@ reeot_embed_generated(
     HEADER      "${REEOT_GEN_DIR}/embedded_icons_package.h"
     SOURCES_VAR REEOT_EMBED_ICONS_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_ICONS_PACKAGE_SOURCE})
+reeot_embed_generated(
+    INPUT       "${REEOT_SUITS_PKZ_OUTPUT}"
+    NAME        "pkz/ReeotSuits.pkz"
+    ACCESSOR    EmbeddedSuitsPackage
+    HEADER      "${REEOT_GEN_DIR}/embedded_suits_package.h"
+    SOURCES_VAR REEOT_EMBED_SUITS_PACKAGE_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_SUITS_PACKAGE_SOURCE})
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
