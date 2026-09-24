@@ -82,7 +82,8 @@ uint32_t LoadPackage(const PPCContext &ctx, uint8_t *base, uint32_t id) {
 
 bool IsPortOrModPackage(uint32_t id) {
   if (id == eot::ui::kReeotPackageId || id == eot::ui::kReeotMenuPackageId ||
-      id == eot::ui::kReeotAchievementsPackageId || id == eot::ui::kReeotIconsPackageId)
+      id == eot::ui::kReeotAchievementsPackageId || id == eot::ui::kReeotIconsPackageId ||
+      id == eot::ui::kReeotSuitsPackageId)
     return true;
   for (const eot::mods::PackageToLoad &mod : eot::mods::PackagesToLoad())
     if (mod.id == id)
@@ -111,8 +112,10 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
   EOT_DEBUG("[pkg] mount id {} '{}' -> flags {:#x} openFlags {:#x}", id, GuestString(record),
            package ? eot::mem::load<uint32_t>(package + 160) : 0u,
            package ? eot::mem::load<uint32_t>(package + 164) : 0u);
-  if (!IsPortOrModPackage(id))
+  if (!IsPortOrModPackage(id)) {
+    eot::loading::TextureOverridesPackageMounted(ctx, base);
     return;
+  }
   if (package) {
     const uint32_t flags = eot::mem::load<uint32_t>(package + 160);
     eot::mem::store<uint32_t>(package + 160, flags | 0x8);
@@ -144,6 +147,7 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
       {kReeotMenuPackageId, kReeotMenuPackageName, "", false},
       {kReeotAchievementsPackageId, kReeotAchievementsPackageName, "", false},
       {kReeotIconsPackageId, kReeotIconsPackageName, "", false},
+      {kReeotSuitsPackageId, kReeotSuitsPackageName, "", false},
   };
   for (const eot::mods::PackageToLoad &mod : eot::mods::PackagesToLoad())
     packages.push_back({mod.id, mod.name, mod.language, true});
