@@ -289,7 +289,6 @@ extern const Layout kTable;
 uint32_t LayoutIndex(const Layout *layout) { return layout == &kNarrow ? 1 : layout == &kTable ? 2 : 0; }
 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
-constexpr Choice kOnOffSwapped[] = {{"REEOT_VAL_ON", "false"}, {"REEOT_VAL_OFF", "true"}};
 constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
                                  {"REEOT_VAL_ITALIAN", "it"}, {"REEOT_VAL_GERMAN", "de"},  {"REEOT_VAL_SPANISH", "es"}};
 std::vector<Choice> g_language_choices(std::begin(kLanguages), std::end(kLanguages));
@@ -432,7 +431,7 @@ constexpr Setting kGraphicsSettings[] = {
      .slider = {0.7, 1.5, 0.05, Format::kPercent}, .numeric = true, .restart = true},
     {.label = "REEOT_OPT_BLOOM", .description = "REEOT_DESC_BLOOM", .cvar = "eot_bloom", .choices = kOnOff},
     {.label = "REEOT_OPT_DOF", .description = "REEOT_DESC_DOF", .cvar = "eot_depth_of_field",
-     .choices = kOnOffSwapped},
+     .choices = kOnOff},
     {.label = "REEOT_OPT_MOTION_BLUR", .description = "REEOT_DESC_MOTION_BLUR", .cvar = "eot_motion_blur",
      .choices = kOnOff},
     {.label = "REEOT_OPT_RADIAL_BLUR", .description = "REEOT_DESC_RADIAL_BLUR", .cvar = "eot_radial_blur",
