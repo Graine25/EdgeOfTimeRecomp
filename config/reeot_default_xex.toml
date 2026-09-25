@@ -2765,6 +2765,7 @@ out_directory_path = "generated/default_xex"
 0x8217B9E8 = { name = "eot_HUD2DObject_Construct" }
 0x8217C380 = { name = "eot_HUD2DObject_BindTexture" }
 0x8217CF00 = { name = "eot_HUDMgrBC_CreateWindow" }
+0x8217D2B0 = { name = "eot_HUDMgrBC_DestroyWindowTree" }
 0x8217D430 = { name = "eot_HUDMgrBC_CopyWindow" }
 0x8217E288 = { name = "eot_HUDTextObject_Construct" }
 0x8217E940 = { name = "eot_HUDTextObject_ResolveStyle" }

@@ -6,7 +6,7 @@
 #include "core/memory_helpers.h"
 
 REX_EXTERN(__imp__eot_GLAPIHUD_CopyWnd);
-REX_EXTERN(__imp__eot_HUDMgrBC_GetWin);
+REX_EXTERN(eot_HUDMgrBC_GetWin);
 
 namespace {
 
@@ -16,7 +16,7 @@ constexpr uint32_t kHandleOffset = 60;
 uint32_t ResolveWindow(PPCContext &ctx, uint8_t *base, uint32_t handle) {
   const uint32_t saved_r3 = ctx.r3.u32;
   ctx.r3.u32 = handle;
-  __imp__eot_HUDMgrBC_GetWin(ctx, base);
+  eot_HUDMgrBC_GetWin(ctx, base);
   const uint32_t window = ctx.r3.u32;
   ctx.r3.u32 = saved_r3;
   return window;

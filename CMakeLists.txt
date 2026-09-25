@@ -264,6 +264,7 @@ set(REEOT_SOURCES
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
     src/goliath/ui/hud_copy_guard.cpp
+    src/goliath/ui/hud_handle_table.cpp
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
     src/goliath/body_pulse_materials.cpp
