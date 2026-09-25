@@ -120,6 +120,11 @@ add_custom_command(
     COMMENT "Authoring ReeotIcons.pkz from tools/pkz/ReeotIcons.manifest"
     VERBATIM)
 set(REEOT_SUITS_DDS "")
+foreach(name Reeot_AntiVenom Reeot_AntiVenomMassive)
+    foreach(map D N)
+        list(APPEND REEOT_SUITS_DDS "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/characters/${name}_${map}.dds")
+    endforeach()
+endforeach()
 foreach(state 00 03 05 07)
     foreach(map D N S)
         list(APPEND REEOT_SUITS_DDS "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/suits/Reeot_SMA_State${state}_${map}.dds")

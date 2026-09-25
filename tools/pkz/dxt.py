@@ -1,3 +1,5 @@
+import struct
+
 import numpy as np
 
 
@@ -130,3 +132,25 @@ def mip_chain(img, levels):
         cur = (cur[0::2, 0::2] + cur[1::2, 0::2] + cur[0::2, 1::2] + cur[1::2, 1::2]) / 4
         out.append(np.round(cur).astype(np.uint8))
     return out
+
+
+def console_normal(rgb):
+    out = np.zeros(rgb.shape[:2] + (4,), np.uint8)
+    out[..., 0] = 255
+    out[..., 1] = rgb[..., 1]
+    out[..., 3] = rgb[..., 0]
+    return out
+
+
+def write_dds(path, levels, fourcc):
+    data = b""
+    for lv in levels:
+        data += encode_dxt5(lv) if fourcc == b"DXT5" else encode_dxt1(np.ascontiguousarray(lv[..., :3]))
+    h, w = levels[0].shape[:2]
+    top = (w // 4) * (h // 4) * (16 if fourcc == b"DXT5" else 8)
+    flags = 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000
+    header = struct.pack("<4sI I I I I I I 11I", b"DDS ", 124, flags, h, w, top, 0, len(levels), *([0] * 11))
+    pixel_format = struct.pack("<I I 4s I I I I I", 32, 0x4, fourcc, 0, 0, 0, 0, 0)
+    caps = struct.pack("<I I I I I", 0x1000 | 0x8 | 0x400000, 0, 0, 0, 0)
+    with open(path, "wb") as out:
+        out.write(header + pixel_format + caps + data)

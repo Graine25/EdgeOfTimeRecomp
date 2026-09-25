@@ -1,5 +1,4 @@
 import os
-import struct
 import sys
 
 import numpy as np
@@ -7,7 +6,7 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from dxt import encode_dxt1, encode_dxt5, mip_chain  # noqa: E402
+from dxt import console_normal, mip_chain, write_dds  # noqa: E402
 
 LEVELS = 5
 STATES = [("", "00"), ("damage1", "03"), ("damage1.5", "05"), ("damage2", "07")]
@@ -34,20 +33,6 @@ def specular_from_diffuse(diffuse):
     return np.clip(np.round(spec), 0, 255).astype(np.uint8)
 
 
-def write_dds(path, levels, fourcc):
-    data = b""
-    for lv in levels:
-        data += encode_dxt5(lv) if fourcc == b"DXT5" else encode_dxt1(np.ascontiguousarray(lv[..., :3]))
-    h, w = levels[0].shape[:2]
-    top = (w // 4) * (h // 4) * (16 if fourcc == b"DXT5" else 8)
-    flags = 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000
-    header = struct.pack("<4sI I I I I I I 11I", b"DDS ", 124, flags, h, w, top, 0, len(levels), *([0] * 11))
-    pixel_format = struct.pack("<I I 4s I I I I I", 32, 0x4, fourcc, 0, 0, 0, 0, 0)
-    caps = struct.pack("<I I I I I", 0x1000 | 0x8 | 0x400000, 0, 0, 0, 0)
-    with open(path, "wb") as out:
-        out.write(header + pixel_format + caps + data)
-
-
 def load(folder, kind, mode):
     return np.asarray(Image.open(os.path.join(folder, f"Model_SMA_State_00_{kind}.png")).convert(mode), dtype=np.uint8)
 
@@ -60,11 +45,7 @@ def main(src, out, preview=None):
         folder = os.path.join(src, sub)
         diffuse = load(folder, "Diffuse", "RGB")
         specular = np.repeat(specular_from_diffuse(diffuse)[..., None], 3, axis=2)
-        normal = load(folder, "Normal", "RGB")
-        nm = np.zeros(normal.shape[:2] + (4,), np.uint8)
-        nm[..., 0] = 255
-        nm[..., 1] = normal[..., 1]
-        nm[..., 3] = normal[..., 0]
+        nm = console_normal(load(folder, "Normal", "RGB"))
         for suffix, img, fourcc in (("D", diffuse, b"DXT1"), ("S", specular, b"DXT1"), ("N", nm, b"DXT5")):
             path = os.path.join(out, f"Reeot_SMA_State{state}_{suffix}.dds")
             write_dds(path, mip_chain(img, LEVELS), fourcc)
