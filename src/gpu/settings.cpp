@@ -106,20 +106,17 @@ REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug",
                     "Run both the hook's setter and the XDK's on every call and log any "
                     "difference in what they wrote.");
 REXCVAR_DEFINE_STRING(eot_host_aa, "off", "EdgeOfTime/Graphics",
-                      "The port's own image pass, on top of whatever the game draws:\n"
+                      "The port's own anti-aliasing, on top of whatever the game draws "
+                      "(eot_msaa is the game's own):\n"
                       "  off  - the frame is presented as it was rendered.\n"
-                      "  taa  - temporal anti-aliasing: every 3D draw is offset by a "
-                      "sub-pixel amount that changes each frame, and the scene is blended "
-                      "with the previous frame's, reprojected by its motion vectors where "
-                      "the G-buffer wrote them (eot_motion_vectors) and through the camera "
-                      "elsewhere, before the game's own post chain reads it. Settles the "
-                      "shimmer on distant geometry that multisampling leaves.\n"
-                      "  fsr  - FidelityFX Super Resolution 1 at present: the frame is "
-                      "fitted to the window along its own edges and sharpened, which is "
-                      "what a render smaller than the window most wants. Anti-aliases "
-                      "nothing by itself.\n"
+                      "  taa  - temporal: every 3D draw is offset by a sub-pixel amount "
+                      "that changes each frame, and the scene is blended with the previous "
+                      "frame's, reprojected by its motion vectors where the G-buffer wrote "
+                      "them (eot_motion_vectors) and through the camera elsewhere, before "
+                      "the game's own post chain reads it. Settles the shimmer on distant "
+                      "geometry that multisampling leaves.\n"
                       "The ultra preset asks for taa.")
-    .allowed({"off", "taa", "fsr"});
+    .allowed({"off", "taa"});
 REXCVAR_DEFINE_DOUBLE(eot_taa_feedback, 0.8, "EdgeOfTime/Graphics",
                       "How much of the previous frame the temporal anti-aliasing keeps when "
                       "nothing moves (0.3 crisp and quick, 0.9 smoother and softer); motion "
@@ -302,7 +299,6 @@ std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dl
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
 bool Settings::Taa() { return REXCVAR_GET(eot_host_aa) == "taa"; }
-bool Settings::Fsr() { return REXCVAR_GET(eot_host_aa) == "fsr"; }
 bool Settings::MotionVectors() { return REXCVAR_GET(eot_motion_vectors); }
 double Settings::TaaFeedback() { return REXCVAR_GET(eot_taa_feedback); }
 bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }

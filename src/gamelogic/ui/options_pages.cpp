@@ -375,8 +375,7 @@ constexpr Choice kShadowSize[] = {{"REEOT_VAL_AUTO", "0"},     {"REEOT_VAL_1024"
                                   {"REEOT_VAL_8192", "8192"}};
 constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_BICUBIC", "bicubic"},
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
-constexpr Choice kHostAa[] = {{"REEOT_VAL_OFF", "off"}, {"REEOT_VAL_TAA", "taa"},
-                              {"REEOT_VAL_FSR", "fsr"}};
+constexpr Choice kHostAa[] = {{"REEOT_VAL_OFF", "off"}, {"REEOT_VAL_TAA", "taa"}};
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
                               {"REEOT_VAL_XBOX", "xbox"},
                               {"REEOT_VAL_SWITCH", "switch"},
