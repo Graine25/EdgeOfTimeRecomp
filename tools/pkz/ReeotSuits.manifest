@@ -12,6 +12,10 @@ texture Reeot_SMA_State05_S dds ../../res/textures/suits/Reeot_SMA_State05_S.dds
 texture Reeot_SMA_State07_D dds ../../res/textures/suits/Reeot_SMA_State07_D.dds
 texture Reeot_SMA_State07_N dds ../../res/textures/suits/Reeot_SMA_State07_N.dds normal
 texture Reeot_SMA_State07_S dds ../../res/textures/suits/Reeot_SMA_State07_S.dds linear
+texture Reeot_AntiVenom_D dds ../../res/textures/characters/Reeot_AntiVenom_D.dds
+texture Reeot_AntiVenom_N dds ../../res/textures/characters/Reeot_AntiVenom_N.dds normal
+texture Reeot_AntiVenomMassive_D dds ../../res/textures/characters/Reeot_AntiVenomMassive_D.dds
+texture Reeot_AntiVenomMassive_N dds ../../res/textures/characters/Reeot_AntiVenomMassive_N.dds normal
 window Reeot_TextureHolder_SMA00D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_D
 window Reeot_TextureHolder_SMA00N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_N
 window Reeot_TextureHolder_SMA00S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_S
@@ -24,4 +28,8 @@ window Reeot_TextureHolder_SMA05S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001
 window Reeot_TextureHolder_SMA07D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State07_D
 window Reeot_TextureHolder_SMA07N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State07_N
 window Reeot_TextureHolder_SMA07S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State07_S
+window Reeot_TextureHolder_AVD type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_AntiVenom_D
+window Reeot_TextureHolder_AVN type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_AntiVenom_N
+window Reeot_TextureHolder_AVMD type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_AntiVenomMassive_D
+window Reeot_TextureHolder_AVMN type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_AntiVenomMassive_N
 compress true
