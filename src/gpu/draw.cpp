@@ -2940,6 +2940,12 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     s.bound_root_buffer[r] = roots[r]->buffer;
     s.bound_root_offset[r] = roots[r]->offset;
   }
+#if defined(EOT_D3D12)
+  if (s.bound_spec != spec) {
+    cmd->setGraphicsPushConstants(kSpecPushConstantRangeIndex, &spec, 0, sizeof(spec));
+    s.bound_spec = spec;
+  }
+#endif
   if (s.bound_root_buffer[2] != shared_alloc.buffer ||
       s.bound_root_offset[2] != shared_alloc.offset) {
     bind_root_cbv(2, shared_alloc);

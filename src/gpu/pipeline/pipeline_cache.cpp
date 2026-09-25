@@ -148,7 +148,12 @@ u64 HashPipelineState(const PipelineState &state) {
 }
 
 void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask) {
+#if defined(EOT_D3D12)
+  (void)spec_mask;
+  st.spec = 0;
+#else
   st.spec &= spec_mask;
+#endif
   if (st.sampleCount == 0)
     st.sampleCount = 1;
   if (!st.depthEnable) {

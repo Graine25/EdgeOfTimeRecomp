@@ -291,9 +291,7 @@ add_custom_command(
     VERBATIM)
 list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
 
-if(REEOT_D3D12)
-    list(APPEND REEOT_SOURCES src/gpu/shaders/dxc_link.cpp)
-else()
+if(NOT REEOT_D3D12)
     list(APPEND REEOT_SOURCES thirdparty/XenosRecomp/thirdparty/smol-v/source/smolv.cpp)
 endif()
 

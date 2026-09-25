@@ -287,6 +287,7 @@ struct VideoState {
   u64 resolve_alias_candidates_generation = 0;
   u64 mirror_generation = 1;
   u32 root_cbv_index[3] = {~0u, ~0u, ~0u};
+  u32 bound_spec = ~0u;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
   std::mutex shaders_mutex;
   std::vector<std::unique_ptr<GuestShader>> shader_graveyard;
