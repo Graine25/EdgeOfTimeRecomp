@@ -346,3 +346,112 @@ REX_HOOK_RAW(eot_RenderCommand_Wnd3D) {
   }
   __imp__eot_RenderCommand_Wnd3D(ctx, base);
 }
+
+REX_EXTERN(__imp__eot_HUDText_BuildLayout);
+REX_EXTERN(__imp__eot_HUDText_BuildDrawPacket);
+
+namespace {
+
+constexpr uint32_t kTextAttrWindow = 4;
+
+constexpr uint32_t kLayoutScaleX = 56;
+constexpr uint32_t kPacketScaleX = 60;
+constexpr uint32_t kPacketShadowX = 76;
+
+void ScaleGuestF32(uint32_t va, float by) {
+  eot::mem::store<uint32_t>(va, std::bit_cast<uint32_t>(ReadGuestF32(va) * by));
+}
+
+std::atomic<uint32_t> g_layout_scaled{0};
+std::atomic<uint32_t> g_packet_scaled{0};
+
+uint32_t OwnerCrc(uint32_t text_attr) {
+  if (!text_attr)
+    return 0;
+  const uint32_t wnd = eot::mem::load<uint32_t>(text_attr + kTextAttrWindow);
+  return wnd ? eot::mem::load<uint32_t>(wnd + kWndCrc) : 0;
+}
+
+void ScaleLayout(uint32_t text_attr, uint32_t layout) {
+  const float scale = eot::goliath::TextScaleFactor();
+  if (!text_attr || !layout || scale == 0.0f)
+    return;
+
+  const float before = ReadGuestF32(layout + kLayoutScaleX);
+  ScaleGuestF32(layout + kLayoutScaleX, scale);
+
+  const uint32_t n = g_layout_scaled.fetch_add(1, std::memory_order_relaxed) + 1;
+  if (eot::goliath::UiAspectLogEnabled() && n <= 24)
+    EOT_INFO("[ui] text layout {:#010x} scaleX {:.4f}->{:.4f} (x{:.4f})", OwnerCrc(text_attr),
+             before, ReadGuestF32(layout + kLayoutScaleX), scale);
+}
+
+void ScalePacket(uint32_t text_attr, uint32_t packet, bool built) {
+  const float scale = eot::goliath::TextScaleFactor();
+  if (!packet || !built || scale == 0.0f)
+    return;
+
+  const float before = ReadGuestF32(packet + kPacketScaleX);
+  ScaleGuestF32(packet + kPacketScaleX, scale);
+  ScaleGuestF32(packet + kPacketShadowX, scale);
+
+  const uint32_t n = g_packet_scaled.fetch_add(1, std::memory_order_relaxed) + 1;
+  if (eot::goliath::UiAspectLogEnabled() && n <= 24)
+    EOT_INFO("[ui] text packet {:#010x} quadScaleX {:.4f}->{:.4f} (x{:.4f})", OwnerCrc(text_attr),
+             before, ReadGuestF32(packet + kPacketScaleX), scale);
+}
+
+}
+
+REX_HOOK_RAW(eot_HUDText_BuildLayout) {
+  const uint32_t text_attr = ctx.r3.u32;
+  const uint32_t layout = ctx.r4.u32;
+  __imp__eot_HUDText_BuildLayout(ctx, base);
+  if (ctx.r3.u32 != 0)
+    ScaleLayout(text_attr, layout);
+}
+
+REX_HOOK_RAW(eot_HUDText_BuildDrawPacket) {
+  const uint32_t text_attr = ctx.r3.u32;
+  const uint32_t packet = ctx.r5.u32;
+  __imp__eot_HUDText_BuildDrawPacket(ctx, base);
+  ScalePacket(text_attr, packet, ctx.r3.u32 != 0);
+}
+
+REX_EXTERN(__imp__eot_GLAPIHUD_CopyWnd);
+REX_EXTERN(__imp__eot_HUDMgrBC_GetWin);
+
+namespace {
+
+constexpr uint32_t kParentObjectOffset = 80;
+constexpr uint32_t kHandleOffset = 60;
+
+uint32_t ResolveWindow(PPCContext &ctx, uint8_t *base, uint32_t handle) {
+  const uint32_t saved_r3 = ctx.r3.u32;
+  ctx.r3.u32 = handle;
+  __imp__eot_HUDMgrBC_GetWin(ctx, base);
+  const uint32_t window = ctx.r3.u32;
+  ctx.r3.u32 = saved_r3;
+  return window;
+}
+
+}
+
+REX_HOOK_RAW(eot_GLAPIHUD_CopyWnd) {
+  const uint32_t source_handle = ctx.r3.u32;
+  const uint32_t source = ResolveWindow(ctx, base, source_handle);
+  if (source) {
+    const uint32_t parent_object = eot::mem::load<uint32_t>(source + kParentObjectOffset);
+    if (parent_object) {
+      const uint32_t parent_handle = eot::mem::load<uint32_t>(parent_object + kHandleOffset);
+      if (!ResolveWindow(ctx, base, parent_handle)) {
+        EOT_WARN("[hud] CopyWnd: window {:#x} parent handle {:#x} no longer resolves; skipping "
+                 "the copy (the retail path would write through a null window)",
+                 source_handle, parent_handle);
+        ctx.r3.s64 = -1;
+        return;
+      }
+    }
+  }
+  __imp__eot_GLAPIHUD_CopyWnd(ctx, base);
+}
