@@ -18,7 +18,7 @@ REXCVAR_DEFINE_STRING(eot_quality_preset, "custom", "EdgeOfTime/Graphics",
                       "per-object motion vectors. "
                       "Choosing one writes those values into "
                       "eot_msaa (restart), eot_upscale, eot_anisotropy, eot_shadow_map_size, "
-                      "eot_taa and eot_motion_vectors; "
+                      "eot_host_aa and eot_motion_vectors; "
                       "changing any of them afterwards makes the preset custom, which is also "
                       "the default and touches nothing.")
     .allowed({"low", "medium", "high", "ultra", "custom"});
@@ -37,7 +37,7 @@ constexpr Gate kGates[] = {
     {"eot_upscale", "bilinear", "bicubic", "bicubic", "bicubic"},
     {"eot_anisotropy", "0", "8", "16", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096", "8192"},
-    {"eot_taa", "false", "false", "false", "true"},
+    {"eot_host_aa", "off", "off", "off", "taa"},
     {"eot_motion_vectors", "false", "false", "false", "true"},
 };
 

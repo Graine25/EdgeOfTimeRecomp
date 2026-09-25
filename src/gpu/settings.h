@@ -16,6 +16,7 @@ struct Settings {
   static i32 DiagVerbosity();
   static bool Vsync();
   static bool Taa();
+  static bool Fsr();
   static double TaaFeedback();
   static bool MotionVectors();
   static bool Bloom();

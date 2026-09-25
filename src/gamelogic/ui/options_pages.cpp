@@ -375,6 +375,8 @@ constexpr Choice kShadowSize[] = {{"REEOT_VAL_AUTO", "0"},     {"REEOT_VAL_1024"
                                   {"REEOT_VAL_8192", "8192"}};
 constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_BICUBIC", "bicubic"},
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
+constexpr Choice kHostAa[] = {{"REEOT_VAL_OFF", "off"}, {"REEOT_VAL_TAA", "taa"},
+                              {"REEOT_VAL_FSR", "fsr"}};
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
                               {"REEOT_VAL_XBOX", "xbox"},
                               {"REEOT_VAL_SWITCH", "switch"},
@@ -444,7 +446,8 @@ constexpr Setting kGraphicsSettings[] = {
      .choices = kPreset},
     {.label = "REEOT_OPT_MSAA", .description = "REEOT_DESC_MSAA", .cvar = "eot_msaa", .choices = kMsaa,
      .numeric = true, .restart = true},
-    {.label = "REEOT_OPT_TAA", .description = "REEOT_DESC_TAA", .cvar = "eot_taa", .choices = kOnOff},
+    {.label = "REEOT_OPT_HOST_AA", .description = "REEOT_DESC_HOST_AA", .cvar = "eot_host_aa",
+     .choices = kHostAa},
     {.label = "REEOT_OPT_MOTION_VECTORS", .description = "REEOT_DESC_MOTION_VECTORS",
      .cvar = "eot_motion_vectors", .choices = kOnOff},
     {.label = "REEOT_OPT_ANISOTROPY", .description = "REEOT_DESC_ANISOTROPY", .cvar = "eot_anisotropy",
