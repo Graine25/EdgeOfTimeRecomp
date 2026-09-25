@@ -36,7 +36,6 @@
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
-#include "gpu/fsr.h"
 #include "gpu/taa.h"
 #include "gpu/textures.h"
 #include "gpu/velocity.h"
@@ -838,53 +837,6 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
     fit_y = (out_h - fit_h) * 0.5f;
   }
 
-  float fsr_extra[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-  if (Settings::Fsr() && src_index != kInvalidDescriptorIndex) {
-    const u32 mid_w = static_cast<u32>(std::lround(fit_w));
-    const u32 mid_h = static_cast<u32>(std::lround(fit_h));
-    HostTexture *mid = fsr::EnsureTarget(s, mid_w, mid_h);
-    if (mid) {
-      float extra[4];
-      SelectPresentBlitMode(front->host.width, front->host.height, fit_w, fit_h, extra);
-      if (front->host.width < mid_w && front->host.height < mid_h) {
-        extra[0] = 4.0f;
-        extra[1] = 0.0f;
-      }
-      extra[2] = static_cast<float>(mid_w);
-      extra[3] = static_cast<float>(mid_h);
-      HostTexture *colors[4] = {mid, nullptr, nullptr, nullptr};
-      if (plume::RenderFramebuffer *mid_fb = GetFramebuffer(s, colors, 1, nullptr)) {
-        TransitionLocked(s, *mid, plume::RenderTextureLayout::COLOR_WRITE);
-        cmd->setFramebuffer(mid_fb);
-        s.bound_framebuffer = mid_fb;
-        s.bound_draw_targets_valid = false;
-        const plume::RenderViewport mid_vp(0.0f, 0.0f, static_cast<float>(mid_w),
-                                           static_cast<float>(mid_h), 0.0f, 1.0f);
-        const plume::RenderRect mid_sc(0, 0, static_cast<i32>(mid_w), static_cast<i32>(mid_h));
-        cmd->setViewports(&mid_vp, 1);
-        cmd->setScissors(&mid_sc, 1);
-        cmd->setPipeline(GetBlitPipeline(s, mid->format));
-        CopyPushConstants pc;
-        pc.resourceDescriptorIndex = src_index;
-        pc.resourceDescriptorIndex2 = 0u;
-        pc.param0 = 1.0f;
-        pc.param1 = 1.0f;
-        pc.rect[0] = pc.rect[1] = 0.0f;
-        pc.rect[2] = pc.rect[3] = 1.0f;
-        std::memcpy(pc.extra, extra, sizeof(pc.extra));
-        cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc, kCopyPushConstantByteOffset,
-                                      sizeof(pc));
-        cmd->drawInstanced(3, 1, 0, 0);
-        mid->needsClear = false;
-        TransitionLocked(s, *mid, plume::RenderTextureLayout::SHADER_READ);
-        src_index = BindTextureSRVLocked(s, *mid);
-        fsr_extra[0] = 5.0f;
-        fsr_extra[1] = fsr::kSharpness;
-        s.bound_pipeline = nullptr;
-      }
-    }
-  }
-
   cmd->setFramebuffer(s.swap_framebuffers[image].get());
   s.bound_framebuffer = nullptr;
   const bool uncovered =
@@ -913,11 +865,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
     pc.resourceDescriptorIndex = src_index;
     pc.resourceDescriptorIndex2 = lut_index != kInvalidDescriptorIndex ? lut_index : 0u;
     pc.param0 = 1.0f;
-    if (fsr_extra[0] != 0.0f) {
-      std::memcpy(pc.extra, fsr_extra, sizeof(pc.extra));
-    } else {
-      SelectPresentBlitMode(front->host.width, front->host.height, fit_w, fit_h, pc.extra);
-    }
+    SelectPresentBlitMode(front->host.width, front->host.height, fit_w, fit_h, pc.extra);
     pc.colorAdjust[0] = static_cast<float>(std::clamp(Settings::Brightness(), -0.5, 0.5));
     pc.colorAdjust[1] = static_cast<float>(std::clamp(Settings::Contrast(), 0.25, 3.0));
     pc.colorAdjust[2] = static_cast<float>(std::clamp(Settings::Saturation(), 0.0, 3.0));

@@ -271,7 +271,6 @@ set(REEOT_SOURCES
     src/goliath/web_color.cpp
     src/goliath/text/glyph_pages.cpp
     src/goliath/text/translation.cpp
-    src/gpu/fsr.cpp
     src/gpu/taa.cpp
     src/gpu/velocity.cpp
     src/gpu/shaders/guest_shaders.cpp
