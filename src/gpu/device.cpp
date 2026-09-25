@@ -773,6 +773,9 @@ bool BuildPipelineLayout(VideoState &s) {
   layout_builder.addRootDescriptor(2, 4, plume::RenderRootDescriptorType::CONSTANT_BUFFER);
   layout_builder.addPushConstant(3, 4, sizeof(CopyPushConstants),
                                  plume::RenderShaderStageFlag::PIXEL);
+  layout_builder.addPushConstant(4, 4, sizeof(u32),
+                                 plume::RenderShaderStageFlag::VERTEX |
+                                     plume::RenderShaderStageFlag::PIXEL);
 #else
   layout_builder.addPushConstant(0, 4, kCopyPushConstantByteOffset + sizeof(CopyPushConstants),
                                  plume::RenderShaderStageFlag::VERTEX |
