@@ -109,7 +109,7 @@ add_custom_command(
     COMMENT "Authoring ReeotIcons.pkz from pkzlib/ReeotIcons.manifest"
     VERBATIM)
 set(REEOT_SUITS_DDS "")
-foreach(state 00 03 07)
+foreach(state 00 03 05 07)
     foreach(map D N S)
         list(APPEND REEOT_SUITS_DDS "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/suits/Reeot_SMA_State${state}_${map}.dds")
     endforeach()
@@ -221,6 +221,7 @@ set(REEOT_SOURCES
     src/gpu/pipeline/pipeline_cache.cpp
     src/gpu/gpu_timing.cpp
     src/gpu/pipeline/pso_records.cpp
+    src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/package_load.cpp
     src/gpu/patches/update_rate.cpp
@@ -257,9 +258,7 @@ add_custom_command(
     VERBATIM)
 list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
 
-if(REEOT_D3D12)
-    list(APPEND REEOT_SOURCES src/gpu/shaders/dxc_link.cpp)
-else()
+if(NOT REEOT_D3D12)
     list(APPEND REEOT_SOURCES thirdparty/XenosRecomp/thirdparty/smol-v/source/smolv.cpp)
 endif()
 

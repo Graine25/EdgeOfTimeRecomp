@@ -24,6 +24,7 @@
 #endif
 
 #include "core/logging.h"
+#include "gpu/format.h"
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 
@@ -355,10 +356,14 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
       !ParseBool(field(cDepthWrite), &s.depthWrite) || !ParseEnum(field(cDepthFunc), &s.depthFunc) ||
       !ParseBool(field(cStencilEnable), &s.stencilEnable))
     return false;
-  if (s.depthBias || s.slopeScaledDepthBias != 0.0f)
-    s.targetScale = s.targetScale == 0.0f ? FollowTargetScale(s) : s.targetScale;
-  else
+  const bool follows = s.targetScale == 0.0f;
+  if (s.depthBias || s.slopeScaledDepthBias != 0.0f) {
+    s.targetScale = follows ? FollowTargetScale(s) : s.targetScale;
+    if (follows && s.rtCount == 0 && s.sampleCount <= 1 && !s.stencilEnable && IsDepthFormat(s.dsFormat))
+      s.dsFormat = ShadowDepthFormat();
+  } else {
     s.targetScale = 1.0f;
+  }
   i64 m0, m1, m2;
   if (!ParseI64(field(cStencilReadMask), &m0) || !ParseI64(field(cStencilWriteMask), &m1) ||
       !ParseI64(field(cStencilRef), &m2))
@@ -494,7 +499,7 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
     if (!entry.is_regular_file() || entry.path().extension() != ".csv")
       continue;
     const std::string name = entry.path().filename().string();
-    if (!name.starts_with("pso_misses_"))
+    if (!name.starts_with("pso_drawn_") && !name.starts_with("pso_misses_"))
       continue;
     FILE *f = std::fopen(entry.path().string().c_str(), "rb");
     if (!f)
@@ -551,7 +556,7 @@ void PsoCaptureAdd(const PsoRecord &r) {
     std::error_code ec;
     std::filesystem::create_directories(c.dir, ec);
     c.path = (std::filesystem::path(c.dir) /
-              ("pso_misses_" + c.tag + "_" + PsoSessionStamp() + ".csv"))
+              ("pso_drawn_" + c.tag + "_" + PsoSessionStamp() + ".csv"))
                  .string();
   }
   c.pending.push_back(PsoRecordToCsv(r, c.tag));
@@ -582,8 +587,8 @@ void PsoCaptureFlush(bool force, u64 guest_frame) {
   }
   std::fclose(f);
   c.written += static_cast<u32>(c.pending.size());
-  EOT_INFO("[pso] {} new pipeline(s) captured -> {} ({} this session)", c.pending.size(), c.path,
-           c.written);
+  EOT_DEBUG("[pso] {} pipeline(s) drawn -> {} ({} this session)", c.pending.size(), c.path,
+            c.written);
   c.pending.clear();
 }
 

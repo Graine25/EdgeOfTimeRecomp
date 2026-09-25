@@ -13,24 +13,16 @@
 #include <vector>
 
 #include <xxhash.h>
-#include <condition_variable>
-#include <deque>
-#include <thread>
-
-#if defined(_WIN32)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
 
 #include "core/logging.h"
 #include "core/profiling.h"
 
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/pipeline/pso_precache.h"
 #include "gpu/pipeline/pso_predictor.h"
 #include "gpu/pipeline/pso_records.h"
+#include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/vertex_layout.h"
 
@@ -71,8 +63,10 @@ struct Loading {
   std::unordered_map<u32, PackageHold> holds;
   std::atomic<bool> screen{false};
   std::atomic<u32> currentPackage{0};
+  std::atomic<u32> levelPackage{0};
+  std::atomic<bool> levelKnown{false};
   u64 screenSinceFrame = 0;
-  u32 screens = 0, holdsCount = 0, setsQueued = 0;
+  u32 screens = 0, holdsCount = 0, setsQueued = 0, drawnCaptured = 0;
   f64 holdMs = 0;
 };
 
@@ -109,24 +103,32 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
   r.declCount = static_cast<u32>(l.declRaw.size() / sizeof(DeclElement));
   std::memcpy(r.declRaw, l.declRaw.data(), l.declRaw.size());
   r.frame = s.guest_frames;
-  if (const u32 pkg = loading().currentPackage.load(std::memory_order_relaxed)) {
-    r.packages[0] = static_cast<u16>(pkg);
-    r.packageCount = 1;
-  }
+  auto &ld = loading();
+  const u32 level = ld.levelPackage.load(std::memory_order_relaxed);
+  const u32 last = ld.currentPackage.load(std::memory_order_relaxed);
+  if (level)
+    r.packages[r.packageCount++] = static_cast<u16>(level);
+  if (last && last != level)
+    r.packages[r.packageCount++] = static_cast<u16>(last);
   PsoCaptureAdd(r);
 }
 
 void RouteOne(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
   if (r.packageCount == 0) {
     const bool known = source == PsoSource::CompiledIn || source == PsoSource::LocalCsv;
-    *queued += PsoPrecacheEnqueue(r, source, known) ? 1 : 0;
+    *queued += PsoPrecacheEnqueue(r, source, known ? PsoLane::Recorded : PsoLane::Predicted)
+                   ? 1
+                   : 0;
     return;
   }
-  auto &l = loading();
-  std::lock_guard lock(l.mutex);
-  for (u32 i = 0; i < r.packageCount; ++i)
-    l.sets[r.packages[i]].push_back(r);
+  {
+    auto &l = loading();
+    std::lock_guard lock(l.mutex);
+    for (u32 i = 0; i < r.packageCount; ++i)
+      l.sets[r.packages[i]].push_back(r);
+  }
   ++*per_package;
+  PsoPrecacheEnqueue(r, source, PsoLane::Background);
 }
 
 void RouteRecord(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
@@ -149,7 +151,12 @@ u64 HashPipelineState(const PipelineState &state) {
 }
 
 void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask) {
+#if defined(EOT_D3D12)
+  (void)spec_mask;
+  st.spec = 0;
+#else
   st.spec &= spec_mask;
+#endif
   if (st.sampleCount == 0)
     st.sampleCount = 1;
   if (!st.depthEnable) {
@@ -222,9 +229,14 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
     std::shared_lock lock(c.mutex);
     auto it = c.map.find(key);
     if (it != c.map.end()) {
-      if (!worker)
-        it->second.used = true;
       plume::RenderPipeline *pipeline = it->second.pipeline.get();
+      if (!worker && !it->second.used) {
+        it->second.used = true;
+        if (pipeline && c.capture) {
+          CaptureLocked(s, st);
+          loading().drawnCaptured++;
+        }
+      }
       if (hot_entry && pipeline)
         *hot_entry = {key, pipeline};
       return pipeline;
@@ -329,8 +341,10 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
                s.current_origin, loading().currentPackage.load(std::memory_order_relaxed),
                loading().screen.load(std::memory_order_relaxed) ? " (loading screen)" : "");
     }
-    if (!race && c.capture)
+    if (c.capture) {
       CaptureLocked(s, st);
+      loading().drawnCaptured++;
+    }
   }
   c.map.emplace(key, Entry{std::move(pso), source, template_index, !worker});
   if (hot_entry)
@@ -353,7 +367,7 @@ PsoBuildResult BuildPipelineFromRecord(VideoState &s, const PsoRecord &r, PsoSou
   PipelineState st = r.state;
   const ShaderCacheEntry *ps_entry = r.state.psHash ? FindShaderCacheEntry(r.state.psHash) : nullptr;
   const VsVariant variant = VsVariantFor(vs_entry, ps_entry, r.state.psHash == 0, r.state.velocity);
-  if (r.state.velocity && variant != VsVariant::Velocity)
+  if (r.state.velocity && (variant != VsVariant::Velocity || !Settings::MotionVectors()))
     return PsoBuildResult::Skipped;
   st.vs = GetHostShaderByHash(s, r.state.vsHash, r.state.spec, false, true, variant);
   st.ps = r.state.psHash
@@ -392,9 +406,15 @@ void PsoCachePrecache() {
   PsoPrecacheStart();
 
   size_t compiled_in = 0, local = 0, queued = 0, per_package = 0;
-  for (const PsoRecord &r : CompiledInPipelines()) {
+  std::vector<const PsoRecord *> ordered;
+  ordered.reserve(CompiledInPipelines().size());
+  for (const PsoRecord &r : CompiledInPipelines())
+    ordered.push_back(&r);
+  std::stable_sort(ordered.begin(), ordered.end(),
+                   [](const PsoRecord *a, const PsoRecord *b) { return a->frame < b->frame; });
+  for (const PsoRecord *r : ordered) {
     ++compiled_in;
-    RouteRecord(r, PsoSource::CompiledIn, &queued, &per_package);
+    RouteRecord(*r, PsoSource::CompiledIn, &queued, &per_package);
   }
   std::vector<PsoRecord> rows;
   local = LoadPsoCsvDir(kPsoDir, rows);
@@ -407,8 +427,9 @@ void PsoCachePrecache() {
     packages = l.sets.size();
   }
   const size_t routed = (compiled_in + local) * (state().host_msaa_samples > 1 ? 2u : 1u);
-  EOT_INFO("[pso] boot: {} compiled-in + {} local rows -> {} queued on the priority lane, {} "
-           "held for {} level package(s) ({} duplicate); templates: {}; capturing gaps to {}/ as '{}'",
+  EOT_INFO("[pso] boot: {} compiled-in + {} local rows -> {} queued on the recorded lane, {} "
+           "held for {} level package(s) ({} duplicate); templates: {}; capturing every pipeline "
+           "drawn to {}/ as '{}'",
            compiled_in, local, queued, per_package, packages,
            routed > queued + per_package ? routed - queued - per_package : 0u,
            CompiledInTemplates().size(), kPsoDir, PsoSessionTag());
@@ -426,9 +447,8 @@ void PsoCacheSetLoadingScreen(bool on) {
     l.screenSinceFrame = s.guest_frames;
     std::lock_guard lock(l.mutex);
     l.screens++;
-    EOT_INFO("[pso] loading screen up at frame {} (pool pending prio {} bg {}){}", s.guest_frames,
-             ps.priorityPending, ps.backgroundPending,
-             l.screens == 1 ? "; the boot's: nothing waits behind it" : "");
+    EOT_INFO("[pso] loading screen up at frame {} (pool pending recorded {} prio {} bg {})",
+             s.guest_frames, ps.recordedPending, ps.priorityPending, ps.backgroundPending);
     return;
   }
   u32 pending = 0;
@@ -438,23 +458,21 @@ void PsoCacheSetLoadingScreen(bool on) {
       pending += h.token ? h.token->Pending() : 0;
     l.holds.clear();
   }
-  EOT_INFO("[pso] loading screen down at frame {} after {} frames (pool pending prio {} bg {}, "
-           "{} package pipelines still building)",
-           s.guest_frames, s.guest_frames - l.screenSinceFrame, ps.priorityPending,
-           ps.backgroundPending, pending);
+  EOT_INFO("[pso] loading screen down at frame {} after {} frames (pool pending recorded {} prio "
+           "{} bg {}, {} package pipelines still building)",
+           s.guest_frames, s.guest_frames - l.screenSinceFrame, ps.recordedPending,
+           ps.priorityPending, ps.backgroundPending, pending);
 }
 
 bool PsoCacheInLoadingScreen() { return loading().screen.load(std::memory_order_acquire); }
 
 bool PsoCacheWaitsAllowed() {
-  auto &l = loading();
-  if (!l.screen.load(std::memory_order_acquire))
-    return false;
-  std::lock_guard lock(l.mutex);
-  return l.screens > 1;
+  return loading().screen.load(std::memory_order_acquire);
 }
 
-void PsoCacheOnPackageLoad(u32 id) {
+bool PsoCacheLevelKnown() { return loading().levelKnown.load(std::memory_order_relaxed); }
+
+void PsoCacheOnPackageLoad(u32 id, bool level) {
   auto &l = loading();
   if (id == 0 || id >= 0x1000)
     return;
@@ -466,19 +484,25 @@ void PsoCacheOnPackageLoad(u32 id) {
     if (it != l.sets.end())
       rows = it->second;
   }
-  if (rows.empty())
-    return;
+  if (level) {
+    l.levelPackage.store(id, std::memory_order_relaxed);
+    l.levelKnown.store(rows.size() >= kPsoKnownPackageRows, std::memory_order_relaxed);
+  }
   TokenPtr token = std::make_shared<CompileToken>();
   u32 queued = 0;
   for (const PsoRecord &r : rows)
-    queued += PsoPrecacheEnqueue(r, PsoSource::CompiledIn, true, token) ? 1 : 0;
+    queued += PsoPrecacheEnqueue(r, PsoSource::CompiledIn, PsoLane::Recorded, token) ? 1 : 0;
   {
     std::lock_guard lock(l.mutex);
-    l.setsQueued++;
+    if (!rows.empty())
+      l.setsQueued++;
     l.holds[id] = PackageHold{token, std::chrono::steady_clock::now(), false};
   }
-  EOT_DEBUG("[pso] package {:#x}: {} of {} recorded pipelines queued on the priority lane{}", id,
-           queued, rows.size(), l.screen.load(std::memory_order_relaxed) ? " (loading screen)" : "");
+  if (!rows.empty() || level) {
+    EOT_DEBUG("[pso] package {:#x}{}: {} of {} recorded pipelines queued on the recorded lane{}",
+              id, level ? " (level)" : "", queued, rows.size(),
+              l.screen.load(std::memory_order_relaxed) ? " (loading screen)" : "");
+  }
 }
 
 bool PsoCacheHoldPackage(u32 id) {
@@ -492,11 +516,13 @@ bool PsoCacheHoldPackage(u32 id) {
   PackageHold &h = it->second;
   const f64 ms = std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - h.start)
                      .count();
-  const u32 pending = h.token ? h.token->Pending() : 0;
+  const TokenPtr screen = PsoPrecacheScreenToken();
+  const u32 own = h.token ? h.token->Pending() : 0;
+  const u32 pending = own + (screen ? screen->Pending() : 0);
   if (pending == 0 || ms >= kPsoHoldMaxMs) {
     if (h.held) {
       l.holdMs += ms;
-      EOT_DEBUG("[pso] package {:#x} released after {:.0f} ms{}", id, ms,
+      EOT_INFO("[pso] package {:#x} released after {:.0f} ms{}", id, ms,
                pending ? std::format(" (bounded, {} still building)", pending) : "");
     }
     l.holds.erase(it);
@@ -505,10 +531,27 @@ bool PsoCacheHoldPackage(u32 id) {
   if (!h.held) {
     h.held = true;
     l.holdsCount++;
-    EOT_INFO("[pso] package {:#x} reported loading: holding the screen for {} pipelines", id,
-             pending);
+    EOT_INFO("[pso] package {:#x} reported loading: holding the screen for {} pipelines ({} its "
+             "own)",
+             id, pending, own);
   }
   return true;
+}
+
+void PipelineCacheCounts(u32 *alive, u32 *used) {
+  auto &c = cache();
+  u32 a = 0, u = 0;
+  {
+    std::shared_lock lock(c.mutex);
+    for (const auto &[key, e] : c.map) {
+      if (!e.pipeline)
+        continue;
+      a++;
+      u += e.used ? 1 : 0;
+    }
+  }
+  *alive = a;
+  *used = u;
 }
 
 void PsoCacheFlushIfDirty(bool force) {
@@ -546,7 +589,7 @@ void PsoCacheFlushIfDirty(bool force) {
   const PsoPredictorStats pr = PsoPredictorGetStats();
   if (total == 0 && ps.queued == 0)
     return;
-  u32 screens, holds, sets_queued;
+  u32 screens, holds, sets_queued, drawn;
   f64 hold_ms;
   {
     auto &l = loading();
@@ -555,17 +598,19 @@ void PsoCacheFlushIfDirty(bool force) {
     holds = l.holdsCount;
     sets_queued = l.setsQueued;
     hold_ms = l.holdMs;
+    drawn = l.drawnCaptured;
   }
   EOT_INFO("[pso] {} pipelines: draw {} | compiled-in {} ({} used) | local {} ({} used) | "
            "predicted {} ({} used) | render-thread builds since last: {} gaps, {} races | pool: "
-           "{} queued, {} built, {} existing, {} skipped, {} failed, pending prio {} bg {} | predictor: "
-           "{} models, {} materials, {} slots, {} queued, {} without template, {} shadow biases | "
-           "loading: {} screens, {} package sets, {} holds {:.0f} ms",
+           "{} queued, {} built, {} existing, {} skipped, {} failed, pending recorded {} prio {} bg "
+           "{} | predictor: {} models, {} materials, {} slots, {} queued, {} without template, {} "
+           "shadow biases | loading: {} screens, {} package sets, {} holds {:.0f} ms | {} drawn "
+           "captured",
            total, by_source[0], by_source[1], used_by_source[1], by_source[2],
            used_by_source[2], by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built,
-           ps.existing, ps.skipped, ps.failed, ps.priorityPending, ps.backgroundPending, pr.models,
-           pr.materials, pr.slots, pr.queued, pr.noTemplate, pr.shadowBiases, screens, sets_queued,
-           holds, hold_ms);
+           ps.existing, ps.skipped, ps.failed, ps.recordedPending, ps.priorityPending,
+           ps.backgroundPending, pr.models, pr.materials, pr.slots, pr.queued, pr.noTemplate,
+           pr.shadowBiases, screens, sets_queued, holds, hold_ms, drawn);
   if (!force || templates.empty())
     return;
   std::vector<std::string> rows;
@@ -587,211 +632,6 @@ void PsoCacheFlushIfDirty(bool force) {
                       header, rows);
   EOT_INFO("[pso] templates: {} of {} produced a pipeline a draw used", used_templates,
            templates.size());
-}
-
-}
-
-namespace eot::gpu {
-
-namespace {
-
-struct WorkItem {
-  PsoRecord rec;
-  PsoSource source = PsoSource::Draw;
-  TokenPtr token;
-};
-
-struct Pool {
-  std::mutex mutex;
-  std::condition_variable cv;
-  std::deque<WorkItem> priority, background;
-  std::vector<std::thread> threads;
-  bool started = false, stop = false;
-  std::atomic<bool> loading{false};
-
-  std::mutex dedupMutex;
-  std::unordered_map<u64, PsoSource> queuedOrDone;
-
-  std::atomic<u32> queued{0}, built{0}, existing{0}, skipped{0}, failed{0};
-};
-
-Pool &pool() {
-  static Pool p;
-  return p;
-}
-
-thread_local TokenPtr t_loadToken;
-
-void SetWorkerPriority(bool loading) {
-#if defined(_WIN32)
-  ::SetThreadPriority(::GetCurrentThread(),
-                      loading ? THREAD_PRIORITY_ABOVE_NORMAL : THREAD_PRIORITY_BELOW_NORMAL);
-#else
-  (void)loading;
-#endif
-}
-
-void ProcessItem(WorkItem &item) {
-  auto &p = pool();
-  auto &s = state();
-  switch (BuildPipelineFromRecord(s, item.rec, item.source)) {
-  case PsoBuildResult::Built:
-    p.built++;
-    break;
-  case PsoBuildResult::Existing:
-    p.existing++;
-    break;
-  case PsoBuildResult::Skipped:
-    p.skipped++;
-    break;
-  case PsoBuildResult::Failed:
-    p.failed++;
-    break;
-  }
-  if (item.token)
-    item.token->ReleasePending();
-}
-
-void WorkerLoop() {
-  auto &p = pool();
-  bool priority_loading = false;
-  SetWorkerPriority(priority_loading);
-  for (;;) {
-    WorkItem item;
-    {
-      std::unique_lock lock(p.mutex);
-      p.cv.wait(lock, [&] { return p.stop || !p.priority.empty() || !p.background.empty(); });
-      if (p.stop && p.priority.empty() && p.background.empty())
-        return;
-      if (!p.priority.empty()) {
-        item = std::move(p.priority.front());
-        p.priority.pop_front();
-      } else {
-        item = std::move(p.background.front());
-        p.background.pop_front();
-      }
-    }
-    const bool loading = p.loading.load(std::memory_order_relaxed);
-    if (loading != priority_loading) {
-      priority_loading = loading;
-      SetWorkerPriority(loading);
-    }
-    ProcessItem(item);
-  }
-}
-
-}
-
-void PsoPrecacheStart() {
-  auto &p = pool();
-  std::lock_guard lock(p.mutex);
-  if (p.started)
-    return;
-  p.started = true;
-  p.stop = false;
-  const u32 hw = std::max(1u, std::thread::hardware_concurrency());
-  const u32 count = std::clamp(hw > 2 ? hw - 2 : 1u, kPsoMinThreads, kPsoMaxThreads);
-  for (u32 i = 0; i < count; ++i)
-    p.threads.emplace_back(WorkerLoop);
-  EOT_INFO("[pso] {} pipeline worker thread(s)", count);
-}
-
-void PsoPrecacheStop() {
-  auto &p = pool();
-  std::vector<std::thread> threads;
-  {
-    std::lock_guard lock(p.mutex);
-    if (!p.started)
-      return;
-    p.stop = true;
-    for (auto &q : {&p.priority, &p.background}) {
-      for (auto &item : *q)
-        if (item.token)
-          item.token->ReleasePending();
-      q->clear();
-    }
-    threads.swap(p.threads);
-  }
-  p.cv.notify_all();
-  for (auto &t : threads)
-    if (t.joinable())
-      t.join();
-  std::lock_guard lock(p.mutex);
-  p.started = false;
-}
-
-void PsoPrecacheSetLoading(bool loading) {
-  pool().loading.store(loading, std::memory_order_relaxed);
-}
-
-bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, bool priority, TokenPtr token) {
-  auto &p = pool();
-  const u64 key = HashPipelineState(rec.state);
-  {
-    std::lock_guard lock(p.dedupMutex);
-    if (!p.queuedOrDone.emplace(key, source).second)
-      return false;
-  }
-  PsoPrecacheStart();
-  if (token)
-    token->AddPending();
-  {
-    std::lock_guard lock(p.mutex);
-    if (p.stop) {
-      if (token)
-        token->ReleasePending();
-      return false;
-    }
-    (priority ? p.priority : p.background).push_back(WorkItem{rec, source, std::move(token)});
-  }
-  p.queued++;
-  p.cv.notify_one();
-  return true;
-}
-
-void PsoPrecacheBeginLoad() { t_loadToken = std::make_shared<CompileToken>(); }
-
-TokenPtr PsoPrecacheCurrentToken() { return t_loadToken; }
-
-bool PsoPrecacheWaitLoad(u32 max_ms) {
-  TokenPtr token = t_loadToken;
-  if (!token || token->Pending() == 0)
-    return true;
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(max_ms);
-  while (token->Pending() != 0) {
-    if (std::chrono::steady_clock::now() >= deadline)
-      return false;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-  return true;
-}
-
-void PsoPrecacheEndLoad() { t_loadToken.reset(); }
-
-bool PsoPrecacheKnown(u64 key, PsoSource *source) {
-  auto &p = pool();
-  std::lock_guard lock(p.dedupMutex);
-  auto it = p.queuedOrDone.find(key);
-  if (it == p.queuedOrDone.end())
-    return false;
-  if (source)
-    *source = it->second;
-  return true;
-}
-
-PsoPrecacheStats PsoPrecacheGetStats() {
-  auto &p = pool();
-  PsoPrecacheStats st;
-  st.queued = p.queued.load();
-  st.built = p.built.load();
-  st.existing = p.existing.load();
-  st.skipped = p.skipped.load();
-  st.failed = p.failed.load();
-  std::lock_guard lock(p.mutex);
-  st.priorityPending = static_cast<u32>(p.priority.size());
-  st.backgroundPending = static_cast<u32>(p.background.size());
-  st.threads = static_cast<u32>(p.threads.size());
-  return st;
 }
 
 }

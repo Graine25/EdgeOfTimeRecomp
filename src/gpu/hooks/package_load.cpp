@@ -2,13 +2,11 @@
 #include <string>
 
 #include <rex/hook.h>
-#include <atomic>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/pipeline/pso_predictor.h"
-#include "gpu/pipeline/pso_records.h"
 
 REX_EXTERN(__imp__eot_GLAPIEngine_SetIsInBlockingLoadingScreen);
 REX_EXTERN(__imp__eot_GLAPIPackage_Load);
@@ -35,6 +33,12 @@ std::string PackageName(uint32_t id) {
   return name.empty() ? "?" : name;
 }
 
+bool IsLevelPackage(const std::string &name) {
+  const size_t slash = name.find_last_of("/\\");
+  const size_t start = slash == std::string::npos ? 0 : slash + 1;
+  return start < name.size() && name[start] >= '0' && name[start] <= '9';
+}
+
 }
 
 REX_HOOK_RAW(eot_GLAPIEngine_SetIsInBlockingLoadingScreen) {
@@ -48,8 +52,9 @@ REX_HOOK_RAW(eot_GLAPIPackage_Load) {
   __imp__eot_GLAPIPackage_Load(ctx, base);
   if (id == 0 || id >= kMaxPackages)
     return;
-  EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, PackageName(id));
-  eot::gpu::PsoCacheOnPackageLoad(id);
+  const std::string name = PackageName(id);
+  EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, name);
+  eot::gpu::PsoCacheOnPackageLoad(id, IsLevelPackage(name));
 }
 
 REX_HOOK_RAW(eot_GLAPIPackage_IsLoaded) {
@@ -70,15 +75,6 @@ REX_EXTERN(__imp__eot_RendererMaterial_Load);
 REX_EXTERN(__imp__eot_ModelResource_LoadGeometry);
 REX_EXTERN(__imp__eot_BuildShaderBundleWithDecl);
 
-namespace {
-std::atomic<uint32_t> g_late_logs{0};
-}
-
-REX_HOOK_RAW(eot_BuildShaderBundleWithDecl) {
-  __imp__eot_BuildShaderBundleWithDecl(ctx, base);
-  eot::gpu::PredictorNoteShaderBundle(ctx.r3.u32);
-}
-
 REX_HOOK_RAW(eot_RendererMaterial_Load) {
   const uint32_t material = ctx.r3.u32;
   __imp__eot_RendererMaterial_Load(ctx, base);
@@ -86,16 +82,11 @@ REX_HOOK_RAW(eot_RendererMaterial_Load) {
 }
 
 REX_HOOK_RAW(eot_ModelResource_LoadGeometry) {
-  const uint32_t model = ctx.r3.u32;
-  eot::gpu::PsoPrecacheBeginLoad();
-  const uint32_t queued = eot::gpu::PredictModelLoad(model);
+  eot::gpu::PredictModelLoad(ctx.r3.u32);
   __imp__eot_ModelResource_LoadGeometry(ctx, base);
-  if (queued && eot::gpu::PsoCacheWaitsAllowed()) {
-    const uint32_t gate_ms = eot::gpu::kPsoGateLoadingScreenMs;
-    if (!eot::gpu::PsoPrecacheWaitLoad(gate_ms) &&
-        g_late_logs.fetch_add(1, std::memory_order_relaxed) < 32)
-      EOT_INFO("[pso] predictor: model {:#x} published with pipelines still building after {} ms",
-               model, gate_ms);
-  }
-  eot::gpu::PsoPrecacheEndLoad();
+}
+
+REX_HOOK_RAW(eot_BuildShaderBundleWithDecl) {
+  __imp__eot_BuildShaderBundleWithDecl(ctx, base);
+  eot::gpu::PredictorNoteShaderBundle(ctx.r3.u32);
 }

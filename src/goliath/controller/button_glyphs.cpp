@@ -64,7 +64,7 @@ constexpr KeySlot kKeySlots[] = {
     {0x02, "eot_key_heavy_attack", nullptr, 0xFF},  {0x03, "eot_key_light_attack", nullptr, 0xFF},
     {0x04, "eot_key_web_swing", nullptr, 0xFF},     {0x05, "eot_key_hyper_sense", nullptr, 0xFF},
     {0x06, nullptr, "MOUSE", 0xFF},                 {0x07, nullptr, "WASD", 0xFF},
-    {0x08, "eot_key_upgrades", nullptr, 0xFF},      {0x09, "eot_key_pause", nullptr, 0xFF},
+    {0x08, "eot_key_upgrades", nullptr, 0x00},      {0x09, "eot_key_pause", nullptr, 0x00},
     {0x0A, "eot_key_grab", nullptr, 0xFF},          {0x0B, "eot_key_special_attack", nullptr, 0xFF},
     {0x1B, "keybind_lstick_down", nullptr, 0x00},   {0x1E, "eot_key_spider_sense", nullptr, 0xFF},
 };
