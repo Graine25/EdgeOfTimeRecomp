@@ -35,6 +35,7 @@
 #include "gpu/device.h"
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
+#include "goliath/controller/bind_capture.h"
 #include "goliath/controller/mouse_input.h"
 #include "goliath/controller/pc_controls.h"
 #include "goliath/text/glyph_pages.h"
@@ -624,6 +625,7 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   EOT_INFO("[window] {}x{}, {}", window()->GetActualPhysicalWidth(), window()->GetActualPhysicalHeight(),
            window()->IsFullscreen() ? "fullscreen" : "windowed");
   eot::controller::AttachMouseInput(window());
+  eot::controller::AttachBindCapture(window());
   drawer->AddDialog(new FpsOverlayDialog(drawer));
   rex::ui::RegisterBind("bind_fps_overlay", "F8", "Toggle the FPS overlay", [] {
     const bool shown = rex::cvar::Query<bool>("show_fps_overlay");

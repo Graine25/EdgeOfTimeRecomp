@@ -54,7 +54,8 @@ REXCVAR_DEFINE_STRING(eot_aspect_ratio, "16:9", "EdgeOfTime/Video", "Fullscreen 
 REXCVAR_DEFINE_INT32(eot_fps_limit, 60, "EdgeOfTime/Video", "Frame rate cap")
     .range(0, 1000);
 REXCVAR_DEFINE_BOOL(eot_fast_setters_verify, false, "EdgeOfTime/Debug", "Check fast setters match");
-REXCVAR_DEFINE_BOOL(eot_taa, false, "EdgeOfTime/Graphics", "Temporal anti-aliasing");
+REXCVAR_DEFINE_STRING(eot_host_aa, "off", "EdgeOfTime/Graphics", "Our anti-aliasing, off or TAA")
+    .allowed({"off", "taa"});
 REXCVAR_DEFINE_DOUBLE(eot_taa_feedback, 0.8, "EdgeOfTime/Graphics", "TAA history strength")
     .range(0.3, 0.95);
 REXCVAR_DEFINE_BOOL(eot_motion_vectors, false, "EdgeOfTime/Graphics", "Per-object motion vectors");
@@ -158,7 +159,7 @@ i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
-bool Settings::Taa() { return REXCVAR_GET(eot_taa); }
+bool Settings::Taa() { return REXCVAR_GET(eot_host_aa) == "taa"; }
 bool Settings::MotionVectors() { return REXCVAR_GET(eot_motion_vectors); }
 double Settings::TaaFeedback() { return REXCVAR_GET(eot_taa_feedback); }
 bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
@@ -282,7 +283,7 @@ constexpr Gate kGates[] = {
     {"eot_upscale", "bilinear", "bicubic", "bicubic", "bicubic"},
     {"eot_anisotropy", "0", "8", "16", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096", "8192"},
-    {"eot_taa", "false", "false", "false", "true"},
+    {"eot_host_aa", "off", "off", "off", "taa"},
     {"eot_motion_vectors", "false", "false", "false", "true"},
 };
 

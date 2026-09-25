@@ -235,6 +235,8 @@ set(REEOT_SOURCES
     src/gpu/patches/post_effects.cpp
     src/goliath/controller/pc_controls.cpp
     src/goliath/controller/pad_identity.cpp
+    src/goliath/controller/pad_remap.cpp
+    src/goliath/controller/bind_capture.cpp
     src/goliath/controller/button_glyphs.cpp
     src/goliath/controller/mouse_input.cpp
     src/goliath/debug/freecam.cpp

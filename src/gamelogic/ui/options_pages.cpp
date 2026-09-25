@@ -17,6 +17,7 @@
 #include "core/quit_client.h"
 #include "gamelogic/ui/menu_common.h"
 #include "gamelogic/ui/hud_api.h"
+#include "goliath/controller/pad_actions.h"
 #include "goliath/ui/name_crc.h"
 #include "core/memory_helpers.h"
 
@@ -198,19 +199,28 @@ struct Setting {
   bool (*enabled)() = nullptr;
   const char *disabled_text = nullptr;
   std::span<const Choice> (*choices_of)() = nullptr;
+  bool button = false;
 
-  bool IsSlider() const { return choices.empty() && !choices_of; }
+  bool IsSlider() const { return !button && choices.empty() && !choices_of; }
 };
 
 std::span<const Choice> Choices(const Setting &s) { return s.choices_of ? s.choices_of() : s.choices; }
 
-std::string Value(const Setting &s) { return s.accessor ? s.accessor->get() : rex::cvar::GetFlagByName(s.cvar); }
+std::string Value(const Setting &s) {
+  if (s.button)
+    return {};
+  return s.accessor ? s.accessor->get() : rex::cvar::GetFlagByName(s.cvar);
+}
 
 bool SetValue(const Setting &s, std::string_view value) {
+  if (s.button)
+    return false;
   return s.accessor ? s.accessor->set(value) : rex::cvar::SetFlagByName(s.cvar, value);
 }
 
 void ResetValue(const Setting &s) {
+  if (s.button)
+    return;
   if (!s.accessor) {
     rex::cvar::ResetToDefault(s.cvar);
     return;
@@ -243,6 +253,7 @@ struct Page {
   std::span<const Setting> settings;
   const Layout *layout;
   bool table = false;
+  bool binds = false;
 };
 
 constexpr Layout kWide = {"Reeot_OptionsPanel",
@@ -281,9 +292,24 @@ const Layout kTable = {"Reeot_ModsPanel",
                            0.670f,
                            0.170f,
                            0.008f};
-constexpr uint32_t kLayoutCount = 3;
+const Layout kBinds = {"Reeot_BindsPanel",
+                       "Reeot_BindsRow",
+                       "Reeot_BindsScrollUp",
+                       "Reeot_BindsScrollDown",
+                       "Reeot_BindsInfoTitle",
+                       "Reeot_BindsInfoText",
+                       "Reeot_BindsNoValue",
+                       "Reeot_BindsInfoNote",
+                       {0.06f, 0.20f, 0.50f, 0.60f},
+                       0.670f,
+                       0.170f,
+                       0.008f};
+constexpr uint32_t kLayoutCount = 4;
 extern const Layout kTable;
-uint32_t LayoutIndex(const Layout *layout) { return layout == &kNarrow ? 1 : layout == &kTable ? 2 : 0; }
+extern const Layout kBinds;
+uint32_t LayoutIndex(const Layout *layout) {
+  return layout == &kNarrow ? 1 : layout == &kTable ? 2 : layout == &kBinds ? 3 : 0;
+}
 
 constexpr Choice kOnOff[] = {{"REEOT_VAL_OFF", "false"}, {"REEOT_VAL_ON", "true"}};
 constexpr Choice kLanguages[] = {{"REEOT_VAL_AUTO", "auto"},   {"REEOT_VAL_ENGLISH", "en"}, {"REEOT_VAL_FRENCH", "fr"},
@@ -345,6 +371,7 @@ constexpr Choice kShadowSize[] = {{"REEOT_VAL_AUTO", "0"},     {"REEOT_VAL_1024"
                                   {"REEOT_VAL_8192", "8192"}};
 constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_BICUBIC", "bicubic"},
                                {"REEOT_VAL_LANCZOS", "lanczos"}};
+constexpr Choice kHostAa[] = {{"REEOT_VAL_OFF", "off"}, {"REEOT_VAL_TAA", "taa"}};
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
                               {"REEOT_VAL_XBOX", "xbox"},
                               {"REEOT_VAL_SWITCH", "switch"},
@@ -414,7 +441,8 @@ constexpr Setting kGraphicsSettings[] = {
      .choices = kPreset},
     {.label = "REEOT_OPT_MSAA", .description = "REEOT_DESC_MSAA", .cvar = "eot_msaa", .choices = kMsaa,
      .numeric = true, .restart = true},
-    {.label = "REEOT_OPT_TAA", .description = "REEOT_DESC_TAA", .cvar = "eot_taa", .choices = kOnOff},
+    {.label = "REEOT_OPT_HOST_AA", .description = "REEOT_DESC_HOST_AA", .cvar = "eot_host_aa",
+     .choices = kHostAa},
     {.label = "REEOT_OPT_MOTION_VECTORS", .description = "REEOT_DESC_MOTION_VECTORS",
      .cvar = "eot_motion_vectors", .choices = kOnOff},
     {.label = "REEOT_OPT_ANISOTROPY", .description = "REEOT_DESC_ANISOTROPY", .cvar = "eot_anisotropy",
@@ -459,6 +487,7 @@ constexpr Setting kControlsSettings[] = {
      .enabled = MouseLookOn},
     {.label = "REEOT_OPT_BACKGROUND_INPUT", .description = "REEOT_DESC_BACKGROUND_INPUT",
      .cvar = "eot_background_input", .choices = kOnOff},
+    {.label = "REEOT_OPT_CONFIGURE_BUTTONS", .description = "REEOT_DESC_CONFIGURE_BUTTONS", .button = true},
 };
 
 constexpr Page kAudioPage = {"REEOT_AUDIO_TITLE", "Audio", kAudioSettings, &kWide};
@@ -468,6 +497,54 @@ constexpr Page kGamePage = {"REEOT_GAME_TITLE", "Game", kGameSettings, &kWide};
 constexpr Page kControlsPage = {"REEOT_CONTROLS_TITLE", "Controls", kControlsSettings, &kNarrow};
 
 Page g_mods_page = {"REEOT_MODS_TITLE", "Mods", {}, &kTable, true};
+
+Page g_binds_page = {"REEOT_BINDS_TITLE", "Binds", {}, &kBinds, false, true};
+
+enum class BindKind : uint8_t {
+  kAction,
+  kMove,
+  kCamera
+};
+struct BindRow {
+  const char *label;
+  const char *description;
+  BindKind kind;
+  int8_t action;
+};
+constexpr BindRow kBindRows[] = {
+    {"REEOT_BIND_JUMP", "REEOT_DESC_BIND_JUMP", BindKind::kAction, 0},
+    {"REEOT_BIND_WEB", "REEOT_DESC_BIND_WEB", BindKind::kAction, 1},
+    {"REEOT_BIND_MELEE", "REEOT_DESC_BIND_MELEE", BindKind::kAction, 2},
+    {"REEOT_BIND_RANGED", "REEOT_DESC_BIND_RANGED", BindKind::kAction, 3},
+    {"REEOT_BIND_GRAB", "REEOT_DESC_BIND_GRAB", BindKind::kAction, 4},
+    {"REEOT_BIND_THROW", "REEOT_DESC_BIND_THROW", BindKind::kAction, 5},
+    {"REEOT_BIND_WEB_SWING", "REEOT_DESC_BIND_WEB_SWING", BindKind::kAction, 6},
+    {"REEOT_BIND_SPECIAL", "REEOT_DESC_BIND_SPECIAL", BindKind::kAction, 7},
+    {"REEOT_BIND_SPIDER_SENSE", "REEOT_DESC_BIND_SPIDER_SENSE", BindKind::kAction, 8},
+    {"REEOT_BIND_MOVE", "REEOT_DESC_BIND_MOVE", BindKind::kMove, -1},
+    {"REEOT_BIND_WALL", "REEOT_DESC_BIND_WALL", BindKind::kAction, 9},
+    {"REEOT_BIND_CAMERA", "REEOT_DESC_BIND_CAMERA", BindKind::kCamera, -1},
+    {"REEOT_BIND_CENTER", "REEOT_DESC_BIND_CENTER", BindKind::kAction, 10},
+    {"REEOT_BIND_PAUSE", "REEOT_DESC_BIND_PAUSE", BindKind::kAction, 11},
+    {"REEOT_BIND_UPGRADES", "REEOT_DESC_BIND_UPGRADES", BindKind::kAction, 12},
+};
+constexpr uint32_t kBindRowCount = sizeof(kBindRows) / sizeof(kBindRows[0]);
+static_assert(eot::controller::kPadActionCount == 13, "the rows above index kPadActions");
+
+constexpr uint32_t kColumnKey = 0;
+constexpr uint32_t kColumnPad = 1;
+uint32_t g_bind_column = kColumnKey;
+struct Capture {
+  bool active = false;
+  uint32_t row = 0;
+  uint32_t column = kColumnKey;
+  int move_step = -1;
+};
+Capture g_capture;
+bool g_bind_fixed_note = false;
+uint32_t g_bind_redraw_in = 0;
+constexpr uint32_t kBindRedrawFrames = 4;
+const Page *g_pending_page = nullptr;
 std::vector<eot_mod_info> g_mods;
 std::string g_remove_armed;
 int32_t g_import_state = EOT_MODS_IDLE;
@@ -563,6 +640,7 @@ constexpr uint32_t kSize = 320;
 
 constexpr uint8_t kFlagInputBlock = 0x04;
 constexpr uint8_t kFlagOwnedByCaller = 0x20;
+constexpr uint8_t kFlagBlackout = 0x40;
 
 constexpr uint32_t kResultAcceptSave = 0;
 constexpr uint32_t kResultAccept = 1;
@@ -666,6 +744,10 @@ struct Windows {
   uint32_t kind[kRows] = {};
   uint32_t state[kRows] = {};
   uint32_t header[4] = {};
+  uint32_t action[kRows] = {};
+  uint32_t key[kRows] = {};
+  uint32_t pad[kRows] = {};
+  uint32_t footer = hud::kNoWindow;
   uint32_t scroll_up = hud::kNoWindow;
   uint32_t scroll_down = hud::kNoWindow;
   uint32_t info_title = hud::kNoWindow;
@@ -842,6 +924,10 @@ int NearestChoice(const Setting &s) {
 }
 
 void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, const Setting &s) {
+  if (s.button) {
+    SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue), "");
+    return;
+  }
   const int index = CurrentChoice(s);
   const Choice *choice = index >= 0 ? &Choices(s)[static_cast<size_t>(index)] : nullptr;
   const char *text = !Enabled(s) && s.disabled_text ? s.disabled_text : choice ? choice->text : nullptr;
@@ -1089,9 +1175,15 @@ void ShowModRows(const PPCContext &ctx, uint8_t *base) {
   SetLine(ctx, base, w.info_text, footer.c_str());
 }
 
+void ShowBindRows(const PPCContext &ctx, uint8_t *base);
+
 void ShowRows(const PPCContext &ctx, uint8_t *base) {
   if (g_page->table) {
     ShowModRows(ctx, base);
+    return;
+  }
+  if (g_page->binds) {
+    ShowBindRows(ctx, base);
     return;
   }
   const Windows &w = CurrentWindows();
@@ -1127,6 +1219,13 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
       ScaleText(ctx, base, w.header[i], kHeaderScale);
     w.built = true;
     EOT_INFO("[menu] the mods table's {} strips sized", kRows);
+    return;
+  }
+  if (&layout == &kBinds) {
+    for (uint32_t i = 0; i < 3; ++i)
+      ScaleText(ctx, base, w.header[i], kHeaderScale);
+    w.built = true;
+    EOT_INFO("[menu] the binds table's {} strips sized", kRows);
     return;
   }
   const uint32_t handles = g_block + kBlockHandles;
@@ -1183,24 +1282,36 @@ bool FindWindows(const PPCContext &ctx, uint8_t *base) {
     std::snprintf(name, sizeof(name), "%s%02u", layout.row_prefix, i);
     w.row[i] = hud::Find(ctx, base, NameCrc(name));
   }
+  struct Column {
+    const char *prefix;
+    uint32_t *slots;
+    uint32_t count;
+  };
   if (&layout == &kTable) {
-    struct Column {
-      const char *prefix;
-      uint32_t *slots;
-    };
-    const Column columns[] = {{"Reeot_ModsName", w.name},
-                              {"Reeot_ModsCreator", w.creator},
-                              {"Reeot_ModsKind", w.kind},
-                              {"Reeot_ModsState", w.state},
-                              {"Reeot_ModsHead", w.header}};
-    for (const Column &column : columns) {
-      const uint32_t count = column.slots == w.header ? 4 : kRows;
-      for (uint32_t i = 0; i < count; ++i) {
+    const Column columns[] = {{"Reeot_ModsName", w.name, kRows},
+                              {"Reeot_ModsCreator", w.creator, kRows},
+                              {"Reeot_ModsKind", w.kind, kRows},
+                              {"Reeot_ModsState", w.state, kRows},
+                              {"Reeot_ModsHead", w.header, 4}};
+    for (const Column &column : columns)
+      for (uint32_t i = 0; i < column.count; ++i) {
         char name[48];
         std::snprintf(name, sizeof(name), "%s%02u", column.prefix, i);
         column.slots[i] = hud::Find(ctx, base, NameCrc(name));
       }
-    }
+  }
+  if (&layout == &kBinds) {
+    const Column columns[] = {{"Reeot_BindsAction", w.action, kRows},
+                              {"Reeot_BindsKey", w.key, kRows},
+                              {"Reeot_BindsPad", w.pad, kRows},
+                              {"Reeot_BindsHead", w.header, 3}};
+    for (const Column &column : columns)
+      for (uint32_t i = 0; i < column.count; ++i) {
+        char name[48];
+        std::snprintf(name, sizeof(name), "%s%02u", column.prefix, i);
+        column.slots[i] = hud::Find(ctx, base, NameCrc(name));
+      }
+    w.footer = hud::Find(ctx, base, NameCrc("Reeot_BindsFooter"));
   }
   w.found = w.panel != hud::kNoWindow;
   if (!w.found)
@@ -1220,7 +1331,7 @@ void DressWindows(const PPCContext &ctx, uint8_t *base) {
     hud::Call(ctx, base, hud::kWnd2DSetUVs, w.scroll_down, scratch, scratch + 8, scratch + 16, scratch + 24, wide);
 }
 
-void FillConfig(uint32_t c, uint32_t window, uint32_t title) {
+void FillConfig(uint32_t c, uint32_t window, uint32_t title, bool blackout) {
   for (uint32_t off = 0; off < cfg::kSize; off += 4)
     eot::mem::store<uint32_t>(c + off, 0);
   eot::mem::store<uint32_t>(c + cfg::kVtable, cfg::kGameOptionsVtable);
@@ -1229,8 +1340,9 @@ void FillConfig(uint32_t c, uint32_t window, uint32_t title) {
   eot::mem::store<float>(c + cfg::kInputDelay, 0.0f);
   eot::mem::store<float>(c + cfg::kOpenTime, 0.25f);
   eot::mem::store<float>(c + cfg::kCloseTime, 0.15f);
-  eot::mem::store<float>(c + cfg::kBackdropAlpha, 0.65f);
-  eot::mem::store<uint8_t>(c + cfg::kFlags, cfg::kFlagOwnedByCaller | cfg::kFlagInputBlock);
+  eot::mem::store<float>(c + cfg::kBackdropAlpha, blackout ? 1.0f : 0.65f);
+  eot::mem::store<uint8_t>(c + cfg::kFlags, static_cast<uint8_t>(cfg::kFlagOwnedByCaller | cfg::kFlagInputBlock |
+                                                                 (blackout ? cfg::kFlagBlackout : 0)));
   for (uint32_t i = 0; i < cfg::kTitleCount; ++i)
     eot::mem::store<uint32_t>(c + cfg::kTitle + i * 4, 0xFFFFFFFFu);
   eot::mem::store<uint32_t>(c + cfg::kTitle, title);
@@ -1257,6 +1369,16 @@ void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
     if (!mods::Api().Bound())
       EOT_WARN("[menu] the host has no mods entry points; the Mods page can do nothing");
   }
+  if (page.binds) {
+    g_prompts_sent = false;
+    g_bind_column = kColumnKey;
+    g_capture = Capture{};
+    g_bind_fixed_note = false;
+    if (binds::Api().capture_end)
+      binds::Api().capture_end();
+    if (!binds::Api().Bound())
+      EOT_WARN("[menu] the host has no bind entry points; the Configure Buttons page can only show the binds");
+  }
   if (!g_config)
     g_config = AllocGuest(ctx, base, cfg::kSize);
   if (!g_block)
@@ -1277,15 +1399,15 @@ void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   for (const Setting &s : page.settings)
     g_opened_with.push_back(Value(s));
 
-  FillConfig(g_config, CurrentWindows().panel, StringHandle(ctx, base, page.title));
+  FillConfig(g_config, CurrentWindows().panel, StringHandle(ctx, base, page.title), page.binds);
   PPCContext call = ctx;
   call.r3.u32 = g_config;
   __imp__eot_YesNoWindow_Open(call, base);
   g_popup_id = call.r3.u32;
   g_popup_open = g_popup_id != 0xFFFFFFFFu;
   EOT_INFO("[menu] {} page: {} {}, panel {:#x} -> pop-up id {:#x}", page.label,
-           page.table ? g_mods.size() : page.settings.size(), page.table ? "mods" : "settings",
-           CurrentWindows().panel, g_popup_id);
+           page.table ? g_mods.size() : page.binds ? kBindRowCount : page.settings.size(),
+           page.table ? "mods" : page.binds ? "binds" : "settings", CurrentWindows().panel, g_popup_id);
 }
 
 bool RestartDue() {
@@ -1352,12 +1474,18 @@ void Close(const PPCContext &ctx, uint8_t *base, bool accept) {
       EOT_WARN("[menu] eot_save_settings is not registered; the settings hold until exit");
   }
   eot::mem::store<uint32_t>(g_config + cfg::kResult, result);
-  PlayCue(ctx, base, accept && !g_page->table ? kCueAccept : kCueBack);
+  PlayCue(ctx, base, accept && !g_page->table && !g_page->binds ? kCueAccept : kCueBack);
   if (restart)
     AskRestart(ctx, base);
 }
 
-uint32_t RowCount() { return static_cast<uint32_t>(g_page->table ? g_mods.size() : g_page->settings.size()); }
+uint32_t RowCount() {
+  if (g_page->table)
+    return static_cast<uint32_t>(g_mods.size());
+  if (g_page->binds)
+    return kBindRowCount;
+  return static_cast<uint32_t>(g_page->settings.size());
+}
 
 void MoveCursor(const PPCContext &ctx, uint8_t *base, int step) {
   const int count = static_cast<int>(RowCount());
@@ -1375,6 +1503,8 @@ void MoveCursor(const PPCContext &ctx, uint8_t *base, int step) {
 
 void ChangeValue(const PPCContext &ctx, uint8_t *base, int step) {
   const Setting &s = g_page->settings[g_cursor];
+  if (s.button)
+    return;
   if (!Enabled(s)) {
     PlayCue(ctx, base, kCueDenied);
     return;
@@ -1404,6 +1534,309 @@ void NoteModsResult(const PPCContext &ctx, uint8_t *base, bool ok, const char *m
   if (g_first > g_cursor)
     g_first = g_cursor;
   ShowRows(ctx, base);
+}
+
+std::string BoundKey(const char *cvar) {
+  std::string value = rex::cvar::GetFlagByName(cvar);
+  if (const size_t comma = value.find(','); comma != std::string::npos)
+    value.resize(comma);
+  if (const size_t plus = value.rfind('+'); plus != std::string::npos)
+    value.erase(0, plus + 1);
+  while (!value.empty() && value.back() == ' ')
+    value.pop_back();
+  while (!value.empty() && value.front() == ' ')
+    value.erase(0, 1);
+  return value;
+}
+
+eot::controller::PadInput PhysicalOf(const eot::controller::PadAction &action) {
+  const eot::controller::PadInput bound = eot::controller::ParsePadInput(rex::cvar::GetFlagByName(action.pad_cvar));
+  return bound == eot::controller::PadInput::None ? action.native : bound;
+}
+
+bool SticksSwapped() { return rex::cvar::GetFlagByName(eot::controller::kPadSticksCvar) == "swapped"; }
+
+uint8_t KeySlotOf(const eot::controller::PadAction &action) {
+  using eot::controller::PadInput;
+  if (action.native == PadInput::LS)
+    return 0x0C;
+  if (action.native == PadInput::RS)
+    return 0x0D;
+  return eot::controller::PadInputSlot(action.native);
+}
+
+const char *KeyGlyphString(uint8_t slot) {
+  static char name[16];
+  std::snprintf(name, sizeof(name), "REEOT_GK_%02X", slot);
+  return name;
+}
+const char *PadGlyphString(uint8_t slot) {
+  static char name[16];
+  std::snprintf(name, sizeof(name), "REEOT_GP_%02X", slot);
+  return name;
+}
+
+bool KeyHasCap(uint8_t slot) { return binds::Api().key_glyph && binds::Api().key_glyph(slot) != 0; }
+
+void ShowKeyCell(const PPCContext &ctx, uint8_t *base, uint32_t window, const BindRow &row) {
+  using eot::controller::PadInput;
+  using eot::controller::PadInputSlot;
+  switch (row.kind) {
+  case BindKind::kAction: {
+    const eot::controller::PadAction &action = eot::controller::kPadActions[row.action];
+    const std::string key = BoundKey(action.key_cvar);
+    const uint8_t slot = KeySlotOf(action);
+    if (key.empty())
+      SetStringHandle(ctx, base, window, StringHandle(ctx, base, "REEOT_BINDS_NONE"));
+    else if (KeyHasCap(slot))
+      SetStringHandle(ctx, base, window, StringHandle(ctx, base, KeyGlyphString(slot)));
+    else
+      SetLine(ctx, base, window, key.c_str());
+    return;
+  }
+  case BindKind::kMove: {
+    std::string keys[4];
+    for (uint32_t i = 0; i < 4; ++i)
+      keys[i] = BoundKey(eot::controller::kMoveKeyCvars[i]);
+    const bool wasd = keys[0] == "W" && keys[1] == "S" && keys[2] == "A" && keys[3] == "D";
+    if (wasd && KeyHasCap(PadInputSlot(PadInput::LS))) {
+      SetStringHandle(ctx, base, window, StringHandle(ctx, base, KeyGlyphString(PadInputSlot(PadInput::LS))));
+      return;
+    }
+    std::string line;
+    for (const std::string &k : keys)
+      line += (line.empty() ? "" : " ") + (k.empty() ? std::string("-") : k);
+    SetLine(ctx, base, window, line.c_str());
+    return;
+  }
+  case BindKind::kCamera:
+    if (KeyHasCap(PadInputSlot(PadInput::RS)))
+      SetStringHandle(ctx, base, window, StringHandle(ctx, base, KeyGlyphString(PadInputSlot(PadInput::RS))));
+    else
+      SetStringHandle(ctx, base, window, StringHandle(ctx, base, "REEOT_BINDS_MOUSE"));
+    return;
+  }
+}
+
+void ShowPadCell(const PPCContext &ctx, uint8_t *base, uint32_t window, const BindRow &row) {
+  using eot::controller::PadInput;
+  using eot::controller::PadInputSlot;
+  PadInput input = PadInput::None;
+  switch (row.kind) {
+  case BindKind::kAction:
+    input = PhysicalOf(eot::controller::kPadActions[row.action]);
+    break;
+  case BindKind::kMove:
+    input = SticksSwapped() ? PadInput::RS : PadInput::LS;
+    break;
+  case BindKind::kCamera:
+    input = SticksSwapped() ? PadInput::LS : PadInput::RS;
+    break;
+  }
+  const uint8_t slot = PadInputSlot(input);
+  if (slot != 0xFF) {
+    SetStringHandle(ctx, base, window, StringHandle(ctx, base, PadGlyphString(slot)));
+    return;
+  }
+  const char *text = input == PadInput::Down ? "REEOT_BINDS_PAD_DOWN"
+                     : input == PadInput::Left ? "REEOT_BINDS_PAD_LEFT"
+                     : input == PadInput::Right ? "REEOT_BINDS_PAD_RIGHT"
+                                                 : "REEOT_BINDS_NONE";
+  SetStringHandle(ctx, base, window, StringHandle(ctx, base, text));
+}
+
+void ShowBindNote(const PPCContext &ctx, uint8_t *base) {
+  const Windows &w = CurrentWindows();
+  if (w.info_note == hud::kNoWindow)
+    return;
+  hud::Activate(ctx, base, w.info_note, true);
+  if (g_capture.active) {
+    if (g_capture.column == kColumnPad) {
+      SetStringHandle(ctx, base, w.info_note, StringHandle(ctx, base, "REEOT_BINDS_PRESS_PAD"));
+    } else if (g_capture.move_step >= 0) {
+      static const char *const kDirections[4] = {"REEOT_BINDS_DIR_UP", "REEOT_BINDS_DIR_DOWN", "REEOT_BINDS_DIR_LEFT",
+                                                 "REEOT_BINDS_DIR_RIGHT"};
+      const std::string format = ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_BINDS_PRESS_KEY_FOR"));
+      const std::string direction =
+          ResolveText(ctx, base, StringHandle(ctx, base, kDirections[std::min(g_capture.move_step, 3)]));
+      std::string line = format;
+      if (const size_t at = line.find("%s"); at != std::string::npos)
+        line.replace(at, 2, direction);
+      SetLine(ctx, base, w.info_note, line.c_str());
+    } else {
+      SetStringHandle(ctx, base, w.info_note, StringHandle(ctx, base, "REEOT_BINDS_PRESS_KEY"));
+    }
+    return;
+  }
+  SetStringHandle(ctx, base, w.info_note, StringHandle(ctx, base, g_bind_fixed_note ? "REEOT_BINDS_FIXED" : "REEOT_BINDS_HINT"));
+}
+
+void ShowBindRows(const PPCContext &ctx, uint8_t *base) {
+  const Windows &w = CurrentWindows();
+  for (uint32_t row = 0; row < kRows; ++row) {
+    const uint32_t index = g_first + row;
+    const bool used = index < kBindRowCount;
+    for (const uint32_t *column : {w.row, w.action, w.key, w.pad})
+      hud::Activate(ctx, base, column[row], used);
+    if (!used)
+      continue;
+    const BindRow &bind = kBindRows[index];
+    SetStringHandle(ctx, base, w.action[row], StringHandle(ctx, base, bind.label));
+    ShowKeyCell(ctx, base, w.key[row], bind);
+    ShowPadCell(ctx, base, w.pad[row], bind);
+    const bool selected = index == g_cursor;
+    ShadeWindow(ctx, base, w.action[row], selected ? kShadeSelected : kShadeIdle);
+    ShadeWindow(ctx, base, w.key[row], selected && g_bind_column == kColumnKey ? kShadeSelected : kShadeIdle);
+    ShadeWindow(ctx, base, w.pad[row], selected && g_bind_column == kColumnPad ? kShadeSelected : kShadeIdle);
+  }
+  hud::Activate(ctx, base, w.scroll_up, g_first > 0);
+  hud::Activate(ctx, base, w.scroll_down, g_first + kRows < kBindRowCount);
+  SetStringHandle(ctx, base, w.footer, StringHandle(ctx, base, "REEOT_BINDS_FOOTER"));
+  const BindRow &bind = kBindRows[std::min(g_cursor, kBindRowCount - 1)];
+  const uint32_t label = StringHandle(ctx, base, bind.label);
+  FitInfoTitle(ctx, base, StringLength(ctx, base, label));
+  SetStringHandle(ctx, base, w.info_title, label);
+  SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, bind.description));
+  ShowBindNote(ctx, base);
+}
+
+void BindsChanged() {
+  if (binds::Api().changed)
+    binds::Api().changed();
+  g_bind_redraw_in = kBindRedrawFrames;
+}
+
+void StartCapture(const PPCContext &ctx, uint8_t *base) {
+  const BindRow &row = kBindRows[g_cursor];
+  const binds::Host &api = binds::Api();
+  g_bind_fixed_note = false;
+  if (row.kind != BindKind::kAction && g_bind_column == kColumnPad) {
+    rex::cvar::SetFlagByName(eot::controller::kPadSticksCvar, SticksSwapped() ? "normal" : "swapped");
+    BindsChanged();
+    EOT_INFO("[menu] sticks {}", SticksSwapped() ? "swapped" : "normal");
+    PlayCue(ctx, base, kCueChange);
+    ShowRows(ctx, base);
+    return;
+  }
+  if (row.kind == BindKind::kCamera || !api.Bound()) {
+    g_bind_fixed_note = true;
+    PlayCue(ctx, base, kCueDenied);
+    ShowBindNote(ctx, base);
+    return;
+  }
+  const int32_t kind = g_bind_column == kColumnPad ? EOT_BINDS_PAD : EOT_BINDS_KEY;
+  if (!api.capture_begin(kind)) {
+    PlayCue(ctx, base, kCueDenied);
+    return;
+  }
+  g_capture.active = true;
+  g_capture.row = g_cursor;
+  g_capture.column = g_bind_column;
+  g_capture.move_step = row.kind == BindKind::kMove ? 0 : -1;
+  PlayCue(ctx, base, kCueChange);
+  ShowBindNote(ctx, base);
+}
+
+void EndCapture(const PPCContext &ctx, uint8_t *base, bool changed) {
+  if (binds::Api().capture_end)
+    binds::Api().capture_end();
+  g_capture = Capture{};
+  if (changed)
+    BindsChanged();
+  PlayCue(ctx, base, changed ? kCueAccept : kCueBack);
+  ShowRows(ctx, base);
+}
+
+void PollCapture(const PPCContext &ctx, uint8_t *base) {
+  const binds::Host &api = binds::Api();
+  char name[64] = {};
+  const int32_t state = api.capture_poll ? api.capture_poll(name, sizeof(name)) : EOT_BINDS_CANCELLED;
+  if (state == EOT_BINDS_WAITING)
+    return;
+  const BindRow &row = kBindRows[g_capture.row];
+  switch (state) {
+  case EOT_BINDS_GOT_KEY:
+    if (row.kind == BindKind::kMove) {
+      rex::cvar::SetFlagByName(eot::controller::kMoveKeyCvars[std::clamp(g_capture.move_step, 0, 3)], name);
+      EOT_INFO("[menu] {} = {}", eot::controller::kMoveKeyCvars[std::clamp(g_capture.move_step, 0, 3)], name);
+      if (++g_capture.move_step < 4 && api.capture_begin(EOT_BINDS_KEY)) {
+        PlayCue(ctx, base, kCueChange);
+        ShowBindNote(ctx, base);
+        return;
+      }
+      EndCapture(ctx, base, true);
+      return;
+    }
+    if (row.kind == BindKind::kAction) {
+      rex::cvar::SetFlagByName(eot::controller::kPadActions[row.action].key_cvar, name);
+      EOT_INFO("[menu] {} = {}", eot::controller::kPadActions[row.action].key_cvar, name);
+    }
+    EndCapture(ctx, base, true);
+    return;
+  case EOT_BINDS_GOT_PAD:
+    if (row.kind == BindKind::kAction) {
+      rex::cvar::SetFlagByName(eot::controller::kPadActions[row.action].pad_cvar, name);
+      EOT_INFO("[menu] {} = {}", eot::controller::kPadActions[row.action].pad_cvar, name);
+    }
+    EndCapture(ctx, base, true);
+    return;
+  case EOT_BINDS_CLEARED:
+    if (row.kind == BindKind::kAction && g_capture.column == kColumnKey) {
+      rex::cvar::SetFlagByName(eot::controller::kPadActions[row.action].key_cvar, "");
+      EOT_INFO("[menu] {} cleared", eot::controller::kPadActions[row.action].key_cvar);
+      EndCapture(ctx, base, true);
+      return;
+    }
+    EndCapture(ctx, base, false);
+    return;
+  default:
+    EndCapture(ctx, base, false);
+    return;
+  }
+}
+
+void ResetBind(const PPCContext &ctx, uint8_t *base, bool all) {
+  const uint32_t from = all ? 0 : g_cursor;
+  const uint32_t to = all ? kBindRowCount : g_cursor + 1;
+  for (uint32_t i = from; i < to; ++i) {
+    const BindRow &row = kBindRows[i];
+    const bool key = all || g_bind_column == kColumnKey;
+    const bool pad = all || g_bind_column == kColumnPad;
+    switch (row.kind) {
+    case BindKind::kAction:
+      if (key)
+        rex::cvar::ResetToDefault(eot::controller::kPadActions[row.action].key_cvar);
+      if (pad)
+        rex::cvar::ResetToDefault(eot::controller::kPadActions[row.action].pad_cvar);
+      break;
+    case BindKind::kMove:
+      if (key)
+        for (const char *cvar : eot::controller::kMoveKeyCvars)
+          rex::cvar::ResetToDefault(cvar);
+      if (pad)
+        rex::cvar::ResetToDefault(eot::controller::kPadSticksCvar);
+      break;
+    case BindKind::kCamera:
+      if (pad)
+        rex::cvar::ResetToDefault(eot::controller::kPadSticksCvar);
+      break;
+    }
+  }
+  EOT_INFO("[menu] binds: {} back to default", all ? "everything" : kBindRows[g_cursor].label);
+  BindsChanged();
+  PlayCue(ctx, base, kCueChange);
+  ShowRows(ctx, base);
+}
+
+void ShowBindsPrompts(const PPCContext &ctx, uint8_t *base) {
+  if (g_prompts_sent)
+    return;
+  g_prompts_sent = true;
+  OverridePrompt(kPromptA, "REEOT_PROMPT_REBIND");
+  OverridePrompt(kPromptX, "REEOT_PROMPT_RESET");
+  OverridePrompt(kPromptY, "REEOT_PROMPT_DEFAULTS");
+  SendPromptMask(ctx, base, 0, (1u << kPromptA) | (1u << kPromptBack) | (1u << kPromptX) | (1u << kPromptY),
+                 g_block + kBlockColour);
 }
 
 void ToggleMod(const PPCContext &ctx, uint8_t *base) {
@@ -1483,8 +1916,7 @@ void RestoreTablePrompts(const PPCContext &ctx, uint8_t *base) {
   if (!g_prompts_sent)
     return;
   g_prompts_sent = false;
-  constexpr uint32_t kRetailPopupMask = 0x50020;
-  SendPromptMask(ctx, base, 0, kRetailPopupMask, g_block + kBlockColour);
+  SendPromptMask(ctx, base, 0, 0, g_block + kBlockColour);
   RestorePrompt(kPromptA);
   RestorePrompt(kPromptX);
   RestorePrompt(kPromptY);
@@ -1638,7 +2070,40 @@ REX_HOOK_RAW(eot_GameOptionsPopup_OnUpdate) {
     }
     return;
   }
+  if (g_page->binds) {
+    ShowBindsPrompts(ctx, base);
+    if (g_bind_redraw_in && --g_bind_redraw_in == 0)
+      ShowRows(ctx, base);
+    if (g_capture.active) {
+      PollCapture(ctx, base);
+      if (g_capture.active && Pressed(ctx, base, kInputBack))
+        EndCapture(ctx, base, false);
+      return;
+    }
+    const bool ctrl = binds::Api().ctrl_pressed && binds::Api().ctrl_pressed() != 0;
+    if (ctrl || Pressed(ctx, base, kInputAccept)) {
+      StartCapture(ctx, base);
+    } else if (Pressed(ctx, base, kInputBack)) {
+      Close(ctx, base, true);
+      ctx.r3.u32 = 1;
+    } else if (Pressed(ctx, base, kInputRemove)) {
+      ResetBind(ctx, base, false);
+    } else if (Pressed(ctx, base, kInputReset)) {
+      ResetBind(ctx, base, true);
+    } else if (Pressed(ctx, base, kInputAxisY)) {
+      g_bind_fixed_note = false;
+      MoveCursor(ctx, base, Axis(ctx, base, kInputAxisY) > 0.0 ? 1 : -1);
+    } else if (Pressed(ctx, base, kInputAxisX)) {
+      g_bind_fixed_note = false;
+      g_bind_column = g_bind_column == kColumnKey ? kColumnPad : kColumnKey;
+      PlayCue(ctx, base, kCueChange);
+      ShowRows(ctx, base);
+    }
+    return;
+  }
   if (Pressed(ctx, base, kInputAccept)) {
+    if (g_cursor < g_page->settings.size() && g_page->settings[g_cursor].button)
+      g_pending_page = &g_binds_page;
     Close(ctx, base, true);
     ctx.r3.u32 = 1;
   } else if (Pressed(ctx, base, kInputBack)) {
@@ -1664,7 +2129,14 @@ REX_HOOK_RAW(eot_WindowComponent_Teardown) {
   if (config && config == g_config) {
     g_popup_open = false;
     RestoreTablePrompts(ctx, base);
+    if (g_capture.active && binds::Api().capture_end)
+      binds::Api().capture_end();
+    g_capture = Capture{};
     EOT_INFO("[menu] {} page closed (id {:#x})", g_page ? g_page->label : "?", g_popup_id);
+    if (const Page *next = g_pending_page) {
+      g_pending_page = nullptr;
+      OpenPage(ctx, base, *next);
+    }
   } else if (config && config == g_restart_config && g_restart_asked) {
     g_restart_asked = false;
     EOT_INFO("[menu] restart {}", answer == cfg::kYesNoYes ? "accepted" : "declined");
