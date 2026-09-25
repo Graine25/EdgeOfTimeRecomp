@@ -58,7 +58,7 @@ std::vector<SettingRow> g_rows;
 
 void BuildRows(const eot::platform::Display &display) {
   g_rows = {
-      {"Quality preset", "eot_quality_preset", {{"Low", "low"}, {"Medium", "medium"}, {"High", "high"}}},
+      {"Quality preset", "eot_quality_preset", {{"Orig", "low"}, {"Medium", "medium"}, {"High", "high"}}},
       {"Display mode", "fullscreen", {{"Windowed", "false"}, {"Fullscreen", "true"}}},
       {"Resolution",
        "eot_resolution",
@@ -86,8 +86,7 @@ void BuildRows(const eot::platform::Display &display) {
                      {"Fran\xc3\xa7" "ais", "fr"},
                      {"Italiano", "it"},
                      {"Deutsch", "de"},
-                     {"Espa\xc3\xb1" "ol", "es"},
-                     {"Russkij", "ru"}}});
+                     {"Espa\xc3\xb1" "ol", "es"}}});
 }
 
 int RowSelected(const SettingRow &row) {
