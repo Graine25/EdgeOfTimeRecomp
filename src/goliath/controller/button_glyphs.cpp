@@ -11,7 +11,6 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/pad_identity.h"
-#include "goliath/loading/resources.h"
 #include "goliath/loading/texture_overrides.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
