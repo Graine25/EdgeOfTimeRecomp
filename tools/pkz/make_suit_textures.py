@@ -6,11 +6,11 @@ import numpy as np
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.join(ROOT, "modelimport", "tools"))
-from tex_pack import encode_dxt1, encode_dxt5, mip_chain  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from dxt import encode_dxt1, encode_dxt5, mip_chain  # noqa: E402
 
 LEVELS = 5
-STATES = [("", "00"), ("damage1", "03"), ("damage2", "07")]
+STATES = [("", "00"), ("damage1", "03"), ("damage1.5", "05"), ("damage2", "07")]
 LUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sma_specular_lut.png")
 LUT_BINS = 32
 LENS_SPECULAR = 201.0
