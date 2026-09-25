@@ -13,6 +13,33 @@ def load(path):
         return tomllib.load(f)
 
 
+def unescape(text):
+    out, i = [], 0
+    while i < len(text):
+        c = text[i]
+        if c != "\\" or i + 1 >= len(text):
+            out.append(c)
+            i += 1
+            continue
+        n = text[i + 1]
+        if n == "u" and i + 6 <= len(text):
+            out.append(chr(int(text[i + 2:i + 6], 16)))
+            i += 6
+        elif n == "U" and i + 10 <= len(text):
+            out.append(chr(int(text[i + 2:i + 10], 16)))
+            i += 10
+        elif n in '"\\':
+            out.append(n)
+            i += 2
+        elif n == "n":
+            out.append("\n")
+            i += 2
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
 def load_subset(path):
     tables, current = {}, None
     for raw in open(path, encoding="utf-8"):
@@ -26,7 +53,7 @@ def load_subset(path):
         value = value.strip()
         if current is None or not value.startswith('"') or not value.endswith('"'):
             sys.exit(f"{path}: cannot read: {raw.rstrip()}")
-        current[key.strip()] = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        current[key.strip()] = unescape(value[1:-1])
     return tables
 
 

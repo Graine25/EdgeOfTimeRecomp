@@ -1866,6 +1866,7 @@ out_directory_path = "generated/default_xex"
 0x82310DE8 = { name = "eot_XSessionJoinLocal" }
 0x82311090 = { name = "eot_XSessionWriteStats" }
 0x82248628 = { name = "eot_XTLGetLanguage" }
+0x82248030 = { name = "eot_XInputGetState" }
 0x82247950 = { name = "eot_XUserAwardGamerPicture" }
 0x82247968 = { name = "eot_XUserCreateAchievementEnumerator" }
 0x822478F0 = { name = "eot_XUserCreateStatsEnumeratorByXuid" }

@@ -1,9 +1,11 @@
 #include "goliath/controller/button_glyphs.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <rex/cvar.h>
@@ -11,6 +13,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/pad_identity.h"
+#include "goliath/controller/pad_remap.h"
 #include "goliath/loading/resources.h"
 #include "goliath/loading/texture_overrides.h"
 #include "goliath/text/glyph_pages.h"
@@ -30,6 +33,7 @@ constexpr uint32_t kTagChars = 128;
 
 constexpr uint32_t kRetailPage = 3;
 constexpr uint32_t kFirstPage = 5;
+constexpr uint32_t kRemapPage = 8;
 constexpr uint32_t kKeyboardPage = 9;
 constexpr uint32_t kPageCount = 10;
 
@@ -59,6 +63,7 @@ struct KeySlot {
   const char *cvar;
   const char *cluster;
   uint8_t size_of;
+  bool retail = true;
 };
 constexpr KeySlot kKeySlots[] = {
     {0x00, "eot_key_jump", nullptr, 0xFF},          {0x01, "eot_key_web", nullptr, 0xFF},
@@ -68,6 +73,8 @@ constexpr KeySlot kKeySlots[] = {
     {0x08, "eot_key_upgrades", nullptr, 0x00},      {0x09, "eot_key_pause", nullptr, 0x00},
     {0x0A, "eot_key_grab", nullptr, 0xFF},          {0x0B, "eot_key_special_attack", nullptr, 0xFF},
     {0x1B, "keybind_lstick_down", nullptr, 0x00},   {0x1E, "eot_key_spider_sense", nullptr, 0xFF},
+    {0x0C, "eot_key_left_stick_click", nullptr, 0x00, false},
+    {0x0D, "eot_key_right_stick_click", nullptr, 0x00, false},
 };
 
 float g_sheet_w = 0, g_sheet_h = 0;
@@ -88,6 +95,8 @@ uint32_t g_applied_count = 0;
 std::string g_applied_setting;
 PadBrand g_applied_pad = PadBrand::Unknown;
 size_t g_keys_hash = 0;
+size_t g_remap_hash = 0;
+std::atomic<bool> g_binds_dirty{false};
 
 Box Normalised(const Box &b) { return {b.x0 / g_sheet_w, b.y0 / g_sheet_h, b.x1 / g_sheet_w, b.y1 / g_sheet_h}; }
 
@@ -106,7 +115,7 @@ bool Parse() {
       g_sheet_w = a;
       g_sheet_h = b;
     } else if (std::sscanf(line.c_str(), "set %63s", name) == 1) {
-      if (page >= kKeyboardPage) {
+      if (page >= kRemapPage) {
         EOT_WARN("[glyphs] more icon sets than pages; {} dropped", name);
         set = SIZE_MAX;
         continue;
@@ -166,6 +175,39 @@ size_t KeysHash() {
   return h;
 }
 
+std::vector<eot::text::IconCell> RemapCells() {
+  uint8_t to[32];
+  for (uint8_t s = 0; s < 32; ++s)
+    to[s] = s;
+  for (uint32_t i = 0; i < kPadActionCount; ++i) {
+    const uint8_t native = PadInputSlot(kPadActions[i].native);
+    uint8_t physical = PadInputSlot(PhysicalFor(kPadActions[i]));
+    if (physical == 0xFF)
+      physical = PadInputSlot(PadInput::Up);
+    if (native < 32)
+      to[native] = physical;
+  }
+  if (SticksSwapped()) {
+    std::swap(to[PadInputSlot(PadInput::LS)], to[PadInputSlot(PadInput::RS)]);
+  }
+  std::vector<eot::text::IconCell> cells;
+  g_have[kRemapPage] = 0;
+  for (const KeySlot &k : kKeySlots) {
+    if (!k.retail)
+      continue;
+    cells.push_back({k.slot, 0, 0, 0, 0, 0.0f, 0.0f, to[k.slot], 0xFF});
+    g_have[kRemapPage] |= 1u << k.slot;
+  }
+  return cells;
+}
+
+size_t RemapHash() {
+  size_t h = 1469598103934665603ull;
+  for (uint32_t i = 0; i < kPadActionCount; ++i)
+    h = (h ^ static_cast<uint8_t>(PhysicalFor(kPadActions[i]))) * 1099511628211ull;
+  return (h ^ (SticksSwapped() ? 1u : 0u)) * 1099511628211ull;
+}
+
 std::vector<eot::text::IconCell> KeyboardCells() {
   std::vector<eot::text::IconCell> cells;
   g_have[kKeyboardPage] = 0;
@@ -192,9 +234,11 @@ bool InstallInto(const PPCContext &ctx, uint8_t *base, const Font &font, const s
   if (!record)
     return false;
   bool ok = true;
-  if (!keys_only)
+  if (!keys_only) {
     for (const Set &set : g_sets)
       ok = eot::text::InstallIconPage(ctx, base, record, set.page, g_texture, set.cells) && ok;
+    ok = eot::text::InstallIconPage(ctx, base, record, kRemapPage, g_texture, RemapCells()) && ok;
+  }
   ok = eot::text::InstallIconPage(ctx, base, record, kKeyboardPage, g_texture, keys) && ok;
   ReleaseResource(ctx, base, record);
   return ok;
@@ -227,9 +271,13 @@ uint32_t PageFor(std::string_view set) {
   return kRetailPage;
 }
 
+uint32_t XboxPage() { return PadRemapActive() ? kRemapPage : kRetailPage; }
+
 uint32_t WantedPage(const std::string &setting, PadBrand pad) {
   if (setting == "keyboard")
     return kKeyboardPage;
+  if (setting == "xbox")
+    return XboxPage();
   if (setting != "auto")
     return PageFor(setting);
   switch (pad) {
@@ -238,7 +286,7 @@ uint32_t WantedPage(const std::string &setting, PadBrand pad) {
   case PadBrand::Switch:
     return PageFor("switch");
   default:
-    return kRetailPage;
+    return XboxPage();
   }
 }
 
@@ -276,6 +324,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       g_texture = record;
     }
     g_keys_hash = KeysHash();
+    g_remap_hash = RemapHash();
     const std::vector<eot::text::IconCell> keys = KeyboardCells();
     for (const Font &font : kFonts)
       if (!InstallInto(ctx, base, font, keys, false))
@@ -285,7 +334,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
              g_caps.size(), g_sheet_w, g_sheet_h, kFirstPage, kKeyboardPage);
   }
 
-  if (++g_ticks % kPollTicks == 0) {
+  if (++g_ticks % kPollTicks == 0 || g_binds_dirty.exchange(false, std::memory_order_acq_rel)) {
     const size_t hash = KeysHash();
     if (hash != g_keys_hash) {
       g_keys_hash = hash;
@@ -296,9 +345,24 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       if (g_applied_page == kKeyboardPage)
         ApplyPage(kKeyboardPage);
     }
+    const size_t remap = RemapHash();
+    bool remap_moved = false;
+    if (remap != g_remap_hash) {
+      g_remap_hash = remap;
+      remap_moved = true;
+      const std::vector<eot::text::IconCell> cells = RemapCells();
+      for (const Font &font : kFonts) {
+        const uint32_t record = AcquireResource(ctx, base, FindResource(ctx, base, kTypeFont, font.crc));
+        if (!record)
+          continue;
+        eot::text::InstallIconPage(ctx, base, record, kRemapPage, g_texture, cells);
+        ReleaseResource(ctx, base, record);
+      }
+      EOT_INFO("[glyphs] the Xbox page refilled for the pad binds as they are now");
+    }
     const std::string setting = rex::cvar::GetFlagByName("eot_button_glyphs");
     const PadBrand pad = setting == "auto" ? ActivePad() : PadBrand::Unknown;
-    if (setting != g_applied_setting || pad != g_applied_pad) {
+    if (setting != g_applied_setting || pad != g_applied_pad || remap_moved) {
       g_applied_setting = setting;
       g_applied_pad = pad;
       const uint32_t page = WantedPage(setting, pad);
@@ -311,6 +375,10 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
   if (eot::mem::load<uint32_t>(kTagCount) != g_applied_count)
     ApplyPage(g_applied_page);
 }
+
+bool KeyCapInstalled(uint8_t slot) { return g_installed && slot < 32 && (g_have[kKeyboardPage] & (1u << slot)) != 0; }
+
+void GlyphBindsChanged() { g_binds_dirty.store(true, std::memory_order_release); }
 
 }
 
