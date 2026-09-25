@@ -1918,8 +1918,7 @@ void RestoreTablePrompts(const PPCContext &ctx, uint8_t *base) {
   if (!g_prompts_sent)
     return;
   g_prompts_sent = false;
-  constexpr uint32_t kRetailPopupMask = 0x50020;
-  SendPromptMask(ctx, base, 0, kRetailPopupMask, g_block + kBlockColour);
+  SendPromptMask(ctx, base, 0, 0, g_block + kBlockColour);
   RestorePrompt(kPromptA);
   RestorePrompt(kPromptX);
   RestorePrompt(kPromptY);
