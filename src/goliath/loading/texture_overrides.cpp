@@ -19,6 +19,8 @@ REX_EXTERN(__imp__eot_PKPackageMgrBC_Update);
 
 REXCVAR_DEFINE_BOOL(eot_texture_overrides, true, "EdgeOfTime/Config",
                     "Replace retail textures with the port's own art from its package.");
+REXCVAR_DEFINE_BOOL(eot_antivenom_normals, false, "EdgeOfTime/Config",
+                    "Use the remastered normal maps on Anti-Venom as well as its diffuse ones.");
 
 namespace eot::loading {
 namespace {
@@ -31,14 +33,18 @@ struct Override {
   const char *font;
   const char *glyphs;
   const char *language;
+  const char *cvar;
   uint32_t retailCrc;
   uint32_t replacementCrc;
   uint32_t fontCrc;
 };
 
 constexpr Override Make(const char *retail, const char *replacement, const char *font, const char *glyphs = nullptr,
-                        const char *language = nullptr) {
-  return {retail,   replacement,       font, glyphs, language, eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
+                        const char *language = nullptr, const char *cvar = nullptr) {
+  return {retail, replacement,
+          font,   glyphs,
+          language, cvar,
+          eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
           font ? eot::ui::NameCrc(font) : 0u};
 }
 
@@ -58,9 +64,10 @@ constexpr Override kOverrides[] = {
     Make("SMA_SMAmazingState07_N", "Reeot_SMA_State07_N", nullptr),
     Make("SMA_SMAmazingState07_S", "Reeot_SMA_State07_S", nullptr),
     Make("SMA_AntiVenom_D", "Reeot_AntiVenom_D", nullptr),
-    Make("SMA_AntiVenom_N", "Reeot_AntiVenom_N", nullptr),
+    Make("SMA_AntiVenom_N", "Reeot_AntiVenom_N", nullptr, nullptr, nullptr, "eot_antivenom_normals"),
     Make("SMA_MassiveAntiVenom_D", "Reeot_AntiVenomMassive_D", nullptr),
-    Make("SMA_MassiveAntiVenom_N", "Reeot_AntiVenomMassive_N", nullptr),
+    Make("SMA_MassiveAntiVenom_N", "Reeot_AntiVenomMassive_N", nullptr, nullptr, nullptr,
+         "eot_antivenom_normals"),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");
@@ -79,6 +86,8 @@ uint32_t WantedMask() {
   uint32_t mask = 0;
   for (uint32_t i = 0; i < kOverrideCount; ++i) {
     const Override &o = kOverrides[i];
+    if (o.cvar && !rex::cvar::Query<bool>(o.cvar))
+      continue;
     if (o.language) {
       if (tag == o.language)
         mask |= 1u << i;
