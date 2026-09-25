@@ -7,6 +7,8 @@
 #include <rex/input/input.h>
 #include <rex/input/mnk/mnk_input_driver.h>
 
+#include "goliath/controller/pad_remap.h"
+
 #define EOT_KEYS "Input/Keybinds/Edge of Time"
 
 REXCVAR_DEFINE_STRING(eot_key_jump, "Space", EOT_KEYS, "Jump key (A)");
@@ -48,28 +50,24 @@ rex::input::mnk::KeyboardAction Trigger(const char *name, const char *cvar, bool
   return a;
 }
 
+rex::input::mnk::KeyboardAction On(const eot::controller::PadAction &action) {
+  using eot::controller::PadInput;
+  const PadInput physical = eot::controller::PhysicalFor(action);
+  if (physical == PadInput::LT || physical == PadInput::RT)
+    return Trigger(action.id, action.key_cvar, physical == PadInput::LT);
+  return Button(action.id, action.key_cvar, eot::controller::PadInputBit(physical));
+}
+
 }
 
 void InstallPcControls() {
   using namespace rex::input;
-  std::vector<rex::input::mnk::KeyboardAction> actions = {
-      Button("jump", "eot_key_jump", X_INPUT_GAMEPAD_A),
-      Button("light_attack", "eot_key_light_attack", X_INPUT_GAMEPAD_X),
-      Button("heavy_attack", "eot_key_heavy_attack", X_INPUT_GAMEPAD_Y),
-      Button("web", "eot_key_web", X_INPUT_GAMEPAD_B),
-      Button("grab", "eot_key_grab", X_INPUT_GAMEPAD_RIGHT_SHOULDER),
-      Button("special_attack", "eot_key_special_attack", X_INPUT_GAMEPAD_LEFT_SHOULDER),
-      Trigger("web_swing", "eot_key_web_swing", false),
-      Trigger("hyper_sense", "eot_key_hyper_sense", true),
-      Button("left_stick_click", "eot_key_left_stick_click", X_INPUT_GAMEPAD_LEFT_THUMB),
-      Button("right_stick_click", "eot_key_right_stick_click", X_INPUT_GAMEPAD_RIGHT_THUMB),
-      Button("spider_sense", "eot_key_spider_sense", X_INPUT_GAMEPAD_DPAD_UP),
-      Button("upgrades", "eot_key_upgrades", X_INPUT_GAMEPAD_BACK),
-      Button("pause", "eot_key_pause", X_INPUT_GAMEPAD_START),
-      Button("dpad_down", "eot_key_dpad_down", X_INPUT_GAMEPAD_DPAD_DOWN),
-      Button("dpad_left", "eot_key_dpad_left", X_INPUT_GAMEPAD_DPAD_LEFT),
-      Button("dpad_right", "eot_key_dpad_right", X_INPUT_GAMEPAD_DPAD_RIGHT),
-  };
+  std::vector<rex::input::mnk::KeyboardAction> actions;
+  for (const eot::controller::PadAction &action : eot::controller::kPadActions)
+    actions.push_back(On(action));
+  actions.push_back(Button("dpad_down", "eot_key_dpad_down", X_INPUT_GAMEPAD_DPAD_DOWN));
+  actions.push_back(Button("dpad_left", "eot_key_dpad_left", X_INPUT_GAMEPAD_DPAD_LEFT));
+  actions.push_back(Button("dpad_right", "eot_key_dpad_right", X_INPUT_GAMEPAD_DPAD_RIGHT));
   rex::input::mnk::SetActions(std::move(actions));
 }
 

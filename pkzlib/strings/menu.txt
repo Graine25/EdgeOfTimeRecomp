@@ -22,6 +22,92 @@ REEOT_MODS_IMPORTING	Adding...
 REEOT_PROMPT_TOGGLE	\MENUSELECT\ Toggle
 REEOT_PROMPT_REMOVE	\MENUOPT1\ Remove
 REEOT_PROMPT_ADD	\MENUOPT2\ Add
+REEOT_OPT_CONFIGURE_BUTTONS	Configure Buttons
+REEOT_DESC_CONFIGURE_BUTTONS	Choose which key and which controller button each action uses. Press \MENUSELECT\ to open.
+REEOT_BINDS_TITLE	CONFIGURE BUTTONS
+REEOT_BINDS_ACTION	Action
+REEOT_BINDS_KEYBOARD	Keyboard
+REEOT_BINDS_CONTROLLER	Controller
+REEOT_BIND_JUMP	Jump / Web Jump
+REEOT_DESC_BIND_JUMP	Tap to jump, again in the air for a double jump. Hold for a web jump.
+REEOT_BIND_WEB	Web Shot / Interact
+REEOT_DESC_BIND_WEB	Fire a web shot at what you are facing. Interacts with switches, doors and objects.
+REEOT_BIND_MELEE	Melee Attack
+REEOT_DESC_BIND_MELEE	A punch or a kick. Keep pressing for a combo.
+REEOT_BIND_RANGED	Ranged Attack / Air Launcher
+REEOT_DESC_BIND_RANGED	Tap for a ranged web attack. Hold to launch an enemy into the air.
+REEOT_BIND_GRAB	Grab / Strike
+REEOT_DESC_BIND_GRAB	Grab an enemy or an object, or strike an enemy from a distance.
+REEOT_BIND_THROW	Throw
+REEOT_DESC_BIND_THROW	Throw what you are holding. Held with the attack buttons, a special attack.
+REEOT_BIND_WEB_SWING	Web Zip / Web Swing
+REEOT_DESC_BIND_WEB_SWING	Tap to zip towards where you are looking. Hold to swing.
+REEOT_BIND_SPECIAL	Special Ability
+REEOT_DESC_BIND_SPECIAL	Hyper-Sense as Amazing Spider-Man; the Accelerated Decoy as Spider-Man 2099.
+REEOT_BIND_SPIDER_SENSE	Spider-Sense
+REEOT_DESC_BIND_SPIDER_SENSE	Spider-Sense as Amazing Spider-Man, Accelerated Vision as Spider-Man 2099: highlights objectives, enemies and the way forward.
+REEOT_BIND_MOVE	Walk / Run
+REEOT_DESC_BIND_MOVE	Move. Tilt the stick further to run. On a keyboard, the four movement keys: rebinding asks for each in turn.
+REEOT_BIND_WALL	Stick to a Wall
+REEOT_DESC_BIND_WALL	Click the stick while moving along a wall to stick to it.
+REEOT_BIND_CAMERA	Camera
+REEOT_DESC_BIND_CAMERA	Look around. The mouse on a keyboard; the stick on a controller.
+REEOT_BIND_CENTER	Center Camera
+REEOT_DESC_BIND_CENTER	Click the stick to put the camera back behind Spider-Man.
+REEOT_BIND_PAUSE	Pause Menu
+REEOT_DESC_BIND_PAUSE	Pauses the game and opens the menu.
+REEOT_BIND_UPGRADES	Upgrades Menu
+REEOT_DESC_BIND_UPGRADES	Opens the Web of Skills to spend your points.
+REEOT_BINDS_HINT	\MENUSELECT\ or Ctrl: rebind. Left and right: the column.
+REEOT_BINDS_PRESS_KEY	Press a key or a mouse button. Esc cancels, Backspace clears.
+REEOT_BINDS_PRESS_KEY_FOR	Press the key for: %s. Esc cancels.
+REEOT_BINDS_PRESS_PAD	Press a controller button or trigger. Esc cancels.
+REEOT_BINDS_FIXED	This one cannot be changed.
+REEOT_BINDS_DIR_UP	up
+REEOT_BINDS_DIR_DOWN	down
+REEOT_BINDS_DIR_LEFT	left
+REEOT_BINDS_DIR_RIGHT	right
+REEOT_BINDS_MOUSE	Mouse
+REEOT_BINDS_STICKS_NORMAL	Left stick
+REEOT_BINDS_STICKS_SWAPPED	Right stick
+REEOT_BINDS_PAD_DOWN	D-pad down
+REEOT_BINDS_PAD_LEFT	D-pad left
+REEOT_BINDS_PAD_RIGHT	D-pad right
+REEOT_BINDS_NONE	none
+REEOT_PROMPT_REBIND	\MENUSELECT\ Rebind
+REEOT_PROMPT_RESET	\MENUOPT1\ Reset
+REEOT_PROMPT_DEFAULTS	\MENUOPT2\ Defaults
+REEOT_BINDS_FOOTER	\MENUSELECT\ Rebind    \MENUBACK\ Back    \MENUOPT1\ Reset    \MENUOPT2\ Defaults
+REEOT_GK_00	ऀ
+REEOT_GK_01	ँ
+REEOT_GK_02	ं
+REEOT_GK_03	ः
+REEOT_GK_04	ऄ
+REEOT_GK_05	अ
+REEOT_GK_06	आ
+REEOT_GK_07	इ
+REEOT_GK_08	ई
+REEOT_GK_09	उ
+REEOT_GK_0A	ऊ
+REEOT_GK_0B	ऋ
+REEOT_GK_1B	छ
+REEOT_GK_1E	ञ
+REEOT_GK_0C	ऌ
+REEOT_GK_0D	ऍ
+REEOT_GP_00	̀
+REEOT_GP_01	́
+REEOT_GP_02	̂
+REEOT_GP_03	̃
+REEOT_GP_04	̄
+REEOT_GP_05	̅
+REEOT_GP_06	̆
+REEOT_GP_07	̇
+REEOT_GP_08	̈
+REEOT_GP_09	̉
+REEOT_GP_0A	̊
+REEOT_GP_0B	̋
+REEOT_GP_1B	̛
+REEOT_GP_1E	̞
 REEOT_OPT_FULLSCREEN	Fullscreen
 REEOT_OPT_RESOLUTION	Resolution
 REEOT_OPT_ASPECT	Aspect Ratio
@@ -35,8 +121,8 @@ REEOT_OPT_CONTRAST	Contrast
 REEOT_OPT_SATURATION	Saturation
 REEOT_OPT_GAMMA	Gamma
 REEOT_OPT_PRESET	Quality Preset
-REEOT_OPT_MSAA	Anti-Aliasing
-REEOT_OPT_TAA	Temporal Anti-Aliasing
+REEOT_OPT_MSAA	Guest AA
+REEOT_OPT_HOST_AA	Host AA
 REEOT_OPT_ANISOTROPY	Anisotropic Filtering
 REEOT_OPT_SHADOW_SIZE	Shadow Resolution
 REEOT_OPT_SHADOW_DISTANCE	Shadow Distance
@@ -96,8 +182,8 @@ REEOT_DESC_CONTRAST	Stretches or flattens the picture around its middle grey.
 REEOT_DESC_SATURATION	How strong the colours are: 0% is greyscale, 100% is the game's own.
 REEOT_DESC_GAMMA	The curve between dark and light, before the console's own ramp.
 REEOT_DESC_PRESET	Sets Anti-Aliasing, Anisotropic Filtering, Shadow Resolution and the Upscale Filter together. Changing any of those by hand makes this Custom.
-REEOT_DESC_MSAA	Smooths the edges of geometry by drawing every scene pass with several samples per pixel. Costs memory and bandwidth in proportion.
-REEOT_DESC_TAA	Blends each frame with the previous one, offset by a fraction of a pixel and reprojected through the camera, so distant edges stop shimmering. Works with or without multisampling.
+REEOT_DESC_MSAA	The game's own edges, smoothed by drawing every scene pass with several samples per pixel. Costs memory and bandwidth in proportion.
+REEOT_DESC_HOST_AA	The port's own pass over the finished frame, on top of the game's own edges above. Temporal blends each frame with the previous one, offset by a fraction of a pixel, so distant edges stop shimmering.
 REEOT_DESC_ANISOTROPY	Keeps floors and walls sharp at grazing angles. Near free on a modern card.
 REEOT_DESC_SHADOW_SIZE	The size of each shadow map. Auto follows the render resolution; the fixed sizes trade sharpness for memory.
 REEOT_DESC_SHADOW_DISTANCE	How far shadows are cast, as a multiple of what the level asks for. Farther spreads the same map over more ground.
@@ -157,8 +243,9 @@ REEOT_DESC_LANGUAGE	The language of the text and, where the game has it, the spe
 REEOT_DESC_RESTART	Takes effect after a restart.
 REEOT_RESTART_TITLE	Restart now?
 REEOT_RESTART_BODY	Some of these settings take effect after a restart. Restart the game now?
+REEOT_VAL_TAA	Temporal
 REEOT_OPT_MOTION_VECTORS	Motion Vectors
-REEOT_DESC_MOTION_VECTORS	Gives Temporal Anti-Aliasing where each moving character and prop was last frame, so they settle like the scenery instead of blurring. Needs Temporal Anti-Aliasing.
+REEOT_DESC_MOTION_VECTORS	Gives Host AA set to Temporal where each moving character and prop was last frame, so they settle like the scenery instead of blurring. Needs Host AA on Temporal.
 REEOT_VAL_DISPLAY	Display
 REEOT_VAL_75_PERCENT	75%
 REEOT_VAL_150_PERCENT	150%
