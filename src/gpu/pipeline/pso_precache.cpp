@@ -14,6 +14,12 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#elif defined(__linux__)
+#include <pthread.h>
+#include <sched.h>
+#include <sys/resource.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
 
 #include "core/logging.h"
@@ -28,15 +34,18 @@ struct WorkItem {
   PsoRecord rec;
   PsoSource source = PsoSource::Draw;
   TokenPtr token;
+  TokenPtr screenToken;
 };
 
 struct Pool {
   std::mutex mutex;
   std::condition_variable cv;
-  std::deque<WorkItem> priority, background;
+  std::deque<WorkItem> lanes[3];
   std::vector<std::thread> threads;
   bool started = false, stop = false;
   std::atomic<bool> loading{false};
+  std::mutex screenMutex;
+  TokenPtr screenToken;
 
   std::mutex dedupMutex;
   std::unordered_map<u64, PsoSource> queuedOrDone;
@@ -54,7 +63,16 @@ thread_local TokenPtr t_loadToken;
 void SetWorkerPriority(bool loading) {
 #if defined(_WIN32)
   ::SetThreadPriority(::GetCurrentThread(),
-                      loading ? THREAD_PRIORITY_ABOVE_NORMAL : THREAD_PRIORITY_BELOW_NORMAL);
+                      loading ? THREAD_PRIORITY_NORMAL : THREAD_PRIORITY_BELOW_NORMAL);
+#elif defined(__linux__)
+  static thread_local bool niced = false;
+  if (!niced) {
+    ::setpriority(PRIO_PROCESS, static_cast<id_t>(::syscall(SYS_gettid)), 5);
+    niced = true;
+  }
+  sched_param param{};
+  param.sched_priority = 0;
+  ::pthread_setschedparam(::pthread_self(), loading ? SCHED_OTHER : SCHED_IDLE, &param);
 #else
   (void)loading;
 #endif
@@ -79,6 +97,8 @@ void ProcessItem(WorkItem &item) {
   }
   if (item.token)
     item.token->ReleasePending();
+  if (item.screenToken)
+    item.screenToken->ReleasePending();
 }
 
 void WorkerLoop() {
@@ -89,15 +109,17 @@ void WorkerLoop() {
     WorkItem item;
     {
       std::unique_lock lock(p.mutex);
-      p.cv.wait(lock, [&] { return p.stop || !p.priority.empty() || !p.background.empty(); });
-      if (p.stop && p.priority.empty() && p.background.empty())
+      p.cv.wait(lock, [&] {
+        return p.stop || !p.lanes[0].empty() || !p.lanes[1].empty() || !p.lanes[2].empty();
+      });
+      if (p.stop && p.lanes[0].empty() && p.lanes[1].empty() && p.lanes[2].empty())
         return;
-      if (!p.priority.empty()) {
-        item = std::move(p.priority.front());
-        p.priority.pop_front();
-      } else {
-        item = std::move(p.background.front());
-        p.background.pop_front();
+      for (auto &lane : p.lanes) {
+        if (!lane.empty()) {
+          item = std::move(lane.front());
+          lane.pop_front();
+          break;
+        }
       }
     }
     const bool loading = p.loading.load(std::memory_order_relaxed);
@@ -118,11 +140,11 @@ void PsoPrecacheStart() {
     return;
   p.started = true;
   p.stop = false;
-  const u32 hw = std::max(1u, std::thread::hardware_concurrency());
-  const u32 count = std::clamp(hw > 2 ? hw - 2 : 1u, kPsoMinThreads, kPsoMaxThreads);
+  const u32 physical = PhysicalCoreCount();
+  const u32 count = std::clamp(physical > 2 ? physical - 2 : 1u, kPsoMinThreads, kPsoMaxThreads);
   for (u32 i = 0; i < count; ++i)
     p.threads.emplace_back(WorkerLoop);
-  EOT_INFO("[pso] {} pipeline worker thread(s)", count);
+  EOT_INFO("[pso] {} pipeline worker thread(s) for {} physical cores", count, physical);
 }
 
 void PsoPrecacheStop() {
@@ -133,11 +155,14 @@ void PsoPrecacheStop() {
     if (!p.started)
       return;
     p.stop = true;
-    for (auto &q : {&p.priority, &p.background}) {
-      for (auto &item : *q)
+    for (auto &q : p.lanes) {
+      for (auto &item : q) {
         if (item.token)
           item.token->ReleasePending();
-      q->clear();
+        if (item.screenToken)
+          item.screenToken->ReleasePending();
+      }
+      q.clear();
     }
     threads.swap(p.threads);
   }
@@ -150,10 +175,22 @@ void PsoPrecacheStop() {
 }
 
 void PsoPrecacheSetLoading(bool loading) {
-  pool().loading.store(loading, std::memory_order_relaxed);
+  auto &p = pool();
+  p.loading.store(loading, std::memory_order_relaxed);
+  std::lock_guard lock(p.screenMutex);
+  if (loading)
+    p.screenToken = std::make_shared<CompileToken>();
+  else
+    p.screenToken.reset();
 }
 
-bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, bool priority, TokenPtr token) {
+TokenPtr PsoPrecacheScreenToken() {
+  auto &p = pool();
+  std::lock_guard lock(p.screenMutex);
+  return p.screenToken;
+}
+
+bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane, TokenPtr token) {
   auto &p = pool();
   const u64 key = HashPipelineState(rec.state);
   {
@@ -162,16 +199,24 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, bool priority, T
       return false;
   }
   PsoPrecacheStart();
+  TokenPtr screen;
+  if (lane != PsoLane::Background)
+    screen = PsoPrecacheScreenToken();
   if (token)
     token->AddPending();
+  if (screen)
+    screen->AddPending();
   {
     std::lock_guard lock(p.mutex);
     if (p.stop) {
       if (token)
         token->ReleasePending();
+      if (screen)
+        screen->ReleasePending();
       return false;
     }
-    (priority ? p.priority : p.background).push_back(WorkItem{rec, source, std::move(token)});
+    p.lanes[static_cast<u32>(lane)].push_back(
+        WorkItem{rec, source, std::move(token), std::move(screen)});
   }
   p.queued++;
   p.cv.notify_one();
@@ -217,8 +262,9 @@ PsoPrecacheStats PsoPrecacheGetStats() {
   st.skipped = p.skipped.load();
   st.failed = p.failed.load();
   std::lock_guard lock(p.mutex);
-  st.priorityPending = static_cast<u32>(p.priority.size());
-  st.backgroundPending = static_cast<u32>(p.background.size());
+  st.recordedPending = static_cast<u32>(p.lanes[0].size());
+  st.priorityPending = static_cast<u32>(p.lanes[1].size());
+  st.backgroundPending = static_cast<u32>(p.lanes[2].size());
   st.threads = static_cast<u32>(p.threads.size());
   return st;
 }

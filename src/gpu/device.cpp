@@ -361,23 +361,26 @@ bool DumpHostTextureLocked(VideoState &s, HostTexture &host, const char *path, f
   return ok;
 }
 
-bool PinThreadToPhysicalCore(u32 core, const char *what) {
+namespace {
+
 #if defined(_WIN32)
+struct PhysicalCore {
+  u32 efficiency;
+  KAFFINITY mask;
+  u32 group;
+};
+
+std::vector<PhysicalCore> EnumeratePhysicalCores() {
+  std::vector<PhysicalCore> cores;
   DWORD length = 0;
   GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &length);
   if (!length)
-    return false;
+    return cores;
   std::vector<u8> buffer(length);
   if (!GetLogicalProcessorInformationEx(
           RelationProcessorCore,
           reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data()), &length))
-    return false;
-  struct Core {
-    u32 efficiency;
-    KAFFINITY mask;
-    u32 group;
-  };
-  std::vector<Core> cores;
+    return cores;
   for (DWORD off = 0; off < length;) {
     auto *e = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX *>(buffer.data() + off);
     if (e->Relationship == RelationProcessorCore && e->Processor.GroupCount >= 1)
@@ -385,18 +388,13 @@ bool PinThreadToPhysicalCore(u32 core, const char *what) {
                        e->Processor.GroupMask[0].Group});
     off += e->Size;
   }
-  if (cores.size() < 8)
-    return false;
-  std::stable_sort(cores.begin(), cores.end(),
-                   [](const Core &a, const Core &b) { return a.efficiency > b.efficiency; });
-  if (core >= cores.size() || cores[core].group != 0 || !cores[core].mask)
-    return false;
-  if (!SetThreadAffinityMask(GetCurrentThread(), cores[core].mask))
-    return false;
-  EOT_INFO("[gpu] {} pinned to physical core {} (logical mask {:#x} of {} cores)", what, core,
-           static_cast<u64>(cores[core].mask), cores.size());
-  return true;
+  std::stable_sort(cores.begin(), cores.end(), [](const PhysicalCore &a, const PhysicalCore &b) {
+    return a.efficiency > b.efficiency;
+  });
+  return cores;
+}
 #elif defined(__linux__)
+std::vector<std::vector<int>> EnumeratePhysicalCores() {
   std::vector<std::vector<int>> cores;
   for (int cpu = 0; cpu < 1024; ++cpu) {
     const std::string base = "/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/topology/";
@@ -425,6 +423,41 @@ bool PinThreadToPhysicalCore(u32 core, const char *what) {
       continue;
     cores.push_back(std::move(set));
   }
+  return cores;
+}
+#endif
+
+}
+
+u32 PhysicalCoreCount() {
+  static const u32 count = [] {
+    u32 n = 0;
+#if defined(_WIN32) || defined(__linux__)
+    n = static_cast<u32>(EnumeratePhysicalCores().size());
+#endif
+    if (n == 0) {
+      const u32 hw = std::max(1u, std::thread::hardware_concurrency());
+      n = std::max(1u, (hw + 1) / 2);
+    }
+    return n;
+  }();
+  return count;
+}
+
+bool PinThreadToPhysicalCore(u32 core, const char *what) {
+#if defined(_WIN32)
+  const std::vector<PhysicalCore> cores = EnumeratePhysicalCores();
+  if (cores.size() < 8)
+    return false;
+  if (core >= cores.size() || cores[core].group != 0 || !cores[core].mask)
+    return false;
+  if (!SetThreadAffinityMask(GetCurrentThread(), cores[core].mask))
+    return false;
+  EOT_INFO("[gpu] {} pinned to physical core {} (logical mask {:#x} of {} cores)", what, core,
+           static_cast<u64>(cores[core].mask), cores.size());
+  return true;
+#elif defined(__linux__)
+  const std::vector<std::vector<int>> cores = EnumeratePhysicalCores();
   if (cores.size() < 8 || core >= cores.size())
     return false;
   cpu_set_t mask;

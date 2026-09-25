@@ -32,6 +32,12 @@ std::string PackageName(uint32_t id) {
   return name.empty() ? "?" : name;
 }
 
+bool IsLevelPackage(const std::string &name) {
+  const size_t slash = name.find_last_of("/\\");
+  const size_t start = slash == std::string::npos ? 0 : slash + 1;
+  return start < name.size() && name[start] >= '0' && name[start] <= '9';
+}
+
 }
 
 REX_HOOK_RAW(eot_GLAPIEngine_SetIsInBlockingLoadingScreen) {
@@ -45,8 +51,9 @@ REX_HOOK_RAW(eot_GLAPIPackage_Load) {
   __imp__eot_GLAPIPackage_Load(ctx, base);
   if (id == 0 || id >= kMaxPackages)
     return;
-  EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, PackageName(id));
-  eot::gpu::PsoCacheOnPackageLoad(id);
+  const std::string name = PackageName(id);
+  EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, name);
+  eot::gpu::PsoCacheOnPackageLoad(id, IsLevelPackage(name));
 }
 
 REX_HOOK_RAW(eot_GLAPIPackage_IsLoaded) {

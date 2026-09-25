@@ -322,7 +322,7 @@ void SnapshotModel(VideoState &s, u32 model_va, std::vector<Slot> &out, ModelDia
   }
 }
 
-u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template) {
+u32 EnqueueSlots(const std::vector<Slot> &slots, PsoLane lane, u32 *no_template) {
   auto &p = predictor();
   const auto &templates = CompiledInTemplates();
   const TokenPtr token = PsoPrecacheCurrentToken();
@@ -358,11 +358,11 @@ u32 EnqueueSlots(const std::vector<Slot> &slots, bool priority, u32 *no_template
         PsoRecord twin = r;
         twin.state.sampleCount = msaa;
         if (seen.insert(HashPipelineState(twin.state)).second &&
-            PsoPrecacheEnqueue(twin, PsoSource::Predicted, priority, token))
+            PsoPrecacheEnqueue(twin, PsoSource::Predicted, lane, token))
           ++queued;
       }
       if (seen.insert(HashPipelineState(r.state)).second &&
-          PsoPrecacheEnqueue(r, PsoSource::Predicted, priority, token))
+          PsoPrecacheEnqueue(r, PsoSource::Predicted, lane, token))
         ++queued;
     };
     for (size_t ti = 0; ti < templates.size(); ++ti) {
@@ -432,7 +432,8 @@ u32 PredictModelLoad(u32 model_va) {
   ModelDiag diag;
   SnapshotModel(s, model_va, slots, diag);
   u32 no_template = 0;
-  const u32 queued = EnqueueSlots(slots, true, &no_template);
+  const PsoLane lane = PsoCacheLevelKnown() ? PsoLane::Background : PsoLane::Predicted;
+  const u32 queued = EnqueueSlots(slots, lane, &no_template);
   auto &p = predictor();
   {
     std::lock_guard lock(p.mutex);
@@ -462,7 +463,7 @@ u32 PredictMaterialLoad(u32 material_va) {
       WalkMaterial(s, mat, nullptr, slots, diag);
   }
   u32 no_template = 0;
-  const u32 queued = EnqueueSlots(slots, false, &no_template);
+  const u32 queued = EnqueueSlots(slots, PsoLane::Background, &no_template);
   auto &p = predictor();
   {
     std::lock_guard lock(p.mutex);
@@ -514,7 +515,7 @@ void PredictorNoteShaderBundle(u32 bundle_va) {
       p.nodeObjects.emplace(ps, std::make_pair(bundle_va, kBundleTechnique));
   }
   u32 no_template = 0;
-  const u32 queued = EnqueueSlots(slots, true, &no_template);
+  const u32 queued = EnqueueSlots(slots, PsoLane::Predicted, &no_template);
   {
     std::lock_guard plock(p.mutex);
     p.stats.slots++;
@@ -542,7 +543,7 @@ void PredictorNoteShadowBias(float offset, float slope) {
   if (!s.ready || !s.device)
     return;
   u32 no_template = 0;
-  const u32 queued = EnqueueSlots(casters, true, &no_template);
+  const u32 queued = EnqueueSlots(casters, PsoLane::Predicted, &no_template);
   {
     std::lock_guard lock(p.mutex);
     p.stats.queued += queued;

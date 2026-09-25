@@ -107,6 +107,7 @@ inline u64 PerfNow() { return __rdtsc(); }
 inline f64 g_perf_ms_per_tick = 0.0;
 f64 PerfMsPerTickSlow();
 bool PinThreadToPhysicalCore(u32 core, const char *what);
+u32 PhysicalCoreCount();
 inline f64 PerfMsPerTick() {
   const f64 v = g_perf_ms_per_tick;
   return v > 0.0 ? v : PerfMsPerTickSlow();

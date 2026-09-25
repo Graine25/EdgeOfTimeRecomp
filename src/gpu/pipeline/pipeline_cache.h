@@ -73,7 +73,8 @@ void PsoCacheFlushIfDirty(bool force);
 void PsoCacheSetLoadingScreen(bool on);
 bool PsoCacheInLoadingScreen();
 
-void PsoCacheOnPackageLoad(u32 id);
+void PsoCacheOnPackageLoad(u32 id, bool level);
+bool PsoCacheLevelKnown();
 bool PsoCacheHoldPackage(u32 id);
 bool PsoCacheWaitsAllowed();
 
