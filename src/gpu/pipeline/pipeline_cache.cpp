@@ -121,11 +121,14 @@ void RouteOne(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_
                    : 0;
     return;
   }
-  auto &l = loading();
-  std::lock_guard lock(l.mutex);
-  for (u32 i = 0; i < r.packageCount; ++i)
-    l.sets[r.packages[i]].push_back(r);
+  {
+    auto &l = loading();
+    std::lock_guard lock(l.mutex);
+    for (u32 i = 0; i < r.packageCount; ++i)
+      l.sets[r.packages[i]].push_back(r);
+  }
   ++*per_package;
+  PsoPrecacheEnqueue(r, source, PsoLane::Background);
 }
 
 void RouteRecord(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
@@ -403,9 +406,15 @@ void PsoCachePrecache() {
   PsoPrecacheStart();
 
   size_t compiled_in = 0, local = 0, queued = 0, per_package = 0;
-  for (const PsoRecord &r : CompiledInPipelines()) {
+  std::vector<const PsoRecord *> ordered;
+  ordered.reserve(CompiledInPipelines().size());
+  for (const PsoRecord &r : CompiledInPipelines())
+    ordered.push_back(&r);
+  std::stable_sort(ordered.begin(), ordered.end(),
+                   [](const PsoRecord *a, const PsoRecord *b) { return a->frame < b->frame; });
+  for (const PsoRecord *r : ordered) {
     ++compiled_in;
-    RouteRecord(r, PsoSource::CompiledIn, &queued, &per_package);
+    RouteRecord(*r, PsoSource::CompiledIn, &queued, &per_package);
   }
   std::vector<PsoRecord> rows;
   local = LoadPsoCsvDir(kPsoDir, rows);

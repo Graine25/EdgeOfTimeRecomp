@@ -33,6 +33,8 @@ namespace {
 struct WorkItem {
   PsoRecord rec;
   PsoSource source = PsoSource::Draw;
+  PsoLane lane = PsoLane::Background;
+  u64 key = 0;
   TokenPtr token;
   TokenPtr screenToken;
 };
@@ -47,8 +49,13 @@ struct Pool {
   std::mutex screenMutex;
   TokenPtr screenToken;
 
+  struct Known {
+    PsoSource source;
+    PsoLane lane;
+    bool taken;
+  };
   std::mutex dedupMutex;
-  std::unordered_map<u64, PsoSource> queuedOrDone;
+  std::unordered_map<u64, Known> queuedOrDone;
 
   std::atomic<u32> queued{0}, built{0}, existing{0}, skipped{0}, failed{0};
 };
@@ -127,6 +134,20 @@ void WorkerLoop() {
       priority_loading = loading;
       SetWorkerPriority(loading);
     }
+    {
+      std::lock_guard lock(p.dedupMutex);
+      auto it = p.queuedOrDone.find(item.key);
+      if (it != p.queuedOrDone.end()) {
+        if (it->second.lane != item.lane) {
+          if (item.token)
+            item.token->ReleasePending();
+          if (item.screenToken)
+            item.screenToken->ReleasePending();
+          continue;
+        }
+        it->second.taken = true;
+      }
+    }
     ProcessItem(item);
   }
 }
@@ -195,8 +216,13 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane, To
   const u64 key = HashPipelineState(rec.state);
   {
     std::lock_guard lock(p.dedupMutex);
-    if (!p.queuedOrDone.emplace(key, source).second)
-      return false;
+    auto [it, fresh] = p.queuedOrDone.try_emplace(key, Pool::Known{source, lane, false});
+    if (!fresh) {
+      if (it->second.taken || it->second.lane <= lane)
+        return false;
+      it->second.lane = lane;
+      it->second.source = source;
+    }
   }
   PsoPrecacheStart();
   TokenPtr screen;
@@ -216,7 +242,7 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane, To
       return false;
     }
     p.lanes[static_cast<u32>(lane)].push_back(
-        WorkItem{rec, source, std::move(token), std::move(screen)});
+        WorkItem{rec, source, lane, key, std::move(token), std::move(screen)});
   }
   p.queued++;
   p.cv.notify_one();
@@ -249,7 +275,7 @@ bool PsoPrecacheKnown(u64 key, PsoSource *source) {
   if (it == p.queuedOrDone.end())
     return false;
   if (source)
-    *source = it->second;
+    *source = it->second.source;
   return true;
 }
 
