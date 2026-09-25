@@ -494,7 +494,7 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
     if (!entry.is_regular_file() || entry.path().extension() != ".csv")
       continue;
     const std::string name = entry.path().filename().string();
-    if (!name.starts_with("pso_misses_"))
+    if (!name.starts_with("pso_drawn_") && !name.starts_with("pso_misses_"))
       continue;
     FILE *f = std::fopen(entry.path().string().c_str(), "rb");
     if (!f)
@@ -551,7 +551,7 @@ void PsoCaptureAdd(const PsoRecord &r) {
     std::error_code ec;
     std::filesystem::create_directories(c.dir, ec);
     c.path = (std::filesystem::path(c.dir) /
-              ("pso_misses_" + c.tag + "_" + PsoSessionStamp() + ".csv"))
+              ("pso_drawn_" + c.tag + "_" + PsoSessionStamp() + ".csv"))
                  .string();
   }
   c.pending.push_back(PsoRecordToCsv(r, c.tag));
@@ -582,8 +582,8 @@ void PsoCaptureFlush(bool force, u64 guest_frame) {
   }
   std::fclose(f);
   c.written += static_cast<u32>(c.pending.size());
-  EOT_INFO("[pso] {} new pipeline(s) captured -> {} ({} this session)", c.pending.size(), c.path,
-           c.written);
+  EOT_DEBUG("[pso] {} pipeline(s) drawn -> {} ({} this session)", c.pending.size(), c.path,
+            c.written);
   c.pending.clear();
 }
 

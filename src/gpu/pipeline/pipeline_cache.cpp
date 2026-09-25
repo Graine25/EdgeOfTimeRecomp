@@ -22,6 +22,7 @@
 #include "gpu/pipeline/pso_precache.h"
 #include "gpu/pipeline/pso_predictor.h"
 #include "gpu/pipeline/pso_records.h"
+#include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/vertex_layout.h"
 
@@ -62,8 +63,10 @@ struct Loading {
   std::unordered_map<u32, PackageHold> holds;
   std::atomic<bool> screen{false};
   std::atomic<u32> currentPackage{0};
+  std::atomic<u32> levelPackage{0};
+  std::atomic<bool> levelKnown{false};
   u64 screenSinceFrame = 0;
-  u32 screens = 0, holdsCount = 0, setsQueued = 0;
+  u32 screens = 0, holdsCount = 0, setsQueued = 0, drawnCaptured = 0;
   f64 holdMs = 0;
 };
 
@@ -100,17 +103,22 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
   r.declCount = static_cast<u32>(l.declRaw.size() / sizeof(DeclElement));
   std::memcpy(r.declRaw, l.declRaw.data(), l.declRaw.size());
   r.frame = s.guest_frames;
-  if (const u32 pkg = loading().currentPackage.load(std::memory_order_relaxed)) {
-    r.packages[0] = static_cast<u16>(pkg);
-    r.packageCount = 1;
-  }
+  auto &ld = loading();
+  const u32 level = ld.levelPackage.load(std::memory_order_relaxed);
+  const u32 last = ld.currentPackage.load(std::memory_order_relaxed);
+  if (level)
+    r.packages[r.packageCount++] = static_cast<u16>(level);
+  if (last && last != level)
+    r.packages[r.packageCount++] = static_cast<u16>(last);
   PsoCaptureAdd(r);
 }
 
 void RouteOne(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
   if (r.packageCount == 0) {
     const bool known = source == PsoSource::CompiledIn || source == PsoSource::LocalCsv;
-    *queued += PsoPrecacheEnqueue(r, source, known) ? 1 : 0;
+    *queued += PsoPrecacheEnqueue(r, source, known ? PsoLane::Recorded : PsoLane::Predicted)
+                   ? 1
+                   : 0;
     return;
   }
   auto &l = loading();
@@ -213,9 +221,14 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
     std::shared_lock lock(c.mutex);
     auto it = c.map.find(key);
     if (it != c.map.end()) {
-      if (!worker)
-        it->second.used = true;
       plume::RenderPipeline *pipeline = it->second.pipeline.get();
+      if (!worker && !it->second.used) {
+        it->second.used = true;
+        if (pipeline && c.capture) {
+          CaptureLocked(s, st);
+          loading().drawnCaptured++;
+        }
+      }
       if (hot_entry && pipeline)
         *hot_entry = {key, pipeline};
       return pipeline;
@@ -320,8 +333,10 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
                s.current_origin, loading().currentPackage.load(std::memory_order_relaxed),
                loading().screen.load(std::memory_order_relaxed) ? " (loading screen)" : "");
     }
-    if (!race && c.capture)
+    if (c.capture) {
       CaptureLocked(s, st);
+      loading().drawnCaptured++;
+    }
   }
   c.map.emplace(key, Entry{std::move(pso), source, template_index, !worker});
   if (hot_entry)
@@ -344,7 +359,7 @@ PsoBuildResult BuildPipelineFromRecord(VideoState &s, const PsoRecord &r, PsoSou
   PipelineState st = r.state;
   const ShaderCacheEntry *ps_entry = r.state.psHash ? FindShaderCacheEntry(r.state.psHash) : nullptr;
   const VsVariant variant = VsVariantFor(vs_entry, ps_entry, r.state.psHash == 0, r.state.velocity);
-  if (r.state.velocity && variant != VsVariant::Velocity)
+  if (r.state.velocity && (variant != VsVariant::Velocity || !Settings::MotionVectors()))
     return PsoBuildResult::Skipped;
   st.vs = GetHostShaderByHash(s, r.state.vsHash, r.state.spec, false, true, variant);
   st.ps = r.state.psHash
@@ -398,8 +413,9 @@ void PsoCachePrecache() {
     packages = l.sets.size();
   }
   const size_t routed = (compiled_in + local) * (state().host_msaa_samples > 1 ? 2u : 1u);
-  EOT_INFO("[pso] boot: {} compiled-in + {} local rows -> {} queued on the priority lane, {} "
-           "held for {} level package(s) ({} duplicate); templates: {}; capturing gaps to {}/ as '{}'",
+  EOT_INFO("[pso] boot: {} compiled-in + {} local rows -> {} queued on the recorded lane, {} "
+           "held for {} level package(s) ({} duplicate); templates: {}; capturing every pipeline "
+           "drawn to {}/ as '{}'",
            compiled_in, local, queued, per_package, packages,
            routed > queued + per_package ? routed - queued - per_package : 0u,
            CompiledInTemplates().size(), kPsoDir, PsoSessionTag());
@@ -417,9 +433,8 @@ void PsoCacheSetLoadingScreen(bool on) {
     l.screenSinceFrame = s.guest_frames;
     std::lock_guard lock(l.mutex);
     l.screens++;
-    EOT_INFO("[pso] loading screen up at frame {} (pool pending prio {} bg {}){}", s.guest_frames,
-             ps.priorityPending, ps.backgroundPending,
-             l.screens == 1 ? "; the boot's: nothing waits behind it" : "");
+    EOT_INFO("[pso] loading screen up at frame {} (pool pending recorded {} prio {} bg {})",
+             s.guest_frames, ps.recordedPending, ps.priorityPending, ps.backgroundPending);
     return;
   }
   u32 pending = 0;
@@ -429,23 +444,21 @@ void PsoCacheSetLoadingScreen(bool on) {
       pending += h.token ? h.token->Pending() : 0;
     l.holds.clear();
   }
-  EOT_INFO("[pso] loading screen down at frame {} after {} frames (pool pending prio {} bg {}, "
-           "{} package pipelines still building)",
-           s.guest_frames, s.guest_frames - l.screenSinceFrame, ps.priorityPending,
-           ps.backgroundPending, pending);
+  EOT_INFO("[pso] loading screen down at frame {} after {} frames (pool pending recorded {} prio "
+           "{} bg {}, {} package pipelines still building)",
+           s.guest_frames, s.guest_frames - l.screenSinceFrame, ps.recordedPending,
+           ps.priorityPending, ps.backgroundPending, pending);
 }
 
 bool PsoCacheInLoadingScreen() { return loading().screen.load(std::memory_order_acquire); }
 
 bool PsoCacheWaitsAllowed() {
-  auto &l = loading();
-  if (!l.screen.load(std::memory_order_acquire))
-    return false;
-  std::lock_guard lock(l.mutex);
-  return l.screens > 1;
+  return loading().screen.load(std::memory_order_acquire);
 }
 
-void PsoCacheOnPackageLoad(u32 id) {
+bool PsoCacheLevelKnown() { return loading().levelKnown.load(std::memory_order_relaxed); }
+
+void PsoCacheOnPackageLoad(u32 id, bool level) {
   auto &l = loading();
   if (id == 0 || id >= 0x1000)
     return;
@@ -457,19 +470,25 @@ void PsoCacheOnPackageLoad(u32 id) {
     if (it != l.sets.end())
       rows = it->second;
   }
-  if (rows.empty())
-    return;
+  if (level) {
+    l.levelPackage.store(id, std::memory_order_relaxed);
+    l.levelKnown.store(rows.size() >= kPsoKnownPackageRows, std::memory_order_relaxed);
+  }
   TokenPtr token = std::make_shared<CompileToken>();
   u32 queued = 0;
   for (const PsoRecord &r : rows)
-    queued += PsoPrecacheEnqueue(r, PsoSource::CompiledIn, true, token) ? 1 : 0;
+    queued += PsoPrecacheEnqueue(r, PsoSource::CompiledIn, PsoLane::Recorded, token) ? 1 : 0;
   {
     std::lock_guard lock(l.mutex);
-    l.setsQueued++;
+    if (!rows.empty())
+      l.setsQueued++;
     l.holds[id] = PackageHold{token, std::chrono::steady_clock::now(), false};
   }
-  EOT_DEBUG("[pso] package {:#x}: {} of {} recorded pipelines queued on the priority lane{}", id,
-           queued, rows.size(), l.screen.load(std::memory_order_relaxed) ? " (loading screen)" : "");
+  if (!rows.empty() || level) {
+    EOT_DEBUG("[pso] package {:#x}{}: {} of {} recorded pipelines queued on the recorded lane{}",
+              id, level ? " (level)" : "", queued, rows.size(),
+              l.screen.load(std::memory_order_relaxed) ? " (loading screen)" : "");
+  }
 }
 
 bool PsoCacheHoldPackage(u32 id) {
@@ -483,11 +502,13 @@ bool PsoCacheHoldPackage(u32 id) {
   PackageHold &h = it->second;
   const f64 ms = std::chrono::duration<f64, std::milli>(std::chrono::steady_clock::now() - h.start)
                      .count();
-  const u32 pending = h.token ? h.token->Pending() : 0;
+  const TokenPtr screen = PsoPrecacheScreenToken();
+  const u32 own = h.token ? h.token->Pending() : 0;
+  const u32 pending = own + (screen ? screen->Pending() : 0);
   if (pending == 0 || ms >= kPsoHoldMaxMs) {
     if (h.held) {
       l.holdMs += ms;
-      EOT_DEBUG("[pso] package {:#x} released after {:.0f} ms{}", id, ms,
+      EOT_INFO("[pso] package {:#x} released after {:.0f} ms{}", id, ms,
                pending ? std::format(" (bounded, {} still building)", pending) : "");
     }
     l.holds.erase(it);
@@ -496,8 +517,9 @@ bool PsoCacheHoldPackage(u32 id) {
   if (!h.held) {
     h.held = true;
     l.holdsCount++;
-    EOT_INFO("[pso] package {:#x} reported loading: holding the screen for {} pipelines", id,
-             pending);
+    EOT_INFO("[pso] package {:#x} reported loading: holding the screen for {} pipelines ({} its "
+             "own)",
+             id, pending, own);
   }
   return true;
 }
@@ -537,7 +559,7 @@ void PsoCacheFlushIfDirty(bool force) {
   const PsoPredictorStats pr = PsoPredictorGetStats();
   if (total == 0 && ps.queued == 0)
     return;
-  u32 screens, holds, sets_queued;
+  u32 screens, holds, sets_queued, drawn;
   f64 hold_ms;
   {
     auto &l = loading();
@@ -546,17 +568,19 @@ void PsoCacheFlushIfDirty(bool force) {
     holds = l.holdsCount;
     sets_queued = l.setsQueued;
     hold_ms = l.holdMs;
+    drawn = l.drawnCaptured;
   }
   EOT_INFO("[pso] {} pipelines: draw {} | compiled-in {} ({} used) | local {} ({} used) | "
            "predicted {} ({} used) | render-thread builds since last: {} gaps, {} races | pool: "
-           "{} queued, {} built, {} existing, {} skipped, {} failed, pending prio {} bg {} | predictor: "
-           "{} models, {} materials, {} slots, {} queued, {} without template, {} shadow biases | "
-           "loading: {} screens, {} package sets, {} holds {:.0f} ms",
+           "{} queued, {} built, {} existing, {} skipped, {} failed, pending recorded {} prio {} bg "
+           "{} | predictor: {} models, {} materials, {} slots, {} queued, {} without template, {} "
+           "shadow biases | loading: {} screens, {} package sets, {} holds {:.0f} ms | {} drawn "
+           "captured",
            total, by_source[0], by_source[1], used_by_source[1], by_source[2],
            used_by_source[2], by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built,
-           ps.existing, ps.skipped, ps.failed, ps.priorityPending, ps.backgroundPending, pr.models,
-           pr.materials, pr.slots, pr.queued, pr.noTemplate, pr.shadowBiases, screens, sets_queued,
-           holds, hold_ms);
+           ps.existing, ps.skipped, ps.failed, ps.recordedPending, ps.priorityPending,
+           ps.backgroundPending, pr.models, pr.materials, pr.slots, pr.queued, pr.noTemplate,
+           pr.shadowBiases, screens, sets_queued, holds, hold_ms, drawn);
   if (!force || templates.empty())
     return;
   std::vector<std::string> rows;
