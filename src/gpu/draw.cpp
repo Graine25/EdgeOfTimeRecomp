@@ -2431,6 +2431,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     bool a2c = false;
     plume::RenderPipeline *pipeline = nullptr;
     ViewportInfo vp;
+    f32 biasUnits = 0.0f, biasSlope = 0.0f;
     u32 jitterIndex = 0;
     velocity::Target *velocity = nullptr;
     SharedConstants fixed;
@@ -2586,11 +2587,14 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   bool a2c = false;
   plume::RenderPipeline *pipeline = nullptr;
   ViewportInfo vp;
+  f32 bias_units = 0.0f, bias_slope = 0.0f;
   static SharedConstants sc;
   if (memo_hit) {
     st = memo->st;
     spec = memo->spec;
     a2c = memo->a2c;
+    bias_units = memo->biasUnits;
+    bias_slope = memo->biasSlope;
     pipeline = memo->pipeline;
     vp = memo->vp;
     sc = memo->fixed;
@@ -2667,6 +2671,11 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     st.topology = pk.topology;
     if (pk.rectList)
       st.cull = plume::RenderCullMode::NONE;
+    s.draw_bias_units = st.depthBias;
+    s.draw_bias_slope = st.slopeScaledDepthBias;
+    s.draw_bias_scale = st.targetScale;
+    bias_units = static_cast<f32>(st.depthBias);
+    bias_slope = st.slopeScaledDepthBias * st.targetScale;
     CanonicalizePipelineState(st,
                               (vs->entry ? vs->entry->specConstantsMask : 0u) |
                                   (ps && ps->entry ? ps->entry->specConstantsMask : 0u),
@@ -2674,14 +2683,20 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     static PipelineState last_state{};
     static plume::RenderPipeline *last_pipeline = nullptr;
     pipeline = last_pipeline;
+    bool compiling = false;
     if (!pipeline || std::memcmp(reinterpret_cast<const u8 *>(&st) + kPipelineKeyOffset,
                                  reinterpret_cast<const u8 *>(&last_state) + kPipelineKeyOffset,
                                  sizeof(st) - kPipelineKeyOffset) != 0) {
-      pipeline = GetOrCreatePipeline(s, st);
+      pipeline = GetOrCreatePipeline(s, st, false, PsoSource::Draw, &compiling);
       if (pipeline) {
         last_state = st;
         last_pipeline = pipeline;
       }
+    }
+    if (!pipeline && compiling) {
+      s.perf.draws--;
+      s.perf.draws_skipped++;
+      return;
     }
     if (!pipeline) {
       Dropped("pipeline creation failed", 0x6008);
@@ -2739,6 +2754,8 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     fill.st = st;
     fill.spec = spec;
     fill.a2c = a2c;
+    fill.biasUnits = bias_units;
+    fill.biasSlope = bias_slope;
     fill.pipeline = pipeline;
     fill.vp = vp;
     fill.fixed = sc;
@@ -2892,6 +2909,14 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     }
     s.bound_pipeline = pipeline;
   }
+  if (s.dynamic_depth_bias) {
+    static f32 last_units = 0.0f, last_slope = 0.0f;
+    if (pipeline_changed || dynamic_state_invalid || bias_units != last_units || bias_slope != last_slope) {
+      cmd->setDepthBias(bias_units, 0.0f, bias_slope);
+      last_units = bias_units;
+      last_slope = bias_slope;
+    }
+  }
 #if defined(EOT_D3D12)
   static u32 last_stencil_ref = ~0u;
   if (dynamic_state_invalid)
@@ -2936,6 +2961,12 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     s.bound_root_buffer[r] = roots[r]->buffer;
     s.bound_root_offset[r] = roots[r]->offset;
   }
+#if defined(EOT_D3D12)
+  if (s.bound_spec != spec) {
+    cmd->setGraphicsPushConstants(kSpecPushConstantRangeIndex, &spec, 0, sizeof(spec));
+    s.bound_spec = spec;
+  }
+#endif
   if (s.bound_root_buffer[2] != shared_alloc.buffer ||
       s.bound_root_offset[2] != shared_alloc.offset) {
     bind_root_cbv(2, shared_alloc);

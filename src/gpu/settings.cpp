@@ -28,6 +28,11 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "EdgeOfTime/Debug", "Renderer log verbosity")
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Sync frames to display");
 REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug", "Start Tracy at boot");
+REXCVAR_DEFINE_BOOL(eot_async_pipelines, true, "EdgeOfTime/Graphics", "Compile pipelines in background");
+REXCVAR_DEFINE_INT32(eot_pso_hold_max_ms, 8000, "EdgeOfTime/Graphics", "Max loading screen hold (ms)")
+    .range(0, 600000);
+REXCVAR_DEFINE_BOOL(eot_dynamic_depth_bias, true, "EdgeOfTime/Graphics", "Per-draw depth bias")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug", "Log frames slower than this")
     .range(0, 1000);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale")
@@ -127,6 +132,9 @@ i32 Settings::PipScalePercent() { return REXCVAR_GET(eot_pip_scale); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
+bool Settings::AsyncPipelines() { return REXCVAR_GET(eot_async_pipelines); }
+i32 Settings::PsoHoldMaxMs() { return REXCVAR_GET(eot_pso_hold_max_ms); }
+bool Settings::DynamicDepthBias() { return REXCVAR_GET(eot_dynamic_depth_bias); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }

@@ -21,11 +21,15 @@
 #include <windows.h>
 #else
 #include <unistd.h>
+#include <atomic>
+#include <string_view>
 #endif
 
 #include "core/logging.h"
+#include "gpu/format.h"
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
+#include "embedded_pipeline_list.h"
 
 namespace eot::gpu {
 
@@ -36,7 +40,7 @@ enum Col : u32 {
   cDsFormat, cSampleCount, cCull, cFrontFace, cDepthBias, cSlopeScaledDepthBias, cTargetScale,
   cDepthClip, cDepthEnable, cDepthWrite, cDepthFunc, cStencilEnable, cStencilReadMask,
   cStencilWriteMask, cStencilRef, cStencilFront, cStencilBack, cBlend0, cBlend1, cBlend2, cBlend3,
-  cAlphaToCoverage, cVelocity, cFrame, cSession, cPackage, cCount
+  cAlphaToCoverage, cVelocity, cMsaa, cFrame, cSession, cPackage, cCount
 };
 static_assert(cCount == PsoCsvLayout::kColumns);
 
@@ -45,8 +49,8 @@ constexpr const char *kColumnNames[cCount] = {
     "rtCount", "dsFormat", "sampleCount", "cull", "frontFace", "depthBias",
     "slopeScaledDepthBias", "targetScale", "depthClip", "depthEnable", "depthWrite", "depthFunc",
     "stencilEnable", "stencilReadMask", "stencilWriteMask", "stencilRef", "stencilFront",
-    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "velocity", "frame",
-    "session", "package"};
+    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "velocity", "msaa",
+    "frame", "session", "package"};
 
 const char kHexDigits[] = "0123456789abcdef";
 
@@ -157,21 +161,6 @@ std::string_view Trim(std::string_view s) {
   return s;
 }
 
-u32 VersionComment(std::string_view line) {
-  line = Trim(line);
-  if (!line.starts_with("# eot-pso v"))
-    return 0;
-  u64 v = 0;
-  return ParseU64(line.substr(11), &v) ? static_cast<u32>(v) : 0;
-}
-
-const char *const kCompiledInRows[] = {
-#include "gpu/pipeline/cache/eot_pipelines.inc"
-    nullptr};
-const char *const kCompiledInTemplateRows[] = {
-#include "gpu/pipeline/cache/eot_pso_templates.inc"
-    nullptr};
-
 struct Capture {
   std::mutex mutex;
   std::string dir, tag, path;
@@ -220,6 +209,17 @@ std::string SessionTagImpl() {
 
 }
 
+void PsoApplyTargetScale(PipelineState &s) {
+  const bool follows = s.targetScale == 0.0f;
+  if (s.depthBias || s.slopeScaledDepthBias != 0.0f) {
+    s.targetScale = follows ? FollowTargetScale(s) : s.targetScale;
+    if (follows && s.rtCount == 0 && s.sampleCount <= 1 && !s.stencilEnable && IsDepthFormat(s.dsFormat))
+      s.dsFormat = DepthRenderTargetFormat();
+  } else {
+    s.targetScale = 1.0f;
+  }
+}
+
 std::string PsoCsvHeader() {
   std::string h = std::format("# eot-pso v{}\n", kPsoCsvVersion);
   for (u32 i = 0; i < cCount; ++i)
@@ -246,7 +246,7 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
     packages += std::format("{}{:x}", i ? "|" : "", r.packages[i]);
   return std::format(
       "{:016x},{:016x},{:x},{:016x},{},{},{},{},{},{},{},{},{},{},{:.9g},{:.9g},{},{},{},{},{},{},"
-      "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+      "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
       s.vsHash, s.psHash, s.spec, s.layoutKey, decl, strides, ei(s.topology), rts, s.rtCount,
       ei(s.dsFormat), s.sampleCount, ei(s.cull), ei(s.frontFace), s.depthBias,
       s.slopeScaledDepthBias,
@@ -255,8 +255,8 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
       s.stencilEnable ? 1 : 0, static_cast<unsigned>(s.stencilReadMask),
       static_cast<unsigned>(s.stencilWriteMask), static_cast<unsigned>(s.stencilRef),
       Stencil(s.stencilFront), Stencil(s.stencilBack), Blend(s.blend[0]), Blend(s.blend[1]),
-      Blend(s.blend[2]), Blend(s.blend[3]), s.alphaToCoverage ? 1 : 0, s.velocity ? 1 : 0, r.frame,
-      session, packages);
+      Blend(s.blend[2]), Blend(s.blend[3]), s.alphaToCoverage ? 1 : 0, s.velocity ? 1 : 0, r.msaa,
+      r.frame, session, packages);
 }
 
 bool PsoCsvParseHeader(std::string_view line, PsoCsvLayout *out) {
@@ -278,7 +278,8 @@ bool PsoCsvParseHeader(std::string_view line, PsoCsvLayout *out) {
   out->version = out->index[cTargetScale] < 0    ? 1
                  : out->index[cPackage] < 0      ? 2
                  : out->index[cVelocity] < 0     ? 3
-                                                 : 4;
+                 : out->index[cMsaa] < 0         ? 4
+                                                 : 5;
   return true;
 }
 
@@ -355,10 +356,6 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
       !ParseBool(field(cDepthWrite), &s.depthWrite) || !ParseEnum(field(cDepthFunc), &s.depthFunc) ||
       !ParseBool(field(cStencilEnable), &s.stencilEnable))
     return false;
-  if (s.depthBias || s.slopeScaledDepthBias != 0.0f)
-    s.targetScale = s.targetScale == 0.0f ? FollowTargetScale(s) : s.targetScale;
-  else
-    s.targetScale = 1.0f;
   i64 m0, m1, m2;
   if (!ParseI64(field(cStencilReadMask), &m0) || !ParseI64(field(cStencilWriteMask), &m1) ||
       !ParseI64(field(cStencilRef), &m2))
@@ -374,9 +371,12 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
       return false;
   if (!ParseBool(field(cAlphaToCoverage), &s.alphaToCoverage))
     return false;
+  PsoApplyTargetScale(s);
   s.velocity = false;
   if (layout.index[cVelocity] >= 0 && !ParseBool(field(cVelocity), &s.velocity))
     return false;
+  if (layout.index[cMsaa] >= 0 && ParseU64(field(cMsaa), &u) && u <= 3)
+    r.msaa = static_cast<u8>(u);
   ParseU64(field(cFrame), &r.frame);
   const std::string_view pk = field(cPackage);
   if (!pk.empty()) {
@@ -400,32 +400,6 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
   return true;
 }
 
-const std::vector<PsoRecord> &CompiledInPipelines() {
-  static const std::vector<PsoRecord> rows = [] {
-    std::vector<PsoRecord> v;
-    PsoCsvLayout layout{};
-    bool have_layout = false;
-    u32 bad = 0;
-    for (const char *const *p = kCompiledInRows; *p; ++p) {
-      if (!have_layout) {
-        have_layout = PsoCsvParseHeader(*p, &layout);
-        continue;
-      }
-      PsoRecord r;
-      if (PsoRecordFromCsv(layout, *p, &r))
-        v.push_back(r);
-      else if (**p != '#')
-        ++bad;
-    }
-    if (bad || !have_layout)
-      EOT_WARN("[pso] {} compiled-in rows did not parse (schema v{}); regenerate "
-               "cache/eot_pipelines.inc with tools/pso/pso_merge.py",
-               bad, kPsoCsvVersion);
-    return v;
-  }();
-  return rows;
-}
-
 std::string PsoSessionStamp() {
   static const std::string stamp = SessionStampImpl();
   return stamp;
@@ -436,52 +410,23 @@ std::string PsoSessionTag() {
   return tag;
 }
 
-const std::vector<PsoTemplate> &CompiledInTemplates() {
-  static const std::vector<PsoTemplate> rows = [] {
-    std::vector<PsoTemplate> v;
-    PsoCsvLayout layout{};
-    bool have_layout = false;
-    u32 bad = 0;
-    auto after_prefix = [](std::string_view line, std::string_view fields[4]) -> std::string_view {
-      size_t start = 0;
-      for (u32 k = 0; k < 4; ++k) {
-        const size_t comma = line.find(',', start);
-        if (comma == std::string_view::npos)
-          return {};
-        fields[k] = line.substr(start, comma - start);
-        start = comma + 1;
-      }
-      return line.substr(start);
-    };
-    for (const char *const *p = kCompiledInTemplateRows; *p; ++p) {
-      std::string_view line(*p);
-      if (line.empty() || line[0] == '#')
-        continue;
-      std::string_view prefix[4];
-      const std::string_view rest = after_prefix(line, prefix);
-      if (!have_layout) {
-        have_layout = prefix[0] == "technique" && PsoCsvParseHeader(rest, &layout);
-        if (!have_layout)
-          ++bad;
-        continue;
-      }
-      u64 tech = 0, pass = 0, cls = 0, kind = 0;
-      PsoRecord r;
-      if (rest.empty() || !ParseU64(prefix[0], &tech) || !ParseU64(prefix[1], &pass) ||
-          !ParseU64(prefix[2], &cls, 16) || !ParseU64(prefix[3], &kind) ||
-          !PsoRecordFromCsv(layout, rest, &r) || tech > 255 || pass > 255 || kind > 2) {
-        ++bad;
-        continue;
-      }
-      v.push_back(PsoTemplate{static_cast<u8>(tech), static_cast<u8>(pass),
-                              static_cast<PsoBiasKind>(kind), static_cast<u32>(cls), r.state});
+size_t ParsePsoCsv(std::string_view data, std::vector<PsoRecord> &out, size_t *bad) {
+  size_t rows = 0;
+  PsoCsvLayout layout{};
+  bool have_layout = false;
+  for (const auto line : Split(data, '\n')) {
+    if (!have_layout) {
+      have_layout = PsoCsvParseHeader(line, &layout);
+      continue;
     }
-    if (bad)
-      EOT_WARN("[pso] {} compiled-in template rows did not parse; regenerate "
-               "cache/eot_pso_templates.inc with tools/pso/pso_gen_templates.py",
-               bad);
-    return v;
-  }();
+    PsoRecord r;
+    if (PsoRecordFromCsv(layout, line, &r)) {
+      out.push_back(r);
+      ++rows;
+    } else if (bad && !Trim(line).empty() && line[0] != '#') {
+      ++*bad;
+    }
+  }
   return rows;
 }
 
@@ -494,7 +439,7 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
     if (!entry.is_regular_file() || entry.path().extension() != ".csv")
       continue;
     const std::string name = entry.path().filename().string();
-    if (!name.starts_with("pso_misses_"))
+    if (!name.starts_with("pso_drawn_"))
       continue;
     FILE *f = std::fopen(entry.path().string().c_str(), "rb");
     if (!f)
@@ -505,28 +450,10 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
     while ((got = std::fread(buf, 1, sizeof(buf), f)) > 0)
       data.append(buf, got);
     std::fclose(f);
-    size_t rows = 0, bad = 0;
-    PsoCsvLayout layout{};
-    bool have_layout = false;
-    u32 version = 0;
-    for (const auto line : Split(data, '\n')) {
-      if (!have_layout) {
-        if (const u32 v = VersionComment(line))
-          version = v;
-        have_layout = PsoCsvParseHeader(line, &layout);
-        continue;
-      }
-      PsoRecord r;
-      if (PsoRecordFromCsv(layout, line, &r)) {
-        out.push_back(r);
-        ++rows;
-      } else if (!Trim(line).empty() && line[0] != '#') {
-        ++bad;
-      }
-    }
+    size_t bad = 0;
+    const size_t rows = ParsePsoCsv(data, out, &bad);
     n += rows;
-    EOT_DEBUG("[pso] {}: {} rows (v{}){}", name, rows, version ? version : layout.version,
-             bad ? std::format(" ({} unparsable)", bad) : "");
+    EOT_DEBUG("[pso] {}: {} rows{}", name, rows, bad ? std::format(" ({} unparsable)", bad) : "");
   }
   return n;
 }
@@ -551,7 +478,7 @@ void PsoCaptureAdd(const PsoRecord &r) {
     std::error_code ec;
     std::filesystem::create_directories(c.dir, ec);
     c.path = (std::filesystem::path(c.dir) /
-              ("pso_misses_" + c.tag + "_" + PsoSessionStamp() + ".csv"))
+              ("pso_drawn_" + c.tag + "_" + PsoSessionStamp() + ".csv"))
                  .string();
   }
   c.pending.push_back(PsoRecordToCsv(r, c.tag));
@@ -582,29 +509,92 @@ void PsoCaptureFlush(bool force, u64 guest_frame) {
   }
   std::fclose(f);
   c.written += static_cast<u32>(c.pending.size());
-  EOT_INFO("[pso] {} new pipeline(s) captured -> {} ({} this session)", c.pending.size(), c.path,
-           c.written);
+  EOT_DEBUG("[pso] {} pipeline(s) drawn -> {} ({} this session)", c.pending.size(), c.path,
+            c.written);
   c.pending.clear();
 }
 
-void PsoWriteSessionFile(const std::string &name, const std::string &header,
-                         const std::vector<std::string> &rows) {
-  std::error_code ec;
-  std::filesystem::create_directories(kPsoDir, ec);
-  const std::string path = (std::filesystem::path(kPsoDir) / name).string();
-  FILE *f = std::fopen(path.c_str(), "wb");
-  if (!f) {
-    EOT_WARN("[pso] cannot write {}", path);
-    return;
+}
+
+namespace eot::gpu {
+
+namespace {
+
+PsoList g_list;
+std::atomic<bool> g_ready{false};
+std::once_flag g_once;
+
+struct Builder {
+  PsoList &list;
+  std::unordered_map<u64, u32> index;
+  std::vector<bool> boot;
+
+  void Add(const PsoRecord &r, PsoSource source) {
+    const u64 key = HashPipelineState(r.state);
+    const auto [it, fresh] = index.try_emplace(key, static_cast<u32>(list.rows.size()));
+    const u32 row = it->second;
+    if (fresh) {
+      list.rows.push_back(r);
+      list.rows.back().packageCount = 0;
+      list.sources.push_back(source);
+      boot.push_back(false);
+      list.byPair[PsoPairKey(r.state.vsHash, r.state.psHash)].push_back(row);
+    } else {
+      PsoRecord &e = list.rows[row];
+      e.msaa = e.msaa == 0 ? r.msaa : r.msaa == 0 ? e.msaa : static_cast<u8>(e.msaa | r.msaa);
+      list.merged++;
+    }
+    const bool at_boot =
+        r.packageCount == 0 || std::find(r.packages, r.packages + r.packageCount, 0) != r.packages + r.packageCount;
+    if (at_boot && !boot[row]) {
+      boot[row] = true;
+      list.boot.push_back(row);
+    }
+    PsoRecord &e = list.rows[row];
+    for (u32 i = 0; i < r.packageCount; ++i) {
+      const u16 p = r.packages[i];
+      if (p == 0 || std::find(e.packages, e.packages + e.packageCount, p) != e.packages + e.packageCount)
+        continue;
+      if (e.packageCount < kMaxRecordPackages)
+        e.packages[e.packageCount++] = p;
+      list.byPackage[p].push_back(row);
+    }
   }
-  std::fwrite(header.data(), 1, header.size(), f);
-  std::fputc('\n', f);
-  for (const std::string &row : rows) {
-    std::fwrite(row.data(), 1, row.size(), f);
-    std::fputc('\n', f);
-  }
-  std::fclose(f);
-  EOT_INFO("[pso] wrote {} ({} rows)", path, rows.size());
+};
+
+}
+
+u64 PsoPairKey(u64 vs_hash, u64 ps_hash) { return vs_hash ^ (ps_hash * 0x9E3779B97F4A7C15ull); }
+
+void PsoListLoad() {
+  std::call_once(g_once, [] {
+    const auto start = std::chrono::steady_clock::now();
+    Builder b{g_list, {}, {}};
+    std::vector<PsoRecord> rows;
+    size_t bad = 0;
+    const EmbeddedAsset shipped = EmbeddedPipelineList();
+    g_list.shipped = static_cast<u32>(ParsePsoCsv(shipped.text(), rows, &bad));
+    for (const PsoRecord &r : rows)
+      b.Add(r, PsoSource::Recorded);
+    rows.clear();
+    g_list.local = static_cast<u32>(LoadPsoCsvDir(kPsoDir, rows));
+    for (const PsoRecord &r : rows)
+      b.Add(r, PsoSource::Local);
+    g_list.unparsed = static_cast<u32>(bad);
+    g_ready.store(true, std::memory_order_release);
+    const double ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+    EOT_INFO("[pso] pipeline list: {} rows ({} shipped, {} from this machine's captures, {} merged{}) "
+             "over {} shader pairs and {} packages, {} at boot, read in {:.0f} ms",
+             g_list.rows.size(), g_list.shipped, g_list.local, g_list.merged,
+             bad ? std::format(", {} unparsable", bad) : "", g_list.byPair.size(),
+             g_list.byPackage.size(), g_list.boot.size(), ms);
+  });
+}
+
+const PsoList &PsoListGet() {
+  static const PsoList empty;
+  return g_ready.load(std::memory_order_acquire) ? g_list : empty;
 }
 
 }

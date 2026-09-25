@@ -109,7 +109,7 @@ add_custom_command(
     COMMENT "Authoring ReeotIcons.pkz from pkzlib/ReeotIcons.manifest"
     VERBATIM)
 set(REEOT_SUITS_DDS "")
-foreach(state 00 03 07)
+foreach(state 00 03 05 07)
     foreach(map D N S)
         list(APPEND REEOT_SUITS_DDS "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/suits/Reeot_SMA_State${state}_${map}.dds")
     endforeach()
@@ -161,6 +161,13 @@ reeot_embed_generated(
     HEADER      "${REEOT_GEN_DIR}/embedded_suits_package.h"
     SOURCES_VAR REEOT_EMBED_SUITS_PACKAGE_SOURCE)
 list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_SUITS_PACKAGE_SOURCE})
+reeot_embed_generated(
+    INPUT       "${CMAKE_CURRENT_SOURCE_DIR}/config/pso/eot_pipelines.csv"
+    NAME        "pso/eot_pipelines.csv"
+    ACCESSOR    EmbeddedPipelineList
+    HEADER      "${REEOT_GEN_DIR}/embedded_pipeline_list.h"
+    SOURCES_VAR REEOT_EMBED_PIPELINE_LIST_SOURCE)
+list(APPEND REEOT_EMBED_PACKAGE_SOURCE ${REEOT_EMBED_PIPELINE_LIST_SOURCE})
 include(cmake/host_shaders.cmake)
 
 add_custom_target(reeot_shader_cache_regen
@@ -221,7 +228,7 @@ set(REEOT_SOURCES
     src/gpu/pipeline/pipeline_cache.cpp
     src/gpu/gpu_timing.cpp
     src/gpu/pipeline/pso_records.cpp
-    src/gpu/pipeline/pso_predictor.cpp
+    src/gpu/pipeline/pso_assets.cpp
     src/gpu/hooks/package_load.cpp
     src/gpu/patches/update_rate.cpp
     src/gpu/patches/aspect_ratio.cpp
@@ -257,9 +264,7 @@ add_custom_command(
     VERBATIM)
 list(APPEND REEOT_SOURCES "${REEOT_HUD_POLICY_INC}")
 
-if(REEOT_D3D12)
-    list(APPEND REEOT_SOURCES src/gpu/shaders/dxc_link.cpp)
-else()
+if(NOT REEOT_D3D12)
     list(APPEND REEOT_SOURCES thirdparty/XenosRecomp/thirdparty/smol-v/source/smolv.cpp)
 endif()
 

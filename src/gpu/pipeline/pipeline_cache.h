@@ -9,16 +9,19 @@
 #include <plume_render_interface.h>
 #include <atomic>
 #include <memory>
+#include <vector>
 
 namespace eot::gpu {
 
 struct VideoState;
 struct InputLayout;
+struct PsoRecord;
 
 struct PipelineState {
   const plume::RenderShader *vs;
   const plume::RenderShader *ps;
   const InputLayout *layout;
+  u32 drawnSpec;
   u64 vsHash;
   u64 psHash;
   u64 layoutKey;
@@ -50,7 +53,7 @@ struct PipelineState {
 };
 constexpr size_t kPipelineKeyOffset = offsetof(PipelineState, vsHash);
 
-enum class PsoSource : u8 { Draw = 0, CompiledIn = 1, LocalCsv = 2, Predicted = 3 };
+enum class PsoSource : u8 { Draw = 0, Recorded = 1, Local = 2, Asset = 3 };
 
 void ZeroPipelineState(PipelineState &state);
 u64 HashPipelineState(const PipelineState &state);
@@ -61,23 +64,28 @@ inline i32 PolygonOffsetUnits(float offset) {
   return offset < 0.0f ? -units : units;
 }
 
+bool DynamicDepthBias();
+
 void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask);
 
 plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &state,
                                            bool worker = false,
                                            PsoSource source = PsoSource::Draw,
-                                           u16 template_index = 0xFFFF);
+                                           bool *deferred = nullptr);
 
 void PsoCachePrecache();
 
 void PsoCacheFlushIfDirty(bool force);
+void PipelineCacheCounts(u32 *alive, u32 *used);
 
 void PsoCacheSetLoadingScreen(bool on);
 bool PsoCacheInLoadingScreen();
 
-void PsoCacheOnPackageLoad(u32 id);
+void PsoCacheOnPackageLoad(u32 id, bool level);
+void PsoCacheOnPackageUnload(u32 id);
 bool PsoCacheHoldPackage(u32 id);
-bool PsoCacheWaitsAllowed();
+
+u32 PsoCacheQueue(const PsoRecord &r, PsoSource source, bool background);
 
 }
 
@@ -85,40 +93,26 @@ namespace eot::gpu {
 
 struct PsoRecord;
 
-class CompileToken {
-public:
-  u32 Total() const { return total_.load(std::memory_order_acquire); }
-  u32 Pending() const { return pending_.load(std::memory_order_acquire); }
-  void AddPending() {
-    pending_.fetch_add(1, std::memory_order_acq_rel);
-    total_.fetch_add(1, std::memory_order_acq_rel);
-  }
-  void ReleasePending() { pending_.fetch_sub(1, std::memory_order_acq_rel); }
+enum class PsoLane : u8 { Load = 0, Background = 1 };
 
-private:
-  std::atomic<u32> pending_{0};
-  std::atomic<u32> total_{0};
-};
-using TokenPtr = std::shared_ptr<CompileToken>;
+using PsoPending = std::shared_ptr<std::atomic<u32>>;
 
 void PsoPrecacheStart();
 void PsoPrecacheStop();
-
 void PsoPrecacheSetLoading(bool loading);
+void PsoPrecacheBoot(const PsoPending &boot_rows);
 
-bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, bool priority,
-                        TokenPtr token = nullptr);
-
-void PsoPrecacheBeginLoad();
-TokenPtr PsoPrecacheCurrentToken();
-bool PsoPrecacheWaitLoad(u32 max_ms);
-void PsoPrecacheEndLoad();
-
-bool PsoPrecacheKnown(u64 key, PsoSource *source);
+bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane,
+                        const PsoPending &own = nullptr);
+bool PsoPrecacheBuildNow(const PipelineState &st, u64 key);
+bool PsoPrecacheKnown(u64 key);
+void PsoPrecacheForget(const std::vector<u64> &keys);
+u32 PsoPrecacheScreenPending();
 
 struct PsoPrecacheStats {
   u32 queued = 0, built = 0, existing = 0, skipped = 0, failed = 0;
-  u32 priorityPending = 0, backgroundPending = 0, threads = 0;
+  u32 urgentBuilt = 0, urgentPending = 0, screenPending = 0, loadPending = 0, backgroundPending = 0;
+  u32 threads = 0;
 };
 PsoPrecacheStats PsoPrecacheGetStats();
 

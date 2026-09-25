@@ -107,6 +107,7 @@ inline u64 PerfNow() { return __rdtsc(); }
 inline f64 g_perf_ms_per_tick = 0.0;
 f64 PerfMsPerTickSlow();
 bool PinThreadToPhysicalCore(u32 core, const char *what);
+u32 PhysicalCoreCount();
 inline f64 PerfMsPerTick() {
   const f64 v = g_perf_ms_per_tick;
   return v > 0.0 ? v : PerfMsPerTickSlow();
@@ -186,6 +187,10 @@ struct VideoState {
   u32 recording_slot() const { return frame.load(std::memory_order_relaxed); }
 
   std::unique_ptr<plume::RenderSwapChain> swap_chain;
+  bool dynamic_depth_bias = false;
+  i32 draw_bias_units = 0;
+  f32 draw_bias_slope = 0.0f;
+  f32 draw_bias_scale = 1.0f;
   std::vector<std::unique_ptr<plume::RenderFramebuffer>> swap_framebuffers;
 
   std::unique_ptr<plume::RenderPipelineLayout> pipeline_layout;
@@ -286,6 +291,7 @@ struct VideoState {
   u64 resolve_alias_candidates_generation = 0;
   u64 mirror_generation = 1;
   u32 root_cbv_index[3] = {~0u, ~0u, ~0u};
+  u32 bound_spec = ~0u;
   std::unordered_map<u32, std::unique_ptr<GuestShader>> shaders;
   std::mutex shaders_mutex;
   std::vector<std::unique_ptr<GuestShader>> shader_graveyard;
