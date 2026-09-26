@@ -5,7 +5,8 @@ FIELDS = (("NAME", "label"), ("DESC", "description"), ("LOCKED", "unachieved_des
 SCORE = ("SCORE", "gamerscore")
 
 SECRET = (("REEOT_ACH_SECRET_NAME", "Unknown"),
-          ("REEOT_ACH_SECRET_DESC", "This one stays hidden until you earn it."))
+          ("REEOT_ACH_SECRET_DESC", "This one stays hidden until you earn it."),
+          ("REEOT_ACH_TOAST_TITLE", "ACHIEVEMENT UNLOCKED"))
 
 
 def parse(text):

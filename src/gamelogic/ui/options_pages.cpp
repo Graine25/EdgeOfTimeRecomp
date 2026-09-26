@@ -14,12 +14,15 @@
 
 #include "core/logging.h"
 #include "core/quit_client.h"
+#include <rex/system/achievements.h>
+
 #include "gamelogic/ui/binds_client.h"
 #include "gamelogic/ui/button_prompts.h"
 #include "gamelogic/ui/hud_api.h"
 #include "gamelogic/ui/menu_common.h"
 #include "gamelogic/ui/mods_client.h"
 #include "goliath/controller/pad_actions.h"
+#include "goliath/ui/achievement_feed.h"
 #include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_HUDOptionsScreen_BuildBar);         // (this r3)
@@ -1374,9 +1377,19 @@ void FillConfig(uint32_t c, uint32_t window, uint32_t title, bool blackout) {
   eot::mem::store<uint32_t>(c + cfg::kResult, cfg::kResultNone);
 }
 
+void NotePageOpened(const Page &page) {
+  const uint32_t id = &page == &kVideoPage      ? eot::ui::kAchGraine25
+                      : &page == &kGraphicsPage ? eot::ui::kAchSerJar03
+                      : &page == &kControlsPage ? eot::ui::kAchMaff
+                                                : 0;
+  if (id && rex::system::UnlockAchievement(id))
+    EOT_INFO("[ach] the {} page hands over the port's achievement {:#x}", page.label, id);
+}
+
 void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   CallScope scope(ctx, base);
   g_page = &page;
+  NotePageOpened(page);
   RefreshLanguageChoices();
   if (page.table) {
     g_mods_message.clear();

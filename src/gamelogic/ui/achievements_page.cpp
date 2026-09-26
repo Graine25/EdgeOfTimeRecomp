@@ -24,8 +24,8 @@ namespace {
 namespace hud = eot::ui::hud;
 
 constexpr uint32_t kSheetColumns = 8;
-constexpr uint32_t kSheetRows = 6;
-constexpr uint32_t kSecretImageId = kSheetColumns * kSheetRows;
+constexpr uint32_t kSheetRows = 7;
+constexpr uint32_t kSecretImageId = 48;
 
 constexpr uint32_t kTitleFits = 22;
 constexpr uint32_t kTextWndSetScale = 18;
@@ -166,8 +166,11 @@ void SetUVs(const PPCContext &ctx, uint8_t *base, uint32_t window, const float c
 }
 
 void SetIcon(const PPCContext &ctx, uint8_t *base, uint32_t window, uint32_t image_id) {
-  if (!image_id)
+  if (!image_id) {
+    hud::Activate(ctx, base, window, false);
     return;
+  }
+  hud::Activate(ctx, base, window, true);
   const uint32_t cell = image_id - 1;
   const float u0 = static_cast<float>(cell % kSheetColumns) / kSheetColumns;
   const float v0 = static_cast<float>(cell / kSheetColumns) / kSheetRows;
