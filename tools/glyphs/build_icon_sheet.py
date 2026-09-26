@@ -51,10 +51,11 @@ KEYS = ("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 0 1 2 3 4 5 6 7 8 9
         "NumpadEnter NumpadPlus NumpadMinus NumpadStar NumpadSlash PrintScreen Pause CapsLock "
         "NumLock LMB RMB MMB").split()
 CLUSTERS = ("WASD", "MOUSE")
+ALIASES = {f"Numpad{n}": str(n) for n in range(10)}
 
 
 def art(name):
-    path = os.path.join(ART, f"{name}.png")
+    path = os.path.join(ART, f"{ALIASES.get(name, name)}.png")
     if not os.path.exists(path):
         return None
     image = Image.open(path).convert("RGBA")
@@ -84,6 +85,9 @@ def cap_width(image, key):
 
 
 def mouse():
+    whole = art("Mouse")
+    if whole is not None:
+        return whole
     left, right = art("RMB"), art("LMB")
     if left is None or right is None:
         return None
