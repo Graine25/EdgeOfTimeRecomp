@@ -256,4 +256,8 @@ void eot_binds_changed(void) {
   GlyphBindsChanged();
 }
 
+void eot_prompts_bar_object(int32_t object) { NoteButtonHelper(static_cast<uint32_t>(object)); }
+
+void eot_prompts_bar_zone(int32_t zone) { NoteButtonHelperZone(static_cast<uint32_t>(zone)); }
+
 int32_t eot_binds_key_glyph(int32_t slot) { return slot >= 0 && slot < 32 && KeyCapInstalled(static_cast<uint8_t>(slot)) ? 1 : 0; }

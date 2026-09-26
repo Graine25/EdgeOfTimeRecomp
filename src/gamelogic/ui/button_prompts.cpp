@@ -4,10 +4,13 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "gamelogic/ui/binds_client.h"
 #include "gamelogic/ui/button_prompts.h"
 #include "goliath/ui/name_crc.h"
 
-REX_EXTERN(__imp__eot_HUDSavegameSelect_Construct); // (this r3, ...)
+REX_EXTERN(__imp__eot_HUDSavegameSelect_Construct);  // (this r3, ...)
+REX_EXTERN(__imp__eot_GLInstanciateHUDButtonHelper);
+REX_EXTERN(__imp__sub_8827CBD8);
 
 namespace {
 
@@ -44,6 +47,23 @@ uint32_t g_held[kPromptCount] = {};
 REX_HOOK_RAW(eot_HUDSavegameSelect_Construct) {
   __imp__eot_HUDSavegameSelect_Construct(ctx, base);
   ApplyRewrites();
+}
+
+REX_HOOK_RAW(sub_8827CBD8) {
+  constexpr uint32_t kSetMaskMessage = 0xDCDC2E9F;
+  const uint32_t message = ctx.r4.u32;
+  const uint32_t args = ctx.r5.u32;
+  __imp__sub_8827CBD8(ctx, base);
+  if (message != kSetMaskMessage || !args)
+    return;
+  if (const auto note = eot::ui::binds::Api().bar_zone)
+    note(static_cast<int32_t>(eot::mem::load<uint32_t>(args)));
+}
+
+REX_HOOK_RAW(eot_GLInstanciateHUDButtonHelper) {
+  __imp__eot_GLInstanciateHUDButtonHelper(ctx, base);
+  if (const auto note = eot::ui::binds::Api().bar_object)
+    note(static_cast<int32_t>(ctx.r3.u32));
 }
 
 namespace eot::ui {

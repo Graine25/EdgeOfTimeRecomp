@@ -114,6 +114,8 @@ PadBrand g_applied_pad = PadBrand::Unknown;
 size_t g_keys_hash = 0;
 size_t g_remap_hash = 0;
 std::atomic<bool> g_binds_dirty{false};
+std::atomic<uint32_t> g_helper{0};
+std::atomic<uint32_t> g_helper_zones{0};
 
 Box Normalised(const Box &b) { return {b.x0 / g_sheet_w, b.y0 / g_sheet_h, b.x1 / g_sheet_w, b.y1 / g_sheet_h}; }
 
@@ -284,10 +286,11 @@ void ApplyPage(uint32_t page) {
 constexpr uint32_t kHelperSize = 156;
 
 uint32_t LiveHelper() {
+  const uint32_t helper = g_helper.load(std::memory_order_acquire);
   const uint32_t huds = eot::mem::load<uint32_t>(kHudsDataPtr);
-  if (!eot::mem::readable(huds + kHelperOffset, 4))
+  if (!helper || !eot::mem::readable(huds + kHelperOffset, 4) ||
+      !eot::mem::load<uint32_t>(huds + kHelperOffset))
     return 0;
-  const uint32_t helper = eot::mem::load<uint32_t>(huds + kHelperOffset);
   if (!eot::mem::readable(helper, kHelperSize))
     return 0;
   for (uint32_t i = 0; i < kZoneCount; ++i) {
@@ -311,8 +314,9 @@ void RecomposePrompts(const PPCContext &ctx, uint8_t *base) {
   PPCFunc *compose = helper ? rex::runtime::ResolveIndirectFunction(kComposeFn) : nullptr;
   if (!compose)
     return;
+  const uint32_t zones = g_helper_zones.load(std::memory_order_acquire);
   for (uint32_t zone = 0; zone < kZoneCount; ++zone) {
-    if (!ZoneMask(helper, zone))
+    if (!(zones & (1u << zone)) || !ZoneMask(helper, zone))
       continue;
     PPCContext call = ctx;
     call.r3.u32 = helper;
@@ -451,6 +455,16 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
   }
   if (eot::mem::load<uint32_t>(kTagCount) != g_applied_count)
     ApplyPage(g_applied_page);
+}
+
+void NoteButtonHelper(uint32_t object) {
+  g_helper.store(object, std::memory_order_release);
+  g_helper_zones.store(0, std::memory_order_release);
+}
+
+void NoteButtonHelperZone(uint32_t zone) {
+  if (zone < kZoneCount)
+    g_helper_zones.fetch_or(1u << zone, std::memory_order_acq_rel);
 }
 
 bool KeyCapInstalled(uint8_t slot) { return g_installed && slot < 32 && (g_have[kKeyboardPage] & (1u << slot)) != 0; }
