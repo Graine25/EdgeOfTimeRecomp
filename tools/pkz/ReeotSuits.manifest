@@ -15,7 +15,7 @@ texture Reeot_SMA_State07_S dds ../../res/textures/suits/Reeot_SMA_State07_S.dds
 texture Reeot_AntiVenom_D dds ../../res/textures/characters/Reeot_AntiVenom_D.dds
 texture Reeot_AntiVenom_N dds ../../res/textures/characters/Reeot_AntiVenom_N.dds normal bump=0.25
 texture Reeot_AntiVenomMassive_D dds ../../res/textures/characters/Reeot_AntiVenomMassive_D.dds
-texture Reeot_AntiVenomMassive_N dds ../../res/textures/characters/Reeot_AntiVenomMassive_N.dds normal bump=0.15
+texture Reeot_AntiVenomMassive_N dds ../../res/textures/characters/Reeot_AntiVenomMassive_N.dds normal bump=0.25
 window Reeot_TextureHolder_SMA00D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_D
 window Reeot_TextureHolder_SMA00N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_N
 window Reeot_TextureHolder_SMA00S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_S
