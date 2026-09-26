@@ -11,13 +11,16 @@
 #include <vector>
 
 #include <rex/cvar.h>
-#include <rex/hook.h>
 
 #include "core/logging.h"
 #include "core/quit_client.h"
+#include <rex/system/achievements.h>
+#include <rex/hook.h>
+
 #include "gamelogic/ui/menu_common.h"
 #include "gamelogic/ui/hud_api.h"
 #include "goliath/controller/pad_actions.h"
+#include "goliath/ui/achievement_feed.h"
 #include "goliath/ui/name_crc.h"
 #include "core/memory_helpers.h"
 
@@ -458,8 +461,6 @@ constexpr Setting kGraphicsSettings[] = {
     {.label = "REEOT_OPT_DOF", .description = "REEOT_DESC_DOF", .cvar = "eot_depth_of_field",
      .choices = kOnOff},
     {.label = "REEOT_OPT_MOTION_BLUR", .description = "REEOT_DESC_MOTION_BLUR", .cvar = "eot_motion_blur",
-     .choices = kOnOff},
-    {.label = "REEOT_OPT_RADIAL_BLUR", .description = "REEOT_DESC_RADIAL_BLUR", .cvar = "eot_radial_blur",
      .choices = kOnOff},
     {.label = "REEOT_OPT_COLOR_GRADING", .description = "REEOT_DESC_COLOR_GRADING", .cvar = "eot_color_grading",
      .choices = kOnOff},
@@ -1370,9 +1371,19 @@ void FillConfig(uint32_t c, uint32_t window, uint32_t title, bool blackout) {
   eot::mem::store<uint32_t>(c + cfg::kResult, cfg::kResultNone);
 }
 
+void NotePageOpened(const Page &page) {
+  const uint32_t id = &page == &kVideoPage      ? eot::ui::kAchGraine25
+                      : &page == &kGraphicsPage ? eot::ui::kAchSerJar03
+                      : &page == &kControlsPage ? eot::ui::kAchMaff
+                                                : 0;
+  if (id && rex::system::UnlockAchievement(id))
+    EOT_INFO("[ach] the {} page hands over the port's achievement {:#x}", page.label, id);
+}
+
 void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   CallScope scope(ctx, base);
   g_page = &page;
+  NotePageOpened(page);
   RefreshLanguageChoices();
   if (page.table) {
     g_mods_message.clear();
