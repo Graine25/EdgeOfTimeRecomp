@@ -260,6 +260,7 @@ set(REEOT_SOURCES
     src/goliath/controller/pc_controls.cpp
     src/goliath/controller/pad_identity.cpp
     src/goliath/controller/pad_remap.cpp
+    src/goliath/audio/positional_audio.cpp
     src/goliath/controller/bind_capture.cpp
     src/goliath/ui/achievement_feed.cpp
     src/goliath/controller/button_glyphs.cpp
@@ -324,6 +325,7 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/patches/sd_bonus_suits.cpp
         src/gamelogic/patches/sm2099_body_pulse.cpp
         src/gamelogic/ui/pause_menu.cpp
+        src/gamelogic/audio/battle_theme.cpp
         src/gamelogic/input/qte_mash.cpp
         src/gamelogic/ui/achievement_toast.cpp
         src/gamelogic/ui/options_pages.cpp

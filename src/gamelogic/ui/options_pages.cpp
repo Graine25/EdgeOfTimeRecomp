@@ -51,9 +51,13 @@ REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input",
                       "Which controller's buttons the prompts draw: auto follows the device that last "
                       "produced input (the pad's own art, or the bound keys on a keyboard).")
     .allowed({"auto", "xbox", "switch", "keyboard"});
-REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio", "Spatial audio. Not wired to anything yet.");
+REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio",
+                    "Sounds fade with distance from the camera, as the console mixes them "
+                    "(goliath/audio/positional_audio.cpp). Off plays every cue flat, as the "
+                    "other ports of this game do.");
 REXCVAR_DEFINE_BOOL(eot_battle_theme, true, "EdgeOfTime/Audio",
-                    "The battle music over fights. Not wired to anything yet.");
+                    "The battle music over fights. Off leaves the area's own music playing "
+                    "(gamelogic/audio/battle_theme.cpp); a theme already playing sees it out.");
 
 namespace {
 
@@ -465,8 +469,6 @@ constexpr Setting kGraphicsSettings[] = {
     {.label = "REEOT_OPT_DOF", .description = "REEOT_DESC_DOF", .cvar = "eot_depth_of_field",
      .choices = kOnOff},
     {.label = "REEOT_OPT_MOTION_BLUR", .description = "REEOT_DESC_MOTION_BLUR", .cvar = "eot_motion_blur",
-     .choices = kOnOff},
-    {.label = "REEOT_OPT_RADIAL_BLUR", .description = "REEOT_DESC_RADIAL_BLUR", .cvar = "eot_radial_blur",
      .choices = kOnOff},
     {.label = "REEOT_OPT_COLOR_GRADING", .description = "REEOT_DESC_COLOR_GRADING", .cvar = "eot_color_grading",
      .choices = kOnOff},
