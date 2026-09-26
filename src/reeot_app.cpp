@@ -44,7 +44,6 @@
 #include "platform/update_check.h"
 #include "installer/install_registry.h"
 #include "mods/mod_manager.h"
-#include "mods/mods_cli.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "platform/crash_handler.h"
