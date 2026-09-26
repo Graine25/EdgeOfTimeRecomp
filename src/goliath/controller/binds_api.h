@@ -36,6 +36,7 @@ EOT_BINDS_API int32_t eot_binds_ctrl_pressed(void);
 EOT_BINDS_API void eot_binds_changed(void);
 EOT_BINDS_API void eot_prompts_bar_object(int32_t object);
 EOT_BINDS_API void eot_prompts_bar_zone(int32_t zone);
+EOT_BINDS_API void eot_kbm_mash_prompt(void);
 EOT_BINDS_API int32_t eot_binds_key_glyph(int32_t slot);
 
 #ifdef __cplusplus

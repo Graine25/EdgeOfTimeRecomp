@@ -17,6 +17,7 @@
 #include "core/logging.h"
 #include "goliath/controller/binds_api.h"
 #include "goliath/controller/button_glyphs.h"
+#include "goliath/controller/menu_keys.h"
 
 namespace eot::controller {
 
@@ -259,5 +260,7 @@ void eot_binds_changed(void) {
 void eot_prompts_bar_object(int32_t object) { NoteButtonHelper(static_cast<uint32_t>(object)); }
 
 void eot_prompts_bar_zone(int32_t zone) { NoteButtonHelperZone(static_cast<uint32_t>(zone)); }
+
+void eot_kbm_mash_prompt(void) { NoteMashPrompt(); }
 
 int32_t eot_binds_key_glyph(int32_t slot) { return slot >= 0 && slot < 32 && KeyCapInstalled(static_cast<uint8_t>(slot)) ? 1 : 0; }

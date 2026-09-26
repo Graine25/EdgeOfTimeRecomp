@@ -12,5 +12,6 @@ bool KeyCapInstalled(uint8_t slot);
 void GlyphBindsChanged();
 void NoteButtonHelper(uint32_t object);
 void NoteButtonHelperZone(uint32_t zone);
+bool BarShowsPrompts();
 
 }

@@ -13,6 +13,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "goliath/controller/menu_keys.h"
 #include "goliath/controller/pad_identity.h"
 #include "goliath/controller/pad_remap.h"
 #include "goliath/loading/resources.h"
@@ -113,6 +114,7 @@ std::string g_applied_setting;
 PadBrand g_applied_pad = PadBrand::Unknown;
 size_t g_keys_hash = 0;
 size_t g_remap_hash = 0;
+bool g_menu_keys = false;
 std::atomic<bool> g_binds_dirty{false};
 std::atomic<uint32_t> g_helper{0};
 std::atomic<uint32_t> g_helper_zones{0};
@@ -227,11 +229,26 @@ size_t RemapHash() {
   return (h ^ (SticksSwapped() ? 1u : 0u)) * 1099511628211ull;
 }
 
+const char *MenuKeyFor(uint8_t slot) {
+  switch (slot) {
+  case 0x01:
+    return "Escape";
+  case 0x03:
+    return "Delete";
+  default:
+    return nullptr;
+  }
+}
+
 std::vector<eot::text::IconCell> KeyboardCells() {
   std::vector<eot::text::IconCell> cells;
+  const bool menu = MenuKeysActive();
   g_have[kKeyboardPage] = 0;
   for (const KeySlot &k : kKeySlots) {
     const Box *box = k.cluster ? Cap(k.cluster) : nullptr;
+    if (!box && menu && k.retail)
+      if (const char *key = MenuKeyFor(k.slot))
+        box = Cap(key);
     if (!box && k.cvar) {
       const std::string key = BoundKey(k.cvar);
       box = key.empty() ? nullptr : Cap(key);
@@ -392,6 +409,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
     }
     g_keys_hash = KeysHash();
     g_remap_hash = RemapHash();
+    g_menu_keys = MenuKeysActive();
     const std::vector<eot::text::IconCell> keys = KeyboardCells();
     for (const Font &font : kFonts)
       if (!InstallInto(ctx, base, font, keys, false))
@@ -412,6 +430,15 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
         EOT_INFO("[glyphs] prompts draw page {} (auto: {})", page, ToString(pad));
       }
     }
+  }
+
+  if (const bool menu = MenuKeysActive(); menu != g_menu_keys) {
+    g_menu_keys = menu;
+    const std::vector<eot::text::IconCell> keys = KeyboardCells();
+    for (const Font &font : kFonts)
+      InstallInto(ctx, base, font, keys, true);
+    if (g_applied_page == kKeyboardPage)
+      RecomposePrompts(ctx, base);
   }
 
   if (++g_ticks % kPollTicks == 0 || g_binds_dirty.exchange(false, std::memory_order_acq_rel)) {
@@ -460,6 +487,17 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
 void NoteButtonHelper(uint32_t object) {
   g_helper.store(object, std::memory_order_release);
   g_helper_zones.store(0, std::memory_order_release);
+}
+
+bool BarShowsPrompts() {
+  const uint32_t helper = LiveHelper();
+  if (!helper)
+    return false;
+  const uint32_t zones = g_helper_zones.load(std::memory_order_acquire);
+  for (uint32_t zone = 0; zone < kZoneCount; ++zone)
+    if ((zones & (1u << zone)) && eot::mem::load<uint32_t>(helper + kHelperMasks + zone * 4))
+      return true;
+  return false;
 }
 
 void NoteButtonHelperZone(uint32_t zone) {
