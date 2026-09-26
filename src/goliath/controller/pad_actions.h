@@ -111,5 +111,16 @@ inline constexpr uint32_t kPadActionCount = sizeof(kPadActions) / sizeof(kPadAct
 inline constexpr const char *kPadSticksCvar = "eot_pad_sticks";
 inline constexpr const char *kMoveKeyCvars[4] = {"keybind_lstick_up", "keybind_lstick_down", "keybind_lstick_left",
                                                  "keybind_lstick_right"};
+inline constexpr const char *kLookKeyCvars[4] = {"keybind_rstick_up", "keybind_rstick_down", "keybind_rstick_left",
+                                                 "keybind_rstick_right"};
+
+inline constexpr uint8_t kLeftStickDirSlots[4] = {0x1A, 0x1B, 0x19, 0x1D};
+inline constexpr uint8_t kRightStickDirSlots[4] = {0x17, 0x18, 0x1C, 0x16};
+inline constexpr uint8_t kLeftStickPressedSlot = 0x11;
+inline constexpr uint8_t kRightStickPressedSlot = 0x10;
+inline constexpr uint8_t kMoveKeyCapSlots[4] = {0x14, 0x15, 0x16, 0x17};
+inline constexpr uint8_t kLookKeyCapSlots[4] = {0x18, 0x19, 0x1A, 0x1C};
+inline constexpr uint8_t kLeftClickCapSlot = 0x0C;
+inline constexpr uint8_t kRightClickCapSlot = 0x0D;
 
 }

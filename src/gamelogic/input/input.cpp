@@ -12,6 +12,7 @@
 #include "core/export.h"
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "gamelogic/ui/menu_common.h"
 
 REX_EXTERN(__imp__eot_Camera3rd_ReadStick);
 
@@ -116,4 +117,12 @@ REX_HOOK_RAW(eot_Camera3rd_ReadStick) {
   StoreF(cam + kVelYaw, 0.0f);
   StoreF(cam + kVelPitch, 0.0f);
   ctx.r3.u32 = 1;
+}
+
+REX_EXTERN(__imp__eot_WebPP_UpdateOpening); // (this r3, dt f1): a frame of the mash
+
+REX_HOOK_RAW(eot_WebPP_UpdateOpening) {
+  __imp__eot_WebPP_UpdateOpening(ctx, base);
+  if (const auto note = eot::ui::binds::Api().mash_prompt)
+    note();
 }

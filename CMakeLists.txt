@@ -235,6 +235,7 @@ set(REEOT_SOURCES
     src/goliath/controller/pad_remap.cpp
     src/goliath/controller/bind_capture.cpp
     src/goliath/controller/button_glyphs.cpp
+    src/goliath/controller/menu_keys.cpp
     src/goliath/controller/mouse_input.cpp
     src/goliath/debug/freecam.cpp
     src/goliath/ui/aspect_policy.cpp
