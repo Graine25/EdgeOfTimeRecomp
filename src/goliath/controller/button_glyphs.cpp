@@ -73,8 +73,16 @@ constexpr KeySlot kKeySlots[] = {
     {0x08, "eot_key_upgrades", nullptr, 0x00},      {0x09, "eot_key_pause", nullptr, 0x00},
     {0x0A, "eot_key_grab", nullptr, 0xFF},          {0x0B, "eot_key_special_attack", nullptr, 0xFF},
     {0x1B, "keybind_lstick_down", nullptr, 0x00},   {0x1E, "eot_key_spider_sense", nullptr, 0xFF},
-    {0x0C, "eot_key_left_stick_click", nullptr, 0x00, false},
-    {0x0D, "eot_key_right_stick_click", nullptr, 0x00, false},
+    {kLeftClickCapSlot, "eot_key_left_stick_click", nullptr, 0x00, false},
+    {kRightClickCapSlot, "eot_key_right_stick_click", nullptr, 0x00, false},
+    {kMoveKeyCapSlots[0], kMoveKeyCvars[0], nullptr, 0x00, false},
+    {kMoveKeyCapSlots[1], kMoveKeyCvars[1], nullptr, 0x00, false},
+    {kMoveKeyCapSlots[2], kMoveKeyCvars[2], nullptr, 0x00, false},
+    {kMoveKeyCapSlots[3], kMoveKeyCvars[3], nullptr, 0x00, false},
+    {kLookKeyCapSlots[0], kLookKeyCvars[0], nullptr, 0x00, false},
+    {kLookKeyCapSlots[1], kLookKeyCvars[1], nullptr, 0x00, false},
+    {kLookKeyCapSlots[2], kLookKeyCvars[2], nullptr, 0x00, false},
+    {kLookKeyCapSlots[3], kLookKeyCvars[3], nullptr, 0x00, false},
 };
 
 float g_sheet_w = 0, g_sheet_h = 0;
