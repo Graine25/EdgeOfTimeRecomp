@@ -19,7 +19,7 @@ REX_EXTERN(__imp__eot_PKPackageMgrBC_Update);
 
 REXCVAR_DEFINE_BOOL(eot_texture_overrides, true, "EdgeOfTime/Config",
                     "Replace retail textures with the port's own art from its package.");
-REXCVAR_DEFINE_BOOL(eot_antivenom_normals, false, "EdgeOfTime/Config",
+REXCVAR_DEFINE_BOOL(eot_antivenom_normals, true, "EdgeOfTime/Config",
                     "Use the remastered normal maps on Anti-Venom as well as its diffuse ones.");
 
 namespace eot::loading {
