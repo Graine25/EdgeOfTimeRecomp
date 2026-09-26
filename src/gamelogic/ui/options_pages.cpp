@@ -502,15 +502,25 @@ Page g_binds_page = {"REEOT_BINDS_TITLE", "Binds", {}, &kBinds, false, true};
 
 enum class BindKind : uint8_t {
   kAction,
-  kMove,
-  kCamera
+  kStick
 };
 struct BindRow {
   const char *label;
   const char *description;
   BindKind kind;
   int8_t action;
+  const char *cvar;
+  uint8_t key_slot;
+  uint8_t pad_slot;
+  bool right_stick;
 };
+#define EOT_BIND_STICK(label, desc, right, d)                                                                          \
+  {                                                                                                                    \
+    label, desc, BindKind::kStick, -1,                                                                                  \
+        (right) ? eot::controller::kLookKeyCvars[d] : eot::controller::kMoveKeyCvars[d],                               \
+        (right) ? eot::controller::kLookKeyCapSlots[d] : eot::controller::kMoveKeyCapSlots[d],                         \
+        (right) ? eot::controller::kRightStickDirSlots[d] : eot::controller::kLeftStickDirSlots[d], (right)            \
+  }
 constexpr BindRow kBindRows[] = {
     {"REEOT_BIND_JUMP", "REEOT_DESC_BIND_JUMP", BindKind::kAction, 0},
     {"REEOT_BIND_WEB", "REEOT_DESC_BIND_WEB", BindKind::kAction, 1},
@@ -521,9 +531,15 @@ constexpr BindRow kBindRows[] = {
     {"REEOT_BIND_WEB_SWING", "REEOT_DESC_BIND_WEB_SWING", BindKind::kAction, 6},
     {"REEOT_BIND_SPECIAL", "REEOT_DESC_BIND_SPECIAL", BindKind::kAction, 7},
     {"REEOT_BIND_SPIDER_SENSE", "REEOT_DESC_BIND_SPIDER_SENSE", BindKind::kAction, 8},
-    {"REEOT_BIND_MOVE", "REEOT_DESC_BIND_MOVE", BindKind::kMove, -1},
+    EOT_BIND_STICK("REEOT_BIND_MOVE_UP", "REEOT_DESC_BIND_MOVE", false, 0),
+    EOT_BIND_STICK("REEOT_BIND_MOVE_DOWN", "REEOT_DESC_BIND_MOVE", false, 1),
+    EOT_BIND_STICK("REEOT_BIND_MOVE_LEFT", "REEOT_DESC_BIND_MOVE", false, 2),
+    EOT_BIND_STICK("REEOT_BIND_MOVE_RIGHT", "REEOT_DESC_BIND_MOVE", false, 3),
     {"REEOT_BIND_WALL", "REEOT_DESC_BIND_WALL", BindKind::kAction, 9},
-    {"REEOT_BIND_CAMERA", "REEOT_DESC_BIND_CAMERA", BindKind::kCamera, -1},
+    EOT_BIND_STICK("REEOT_BIND_LOOK_UP", "REEOT_DESC_BIND_CAMERA", true, 0),
+    EOT_BIND_STICK("REEOT_BIND_LOOK_DOWN", "REEOT_DESC_BIND_CAMERA", true, 1),
+    EOT_BIND_STICK("REEOT_BIND_LOOK_LEFT", "REEOT_DESC_BIND_CAMERA", true, 2),
+    EOT_BIND_STICK("REEOT_BIND_LOOK_RIGHT", "REEOT_DESC_BIND_CAMERA", true, 3),
     {"REEOT_BIND_CENTER", "REEOT_DESC_BIND_CENTER", BindKind::kAction, 10},
     {"REEOT_BIND_PAUSE", "REEOT_DESC_BIND_PAUSE", BindKind::kAction, 11},
     {"REEOT_BIND_UPGRADES", "REEOT_DESC_BIND_UPGRADES", BindKind::kAction, 12},
@@ -538,7 +554,6 @@ struct Capture {
   bool active = false;
   uint32_t row = 0;
   uint32_t column = kColumnKey;
-  int move_step = -1;
 };
 Capture g_capture;
 bool g_bind_fixed_note = false;
@@ -1578,60 +1593,45 @@ const char *PadGlyphString(uint8_t slot) {
 
 bool KeyHasCap(uint8_t slot) { return binds::Api().key_glyph && binds::Api().key_glyph(slot) != 0; }
 
+void ShowKey(const PPCContext &ctx, uint8_t *base, uint32_t window, const std::string &key, uint8_t slot) {
+  if (key.empty())
+    SetStringHandle(ctx, base, window, StringHandle(ctx, base, "REEOT_BINDS_NONE"));
+  else if (KeyHasCap(slot))
+    SetStringHandle(ctx, base, window, StringHandle(ctx, base, KeyGlyphString(slot)));
+  else
+    SetLine(ctx, base, window, key.c_str());
+}
+
 void ShowKeyCell(const PPCContext &ctx, uint8_t *base, uint32_t window, const BindRow &row) {
-  using eot::controller::PadInput;
-  using eot::controller::PadInputSlot;
-  switch (row.kind) {
-  case BindKind::kAction: {
+  if (row.kind == BindKind::kAction) {
     const eot::controller::PadAction &action = eot::controller::kPadActions[row.action];
-    const std::string key = BoundKey(action.key_cvar);
-    const uint8_t slot = KeySlotOf(action);
-    if (key.empty())
-      SetStringHandle(ctx, base, window, StringHandle(ctx, base, "REEOT_BINDS_NONE"));
-    else if (KeyHasCap(slot))
-      SetStringHandle(ctx, base, window, StringHandle(ctx, base, KeyGlyphString(slot)));
-    else
-      SetLine(ctx, base, window, key.c_str());
+    ShowKey(ctx, base, window, BoundKey(action.key_cvar), KeySlotOf(action));
     return;
   }
-  case BindKind::kMove: {
-    std::string keys[4];
-    for (uint32_t i = 0; i < 4; ++i)
-      keys[i] = BoundKey(eot::controller::kMoveKeyCvars[i]);
-    const bool wasd = keys[0] == "W" && keys[1] == "S" && keys[2] == "A" && keys[3] == "D";
-    if (wasd && KeyHasCap(PadInputSlot(PadInput::LS))) {
-      SetStringHandle(ctx, base, window, StringHandle(ctx, base, KeyGlyphString(PadInputSlot(PadInput::LS))));
-      return;
-    }
-    std::string line;
-    for (const std::string &k : keys)
-      line += (line.empty() ? "" : " ") + (k.empty() ? std::string("-") : k);
-    SetLine(ctx, base, window, line.c_str());
-    return;
-  }
-  case BindKind::kCamera:
-    if (KeyHasCap(PadInputSlot(PadInput::RS)))
-      SetStringHandle(ctx, base, window, StringHandle(ctx, base, KeyGlyphString(PadInputSlot(PadInput::RS))));
-    else
-      SetStringHandle(ctx, base, window, StringHandle(ctx, base, "REEOT_BINDS_MOUSE"));
-    return;
-  }
+  ShowKey(ctx, base, window, BoundKey(row.cvar), row.key_slot);
 }
 
 void ShowPadCell(const PPCContext &ctx, uint8_t *base, uint32_t window, const BindRow &row) {
   using eot::controller::PadInput;
   using eot::controller::PadInputSlot;
-  PadInput input = PadInput::None;
-  switch (row.kind) {
-  case BindKind::kAction:
-    input = PhysicalOf(eot::controller::kPadActions[row.action]);
-    break;
-  case BindKind::kMove:
-    input = SticksSwapped() ? PadInput::RS : PadInput::LS;
-    break;
-  case BindKind::kCamera:
-    input = SticksSwapped() ? PadInput::LS : PadInput::RS;
-    break;
+  if (row.kind == BindKind::kStick) {
+    const bool right = row.right_stick != SticksSwapped();
+    const uint8_t *slots = right ? eot::controller::kRightStickDirSlots : eot::controller::kLeftStickDirSlots;
+    const uint8_t *own = row.right_stick ? eot::controller::kRightStickDirSlots : eot::controller::kLeftStickDirSlots;
+    uint32_t d = 0;
+    for (uint32_t i = 0; i < 4; ++i)
+      if (own[i] == row.pad_slot)
+        d = i;
+    SetStringHandle(ctx, base, window, StringHandle(ctx, base, PadGlyphString(slots[d])));
+    return;
+  }
+  PadInput input = PhysicalOf(eot::controller::kPadActions[row.action]);
+  if (input == PadInput::LS || input == PadInput::RS) {
+    const bool right = (input == PadInput::RS) != SticksSwapped();
+    SetStringHandle(ctx, base, window,
+                    StringHandle(ctx, base, PadGlyphString(right ? eot::controller::kRightStickPressedSlot
+                                                                 : eot::controller::kLeftStickPressedSlot)));
+    return;
   }
   const uint8_t slot = PadInputSlot(input);
   if (slot != 0xFF) {
@@ -1651,21 +1651,9 @@ void ShowBindNote(const PPCContext &ctx, uint8_t *base) {
     return;
   hud::Activate(ctx, base, w.info_note, true);
   if (g_capture.active) {
-    if (g_capture.column == kColumnPad) {
-      SetStringHandle(ctx, base, w.info_note, StringHandle(ctx, base, "REEOT_BINDS_PRESS_PAD"));
-    } else if (g_capture.move_step >= 0) {
-      static const char *const kDirections[4] = {"REEOT_BINDS_DIR_UP", "REEOT_BINDS_DIR_DOWN", "REEOT_BINDS_DIR_LEFT",
-                                                 "REEOT_BINDS_DIR_RIGHT"};
-      const std::string format = ResolveText(ctx, base, StringHandle(ctx, base, "REEOT_BINDS_PRESS_KEY_FOR"));
-      const std::string direction =
-          ResolveText(ctx, base, StringHandle(ctx, base, kDirections[std::min(g_capture.move_step, 3)]));
-      std::string line = format;
-      if (const size_t at = line.find("%s"); at != std::string::npos)
-        line.replace(at, 2, direction);
-      SetLine(ctx, base, w.info_note, line.c_str());
-    } else {
-      SetStringHandle(ctx, base, w.info_note, StringHandle(ctx, base, "REEOT_BINDS_PRESS_KEY"));
-    }
+    SetStringHandle(ctx, base, w.info_note,
+                    StringHandle(ctx, base, g_capture.column == kColumnPad ? "REEOT_BINDS_PRESS_PAD"
+                                                                           : "REEOT_BINDS_PRESS_KEY"));
     return;
   }
   SetStringHandle(ctx, base, w.info_note, StringHandle(ctx, base, g_bind_fixed_note ? "REEOT_BINDS_FIXED" : "REEOT_BINDS_HINT"));
@@ -1710,7 +1698,7 @@ void StartCapture(const PPCContext &ctx, uint8_t *base) {
   const BindRow &row = kBindRows[g_cursor];
   const binds::Host &api = binds::Api();
   g_bind_fixed_note = false;
-  if (row.kind != BindKind::kAction && g_bind_column == kColumnPad) {
+  if (row.kind == BindKind::kStick && g_bind_column == kColumnPad) {
     rex::cvar::SetFlagByName(eot::controller::kPadSticksCvar, SticksSwapped() ? "normal" : "swapped");
     BindsChanged();
     EOT_INFO("[menu] sticks {}", SticksSwapped() ? "swapped" : "normal");
@@ -1718,7 +1706,7 @@ void StartCapture(const PPCContext &ctx, uint8_t *base) {
     ShowRows(ctx, base);
     return;
   }
-  if (row.kind == BindKind::kCamera || !api.Bound()) {
+  if (!api.Bound()) {
     g_bind_fixed_note = true;
     PlayCue(ctx, base, kCueDenied);
     ShowBindNote(ctx, base);
@@ -1732,7 +1720,6 @@ void StartCapture(const PPCContext &ctx, uint8_t *base) {
   g_capture.active = true;
   g_capture.row = g_cursor;
   g_capture.column = g_bind_column;
-  g_capture.move_step = row.kind == BindKind::kMove ? 0 : -1;
   PlayCue(ctx, base, kCueChange);
   ShowBindNote(ctx, base);
 }
@@ -1754,23 +1741,11 @@ void PollCapture(const PPCContext &ctx, uint8_t *base) {
   if (state == EOT_BINDS_WAITING)
     return;
   const BindRow &row = kBindRows[g_capture.row];
+  const char *key_cvar = row.kind == BindKind::kAction ? eot::controller::kPadActions[row.action].key_cvar : row.cvar;
   switch (state) {
   case EOT_BINDS_GOT_KEY:
-    if (row.kind == BindKind::kMove) {
-      rex::cvar::SetFlagByName(eot::controller::kMoveKeyCvars[std::clamp(g_capture.move_step, 0, 3)], name);
-      EOT_INFO("[menu] {} = {}", eot::controller::kMoveKeyCvars[std::clamp(g_capture.move_step, 0, 3)], name);
-      if (++g_capture.move_step < 4 && api.capture_begin(EOT_BINDS_KEY)) {
-        PlayCue(ctx, base, kCueChange);
-        ShowBindNote(ctx, base);
-        return;
-      }
-      EndCapture(ctx, base, true);
-      return;
-    }
-    if (row.kind == BindKind::kAction) {
-      rex::cvar::SetFlagByName(eot::controller::kPadActions[row.action].key_cvar, name);
-      EOT_INFO("[menu] {} = {}", eot::controller::kPadActions[row.action].key_cvar, name);
-    }
+    rex::cvar::SetFlagByName(key_cvar, name);
+    EOT_INFO("[menu] {} = {}", key_cvar, name);
     EndCapture(ctx, base, true);
     return;
   case EOT_BINDS_GOT_PAD:
@@ -1781,9 +1756,9 @@ void PollCapture(const PPCContext &ctx, uint8_t *base) {
     EndCapture(ctx, base, true);
     return;
   case EOT_BINDS_CLEARED:
-    if (row.kind == BindKind::kAction && g_capture.column == kColumnKey) {
-      rex::cvar::SetFlagByName(eot::controller::kPadActions[row.action].key_cvar, "");
-      EOT_INFO("[menu] {} cleared", eot::controller::kPadActions[row.action].key_cvar);
+    if (g_capture.column == kColumnKey) {
+      rex::cvar::SetFlagByName(key_cvar, "");
+      EOT_INFO("[menu] {} cleared", key_cvar);
       EndCapture(ctx, base, true);
       return;
     }
@@ -1802,24 +1777,16 @@ void ResetBind(const PPCContext &ctx, uint8_t *base, bool all) {
     const BindRow &row = kBindRows[i];
     const bool key = all || g_bind_column == kColumnKey;
     const bool pad = all || g_bind_column == kColumnPad;
-    switch (row.kind) {
-    case BindKind::kAction:
+    if (row.kind == BindKind::kAction) {
       if (key)
         rex::cvar::ResetToDefault(eot::controller::kPadActions[row.action].key_cvar);
       if (pad)
         rex::cvar::ResetToDefault(eot::controller::kPadActions[row.action].pad_cvar);
-      break;
-    case BindKind::kMove:
+    } else {
       if (key)
-        for (const char *cvar : eot::controller::kMoveKeyCvars)
-          rex::cvar::ResetToDefault(cvar);
+        rex::cvar::ResetToDefault(row.cvar);
       if (pad)
         rex::cvar::ResetToDefault(eot::controller::kPadSticksCvar);
-      break;
-    case BindKind::kCamera:
-      if (pad)
-        rex::cvar::ResetToDefault(eot::controller::kPadSticksCvar);
-      break;
     }
   }
   EOT_INFO("[menu] binds: {} back to default", all ? "everything" : kBindRows[g_cursor].label);
@@ -2240,7 +2207,9 @@ REX_HOOK_RAW(eot_HUDSavegameSelect_HandleMessage) {
   __imp__eot_HUDSavegameSelect_HandleMessage(ctx, base);
 }
 
-REX_EXTERN(__imp__eot_HUDSavegameSelect_Construct); // (this r3, ...)
+REX_EXTERN(__imp__eot_HUDSavegameSelect_Construct);  // (this r3, ...)
+REX_EXTERN(__imp__eot_GLInstanciateHUDButtonHelper);
+REX_EXTERN(__imp__sub_8827CBD8);
 
 namespace {
 
@@ -2277,6 +2246,23 @@ uint32_t g_prompt_held[kPromptCount] = {};
 REX_HOOK_RAW(eot_HUDSavegameSelect_Construct) {
   __imp__eot_HUDSavegameSelect_Construct(ctx, base);
   ApplyRewrites();
+}
+
+REX_HOOK_RAW(sub_8827CBD8) {
+  constexpr uint32_t kSetMaskMessage = 0xDCDC2E9F;
+  const uint32_t message = ctx.r4.u32;
+  const uint32_t args = ctx.r5.u32;
+  __imp__sub_8827CBD8(ctx, base);
+  if (message != kSetMaskMessage || !args)
+    return;
+  if (const auto note = eot::ui::binds::Api().bar_zone)
+    note(static_cast<int32_t>(eot::mem::load<uint32_t>(args)));
+}
+
+REX_HOOK_RAW(eot_GLInstanciateHUDButtonHelper) {
+  __imp__eot_GLInstanciateHUDButtonHelper(ctx, base);
+  if (const auto note = eot::ui::binds::Api().bar_object)
+    note(static_cast<int32_t>(ctx.r3.u32));
 }
 
 namespace eot::ui {

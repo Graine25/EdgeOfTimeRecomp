@@ -9,9 +9,11 @@
 #include <vector>
 
 #include <rex/cvar.h>
+#include <rex/ppc/func.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "goliath/controller/menu_keys.h"
 #include "goliath/controller/pad_identity.h"
 #include "goliath/controller/pad_remap.h"
 #include "goliath/loading/texture_overrides.h"
@@ -27,6 +29,7 @@ namespace {
 constexpr uint32_t kTagCount = 0x824A18FC;
 constexpr uint32_t kTagText = 0x824A5900;
 constexpr uint32_t kTagStride = 256;
+constexpr uint32_t kTagPromptTable = 0x883C9BC8;
 constexpr uint32_t kMaxTags = 64;
 constexpr uint32_t kTagChars = 128;
 
@@ -39,6 +42,13 @@ constexpr uint32_t kPageCount = 10;
 constexpr const char *kTable = "GlyphsIcons";
 constexpr const char *kSheet = "Reeot_Icons";
 constexpr uint32_t kPollTicks = 30;
+
+constexpr uint32_t kHudsDataPtr = 0x883CA288;
+constexpr uint32_t kHelperOffset = 0xA4;
+constexpr uint32_t kComposeFn = 0x8827C8D8;
+constexpr uint32_t kZoneCount = 3;
+constexpr uint32_t kHelperZones = 112;
+constexpr uint32_t kHelperMasks = 124;
 constexpr float kCapLift = 0.0f;
 
 struct Box {
@@ -72,8 +82,16 @@ constexpr KeySlot kKeySlots[] = {
     {0x08, "eot_key_upgrades", nullptr, 0x00},      {0x09, "eot_key_pause", nullptr, 0x00},
     {0x0A, "eot_key_grab", nullptr, 0xFF},          {0x0B, "eot_key_special_attack", nullptr, 0xFF},
     {0x1B, "keybind_lstick_down", nullptr, 0x00},   {0x1E, "eot_key_spider_sense", nullptr, 0xFF},
-    {0x0C, "eot_key_left_stick_click", nullptr, 0x00, false},
-    {0x0D, "eot_key_right_stick_click", nullptr, 0x00, false},
+    {kLeftClickCapSlot, "eot_key_left_stick_click", nullptr, 0x00, false},
+    {kRightClickCapSlot, "eot_key_right_stick_click", nullptr, 0x00, false},
+    {kMoveKeyCapSlots[0], kMoveKeyCvars[0], nullptr, 0x00, false},
+    {kMoveKeyCapSlots[1], kMoveKeyCvars[1], nullptr, 0x00, false},
+    {kMoveKeyCapSlots[2], kMoveKeyCvars[2], nullptr, 0x00, false},
+    {kMoveKeyCapSlots[3], kMoveKeyCvars[3], nullptr, 0x00, false},
+    {kLookKeyCapSlots[0], kLookKeyCvars[0], nullptr, 0x00, false},
+    {kLookKeyCapSlots[1], kLookKeyCvars[1], nullptr, 0x00, false},
+    {kLookKeyCapSlots[2], kLookKeyCvars[2], nullptr, 0x00, false},
+    {kLookKeyCapSlots[3], kLookKeyCvars[3], nullptr, 0x00, false},
 };
 
 float g_sheet_w = 0, g_sheet_h = 0;
@@ -95,7 +113,10 @@ std::string g_applied_setting;
 PadBrand g_applied_pad = PadBrand::Unknown;
 size_t g_keys_hash = 0;
 size_t g_remap_hash = 0;
+bool g_menu_keys = false;
 std::atomic<bool> g_binds_dirty{false};
+std::atomic<uint32_t> g_helper{0};
+std::atomic<uint32_t> g_helper_zones{0};
 
 Box Normalised(const Box &b) { return {b.x0 / g_sheet_w, b.y0 / g_sheet_h, b.x1 / g_sheet_w, b.y1 / g_sheet_h}; }
 
@@ -207,11 +228,26 @@ size_t RemapHash() {
   return (h ^ (SticksSwapped() ? 1u : 0u)) * 1099511628211ull;
 }
 
+const char *MenuKeyFor(uint8_t slot) {
+  switch (slot) {
+  case 0x01:
+    return "Escape";
+  case 0x03:
+    return "Delete";
+  default:
+    return nullptr;
+  }
+}
+
 std::vector<eot::text::IconCell> KeyboardCells() {
   std::vector<eot::text::IconCell> cells;
+  const bool menu = MenuKeysActive();
   g_have[kKeyboardPage] = 0;
   for (const KeySlot &k : kKeySlots) {
     const Box *box = k.cluster ? Cap(k.cluster) : nullptr;
+    if (!box && menu && k.retail)
+      if (const char *key = MenuKeyFor(k.slot))
+        box = Cap(key);
     if (!box && k.cvar) {
       const std::string key = BoundKey(k.cvar);
       box = key.empty() ? nullptr : Cap(key);
@@ -261,6 +297,54 @@ void ApplyPage(uint32_t page) {
   }
   g_applied_page = page;
   g_applied_count = count;
+}
+
+constexpr uint32_t kHelperSize = 156;
+
+uint32_t LiveHelper() {
+  const uint32_t helper = g_helper.load(std::memory_order_acquire);
+  const uint32_t huds = eot::mem::load<uint32_t>(kHudsDataPtr);
+  if (!helper || !eot::mem::readable(huds + kHelperOffset, 4) ||
+      !eot::mem::load<uint32_t>(huds + kHelperOffset))
+    return 0;
+  if (!eot::mem::readable(helper, kHelperSize))
+    return 0;
+  for (uint32_t i = 0; i < kZoneCount; ++i) {
+    const uint32_t window = eot::mem::load<uint32_t>(helper + kHelperZones + i * 4);
+    if (!window || window == 0xFFFFFFFFu)
+      return 0;
+  }
+  return helper;
+}
+
+uint32_t ZoneMask(uint32_t helper, uint32_t zone) {
+  const uint32_t mask = eot::mem::load<uint32_t>(helper + kHelperMasks + zone * 4);
+  for (uint32_t i = 0; i < 32; ++i)
+    if ((mask & (1u << i)) && !eot::mem::load<uint32_t>(kTagPromptTable + i * 4))
+      return 0;
+  return mask;
+}
+
+void RecomposePrompts(const PPCContext &ctx, uint8_t *base) {
+  const uint32_t helper = LiveHelper();
+  PPCFunc *compose = helper ? rex::runtime::ResolveIndirectFunction(kComposeFn) : nullptr;
+  if (!compose)
+    return;
+  const uint32_t zones = g_helper_zones.load(std::memory_order_acquire);
+  for (uint32_t zone = 0; zone < kZoneCount; ++zone) {
+    if (!(zones & (1u << zone)) || !ZoneMask(helper, zone))
+      continue;
+    PPCContext call = ctx;
+    call.r3.u32 = helper;
+    call.r4.u32 = zone;
+    call.r5.u32 = 0;
+    call.r6.u32 = 0;
+    call.r7.u32 = 0;
+    call.r8.u32 = 0;
+    call.r9.u32 = 0;
+    call.r10.u32 = 0;
+    compose(call, base);
+  }
 }
 
 uint32_t PageFor(std::string_view set) {
@@ -324,6 +408,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
     }
     g_keys_hash = KeysHash();
     g_remap_hash = RemapHash();
+    g_menu_keys = MenuKeysActive();
     const std::vector<eot::text::IconCell> keys = KeyboardCells();
     for (const Font &font : kFonts)
       if (!InstallInto(ctx, base, font, keys, false))
@@ -331,6 +416,28 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
     g_installed = true;
     EOT_INFO("[glyphs] button icons: {} set(s) and {} key cap(s) on {}x{}, pages {}..{} of both fonts", g_sets.size(),
              g_caps.size(), g_sheet_w, g_sheet_h, kFirstPage, kKeyboardPage);
+  }
+
+  if (g_applied_setting == "auto") {
+    const PadBrand pad = ActivePad();
+    if (pad != g_applied_pad) {
+      g_applied_pad = pad;
+      const uint32_t page = WantedPage(g_applied_setting, pad);
+      if (page != g_applied_page) {
+        ApplyPage(page);
+        RecomposePrompts(ctx, base);
+        EOT_INFO("[glyphs] prompts draw page {} (auto: {})", page, ToString(pad));
+      }
+    }
+  }
+
+  if (const bool menu = MenuKeysActive(); menu != g_menu_keys) {
+    g_menu_keys = menu;
+    const std::vector<eot::text::IconCell> keys = KeyboardCells();
+    for (const Font &font : kFonts)
+      InstallInto(ctx, base, font, keys, true);
+    if (g_applied_page == kKeyboardPage)
+      RecomposePrompts(ctx, base);
   }
 
   if (++g_ticks % kPollTicks == 0 || g_binds_dirty.exchange(false, std::memory_order_acq_rel)) {
@@ -366,6 +473,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       g_applied_pad = pad;
       const uint32_t page = WantedPage(setting, pad);
       ApplyPage(page);
+      RecomposePrompts(ctx, base);
       EOT_INFO("[glyphs] prompts draw page {} ({}{}{})", page, setting, setting == "auto" ? ": " : "",
                setting == "auto" ? ToString(pad) : "");
       return;
@@ -373,6 +481,27 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
   }
   if (eot::mem::load<uint32_t>(kTagCount) != g_applied_count)
     ApplyPage(g_applied_page);
+}
+
+void NoteButtonHelper(uint32_t object) {
+  g_helper.store(object, std::memory_order_release);
+  g_helper_zones.store(0, std::memory_order_release);
+}
+
+bool BarShowsPrompts() {
+  const uint32_t helper = LiveHelper();
+  if (!helper)
+    return false;
+  const uint32_t zones = g_helper_zones.load(std::memory_order_acquire);
+  for (uint32_t zone = 0; zone < kZoneCount; ++zone)
+    if ((zones & (1u << zone)) && eot::mem::load<uint32_t>(helper + kHelperMasks + zone * 4))
+      return true;
+  return false;
+}
+
+void NoteButtonHelperZone(uint32_t zone) {
+  if (zone < kZoneCount)
+    g_helper_zones.fetch_or(1u << zone, std::memory_order_acq_rel);
 }
 
 bool KeyCapInstalled(uint8_t slot) { return g_installed && slot < 32 && (g_have[kKeyboardPage] & (1u << slot)) != 0; }

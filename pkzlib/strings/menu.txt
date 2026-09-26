@@ -45,13 +45,21 @@ REEOT_DESC_BIND_WEB_SWING	Tap to zip towards where you are looking. Hold to swin
 REEOT_BIND_SPECIAL	Special Ability
 REEOT_DESC_BIND_SPECIAL	Hyper-Sense as Amazing Spider-Man; the Accelerated Decoy as Spider-Man 2099.
 REEOT_BIND_SPIDER_SENSE	Spider-Sense
+REEOT_BIND_MOVE_UP	Move Forward
+REEOT_BIND_MOVE_DOWN	Move Back
+REEOT_BIND_MOVE_LEFT	Move Left
+REEOT_BIND_MOVE_RIGHT	Move Right
+REEOT_BIND_LOOK_UP	Look Up
+REEOT_BIND_LOOK_DOWN	Look Down
+REEOT_BIND_LOOK_LEFT	Look Left
+REEOT_BIND_LOOK_RIGHT	Look Right
 REEOT_DESC_BIND_SPIDER_SENSE	Spider-Sense as Amazing Spider-Man, Accelerated Vision as Spider-Man 2099: highlights objectives, enemies and the way forward.
 REEOT_BIND_MOVE	Walk / Run
-REEOT_DESC_BIND_MOVE	Move. Tilt the stick further to run. On a keyboard, the four movement keys: rebinding asks for each in turn.
+REEOT_DESC_BIND_MOVE	One direction of the left stick. Tilt it further to run; on a keyboard the four keys are the movement ones.
 REEOT_BIND_WALL	Stick to a Wall
 REEOT_DESC_BIND_WALL	Click the stick while moving along a wall to stick to it.
 REEOT_BIND_CAMERA	Camera
-REEOT_DESC_BIND_CAMERA	Look around. The mouse on a keyboard; the stick on a controller.
+REEOT_DESC_BIND_CAMERA	One direction of the right stick. The mouse turns the camera too, whatever these keys are.
 REEOT_BIND_CENTER	Center Camera
 REEOT_DESC_BIND_CENTER	Click the stick to put the camera back behind Spider-Man.
 REEOT_BIND_PAUSE	Pause Menu
@@ -108,6 +116,23 @@ REEOT_GP_0A	̊
 REEOT_GP_0B	̋
 REEOT_GP_1B	̛
 REEOT_GP_1E	̞
+REEOT_GP_10	̐
+REEOT_GP_11	̑
+REEOT_GP_16	̖
+REEOT_GP_17	̗
+REEOT_GP_18	̘
+REEOT_GP_19	̙
+REEOT_GP_1A	̚
+REEOT_GP_1C	̜
+REEOT_GP_1D	̝
+REEOT_GK_14	औ
+REEOT_GK_15	क
+REEOT_GK_16	ख
+REEOT_GK_17	ग
+REEOT_GK_18	घ
+REEOT_GK_19	ङ
+REEOT_GK_1A	च
+REEOT_GK_1C	ज
 REEOT_OPT_FULLSCREEN	Fullscreen
 REEOT_OPT_RESOLUTION	Resolution
 REEOT_OPT_ASPECT	Aspect Ratio

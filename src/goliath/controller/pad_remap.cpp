@@ -15,6 +15,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/bind_capture.h"
+#include "goliath/controller/menu_keys.h"
 #include "goliath/controller/pad_identity.h"
 #include "goliath/controller/pc_controls.h"
 
@@ -199,8 +200,10 @@ REX_HOOK_RAW(eot_XInputGetState) {
   pad.thumb_rx = eot::mem::load<int16_t>(state + 12);
   pad.thumb_ry = eot::mem::load<int16_t>(state + 14);
   const bool swallowed = FilterPadForCapture(pad);
-  if (!swallowed)
+  if (!swallowed) {
     RemapPad(pad);
+    ApplyMenuKeys(pad);
+  }
   eot::mem::store<uint16_t>(state + 4, pad.buttons);
   eot::mem::store<uint8_t>(state + 6, pad.left_trigger);
   eot::mem::store<uint8_t>(state + 7, pad.right_trigger);
