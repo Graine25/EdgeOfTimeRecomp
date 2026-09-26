@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <rex/cvar.h>
+#include <rex/ppc/func.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
@@ -40,6 +41,11 @@ constexpr uint32_t kPageCount = 10;
 constexpr const char *kTable = "GlyphsIcons";
 constexpr const char *kSheet = "Reeot_Icons";
 constexpr uint32_t kPollTicks = 30;
+
+constexpr uint32_t kHudsDataPtr = 0x883CA288;
+constexpr uint32_t kHelperOffset = 0xA4;
+constexpr uint32_t kComposeFn = 0x8827C8D8;
+constexpr uint32_t kZoneCount = 3;
 constexpr float kCapLift = 0.0f;
 
 struct Box {
@@ -272,6 +278,26 @@ void ApplyPage(uint32_t page) {
   g_applied_count = count;
 }
 
+void RecomposePrompts(const PPCContext &ctx, uint8_t *base) {
+  const uint32_t huds = eot::mem::load<uint32_t>(kHudsDataPtr);
+  const uint32_t helper = huds ? eot::mem::load<uint32_t>(huds + kHelperOffset) : 0;
+  PPCFunc *compose = helper ? rex::runtime::ResolveIndirectFunction(kComposeFn) : nullptr;
+  if (!compose)
+    return;
+  for (uint32_t zone = 0; zone < kZoneCount; ++zone) {
+    PPCContext call = ctx;
+    call.r3.u32 = helper;
+    call.r4.u32 = zone;
+    call.r5.u32 = 0;
+    call.r6.u32 = 0;
+    call.r7.u32 = 0;
+    call.r8.u32 = 0;
+    call.r9.u32 = 0;
+    call.r10.u32 = 0;
+    compose(call, base);
+  }
+}
+
 uint32_t PageFor(std::string_view set) {
   for (const Set &s : g_sets)
     if (set == s.name)
@@ -342,6 +368,19 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
              g_caps.size(), g_sheet_w, g_sheet_h, kFirstPage, kKeyboardPage);
   }
 
+  if (g_applied_setting == "auto") {
+    const PadBrand pad = ActivePad();
+    if (pad != g_applied_pad) {
+      g_applied_pad = pad;
+      const uint32_t page = WantedPage(g_applied_setting, pad);
+      if (page != g_applied_page) {
+        ApplyPage(page);
+        RecomposePrompts(ctx, base);
+        EOT_INFO("[glyphs] prompts draw page {} (auto: {})", page, ToString(pad));
+      }
+    }
+  }
+
   if (++g_ticks % kPollTicks == 0 || g_binds_dirty.exchange(false, std::memory_order_acq_rel)) {
     const size_t hash = KeysHash();
     if (hash != g_keys_hash) {
@@ -375,6 +414,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       g_applied_pad = pad;
       const uint32_t page = WantedPage(setting, pad);
       ApplyPage(page);
+      RecomposePrompts(ctx, base);
       EOT_INFO("[glyphs] prompts draw page {} ({}{}{})", page, setting, setting == "auto" ? ": " : "",
                setting == "auto" ? ToString(pad) : "");
       return;
