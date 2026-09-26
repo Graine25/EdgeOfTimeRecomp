@@ -6,7 +6,34 @@
 #include <string_view>
 #include <vector>
 
-#include "mods/mod_manifest.h"
+namespace eot::mods {
+
+enum class ModType { kPackage, kReplacement, kModel };
+
+const char *TypeName(ModType type);
+bool TypeFromName(std::string_view name, ModType &out);
+
+struct Manifest {
+  std::string name;
+  std::string creator;
+  std::string version;
+  std::string description;
+  ModType type = ModType::kReplacement;
+  std::string file;
+  uint32_t package_id = 0;
+  std::string language;
+  std::string language_name;
+
+  bool IsLanguage() const { return type == ModType::kPackage && !language.empty(); }
+};
+
+inline constexpr const char *kManifestFileName = "mod.toml";
+
+bool ParseManifest(std::string_view text, Manifest &out, std::string &error);
+
+std::string WriteManifest(const Manifest &manifest);
+
+}
 
 namespace eot::mods {
 
@@ -53,5 +80,13 @@ std::vector<LanguageMod> LanguageMods();
 void LanguageAsked(std::string_view folder);
 
 std::filesystem::path ModsDir();
+
+}
+
+namespace eot::mods {
+
+inline constexpr const char *kCliCommand = "mods";
+
+int RunCli(const std::vector<std::string> &positional);
 
 }
