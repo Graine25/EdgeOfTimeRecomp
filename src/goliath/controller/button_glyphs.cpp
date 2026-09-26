@@ -29,6 +29,7 @@ namespace {
 constexpr uint32_t kTagCount = 0x824A18FC;
 constexpr uint32_t kTagText = 0x824A5900;
 constexpr uint32_t kTagStride = 256;
+constexpr uint32_t kTagPromptTable = 0x883C9BC8;
 constexpr uint32_t kMaxTags = 64;
 constexpr uint32_t kTagChars = 128;
 
@@ -46,6 +47,8 @@ constexpr uint32_t kHudsDataPtr = 0x883CA288;
 constexpr uint32_t kHelperOffset = 0xA4;
 constexpr uint32_t kComposeFn = 0x8827C8D8;
 constexpr uint32_t kZoneCount = 3;
+constexpr uint32_t kHelperZones = 112;
+constexpr uint32_t kHelperMasks = 124;
 constexpr float kCapLift = 0.0f;
 
 struct Box {
@@ -278,13 +281,39 @@ void ApplyPage(uint32_t page) {
   g_applied_count = count;
 }
 
-void RecomposePrompts(const PPCContext &ctx, uint8_t *base) {
+constexpr uint32_t kHelperSize = 156;
+
+uint32_t LiveHelper() {
   const uint32_t huds = eot::mem::load<uint32_t>(kHudsDataPtr);
-  const uint32_t helper = huds ? eot::mem::load<uint32_t>(huds + kHelperOffset) : 0;
+  if (!eot::mem::readable(huds + kHelperOffset, 4))
+    return 0;
+  const uint32_t helper = eot::mem::load<uint32_t>(huds + kHelperOffset);
+  if (!eot::mem::readable(helper, kHelperSize))
+    return 0;
+  for (uint32_t i = 0; i < kZoneCount; ++i) {
+    const uint32_t window = eot::mem::load<uint32_t>(helper + kHelperZones + i * 4);
+    if (!window || window == 0xFFFFFFFFu)
+      return 0;
+  }
+  return helper;
+}
+
+uint32_t ZoneMask(uint32_t helper, uint32_t zone) {
+  const uint32_t mask = eot::mem::load<uint32_t>(helper + kHelperMasks + zone * 4);
+  for (uint32_t i = 0; i < 32; ++i)
+    if ((mask & (1u << i)) && !eot::mem::load<uint32_t>(kTagPromptTable + i * 4))
+      return 0;
+  return mask;
+}
+
+void RecomposePrompts(const PPCContext &ctx, uint8_t *base) {
+  const uint32_t helper = LiveHelper();
   PPCFunc *compose = helper ? rex::runtime::ResolveIndirectFunction(kComposeFn) : nullptr;
   if (!compose)
     return;
   for (uint32_t zone = 0; zone < kZoneCount; ++zone) {
+    if (!ZoneMask(helper, zone))
+      continue;
     PPCContext call = ctx;
     call.r3.u32 = helper;
     call.r4.u32 = zone;
