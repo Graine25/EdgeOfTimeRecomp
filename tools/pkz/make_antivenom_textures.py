@@ -11,11 +11,11 @@ from dxt import console_normal, mip_chain, write_dds  # noqa: E402
 LEVELS = 5
 
 FORMS = [
-    ("remastd", "SMA_AntiVenom_%s_Hi", "Reeot_AntiVenom"),
+    ("remastd", "Untitled_SMA_Anti_venom_%s", "Reeot_AntiVenom"),
     ("massiveremasted", "Untitled2_AntiVenomMassive_%s", "Reeot_AntiVenomMassive"),
 ]
 MAPS = [("Diffuse", "D", b"DXT1"), ("Normal", "N", b"DXT5")]
-SOURCE_NAMES = {"Diffuse": ("D", "Diffuse"), "Normal": ("N", "Normal")}
+SOURCE_NAMES = {"Diffuse": ("Diffuse", "D"), "Normal": ("Normal", "N")}
 
 
 def load(folder, stem, kind):
