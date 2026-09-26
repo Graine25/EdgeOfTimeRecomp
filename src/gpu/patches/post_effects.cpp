@@ -39,8 +39,6 @@ uint32_t DisabledStages() {
     mask |= kPostFxDepthOfField | kPostFxBokeh;
   if (!Settings::MotionBlur())
     mask |= kPostFxMotionBlur | kPostFxCameraMotionBlur;
-  if (!Settings::RadialBlur())
-    mask |= kPostFxRadialBlur;
   if (!Settings::ColorGrading())
     mask |= kPostFxColorization;
   return mask;
