@@ -156,7 +156,6 @@ REEOT_OPT_FOV	Field of View
 REEOT_OPT_BLOOM	Bloom
 REEOT_OPT_DOF	Depth of Field
 REEOT_OPT_MOTION_BLUR	Motion Blur
-REEOT_OPT_RADIAL_BLUR	Radial Blur
 REEOT_OPT_HEAT	Heat Effects
 REEOT_OPT_FILM_GRAIN	Film Grain
 REEOT_OPT_HALO	Halo
@@ -217,7 +216,6 @@ REEOT_DESC_FOV	Widens or narrows the camera. 100% is the game's own.
 REEOT_DESC_BLOOM	The glow around bright light. Off keeps the game's tone curve.
 REEOT_DESC_DOF	Blurs what the camera is not focused on, including the shallow focus cutscenes use.
 REEOT_DESC_MOTION_BLUR	Streaks fast movement, of the camera and of what it sees.
-REEOT_DESC_RADIAL_BLUR	The speed streaks of free falls and dashes.
 REEOT_DESC_HEAT	Heat vision and the shimmer of hot air.
 REEOT_DESC_FILM_GRAIN	A fine grain over the whole picture.
 REEOT_DESC_HALO	Light bleeding from the brightest parts of the picture.
@@ -226,7 +224,7 @@ REEOT_OPT_SFX_VOLUME	FX Volume
 REEOT_OPT_VOICE_VOLUME	Voice Volume
 REEOT_OPT_MUSIC_VOLUME	Music Volume
 REEOT_OPT_SUBTITLES	Subtitles
-REEOT_OPT_SPATIAL_AUDIO	Spatial Audio
+REEOT_OPT_SPATIAL_AUDIO	Positional Audio
 REEOT_OPT_BATTLE_THEME	Battle Theme
 REEOT_OPT_VIBRATION	Vibration
 REEOT_OPT_CAMERA_Y	Camera Y-Axis
@@ -247,7 +245,7 @@ REEOT_DESC_SFX_VOLUME	How loud the sound effects are.
 REEOT_DESC_VOICE_VOLUME	How loud the dialogue is.
 REEOT_DESC_MUSIC_VOLUME	How loud the music is.
 REEOT_DESC_SUBTITLES	Shows what is said as text.
-REEOT_DESC_SPATIAL_AUDIO	Places sounds around the listener. Not wired to anything yet.
+REEOT_DESC_SPATIAL_AUDIO	Sounds fade with distance from the camera, as on the console. Off plays everything at full volume.
 REEOT_DESC_BATTLE_THEME	Plays the battle music over fights. Not wired to anything yet.
 REEOT_DESC_VIBRATION	Rumbles the controller.
 REEOT_DESC_CAMERA_Y	Inverted pushes the camera down when the stick goes up.

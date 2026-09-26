@@ -12,11 +12,13 @@ texture Reeot_Ach_SliderKnob_Tex from Common.pak Menu_SliderKnob_Normal[Hi]
 texture Reeot_Ach_ScrollArrow_Tex from Common.pak Menu_ScrollArrowUp[Hi]
 texture Reeot_Ach_Cursor_Tex from Main.pak Menu_Curser_Normal[Hi]
 texture Reeot_Ach_Bar_Tex from Common.pak Menu_RightCorner_GreyBar_DA[Hi]
+texture Reeot_Ach_Toast_Tex dds ../res/textures/Reeot_Ach_Toast.dds nomips
 textstyle Reeot_Ach_Style_Label from WebOfSkills.pkz HUDUpgrade_ListLabel
 textstyle Reeot_Ach_Style_Title from WebOfSkills.pkz HUDUpgrade_DescriptionTitle
 textstyle Reeot_Ach_Style_Text from WebOfSkills.pkz HUDUpgrade_Description
 textstyle Reeot_Ach_Style_Score from WebOfSkills.pkz HUDUpgrade_Golden
 window Reeot_Ach_TextureHolder0 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Icons
+window Reeot_Ach_TextureHolder1 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Toast_Tex
 window Reeot_Ach_TextureHolder2 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Row_Tex
 window Reeot_Ach_TextureHolder3 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_Details_Tex
 window Reeot_Ach_TextureHolder4 type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_Ach_IconBox_Tex
@@ -46,4 +48,9 @@ window Reeot_Ach_Status type=4 parent=Reeot_Ach_Details prio=9 flags=0x1 rect=0.
 window Reeot_Ach_Score type=4 parent=Reeot_Ach_Details prio=9 flags=0x1 rect=0.600,0.760,0.373,0.150 style=Reeot_Ach_Style_Score textflags=0x30000 align=2,1
 window Reeot_Ach_PortraitAmazing type=1 parent=Reeot_Ach_Page prio=8 flags=0x1 rect=0.754,0.190,0.167,0.631 texture=Reeot_Ach_Amazing_Tex
 window Reeot_Ach_Portrait2099 type=1 parent=Reeot_Ach_Page prio=8 rect=0.754,0.190,0.167,0.631 texture=Reeot_Ach_2099_Tex
+window Reeot_Ach_Toast type=0 prio=2100 rect=0.6406,0.360,0.2944,0.090
+window Reeot_Ach_ToastBg type=1 parent=Reeot_Ach_Toast prio=1 flags=0x1 rect=0,0,1,1 texture=Reeot_Ach_Toast_Tex
+window Reeot_Ach_ToastIcon type=1 parent=Reeot_Ach_Toast prio=2 flags=0x1 rect=0.045,0.200,0.103,0.600 texture=Reeot_Ach_Icons
+window Reeot_Ach_ToastTitle type=4 parent=Reeot_Ach_Toast prio=3 flags=0x201 rect=0.185,0.055,0.780,0.400 style=Reeot_Ach_Style_Title textflags=0x30000 string=REEOT_ACH_TOAST_TITLE align=1,1
+window Reeot_Ach_ToastName type=4 parent=Reeot_Ach_Toast prio=3 flags=0x201 rect=0.185,0.470,0.780,0.460 style=Reeot_Ach_Style_Title textflags=0x30000 align=1,1
 compress true

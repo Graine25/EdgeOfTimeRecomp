@@ -233,7 +233,9 @@ set(REEOT_SOURCES
     src/goliath/controller/pc_controls.cpp
     src/goliath/controller/pad_identity.cpp
     src/goliath/controller/pad_remap.cpp
+    src/goliath/audio/positional_audio.cpp
     src/goliath/controller/bind_capture.cpp
+    src/goliath/ui/achievement_feed.cpp
     src/goliath/controller/button_glyphs.cpp
     src/goliath/controller/menu_keys.cpp
     src/goliath/controller/mouse_input.cpp
@@ -285,6 +287,7 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/patches/game_patches.cpp
+        src/gamelogic/audio/battle_theme.cpp
         src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/achievements_page.cpp
         src/gamelogic/input/input.cpp)

@@ -20,6 +20,8 @@
 #include <rex/runtime.h>
 #include <rex/ui/keybinds.h>
 #include <rex/ui/overlay/achievement_toast.h>
+
+#include "goliath/ui/achievement_feed.h"
 #include <rex/version.h>
 
 #if defined(_WIN32)
@@ -96,7 +98,7 @@ public:
   using AchievementToastDialog::AchievementToastDialog;
   void Push(const rex::system::AchievementEvent &event) override {
     if (REXCVAR_GET(eot_achievement_notifications))
-      AchievementToastDialog::Push(event);
+      eot::ui::QueueAchievementToast(event);
     else
       EOT_INFO("[achievements] unlocked with the notifications off");
   }
@@ -680,6 +682,7 @@ void ReeotApp::OnPreLaunchModule() {
     return;
   }
   InstallOverlayHook();
+  eot::ui::RegisterPortAchievements();
   app_context().CallInUIThreadDeferred([] { eot::platform::RaiseMainWindow(); });
   eot::gpu::GuestShadersInit();
   eot::gpu::PsoCachePrecache();

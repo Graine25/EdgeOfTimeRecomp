@@ -58,7 +58,6 @@ REXCVAR_DEFINE_BOOL(eot_bloom, true, "EdgeOfTime/Graphics", "Glow around bright 
 REXCVAR_DEFINE_BOOL(eot_depth_of_field, true, "EdgeOfTime/Graphics", "Depth of field blur");
 REXCVAR_DEFINE_BOOL(eot_scene_copy_refresh, true, "EdgeOfTime/Graphics", "Refresh copies for glass effects");
 REXCVAR_DEFINE_BOOL(eot_motion_blur, true, "EdgeOfTime/Graphics", "Motion blur on or off");
-REXCVAR_DEFINE_BOOL(eot_radial_blur, true, "EdgeOfTime/Graphics", "Radial blur streaks");
 REXCVAR_DEFINE_BOOL(eot_color_grading, true, "EdgeOfTime/Graphics", "Scene color grading");
 REXCVAR_DEFINE_DOUBLE(eot_fov_scale, 1.0, "EdgeOfTime/Graphics", "Field of view scale")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
@@ -157,7 +156,6 @@ double Settings::TaaFeedback() { return REXCVAR_GET(eot_taa_feedback); }
 bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
 bool Settings::DepthOfField() { return REXCVAR_GET(eot_depth_of_field); }
 bool Settings::MotionBlur() { return REXCVAR_GET(eot_motion_blur); }
-bool Settings::RadialBlur() { return REXCVAR_GET(eot_radial_blur); }
 bool Settings::ColorGrading() { return REXCVAR_GET(eot_color_grading); }
 bool Settings::SceneCopyRefresh() { return REXCVAR_GET(eot_scene_copy_refresh); }
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
