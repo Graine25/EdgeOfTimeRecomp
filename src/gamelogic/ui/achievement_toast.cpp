@@ -39,7 +39,7 @@ constexpr float kSlideOut = 0.45f;
 
 constexpr size_t kNameFits = 30;
 
-constexpr float kTextXWithIcon = 0.160f;
+constexpr float kTextXWithIcon = 0.170f;
 constexpr float kTextXAlone = 0.045f;
 constexpr float kTextRight = 0.965f;
 
