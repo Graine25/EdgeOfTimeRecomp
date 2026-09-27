@@ -68,6 +68,8 @@ constexpr Override kOverrides[] = {
     Make("SMA_MassiveAntiVenom_D", "Reeot_AntiVenomMassive_D", nullptr),
     Make("SMA_MassiveAntiVenom_N", "Reeot_AntiVenomMassive_N", nullptr, nullptr, nullptr,
          "eot_antivenom_normals"),
+    Make("SM99_Spiderman_D", "Reeot_SM2099Body_D", nullptr),
+    Make("SM99_Spiderman_N", "Reeot_SM2099Body_N", nullptr),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");

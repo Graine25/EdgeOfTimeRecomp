@@ -11,8 +11,9 @@ from dxt import console_normal, mip_chain, write_dds  # noqa: E402
 LEVELS = 5
 
 FORMS = [
-    ("remastd", "Untitled_SMA_Anti_venom_%s", "Reeot_AntiVenom"),
-    ("massiveremasted", "Untitled2_AntiVenomMassive_%s", "Reeot_AntiVenomMassive"),
+    ("antivenom/remastd", "Untitled_SMA_Anti_venom_%s", "Reeot_AntiVenom"),
+    ("antivenom/massiveremasted", "Untitled2_AntiVenomMassive_%s", "Reeot_AntiVenomMassive"),
+    ("2099", "model_SMFuturBody_%s", "Reeot_SM2099Body"),
 ]
 MAPS = [("Diffuse", "D", b"DXT1"), ("Normal", "N", b"DXT5")]
 SOURCE_NAMES = {"Diffuse": ("Diffuse", "D"), "Normal": ("Normal", "N")}
@@ -43,6 +44,6 @@ def main(src, out):
 if __name__ == "__main__":
     if len(sys.argv) > 3:
         sys.exit(__doc__)
-    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "res", "textures", "antivenom")
+    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "res", "textures")
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "res", "textures", "characters")
     main(src, out)
