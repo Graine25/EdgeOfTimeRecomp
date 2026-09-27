@@ -5,11 +5,14 @@
 #include <mutex>
 #include <string>
 
+#include <rex/cvar.h>
 #include <rex/system/achievement_manager.h>
 #include <rex/system/achievements.h>
 #include <rex/system/kernel_state.h>
 
 #include "core/logging.h"
+
+REXCVAR_DEFINE_STRING(eot_ach_toast_test, "", "EdgeOfTime/Debug", "Test achievement banner text");
 
 namespace eot::ui {
 
@@ -53,6 +56,12 @@ void RegisterPortAchievements() {
   for (const rex::system::AchievementInfo &info : ours)
     done += rex::system::RegisterAchievement(info) ? 1 : 0;
   EOT_INFO("[ach] {} of the port's own achievements registered (23 G each)", done);
+  const std::string preview = REXCVAR_GET(eot_ach_toast_test);
+  if (!preview.empty()) {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_queue.push_back({preview, 23, kFirstPortImageId});
+    EOT_INFO("[ach] eot_ach_toast_test: the banner will show \"{}\" once", preview);
+  }
 }
 
 void QueueAchievementToast(const rex::system::AchievementEvent &event) {

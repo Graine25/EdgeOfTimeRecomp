@@ -16,6 +16,9 @@ texture Reeot_AntiVenom_D dds ../res/textures/characters/Reeot_AntiVenom_D.dds
 texture Reeot_AntiVenom_N dds ../res/textures/characters/Reeot_AntiVenom_N.dds normal bump=0.25
 texture Reeot_AntiVenomMassive_D dds ../res/textures/characters/Reeot_AntiVenomMassive_D.dds
 texture Reeot_AntiVenomMassive_N dds ../res/textures/characters/Reeot_AntiVenomMassive_N.dds normal bump=0.4
+texture Reeot_SM2099Body_D dds ../res/textures/characters/Reeot_SM2099Body_D.dds
+texture Reeot_SM2099Body_N dds ../res/textures/characters/Reeot_SM2099Body_N.dds normal
+texture Reeot_SM2099Body_S dds ../res/textures/characters/Reeot_SM2099Body_S.dds linear
 window Reeot_TextureHolder_SMA00D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_D
 window Reeot_TextureHolder_SMA00N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_N
 window Reeot_TextureHolder_SMA00S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SMA_State00_S
@@ -32,4 +35,7 @@ window Reeot_TextureHolder_AVD type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 te
 window Reeot_TextureHolder_AVN type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_AntiVenom_N
 window Reeot_TextureHolder_AVMD type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_AntiVenomMassive_D
 window Reeot_TextureHolder_AVMN type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_AntiVenomMassive_N
+window Reeot_TextureHolder_99D type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SM2099Body_D
+window Reeot_TextureHolder_99N type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SM2099Body_N
+window Reeot_TextureHolder_99S type=1 prio=1 flags=0x1 rect=-1,-1,0.001,0.001 texture=Reeot_SM2099Body_S
 compress true
