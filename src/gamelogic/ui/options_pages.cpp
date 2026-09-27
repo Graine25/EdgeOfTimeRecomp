@@ -55,9 +55,6 @@ REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio",
                     "Sounds fade with distance from the camera, as the console mixes them "
                     "(goliath/audio/positional_audio.cpp). Off plays every cue flat, as the "
                     "other ports of this game do.");
-REXCVAR_DEFINE_BOOL(eot_battle_theme, true, "EdgeOfTime/Audio",
-                    "The battle music over fights. Off leaves the area's own music playing "
-                    "(gamelogic/audio/battle_theme.cpp); a theme already playing sees it out.");
 
 namespace {
 
@@ -411,8 +408,6 @@ constexpr Setting kAudioSettings[] = {
     {.label = "REEOT_OPT_SUBTITLES", .description = "REEOT_DESC_SUBTITLES", .accessor = &kSubtitles,
      .choices = kOnOff},
     {.label = "REEOT_OPT_SPATIAL_AUDIO", .description = "REEOT_DESC_SPATIAL_AUDIO", .cvar = "eot_spatial_audio",
-     .choices = kOnOff},
-    {.label = "REEOT_OPT_BATTLE_THEME", .description = "REEOT_DESC_BATTLE_THEME", .cvar = "eot_battle_theme",
      .choices = kOnOff},
     {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
      .restart = true, .choices_of = LanguageChoices},
