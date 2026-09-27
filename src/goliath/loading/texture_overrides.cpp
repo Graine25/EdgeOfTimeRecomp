@@ -18,6 +18,7 @@ REX_EXTERN(__imp__eot_PKPackageMgrBC_Update);
 
 REXCVAR_DEFINE_BOOL(eot_texture_overrides, true, "EdgeOfTime/Config", "Use our replacement textures");
 REXCVAR_DEFINE_BOOL(eot_antivenom_normals, true, "EdgeOfTime/Config", "Anti-Venom remastered normal maps");
+REXCVAR_DEFINE_BOOL(eot_suits_remaster, true, "EdgeOfTime/Config", "Use remastered suit textures");
 
 namespace eot::loading {
 namespace {
@@ -80,6 +81,8 @@ constexpr uint32_t FontMask() {
   return mask;
 }
 constexpr uint32_t kFontMask = FontMask();
+constexpr uint32_t kAllMask = kOverrideCount >= 32 ? ~0u : (1u << kOverrideCount) - 1;
+constexpr uint32_t kSuitMask = kAllMask & ~kFontMask;
 
 uint32_t WantedMask() {
   const std::string tag = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));
@@ -105,6 +108,8 @@ uint32_t WantedMask() {
 
 uint32_t g_pending = 0;
 uint32_t g_wanted = 0;
+uint32_t g_off = 0;
+bool g_suits_on = true;
 bool g_pending_chosen = false;
 std::recursive_mutex g_apply_mutex;
 uint32_t g_requested = 0;
@@ -144,6 +149,29 @@ void RepointFontAtlas(const PPCContext &ctx, uint8_t *base, const Override &o, u
 }
 
 enum class Try { Applied, NoRetail, NotReady };
+
+void RevertSuits(const PPCContext &ctx, uint8_t *base) {
+  uint32_t done = 0;
+  for (uint32_t i = 0; i < kOverrideCount; ++i) {
+    if (!(g_wanted & kSuitMask & (1u << i)))
+      continue;
+    g_off |= 1u << i;
+    g_pending &= ~(1u << i);
+    if (!g_swapped[i])
+      continue;
+    const uint32_t retail = AcquireResource(ctx, base, g_swapped[i]);
+    if (retail) {
+      PPCContext call = ctx;
+      call.r3.u32 = retail;
+      call.r4.u32 = 0;
+      __imp__eot_RZTexture_TextureReplace(call, base);
+      ReleaseResource(ctx, base, retail);
+      ++done;
+    }
+    g_swapped[i] = 0;
+  }
+  EOT_INFO("[tex] suits remaster off: {} texture(s) back to the console's own", done);
+}
 
 Try TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
   const Override &o = kOverrides[i];
@@ -193,8 +221,11 @@ void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
   if (!g_pending_chosen) {
     g_pending_chosen = true;
     g_wanted = REXCVAR_GET(eot_texture_overrides) ? WantedMask() : 0;
-    g_pending = g_wanted;
-    EOT_INFO("[tex] overrides wanted: {:#x} of {}", g_pending, kOverrideCount);
+    g_suits_on = REXCVAR_GET(eot_suits_remaster);
+    g_off = g_suits_on ? 0 : (g_wanted & kSuitMask);
+    g_pending = g_wanted & ~g_off;
+    EOT_INFO("[tex] overrides wanted: {:#x} of {}{}", g_pending, kOverrideCount,
+             g_suits_on ? "" : " (the suits are switched off)");
   }
   if (!g_pending)
     return;
@@ -221,7 +252,7 @@ void TextureOverridesPackageMounted(const PPCContext &ctx, uint8_t *base) {
     return;
   uint32_t again = 0;
   for (uint32_t i = 0; i < kOverrideCount; ++i) {
-    if (!(g_wanted & (1u << i)) || (g_pending & (1u << i)) || kOverrides[i].font)
+    if (!(g_wanted & (1u << i)) || (g_pending & (1u << i)) || (g_off & (1u << i)) || kOverrides[i].font)
       continue;
     const uint32_t handle = FindResourceFromCrc(ctx, base, kTypeTexture, kOverrides[i].retailCrc);
     if (handle && handle != g_swapped[i])
@@ -237,11 +268,32 @@ void TextureOverridesPackageMounted(const PPCContext &ctx, uint8_t *base) {
 
 bool TextureOverridesSettled() { return g_pending_chosen && !(g_pending & kFontMask); }
 
+namespace {
+
+void SuitsRemasterTick(const PPCContext &ctx, uint8_t *base) {
+  if (!g_pending_chosen || REXCVAR_GET(eot_suits_remaster) == g_suits_on)
+    return;
+  std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
+  g_suits_on = !g_suits_on;
+  if (g_suits_on) {
+    g_pending |= g_off;
+    g_off = 0;
+    g_ticks = 0;
+    EOT_INFO("[tex] suits remaster on: swapping the port's art in again");
+    ApplyTextureOverrides(ctx, base);
+  } else {
+    RevertSuits(ctx, base);
+  }
+}
+
+}
+
 }
 
 REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   __imp__eot_PKPackageMgrBC_Update(ctx, base);
   using namespace eot::loading;
+  SuitsRemasterTick(ctx, base);
   if (g_pending_chosen && g_pending) {
     std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
     ApplyTextureOverrides(ctx, base);

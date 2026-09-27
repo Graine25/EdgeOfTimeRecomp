@@ -411,6 +411,12 @@ ViewportInfo ComputeViewport(DeviceView dev, const Targets &t, float jitter_x, f
   }
   zmin = std::clamp(zmin, 0.0f, 1.0f);
   zmax = std::clamp(zmax, 0.0f, 1.0f);
+  if (dev.U32(dev::kModeControl) & (1u << 11)) {
+    const bool scene = t.colorCount > 0 || (t.width == kGuestRenderWidth && t.height == kGuestRenderHeight);
+    const float offset = dev.F32(dev::kPolyOffsetFrontOffset);
+    if (scene && offset != 0.0f && std::isfinite(offset) && zmax > zmin)
+      v.posOffset[2] += offset / (zmax - zmin);
+  }
   if ((dev.U32(dev::kVtxControl) & 1) == 0) {
     v.posOffset[0] += 1.0f / std::max(1.0f, w);
     v.posOffset[1] -= 1.0f / std::max(1.0f, h);
