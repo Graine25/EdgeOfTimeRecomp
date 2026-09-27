@@ -264,3 +264,7 @@ void eot_prompts_bar_zone(int32_t zone) { NoteButtonHelperZone(static_cast<uint3
 void eot_kbm_mash_prompt(void) { NoteMashPrompt(); }
 
 int32_t eot_binds_key_glyph(int32_t slot) { return slot >= 0 && slot < 32 && KeyCapInstalled(static_cast<uint8_t>(slot)) ? 1 : 0; }
+
+int32_t eot_binds_pad_glyph(int32_t slot) {
+  return slot >= 0 && slot < 64 && MenuGlyphInstalled(static_cast<uint8_t>(slot)) ? 1 : 0;
+}
