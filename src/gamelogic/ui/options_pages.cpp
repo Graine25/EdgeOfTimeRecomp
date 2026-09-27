@@ -50,7 +50,7 @@ REX_EXTERN(__imp__eot_Subtitles_SetEnabled); // (shown r3)
 REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input",
                       "Which controller's buttons the prompts draw: auto follows the device that last "
                       "produced input (the pad's own art, or the bound keys on a keyboard).")
-    .allowed({"auto", "xbox", "switch", "keyboard"});
+    .allowed({"auto", "xbox", "playstation", "switch", "keyboard"});
 REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio",
                     "Sounds fade with distance from the camera, as the console mixes them "
                     "(goliath/audio/positional_audio.cpp). Off plays every cue flat, as the "
@@ -385,6 +385,7 @@ constexpr Choice kUpscale[] = {{"REEOT_VAL_BILINEAR", "bilinear"}, {"REEOT_VAL_B
 constexpr Choice kHostAa[] = {{"REEOT_VAL_OFF", "off"}, {"REEOT_VAL_TAA", "taa"}};
 constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
                               {"REEOT_VAL_XBOX", "xbox"},
+                              {"REEOT_VAL_PLAYSTATION", "playstation"},
                               {"REEOT_VAL_SWITCH", "switch"},
                               {"REEOT_VAL_KEYBOARD", "keyboard"}};
 
@@ -1606,7 +1607,8 @@ const char *KeyGlyphString(uint8_t slot) {
 }
 const char *PadGlyphString(uint8_t slot) {
   static char name[16];
-  std::snprintf(name, sizeof(name), "REEOT_GP_%02X", slot);
+  const bool follows = binds::Api().pad_glyph && binds::Api().pad_glyph(slot) != 0;
+  std::snprintf(name, sizeof(name), follows ? "REEOT_GM_%02X" : "REEOT_GP_%02X", slot);
   return name;
 }
 

@@ -34,13 +34,32 @@ SLOTS = (
     (0x09, "START", 43, 29),
     (0x0A, "RB", 49, 35),
     (0x0B, "LB", 53, 36),
+    (0x0C, "DPADPLAIN", 45, 45),
+    (0x12, "AOFF", 30, 29),
+    (0x13, "BOFF", 29, 29),
+    (0x14, "YOFF", 29, 29),
+    (0x15, "XOFF", 29, 29),
     (0x1B, "LSDOWN", 44, 52),
-    (0x1E, "DPAD", 45, 45),
+    (0x1E, "DPADUP", 45, 45),
+    (0x1F, "DPADLEFT", 46, 46),
+    (0x20, "DPADDOWN", 47, 47),
+    (0x21, "DPADRIGHT", 46, 46),
 )
 
 SETS = (
-    ("switch", (("alias", 0x01), ("alias", 0x00), ("alias", 0x03), ("alias", 0x02),
-                None, None, None, None, None, None, None, None, None, None)),
+    ("switch", {0x00: ("alias", 0x01), 0x01: ("alias", 0x00),
+                0x02: ("alias", 0x03), 0x03: ("alias", 0x02)}),
+    ("playstation", {0x00: "playstation_Cross", 0x01: "playstation_Circle",
+                     0x02: "playstation_Triangle", 0x03: "playstation_Square",
+                     0x04: "playstation_R2", 0x05: "playstation_L2",
+                     0x08: ("sized", "playstation_Share", 0x04),
+                     0x09: ("sized", "playstation_Options", 0x04),
+                     0x0A: "playstation_R1", 0x0B: "playstation_L1",
+                     0x0C: "playstation_DPad",
+                     0x12: "playstation_CrossInv", 0x13: "playstation_CircleInv",
+                     0x14: "playstation_TriangleInv", 0x15: "playstation_SquareInv",
+                     0x1E: "playstation_DPadUp", 0x1F: "playstation_DPadLeft",
+                     0x20: "playstation_DPadDown", 0x21: "playstation_DPadRight"}),
 )
 
 KEYS = ("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 0 1 2 3 4 5 6 7 8 9 "
@@ -82,6 +101,11 @@ def cell_image(image, width, height):
 def cap_width(image, key):
     wanted = key * INK_HEIGHT * image.width / image.height / INK_WIDTH
     return round(min(CAP_WIDEST * key, max(key, wanted)))
+
+
+def art_width(image, height):
+    wanted = height * INK_HEIGHT * image.width / image.height / INK_WIDTH
+    return round(min(CAP_WIDEST * height, max(height / 2, wanted)))
 
 
 def mouse():
@@ -137,20 +161,30 @@ def main():
     shelf = Shelf(SHEET_WIDTH)
     lines = []
     missing = []
-    for name, stems in SETS:
+    heights = {slot: h for slot, _, _, h in SLOTS}
+    for name, slots in SETS:
         lines.append(f"set {name}")
-        for (slot, button, w, h), stem in zip(SLOTS, stems):
-            if stem is None:
+        for slot, button, w, h in SLOTS:
+            entry = slots.get(slot)
+            if entry is None:
                 continue
-            if isinstance(stem, tuple):
-                lines.append(f"alias {slot:02X} {stem[1]:02X}")
+            if isinstance(entry, tuple) and entry[0] == "alias":
+                lines.append(f"alias {slot:02X} {entry[1]:02X}")
                 continue
-            image = art(f"{name}_{button}")
+            sized = isinstance(entry, tuple)
+            stem = entry[1] if sized else entry
+            image = art(stem)
             if image is None:
-                missing.append(f"{name}_{button}")
+                missing.append(stem)
                 continue
-            x0, y0, x1, y1 = shelf.put(cell_image(image, w * SCALE, h * SCALE))
-            lines.append(f"cell {slot:02X} {x0} {y0} {x1} {y1}")
+            if sized:
+                height = heights[entry[2]] * SCALE
+                cell = cell_image(image, art_width(image, height), height)
+            else:
+                cell = cell_image(image, w * SCALE, h * SCALE)
+            x0, y0, x1, y1 = shelf.put(cell)
+            lines.append(f"cell {slot:02X} {x0} {y0} {x1} {y1}"
+                         + (f" {entry[2]:02X}" if sized else ""))
     lines.append("caps")
     key = SLOTS[0][3] * SCALE
     caps = 0

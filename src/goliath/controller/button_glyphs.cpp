@@ -38,7 +38,9 @@ constexpr uint32_t kRetailPage = 3;
 constexpr uint32_t kFirstPage = 5;
 constexpr uint32_t kRemapPage = 8;
 constexpr uint32_t kKeyboardPage = 9;
-constexpr uint32_t kPageCount = 10;
+constexpr uint32_t kMenuPage = 10;
+constexpr uint32_t kMenuSlots = 0x22;
+constexpr uint32_t kPageCount = 11;
 
 constexpr const char *kTable = "GlyphsIcons";
 constexpr const char *kSheet = "Reeot_Icons";
@@ -98,7 +100,8 @@ constexpr KeySlot kKeySlots[] = {
 float g_sheet_w = 0, g_sheet_h = 0;
 std::vector<Set> g_sets;
 std::vector<std::pair<std::string, Box>> g_caps;
-uint32_t g_have[kPageCount] = {};
+uint64_t g_have[kPageCount] = {};
+constexpr uint32_t kSlotCount = 64;
 bool g_parsed = false;
 
 uint32_t g_texture = 0;
@@ -131,7 +134,7 @@ bool Parse() {
   for (const std::string &line : lines) {
     char name[64];
     float a = 0, b = 0, c = 0, d = 0;
-    unsigned slot = 0;
+    unsigned slot = 0, size_of = 0;
     if (std::sscanf(line.c_str(), "sheet %f %f", &a, &b) == 2) {
       g_sheet_w = a;
       g_sheet_h = b;
@@ -147,17 +150,21 @@ bool Parse() {
     } else if (line == "caps") {
       caps = true;
       set = SIZE_MAX;
-    } else if (std::sscanf(line.c_str(), "cell %x %f %f %f %f", &slot, &a, &b, &c, &d) == 5) {
-      if (set == SIZE_MAX || !g_sheet_w || slot > 31)
+    } else if (const int sizes = std::sscanf(line.c_str(), "cell %x %f %f %f %f %x", &slot, &a, &b, &c, &d, &size_of);
+               sizes >= 5) {
+      if (set == SIZE_MAX || !g_sheet_w || slot >= kSlotCount)
         continue;
       const Box uv = Normalised({a, b, c, d});
-      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, 0.0f, 0.0f, 0xFF, 0xFF});
-      g_have[g_sets[set].page] |= 1u << slot;
+      const bool sized = sizes == 6 && size_of < kSlotCount;
+      const float aspect = sized ? (c - a) / (d - b) : 0.0f;
+      g_sets[set].cells.push_back({static_cast<uint8_t>(slot), uv.x0, uv.y0, uv.x1, uv.y1, aspect, 0.0f, 0xFF,
+                                   static_cast<uint8_t>(sized ? size_of : 0xFFu)});
+      g_have[g_sets[set].page] |= 1ull << slot;
     } else if (unsigned other = 0; std::sscanf(line.c_str(), "alias %x %x", &slot, &other) == 2) {
-      if (set == SIZE_MAX || slot > 31 || other > 31)
+      if (set == SIZE_MAX || slot >= kSlotCount || other >= kSlotCount)
         continue;
       g_sets[set].cells.push_back({static_cast<uint8_t>(slot), 0, 0, 0, 0, 0.0f, 0.0f, static_cast<uint8_t>(other), 0xFF});
-      g_have[g_sets[set].page] |= 1u << slot;
+      g_have[g_sets[set].page] |= 1ull << slot;
     } else if (std::sscanf(line.c_str(), "cap %63s %f %f %f %f", name, &a, &b, &c, &d) == 5) {
       if (caps)
         g_caps.emplace_back(name, Box{a, b, c, d});
@@ -217,7 +224,7 @@ std::vector<eot::text::IconCell> RemapCells() {
     if (!k.retail)
       continue;
     cells.push_back({k.slot, 0, 0, 0, 0, 0.0f, 0.0f, to[k.slot], 0xFF});
-    g_have[kRemapPage] |= 1u << k.slot;
+    g_have[kRemapPage] |= 1ull << k.slot;
   }
   return cells;
 }
@@ -258,7 +265,29 @@ std::vector<eot::text::IconCell> KeyboardCells() {
     const Box uv = Normalised(*box);
     const float aspect = (box->x1 - box->x0) / (box->y1 - box->y0);
     cells.push_back({k.slot, uv.x0, uv.y0, uv.x1, uv.y1, aspect, kCapLift, 0xFF, k.size_of});
-    g_have[kKeyboardPage] |= 1u << k.slot;
+    g_have[kKeyboardPage] |= 1ull << k.slot;
+  }
+  return cells;
+}
+
+std::vector<eot::text::IconCell> MenuCells() {
+  const Set *set = nullptr;
+  for (const Set &s : g_sets)
+    if (s.page == g_applied_page)
+      set = &s;
+  std::vector<eot::text::IconCell> cells;
+  g_have[kMenuPage] = 0;
+  for (uint8_t slot = 0; slot < kMenuSlots; ++slot) {
+    const eot::text::IconCell *own = nullptr;
+    if (set)
+      for (const eot::text::IconCell &cell : set->cells)
+        if (cell.slot == slot && cell.alias == 0xFF)
+          own = &cell;
+    if (own)
+      cells.push_back(*own);
+    else
+      cells.push_back({slot, 0, 0, 0, 0, 0.0f, 0.0f, slot, 0xFF});
+    g_have[kMenuPage] |= 1ull << slot;
   }
   return cells;
 }
@@ -274,6 +303,7 @@ bool InstallInto(const PPCContext &ctx, uint8_t *base, const Font &font, const s
     for (const Set &set : g_sets)
       ok = eot::text::InstallIconPage(ctx, base, record, set.page, g_texture, set.cells) && ok;
     ok = eot::text::InstallIconPage(ctx, base, record, kRemapPage, g_texture, RemapCells()) && ok;
+    ok = eot::text::InstallIconPage(ctx, base, record, kMenuPage, g_texture, MenuCells()) && ok;
   }
   ok = eot::text::InstallIconPage(ctx, base, record, kKeyboardPage, g_texture, keys) && ok;
   ReleaseResource(ctx, base, record);
@@ -289,10 +319,11 @@ void ApplyPage(uint32_t page) {
       if (!c)
         break;
       const uint32_t high = c >> 8;
-      if (high != kRetailPage && (high < kFirstPage || high >= kPageCount))
+      if (high != kRetailPage && (high < kFirstPage || high > kKeyboardPage))
         continue;
       const uint32_t slot = c & 0xFF;
-      const uint32_t to = (page != kRetailPage && slot < 32 && (g_have[page] & (1u << slot))) ? page : kRetailPage;
+      const uint32_t to =
+          (page != kRetailPage && slot < kSlotCount && (g_have[page] & (1ull << slot))) ? page : kRetailPage;
       eot::mem::store<uint16_t>(text + k * 2, static_cast<uint16_t>((to << 8) | slot));
     }
   }
@@ -369,8 +400,24 @@ uint32_t WantedPage(const std::string &setting, PadBrand pad) {
     return kKeyboardPage;
   case PadBrand::Switch:
     return PageFor("switch");
+  case PadBrand::PlayStation:
+    return PageFor("playstation");
   default:
     return XboxPage();
+  }
+}
+
+void RefillMenuPage(const PPCContext &ctx, uint8_t *base) {
+  using namespace eot::loading;
+  if (!g_texture)
+    return;
+  const std::vector<eot::text::IconCell> cells = MenuCells();
+  for (const Font &font : kFonts) {
+    const uint32_t record = AcquireResource(ctx, base, FindResource(ctx, base, kTypeFont, font.crc));
+    if (!record)
+      continue;
+    eot::text::InstallIconPage(ctx, base, record, kMenuPage, g_texture, cells);
+    ReleaseResource(ctx, base, record);
   }
 }
 
@@ -415,8 +462,8 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       if (!InstallInto(ctx, base, font, keys, false))
         return;
     g_installed = true;
-    EOT_INFO("[glyphs] button icons: {} set(s) and {} key cap(s) on {}x{}, pages {}..{} of both fonts", g_sets.size(),
-             g_caps.size(), g_sheet_w, g_sheet_h, kFirstPage, kKeyboardPage);
+    EOT_INFO("[glyphs] button icons: {} set(s) and {} key cap(s) on {}x{}, pages {}..{} and {} of both fonts",
+             g_sets.size(), g_caps.size(), g_sheet_w, g_sheet_h, kFirstPage, kKeyboardPage, kMenuPage);
   }
 
   if (g_applied_setting == "auto") {
@@ -426,6 +473,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       const uint32_t page = WantedPage(g_applied_setting, pad);
       if (page != g_applied_page) {
         ApplyPage(page);
+        RefillMenuPage(ctx, base);
         RecomposePrompts(ctx, base);
         EOT_INFO("[glyphs] prompts draw page {} (auto: {})", page, ToString(pad));
       }
@@ -474,6 +522,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       g_applied_pad = pad;
       const uint32_t page = WantedPage(setting, pad);
       ApplyPage(page);
+      RefillMenuPage(ctx, base);
       RecomposePrompts(ctx, base);
       EOT_INFO("[glyphs] prompts draw page {} ({}{}{})", page, setting, setting == "auto" ? ": " : "",
                setting == "auto" ? ToString(pad) : "");
@@ -505,7 +554,13 @@ void NoteButtonHelperZone(uint32_t zone) {
     g_helper_zones.fetch_or(1u << zone, std::memory_order_acq_rel);
 }
 
-bool KeyCapInstalled(uint8_t slot) { return g_installed && slot < 32 && (g_have[kKeyboardPage] & (1u << slot)) != 0; }
+bool KeyCapInstalled(uint8_t slot) {
+  return g_installed && slot < kSlotCount && (g_have[kKeyboardPage] & (1ull << slot)) != 0;
+}
+
+bool MenuGlyphInstalled(uint8_t slot) {
+  return g_installed && slot < kSlotCount && (g_have[kMenuPage] & (1ull << slot)) != 0;
+}
 
 void GlyphBindsChanged() { g_binds_dirty.store(true, std::memory_order_release); }
 
