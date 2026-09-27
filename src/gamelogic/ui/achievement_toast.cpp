@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -37,7 +38,11 @@ constexpr float kSlideIn = 0.30f;
 constexpr float kHold = 4.20f;
 constexpr float kSlideOut = 0.45f;
 
-constexpr size_t kNameFits = 30;
+constexpr uint32_t kTextWndGetStringWidth = 49;
+constexpr float kFits = 0.98f;
+constexpr int kFitSteps = 8;
+
+constexpr size_t kNameFits = 21;
 
 constexpr float kTextXWithIcon = 0.170f;
 constexpr float kTextXAlone = 0.045f;
@@ -67,6 +72,8 @@ struct Windows {
 };
 Windows g_windows;
 uint32_t g_scratch = 0;
+float g_title_style = 0.0f;
+float g_name_style = 0.0f;
 bool g_sized = false;
 Phase g_phase = Phase::kIdle;
 clock::time_point g_since;
@@ -116,16 +123,34 @@ void CallWithFloat(const PPCContext &ctx, uint8_t *base, uint32_t slot, uint32_t
   fn(call, base);
 }
 
-void ScaleText(const PPCContext &ctx, uint8_t *base, uint32_t window, float factor) {
-  if (window == hud::kNoWindow)
-    return;
+float StyleScale(const PPCContext &ctx, uint8_t *base, uint32_t window, float &cache) {
+  if (cache > 0.0f || window == hud::kNoWindow)
+    return cache;
   const uint32_t scratch = g_scratch + kScratchFloats;
   eot::mem::store<uint32_t>(scratch, 0);
   eot::mem::store<uint32_t>(scratch + 4, 0);
   hud::Call(ctx, base, kTextWndGetXYScale, window, scratch, scratch + 4);
-  const float style = std::bit_cast<float>(eot::mem::load<uint32_t>(scratch));
+  cache = std::bit_cast<float>(eot::mem::load<uint32_t>(scratch));
+  return cache;
+}
+
+void ScaleText(const PPCContext &ctx, uint8_t *base, uint32_t window, float &cache, float factor) {
+  const float style = StyleScale(ctx, base, window, cache);
   if (style > 0.0f)
     CallWithFloat(ctx, base, kTextWndSetScale, window, style * factor);
+}
+
+float Measure(const PPCContext &ctx, uint8_t *base, uint32_t window) {
+  const uint32_t addr = hud::Entry(kTextWndGetStringWidth);
+  PPCFunc *fn = addr ? rex::runtime::ResolveIndirectFunction(addr) : nullptr;
+  if (!fn || window == hud::kNoWindow)
+    return 0.0f;
+  PPCContext call = ctx;
+  call.r3.u32 = window;
+  call.r4.u32 = 0;
+  fn(call, base);
+  const float width = static_cast<float>(call.f1.f64);
+  return std::isfinite(width) && width > 0.0f && width < 16.0f ? width : 0.0f;
 }
 
 void SetLine(const PPCContext &ctx, uint8_t *base, uint32_t window, const char *line) {
@@ -158,10 +183,39 @@ bool FindWindows(const PPCContext &ctx, uint8_t *base) {
   return g_windows.found;
 }
 
-std::string Fit(const std::string &name) {
-  if (name.size() <= kNameFits)
-    return name;
-  return name.substr(0, kNameFits - 3) + "...";
+std::string Cut(const std::string &name, size_t keep) {
+  size_t end = std::min(keep, name.size());
+  const size_t space = name.find_last_of(' ', end);
+  if (space != std::string::npos && space * 5 >= end * 3)
+    end = space;
+  while (end > 0 && (name[end - 1] == ' ' || name[end - 1] == ','))
+    --end;
+  return name.substr(0, end) + "...";
+}
+
+struct Fitted {
+  std::string line;
+  float width = 0.0f;
+};
+
+Fitted SetName(const PPCContext &ctx, uint8_t *base, const std::string &name) {
+  Fitted fitted{name, 0.0f};
+  SetLine(ctx, base, g_windows.name, name.c_str());
+  fitted.width = Measure(ctx, base, g_windows.name);
+  if (fitted.width <= 0.0f) {
+    if (name.size() > kNameFits)
+      fitted.line = Cut(name, kNameFits - 3);
+    SetLine(ctx, base, g_windows.name, fitted.line.c_str());
+    return fitted;
+  }
+  size_t keep = name.size();
+  for (int step = 0; step < kFitSteps && fitted.width > kFits && keep > 1; ++step) {
+    keep = std::min(keep - 1, static_cast<size_t>(keep / fitted.width));
+    fitted.line = Cut(name, keep);
+    SetLine(ctx, base, g_windows.name, fitted.line.c_str());
+    fitted.width = Measure(ctx, base, g_windows.name);
+  }
+  return fitted;
 }
 
 void Show(const PPCContext &ctx, uint8_t *base, const std::string &name, uint32_t image_id) {
@@ -170,20 +224,24 @@ void Show(const PPCContext &ctx, uint8_t *base, const std::string &name, uint32_
   hud::Activate(ctx, base, g_windows.icon, has_icon);
   if (has_icon)
     SetIcon(ctx, base, image_id);
-  if (!g_sized) {
-    g_sized = true;
-    ScaleText(ctx, base, g_windows.title, kTitleScale);
-    ScaleText(ctx, base, g_windows.name, kNameScale);
-  }
   const float text_x = has_icon ? kTextXWithIcon : kTextXAlone;
   SetRect(ctx, base, g_windows.title, text_x, -1.0f, kTextRight - text_x, -1.0f);
   SetRect(ctx, base, g_windows.name, text_x, -1.0f, kTextRight - text_x, -1.0f);
-  SetLine(ctx, base, g_windows.name, Fit(name).c_str());
   SetRect(ctx, base, g_windows.root, kHiddenX, -1.0f, -1.0f, -1.0f);
   hud::Activate(ctx, base, g_windows.root, true);
+  if (!g_sized) {
+    g_sized = true;
+    ScaleText(ctx, base, g_windows.name, g_name_style, kNameScale);
+  }
+  ScaleText(ctx, base, g_windows.title, g_title_style, kTitleScale);
+  const float title = Measure(ctx, base, g_windows.title);
+  if (title > kFits && g_title_style > 0.0f)
+    CallWithFloat(ctx, base, kTextWndSetScale, g_windows.title, g_title_style * kTitleScale * kFits / title);
+  const Fitted fitted = SetName(ctx, base, name);
   g_phase = Phase::kIn;
   g_since = clock::now();
-  EOT_INFO("[ach] banner: {} (icon {})", name, image_id);
+  EOT_INFO("[ach] banner: {} (icon {}), drawn as \"{}\" at {:.2f} of the plate", name, image_id, fitted.line,
+           fitted.width);
 }
 
 float Ease(float t) { return 1.0f - (1.0f - t) * (1.0f - t); }
