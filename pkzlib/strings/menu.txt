@@ -248,7 +248,6 @@ REEOT_OPT_VOICE_VOLUME	Voice Volume
 REEOT_OPT_MUSIC_VOLUME	Music Volume
 REEOT_OPT_SUBTITLES	Subtitles
 REEOT_OPT_SPATIAL_AUDIO	Positional Audio
-REEOT_OPT_BATTLE_THEME	Battle Theme
 REEOT_OPT_VIBRATION	Vibration
 REEOT_OPT_CAMERA_Y	Camera Y-Axis
 REEOT_OPT_CAMERA_X	Camera X-Axis
@@ -270,7 +269,6 @@ REEOT_DESC_VOICE_VOLUME	How loud the dialogue is.
 REEOT_DESC_MUSIC_VOLUME	How loud the music is.
 REEOT_DESC_SUBTITLES	Shows what is said as text.
 REEOT_DESC_SPATIAL_AUDIO	Sounds fade with distance from the camera, as on the console. Off plays everything at full volume.
-REEOT_DESC_BATTLE_THEME	Plays the battle music over fights. Not wired to anything yet.
 REEOT_DESC_VIBRATION	Rumbles the controller.
 REEOT_DESC_CAMERA_Y	Inverted pushes the camera down when the stick goes up.
 REEOT_DESC_CAMERA_X	Inverted turns the camera left when the stick goes right.

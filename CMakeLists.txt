@@ -287,7 +287,6 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/patches/game_patches.cpp
-        src/gamelogic/audio/battle_theme.cpp
         src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/achievements_page.cpp
         src/gamelogic/input/input.cpp)
