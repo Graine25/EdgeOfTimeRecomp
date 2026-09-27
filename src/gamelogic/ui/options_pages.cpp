@@ -49,7 +49,6 @@ REX_EXTERN(__imp__eot_Subtitles_SetEnabled); // (shown r3)
 REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input", "Which button prompts show")
     .allowed({"auto", "xbox", "playstation", "switch", "keyboard"});
 REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio", "Sounds fade with distance");
-REXCVAR_DEFINE_BOOL(eot_battle_theme, true, "EdgeOfTime/Audio", "Play the battle music");
 
 namespace {
 
@@ -403,8 +402,6 @@ constexpr Setting kAudioSettings[] = {
     {.label = "REEOT_OPT_SUBTITLES", .description = "REEOT_DESC_SUBTITLES", .accessor = &kSubtitles,
      .choices = kOnOff},
     {.label = "REEOT_OPT_SPATIAL_AUDIO", .description = "REEOT_DESC_SPATIAL_AUDIO", .cvar = "eot_spatial_audio",
-     .choices = kOnOff},
-    {.label = "REEOT_OPT_BATTLE_THEME", .description = "REEOT_DESC_BATTLE_THEME", .cvar = "eot_battle_theme",
      .choices = kOnOff},
     {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
      .restart = true, .choices_of = LanguageChoices},
