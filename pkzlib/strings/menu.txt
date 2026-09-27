@@ -254,6 +254,7 @@ REEOT_OPT_CAMERA_Y	Camera Y-Axis
 REEOT_OPT_CAMERA_X	Camera X-Axis
 REEOT_OPT_DEBUG_MODE	Debug Mode
 REEOT_OPT_ACHIEVEMENT_TOASTS	Achievement Notifications
+REEOT_OPT_SUITS_REMASTER	Suits Remaster
 REEOT_OPT_GLYPHS	Button Glyphs
 REEOT_OPT_MNK	Keyboard and Mouse
 REEOT_OPT_MOUSE_SENSITIVITY	Mouse Sensitivity
@@ -275,6 +276,7 @@ REEOT_DESC_CAMERA_Y	Inverted pushes the camera down when the stick goes up.
 REEOT_DESC_CAMERA_X	Inverted turns the camera left when the stick goes right.
 REEOT_DESC_DEBUG_MODE	Opens the game's own developer level selector from the front screen instead of the retail one. B returns to the front screen.
 REEOT_DESC_ACHIEVEMENT_TOASTS	Shows a notification when an achievement is unlocked. Off keeps the unlock and skips the pop-up.
+REEOT_DESC_SUITS_REMASTER	Draws the port's own redrawn art on the Amazing suit, Anti-Venom and the 2099 body. Off puts the console's own maps back.
 REEOT_DESC_GLYPHS	Which controller's buttons the prompts show. Auto follows the device in hand: the pad's own buttons, or the bound keys on a keyboard.
 REEOT_DESC_MNK	Plays with the keyboard as the controller and the mouse as the right stick.
 REEOT_DESC_MOUSE_SENSITIVITY	How far the camera turns for a mouse movement. The mouse is the camera's in fullscreen only; in a window the pointer stays free.

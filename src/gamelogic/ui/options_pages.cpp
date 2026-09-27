@@ -478,6 +478,8 @@ constexpr Setting kGameSettings[] = {
      .choices = kOnOff, .restart = true},
     {.label = "REEOT_OPT_ACHIEVEMENT_TOASTS", .description = "REEOT_DESC_ACHIEVEMENT_TOASTS",
      .cvar = "eot_achievement_notifications", .choices = kOnOff},
+    {.label = "REEOT_OPT_SUITS_REMASTER", .description = "REEOT_DESC_SUITS_REMASTER",
+     .cvar = "eot_suits_remaster", .choices = kOnOff},
 };
 
 constexpr Setting kControlsSettings[] = {
