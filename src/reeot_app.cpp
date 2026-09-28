@@ -40,7 +40,7 @@
 #include "goliath/controller/bind_capture.h"
 #include "goliath/controller/menu_keys.h"
 #include "goliath/controller/mouse_input.h"
-#include "goliath/controller/pc_controls.h"
+#include "goliath/controller/pad_remap.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"

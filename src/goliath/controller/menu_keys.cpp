@@ -13,7 +13,7 @@
 
 #include "core/logging.h"
 #include "goliath/controller/button_glyphs.h"
-#include "goliath/controller/pad_identity.h"
+#include "goliath/controller/pad_remap.h"
 
 namespace eot::controller {
 

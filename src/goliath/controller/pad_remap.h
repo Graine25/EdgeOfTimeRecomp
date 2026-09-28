@@ -19,3 +19,27 @@ struct RawPad {
 void RemapPad(RawPad &pad);
 
 }
+
+namespace eot::goliath {
+
+void InstallPcControls();
+
+}
+
+namespace eot::controller {
+
+enum class PadBrand {
+  Unknown,
+  Xbox360,
+  XboxSeries,
+  PlayStation,
+  Switch,
+  SteamDeck,
+  Keyboard,
+};
+
+const char *ToString(PadBrand brand);
+
+PadBrand ActivePad();
+
+}
