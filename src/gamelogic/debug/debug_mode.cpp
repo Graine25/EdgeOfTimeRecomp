@@ -5,7 +5,9 @@
 #include <rex/system/kernel_state.h>
 
 #include "core/memory_helpers.h"
+#include "gamelogic/ui/button_prompts.h"
 #include "gamelogic/ui/hud_api.h"
+#include "gamelogic/ui/menu_common.h"
 
 REXCVAR_DEFINE_BOOL(eot_debug_mode, false, "EdgeOfTime/Config",
                     "Open the game's own developer level selector from the front screen instead "
@@ -59,6 +61,10 @@ constexpr uint32_t kNoMask = 0xFFFFFFFFu;
 
 constexpr uint32_t kMenuBarCrc = 0x7F85723Du;
 
+constexpr uint32_t kZoneCount = 3;
+constexpr uint32_t kMaskArgs = 8;
+uint32_t g_mask_args = 0;
+
 }
 
 REX_HOOK_RAW(eot_GLInstanciateFrontScreenControl) {
@@ -96,5 +102,10 @@ REX_HOOK_RAW(eot_HUDDebugLevelSelection_Update) {
     const uint32_t bar = hud::Find(ctx, base, kMenuBarCrc);
     if (bar != hud::kNoWindow)
       hud::Call(ctx, base, hud::kWndRemoveFlags, bar, 1);
+    if (!g_mask_args)
+      g_mask_args = eot::ui::AllocGuest(ctx, base, kMaskArgs);
+    if (g_mask_args)
+      for (uint32_t zone = 0; zone < kZoneCount; ++zone)
+        eot::ui::SendPromptMask(ctx, base, zone, 0, g_mask_args);
   }
 }
