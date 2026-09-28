@@ -11,13 +11,17 @@
 #include <rex/cvar.h>
 #include <rex/hook.h>
 #include <rex/input/input.h>
+#include <vector>
+#include <rex/input/mnk/mnk_input_driver.h>
+#include <cstdlib>
+#include <string_view>
+#include <rex/input/input_system.h>
+#include <rex/runtime.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/bind_capture.h"
 #include "goliath/controller/menu_keys.h"
-#include "goliath/controller/pad_identity.h"
-#include "goliath/controller/pc_controls.h"
 
 REX_EXTERN(__imp__eot_XInputGetState);
 
@@ -211,4 +215,142 @@ REX_HOOK_RAW(eot_XInputGetState) {
   eot::mem::store<int16_t>(state + 10, pad.thumb_ly);
   eot::mem::store<int16_t>(state + 12, pad.thumb_rx);
   eot::mem::store<int16_t>(state + 14, pad.thumb_ry);
+}
+
+#define EOT_KEYS "Input/Keybinds/Edge of Time"
+
+REXCVAR_DEFINE_STRING(eot_key_jump, "Space", EOT_KEYS, "Jump key (A)");
+REXCVAR_DEFINE_STRING(eot_key_light_attack, "LMB", EOT_KEYS, "Light attack key (X)");
+REXCVAR_DEFINE_STRING(eot_key_heavy_attack, "MMB", EOT_KEYS, "Heavy attack key (Y)");
+REXCVAR_DEFINE_STRING(eot_key_web, "E", EOT_KEYS, "Web / interact key (B)");
+REXCVAR_DEFINE_STRING(eot_key_grab, "Q", EOT_KEYS, "Grab key (RB)");
+REXCVAR_DEFINE_STRING(eot_key_special_attack, "V", EOT_KEYS, "Throw key (LB)");
+REXCVAR_DEFINE_STRING(eot_key_web_swing, "RMB", EOT_KEYS, "Web swing key (RT)");
+REXCVAR_DEFINE_STRING(eot_key_hyper_sense, "Shift", EOT_KEYS, "Hyper-Sense key (LT)");
+REXCVAR_DEFINE_STRING(eot_key_left_stick_click, "Z", EOT_KEYS, "Left stick click key");
+REXCVAR_DEFINE_STRING(eot_key_right_stick_click, "X", EOT_KEYS, "Right stick click key");
+REXCVAR_DEFINE_STRING(eot_key_spider_sense, "R", EOT_KEYS, "Spider-Sense key (D-pad up)");
+REXCVAR_DEFINE_STRING(eot_key_upgrades, "Tab", EOT_KEYS, "Upgrades key (Back)");
+REXCVAR_DEFINE_STRING(eot_key_pause, "Escape", EOT_KEYS, "Pause key (Start)");
+REXCVAR_DEFINE_STRING(eot_key_dpad_down, "C", EOT_KEYS, "D-pad down key");
+REXCVAR_DEFINE_STRING(eot_key_dpad_left, "", EOT_KEYS, "D-pad left key");
+REXCVAR_DEFINE_STRING(eot_key_dpad_right, "", EOT_KEYS, "D-pad right key");
+
+namespace eot::goliath {
+
+namespace {
+
+constexpr uint16_t Buttons(int mask) { return static_cast<uint16_t>(mask); }
+
+rex::input::mnk::KeyboardAction Button(const char *name, const char *cvar, int mask) {
+  rex::input::mnk::KeyboardAction a;
+  a.name = name;
+  a.cvar = cvar;
+  a.buttons = Buttons(mask);
+  return a;
+}
+
+rex::input::mnk::KeyboardAction Trigger(const char *name, const char *cvar, bool left) {
+  rex::input::mnk::KeyboardAction a;
+  a.name = name;
+  a.cvar = cvar;
+  (left ? a.left_trigger : a.right_trigger) = 0xFF;
+  return a;
+}
+
+rex::input::mnk::KeyboardAction On(const eot::controller::PadAction &action) {
+  using eot::controller::PadInput;
+  const PadInput physical = eot::controller::PhysicalFor(action);
+  if (physical == PadInput::LT || physical == PadInput::RT)
+    return Trigger(action.id, action.key_cvar, physical == PadInput::LT);
+  return Button(action.id, action.key_cvar, eot::controller::PadInputBit(physical));
+}
+
+}
+
+void InstallPcControls() {
+  using namespace rex::input;
+  std::vector<rex::input::mnk::KeyboardAction> actions;
+  for (const eot::controller::PadAction &action : eot::controller::kPadActions)
+    actions.push_back(On(action));
+  actions.push_back(Button("dpad_down", "eot_key_dpad_down", X_INPUT_GAMEPAD_DPAD_DOWN));
+  actions.push_back(Button("dpad_left", "eot_key_dpad_left", X_INPUT_GAMEPAD_DPAD_LEFT));
+  actions.push_back(Button("dpad_right", "eot_key_dpad_right", X_INPUT_GAMEPAD_DPAD_RIGHT));
+  rex::input::mnk::SetActions(std::move(actions));
+}
+
+}
+
+namespace eot::controller {
+
+namespace {
+
+constexpr uint16_t kMicrosoft = 0x045E;
+constexpr uint16_t kSony = 0x054C;
+constexpr uint16_t kNintendo = 0x057E;
+constexpr uint16_t kValve = 0x28DE;
+constexpr uint16_t kSteamDeck = 0x1205;
+
+uint16_t GuidWord(std::string_view guid, size_t byte) {
+  if (guid.size() < (byte + 2) * 2)
+    return 0;
+  const std::string lo(guid.substr(byte * 2, 2));
+  const std::string hi(guid.substr(byte * 2 + 2, 2));
+  return static_cast<uint16_t>(std::strtoul(lo.c_str(), nullptr, 16) |
+                               (std::strtoul(hi.c_str(), nullptr, 16) << 8));
+}
+
+bool Has(std::string_view name, std::string_view word) { return name.find(word) != std::string_view::npos; }
+
+PadBrand BrandOf(const rex::input::DeviceInfo &info) {
+  if (info.synthetic)
+    return PadBrand::Keyboard;
+  const uint16_t vendor = GuidWord(info.guid, 4);
+  const uint16_t product = GuidWord(info.guid, 8);
+  const std::string_view name = info.name;
+  if (vendor == kValve)
+    return product == kSteamDeck ? PadBrand::SteamDeck : PadBrand::Unknown;
+  if (vendor == kSony || Has(name, "PS4") || Has(name, "PS5") || Has(name, "DualSense") || Has(name, "DualShock"))
+    return PadBrand::PlayStation;
+  if (vendor == kNintendo || Has(name, "Switch") || Has(name, "Joy-Con"))
+    return PadBrand::Switch;
+  if (Has(name, "Steam Deck"))
+    return PadBrand::SteamDeck;
+  if (vendor == kMicrosoft || Has(name, "Xbox"))
+    return Has(name, "360") ? PadBrand::Xbox360 : PadBrand::XboxSeries;
+  return PadBrand::Unknown;
+}
+
+}
+
+const char *ToString(PadBrand brand) {
+  switch (brand) {
+  case PadBrand::Xbox360:
+    return "xbox";
+  case PadBrand::XboxSeries:
+    return "xboxseries";
+  case PadBrand::PlayStation:
+    return "playstation";
+  case PadBrand::Switch:
+    return "switch";
+  case PadBrand::SteamDeck:
+    return "steamdeck";
+  case PadBrand::Keyboard:
+    return "keyboard";
+  default:
+    return "unknown";
+  }
+}
+
+PadBrand ActivePad() {
+  rex::Runtime *runtime = rex::Runtime::instance();
+  if (!runtime || !runtime->input_system())
+    return PadBrand::Unknown;
+  auto *input = static_cast<rex::input::InputSystem *>(runtime->input_system());
+  rex::input::DeviceInfo info;
+  if (!input->ActiveDevice(0, &info))
+    return PadBrand::Unknown;
+  return BrandOf(info);
+}
+
 }
