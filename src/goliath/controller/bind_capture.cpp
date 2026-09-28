@@ -268,3 +268,13 @@ int32_t eot_binds_key_glyph(int32_t slot) { return slot >= 0 && slot < 32 && Key
 int32_t eot_binds_pad_glyph(int32_t slot) {
   return slot >= 0 && slot < 64 && MenuGlyphInstalled(static_cast<uint8_t>(slot)) ? 1 : 0;
 }
+
+namespace {
+std::atomic<bool> g_debug_mode{false};
+}
+
+void eot_debug_mode_active(int32_t on) { g_debug_mode.store(on != 0, std::memory_order_release); }
+
+namespace eot::controller {
+bool DebugModeActive() { return g_debug_mode.load(std::memory_order_acquire); }
+}

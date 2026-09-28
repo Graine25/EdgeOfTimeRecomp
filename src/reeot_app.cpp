@@ -598,8 +598,6 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   rex::cvar::RegisterChangeCallback("eot_background_input", [](std::string_view, std::string_view value) {
     ApplyBackgroundInput(value == "true" || value == "1");
   });
-  if (rex::cvar::Query<bool>("eot_debug_mode"))
-    SetCvarValue("mnk_mode", "false");
 
   SetCvarValue("eot_debug_pause", "false");
   SetCvarValue("eot_freecam", "false");
@@ -634,6 +632,18 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
     const bool shown = rex::cvar::Query<bool>("show_fps_overlay");
     rex::cvar::SetFlagByName("show_fps_overlay", shown ? "false" : "true");
   });
+  const auto debug_toggle = [](const char *flag) {
+    return [flag] {
+      if (!eot::controller::DebugModeActive())
+        return;
+      const bool on = rex::cvar::Query<bool>(flag);
+      rex::cvar::SetFlagByName(flag, on ? "false" : "true");
+      EOT_INFO("[debug] {} {}", flag, on ? "off" : "on");
+    };
+  };
+  rex::ui::RegisterBind("bind_freecam", "F5", "Debug mode: fly the camera", debug_toggle("eot_freecam"));
+  rex::ui::RegisterBind("bind_scene_pause", "F6", "Debug mode: freeze the scene",
+                        debug_toggle("eot_debug_pause"));
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 
