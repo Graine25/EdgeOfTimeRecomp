@@ -396,7 +396,6 @@ bool DisplayScaleApplies() {
 bool FullscreenOn() { return rex::cvar::Query<bool>("fullscreen"); }
 
 bool KeyboardMouseOn() { return rex::cvar::Query<bool>("mnk_mode"); }
-bool KeyboardMouseAllowed() { return !rex::cvar::Query<bool>("eot_debug_mode"); }
 bool MouseLookOn() { return KeyboardMouseOn() && FullscreenOn(); }
 
 constexpr Setting kAudioSettings[] = {
@@ -489,8 +488,7 @@ constexpr Setting kGameSettings[] = {
 constexpr Setting kControlsSettings[] = {
     {.label = "REEOT_OPT_GLYPHS", .description = "REEOT_DESC_GLYPHS", .cvar = "eot_button_glyphs",
      .choices = kGlyphs},
-    {.label = "REEOT_OPT_MNK", .description = "REEOT_DESC_MNK", .accessor = &kKeyboardMouse, .choices = kOnOff,
-     .enabled = KeyboardMouseAllowed, .disabled_text = "REEOT_VAL_OFF"},
+    {.label = "REEOT_OPT_MNK", .description = "REEOT_DESC_MNK", .accessor = &kKeyboardMouse, .choices = kOnOff},
     {.label = "REEOT_OPT_MOUSE_SENSITIVITY", .description = "REEOT_DESC_MOUSE_SENSITIVITY",
      .cvar = "mnk_sensitivity", .slider = {0.1, 1.9, 0.1, Format::kPlain}, .numeric = true,
      .enabled = MouseLookOn},
