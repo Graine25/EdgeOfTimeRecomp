@@ -4,6 +4,9 @@
 #include <rex/hook.h>
 #include <rex/system/kernel_state.h>
 
+#include "core/export.h"
+#include "core/logging.h"
+
 #include "core/memory_helpers.h"
 #include "gamelogic/ui/button_prompts.h"
 #include "gamelogic/ui/hud_api.h"
@@ -46,6 +49,29 @@ uint32_t CallGuest(const PPCContext &ctx, uint8_t *base, uint32_t addr, uint32_t
 
 bool DebugModeEnabled() { return REXCVAR_GET(eot_debug_mode); }
 
+void HoldTheKeyboard() {
+  static bool announced = false;
+  if (!DebugModeEnabled())
+    return;
+  if (!announced) {
+    announced = true;
+    if (auto *tell = reinterpret_cast<void (*)(int32_t)>(eot::HostEntryPoint("eot_debug_mode_active")))
+      tell(1);
+    rex::cvar::RegisterChangeCallback("mnk_mode", [](std::string_view, std::string_view value) {
+      if (!REXCVAR_GET(eot_debug_mode) || !(value == "true" || value == "1"))
+        return;
+      rex::cvar::SetFlagByName("mnk_mode", "false");
+      rex::cvar::SetFlagByName("mnk_mouse", "false");
+      EOT_INFO("[debug] the keyboard stays the port's while debug mode is on");
+    });
+    EOT_INFO("[debug] debug mode has the keyboard: no pad emulation, F5 flies the camera, F6 freezes the scene");
+  }
+  if (rex::cvar::Query<bool>("mnk_mode") || rex::cvar::Query<bool>("mnk_mouse")) {
+    rex::cvar::SetFlagByName("mnk_mode", "false");
+    rex::cvar::SetFlagByName("mnk_mouse", "false");
+  }
+}
+
 bool BackPressed(const PPCContext &ctx, uint8_t *base) {
   const uint32_t api = eot::mem::load<uint32_t>(kInputApi);
   const uint32_t query = api ? eot::mem::load<uint32_t>(api + kInputQuery) : 0;
@@ -70,9 +96,11 @@ uint32_t g_mask_args = 0;
 REX_HOOK_RAW(eot_GLInstanciateFrontScreenControl) {
   __imp__eot_GLInstanciateFrontScreenControl(ctx, base);
   g_front_screen = ctx.r3.u32;
+  HoldTheKeyboard();
 }
 
 REX_HOOK_RAW(eot_GLInstanciateHUDLevelSelect) {
+  HoldTheKeyboard();
   if (!DebugModeEnabled()) {
     __imp__eot_GLInstanciateHUDLevelSelect(ctx, base);
     return;
