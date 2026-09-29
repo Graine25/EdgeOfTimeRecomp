@@ -242,6 +242,7 @@ set(REEOT_SOURCES
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp
     src/gpu/gpu_profiling.cpp
+    src/gpu/adapter_sensors.cpp
     src/gpu/gpu_timing.cpp
     src/gpu/memory_report.cpp
     src/gpu/live_stats.cpp
