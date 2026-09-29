@@ -245,6 +245,7 @@ set(REEOT_SOURCES
     src/gpu/adapter_sensors.cpp
     src/gpu/gpu_timing.cpp
     src/gpu/memory_report.cpp
+    src/gpu/upload_census.cpp
     src/gpu/live_stats.cpp
     src/gpu/pipeline/pso_records.cpp
     src/gpu/pipeline/pso_precache.cpp
@@ -281,6 +282,7 @@ set(REEOT_SOURCES
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
     src/goliath/loading/heap_census.cpp
+    src/goliath/loading/texture_residency.cpp
     src/goliath/body_pulse_materials.cpp
     src/goliath/web_color.cpp
     src/goliath/text/glyph_pages.cpp

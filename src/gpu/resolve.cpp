@@ -303,6 +303,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
     if (auto it = s.textures.find(dest_texture_va); it != s.textures.end())
       dest_ref = it->second;
     auto mark = [&](GuestTexture &target, u32 level) {
+      if (!target.resolveOwned)
+        NoteResolveDestination(s, target);
       target.resolveOwned = true;
       target.uploaded = true;
       target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);

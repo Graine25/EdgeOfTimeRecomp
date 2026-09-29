@@ -40,7 +40,7 @@ REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug",
                     "Start the Tracy profiler at boot so a viewer can attach. Zones are compiled "
                     "into every non-Release build (a Release one only with -DREEOT_PROFILING=ON) "
                     "and cost nothing until then.");
-REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug",
+REXCVAR_DEFINE_INT32(eot_hitch_ms, 40, "EdgeOfTime/Debug",
                      "Log a [hitch] line with that frame's own CPU split for any presented "
                      "frame longer than this many milliseconds (0 = off).")
     .range(0, 1000);

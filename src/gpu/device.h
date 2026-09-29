@@ -80,6 +80,16 @@ struct PerfCounters {
   f64 replay_targets_ms = 0;
   f64 pace_ms = 0;
   u32 draws = 0, resolves = 0, uploads = 0, links = 0, psos = 0, frames = 0;
+  u32 uploads_new = 0, uploads_again = 0, uploads_refresh = 0;
+  u32 uploads_again_reloaded = 0;
+  u64 upload_blocks = 0;
+  f64 upload_synth_ms = 0;
+  u32 upload_frame_max = 0;
+  f64 upload_frame_max_ms = 0;
+  u32 upload_lead[5] = {};
+  u32 textures_released = 0;
+  u32 uploads_preloaded = 0;
+  u32 uploads_skipped = 0;
   u32 resolve_copies = 0;
   u32 draws_skipped = 0;
   u32 surface_transfers = 0;
@@ -286,6 +296,7 @@ struct VideoState {
   std::unordered_map<u64, u64> render_area_window;
   u64 resolve_alias_token = 0;
   std::vector<GuestTexture *> resolve_alias_candidates;
+  std::map<u32, u32> resolve_ranges;
   u64 resolve_alias_candidates_generation = 0;
   u64 mirror_generation = 1;
   u32 root_cbv_index[3] = {~0u, ~0u, ~0u};

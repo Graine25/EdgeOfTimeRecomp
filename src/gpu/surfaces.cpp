@@ -77,6 +77,18 @@ u32 HostSampleCountFor(const VideoState &s, const GuestSurface &surf) {
   return s.host_msaa_samples;
 }
 
+constexpr u32 kTextureCameraWideFrom = kGuestRenderWidth * 4 / 5;
+static bool IsTextureCameraShape(const GuestSurface &surf) {
+  if (surf.msaaSamples > 1 || surf.width <= 256 || surf.height <= 256)
+    return false;
+  if (surf.isDepth && surf.width == 1024 && surf.height == 1024)
+    return false;
+  for (u32 k = 0; k < 4; ++k)
+    if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
+      return false;
+  return true;
+}
+
 static void HostAllocationSize(const GuestSurface &surf, u32 &w, u32 &h) {
   w = surf.width;
   h = surf.height;
@@ -85,6 +97,11 @@ static void HostAllocationSize(const GuestSurface &surf, u32 &w, u32 &h) {
     return;
   w = (w + 79u) / 80u * 80u;
   h = (h + 63u) / 64u * 64u;
+  if (IsTextureCameraShape(surf)) {
+    const u32 bucket_width = surf.width > kTextureCameraWideFrom ? kGuestRenderWidth : kTextureCameraWideFrom;
+    w = std::max(w, (bucket_width + 79u) / 80u * 80u);
+    h = std::max(h, (kGuestRenderHeight + 63u) / 64u * 64u);
+  }
 }
 
 bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u32 samples,
@@ -139,9 +156,7 @@ float SurfaceRenderScale(const GuestSurface &surf) {
     if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
       return base;
   const float pip = static_cast<float>(std::clamp(Settings::PipScalePercent(), 25, 100)) / 100.0f;
-  const float w = static_cast<float>(surf.width) / static_cast<float>(kGuestRenderWidth);
-  const float t = std::clamp((w - 0.8f) / 0.2f, 0.0f, 1.0f);
-  return std::max(1.0f, base * (pip + (1.0f - pip) * t));
+  return std::max(1.0f, surf.width > kTextureCameraWideFrom ? base : base * pip);
 }
 
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
@@ -156,7 +171,6 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   surf.uid = next_uid++;
   surf.serial++;
   surf.wholeClearSerial = surf.serial;
-  surf.lastUseFrame = s.guest_frames;
   return CreateSurfaceImage(s, surf, surf.host, HostSampleCountFor(s, surf),
                             surf.isDepth ? "surface-ds" : "surface-rt");
 }
@@ -248,7 +262,6 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
   if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
       std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
     lookup.surf->va = surface_va;
-    lookup.surf->lastUseFrame = s.guest_frames;
     return lookup.surf;
   }
   GuestSurface decoded;
@@ -278,7 +291,6 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
     slot->width = decoded.width;
     slot->height = decoded.height;
     slot->colorExpBias = decoded.colorExpBias;
-    slot->lastUseFrame = s.guest_frames;
     return remember(slot.get());
   }
   if (slot) {
@@ -880,47 +892,6 @@ void DestroySurfaceImages(VideoState &s, GuestSurface &surf) {
   surf.imagesAgree = true;
   surf.resolvedSinceDraw = false;
   surf.content = GuestSurface::Content::Undefined;
-}
-
-static bool IsTextureCameraSurface(const GuestSurface &surf) {
-  if (surf.isDepth && surf.width == 1024 && surf.height == 1024)
-    return false;
-  if (surf.width <= 256 || surf.height <= 256)
-    return false;
-  for (u32 k = 0; k < 4; ++k)
-    if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
-      return false;
-  return true;
-}
-
-constexpr f64 kTextureCameraIdleSeconds = 1.0;
-
-void RetireIdleSurfaces(VideoState &s) {
-  static u64 next_sweep = 0;
-  if (s.guest_frames < next_sweep)
-    return;
-  next_sweep = s.guest_frames + 16;
-  u32 retired = 0;
-  u64 bytes = 0;
-  for (auto it = s.surfaces.begin(); it != s.surfaces.end();) {
-    GuestSurface *surf = it->second.get();
-    if (!surf || !IsTextureCameraSurface(*surf) ||
-        FrameAgeSeconds(s, surf->lastUseFrame) < kTextureCameraIdleSeconds) {
-      ++it;
-      continue;
-    }
-    for (const HostTexture *image : {&surf->host, &surf->single})
-      if (image->valid())
-        bytes += u64(image->width) * image->height * image->sampleCount;
-    DestroySurfaceImages(s, *surf);
-    it = s.surfaces.erase(it);
-    ++retired;
-  }
-  if (!retired)
-    return;
-  s.surface_generation++;
-  EOT_DEBUG("[surfaces] retired {} idle texture-camera surface(s) (~{} Mpx of targets)", retired,
-            bytes / 1000000);
 }
 
 }
