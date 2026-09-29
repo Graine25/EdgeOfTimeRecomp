@@ -13,7 +13,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
-#include "goliath/controller/menu_keys.h"
+#include "goliath/controller/mouse_input.h"
 #include "goliath/controller/pad_remap.h"
 #include "goliath/loading/texture_overrides.h"
 #include "goliath/text/glyph_pages.h"

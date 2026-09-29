@@ -18,7 +18,7 @@
 #include "core/logging.h"
 #include "goliath/controller/binds_api.h"
 #include "goliath/controller/button_glyphs.h"
-#include "goliath/controller/menu_keys.h"
+#include "goliath/controller/mouse_input.h"
 
 namespace eot::controller {
 

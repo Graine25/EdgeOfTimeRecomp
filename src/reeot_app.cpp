@@ -39,7 +39,6 @@
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
 #include "goliath/controller/bind_capture.h"
-#include "goliath/controller/menu_keys.h"
 #include "goliath/controller/mouse_input.h"
 #include "goliath/controller/pad_remap.h"
 #include "goliath/debug/freecam.h"
