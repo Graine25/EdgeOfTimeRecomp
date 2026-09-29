@@ -270,6 +270,7 @@ set(REEOT_SOURCES
     src/goliath/debug/freecam.cpp
     src/goliath/debug/input_script.cpp
     src/goliath/debug/occlusion.cpp
+    src/goliath/debug/anim_stream_trace.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp
@@ -324,6 +325,7 @@ rexglue_setup_target(reeot)
 if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
+        src/gamelogic/debug/antivenom_trace.cpp
         src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/patches/sd_bonus_suits.cpp
         src/gamelogic/patches/section_lights.cpp

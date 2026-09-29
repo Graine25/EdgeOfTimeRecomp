@@ -2750,6 +2750,7 @@ out_directory_path = "generated/default_xex"
 0x821867B8 = { name = "eot_HUDWindow_DrawTree" }
 
 0x820820A8 = { name = "eot_MMMemoryMgr_Alloc" }
+0x8216DD28 = { name = "eot_RZHAnim_LoadDiscardableData" }
 0x820C6610 = { name = "eot_HUDMgrBC_FindWindowFromCRC" }
 0x820C7010 = { name = "eot_HUDMgrBC_GetWin" }
 0x820DEF90 = { name = "eot_BUHashTable_Find" }
