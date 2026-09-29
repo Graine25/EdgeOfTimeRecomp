@@ -38,6 +38,7 @@
 #include "goliath/controller/menu_keys.h"
 #include "goliath/controller/mouse_input.h"
 #include "goliath/controller/pc_controls.h"
+#include "goliath/debug/scene_pause.h"
 #include "goliath/text/translation.h"
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"
@@ -641,6 +642,15 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   rex::ui::RegisterBind("bind_freecam", "F5", "Debug mode: fly the camera", debug_toggle("eot_freecam"));
   rex::ui::RegisterBind("bind_scene_pause", "F6", "Debug mode: freeze the scene",
                         debug_toggle("eot_debug_pause"));
+  rex::ui::RegisterBind("bind_scene_step", "F9", "Debug mode: step one frame", [] {
+    if (!eot::controller::DebugModeActive())
+      return;
+    if (!eot::debug::ScenePauseActive()) {
+      EOT_INFO("[debug] nothing to step: the scene is not frozen (F6)");
+      return;
+    }
+    eot::debug::ScenePauseStep();
+  });
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 

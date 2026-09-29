@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <mutex>
 
 #include <rex/cvar.h>
@@ -9,6 +10,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "goliath/controller/mouse_input.h"
 #include "goliath/debug/freecam.h"
 
 #if defined(_WIN32)
@@ -31,6 +33,9 @@ REXCVAR_DEFINE_DOUBLE(eot_freecam_speed, 20.0, "EdgeOfTime/Debug",
 
 REXCVAR_DEFINE_DOUBLE(eot_freecam_turn_speed, 120.0, "EdgeOfTime/Debug",
                       "Free camera turn speed in degrees a second, for the arrow keys.");
+
+REXCVAR_DEFINE_DOUBLE(eot_freecam_mouse_speed, 0.12, "EdgeOfTime/Debug",
+                      "Free camera turn in degrees per pixel of mouse motion.");
 
 namespace {
 
@@ -56,6 +61,7 @@ double g_yaw = 0.0;
 double g_pitch = 0.0;
 
 bool g_active = false;
+double g_speed_shown = 0.0;
 bool g_need_seed = false;
 
 constexpr int kMaxCameras = 8;
@@ -66,6 +72,8 @@ struct Adopted {
   uint32_t camera = 0;
   uint64_t last_seen = 0;
   float saved[16] = {};
+  float written[16] = {};
+  bool ever_written = false;
 };
 
 Adopted g_cams[kMaxCameras];
@@ -91,7 +99,7 @@ void ExpireCameras() {
   g_cam_count = keep;
 }
 
-enum class Key { Shift, Control, Left, Right, Up, Down, W, A, S, D, Q, E };
+enum class Key { Shift, Control, Left, Right, Up, Down, W, A, S, D, Q, E, R };
 
 #if defined(_WIN32)
 int NativeKey(Key key) {
@@ -120,6 +128,8 @@ int NativeKey(Key key) {
     return 'Q';
   case Key::E:
     return 'E';
+  case Key::R:
+    return 'R';
   }
   return 0;
 }
@@ -150,6 +160,8 @@ SDL_Scancode NativeKey(Key key) {
     return SDL_SCANCODE_Q;
   case Key::E:
     return SDL_SCANCODE_E;
+  case Key::R:
+    return SDL_SCANCODE_R;
   }
   return SDL_SCANCODE_UNKNOWN;
 }
@@ -210,7 +222,29 @@ void Basis(Vec3 &right, Vec3 &up, Vec3 &forward) {
         forward.x * right.y - forward.y * right.x};
 }
 
-void WriteWorld(uint32_t camera) {
+void SeedFrom(const float m[16]) {
+  g_pos = {m[12], m[13], m[14]};
+  const double fx = m[8], fy = m[9], fz = m[10];
+  const double len = std::sqrt(fx * fx + fy * fy + fz * fz);
+  if (len > 1e-6) {
+    g_pitch = std::clamp(std::asin(std::clamp(fy / len, -1.0, 1.0)), -kPitchLimit, kPitchLimit);
+    g_yaw = std::atan2(fx / len, fz / len);
+  }
+}
+
+void RefreshSaved(Adopted &a) {
+  const auto *m = eot::mem::at<eot::be<float>>(a.camera + kWorldMatrix);
+  if (!m)
+    return;
+  float live[16];
+  for (int i = 0; i < 16; ++i)
+    live[i] = m[i];
+  if (a.ever_written && std::memcmp(live, a.written, sizeof(live)) == 0)
+    return;
+  std::memcpy(a.saved, live, sizeof(live));
+}
+
+void WriteWorld(uint32_t camera, Adopted *note = nullptr) {
   auto *m = camera ? eot::mem::at<eot::be<float>>(camera + kWorldMatrix) : nullptr;
   if (!m)
     return;
@@ -228,6 +262,10 @@ void WriteWorld(uint32_t camera) {
   };
   for (int i = 0; i < 16; ++i)
     m[i] = rows[i];
+  if (note) {
+    std::memcpy(note->written, rows, sizeof(rows));
+    note->ever_written = true;
+  }
 }
 
 }
@@ -235,6 +273,19 @@ void WriteWorld(uint32_t camera) {
 namespace eot::debug {
 
 bool FreecamActive() { return g_active; }
+
+bool FreecamReadout(float &x, float &y, float &z, float &yaw_degrees, float &pitch_degrees,
+                    double &speed) {
+  if (!g_active)
+    return false;
+  x = static_cast<float>(g_pos.x);
+  y = static_cast<float>(g_pos.y);
+  z = static_cast<float>(g_pos.z);
+  yaw_degrees = static_cast<float>(g_yaw * (180.0 / kPi));
+  pitch_degrees = static_cast<float>(g_pitch * (180.0 / kPi));
+  speed = g_speed_shown;
+  return true;
+}
 
 void FreecamTick() {
   const bool want = REXCVAR_GET(eot_freecam);
@@ -248,24 +299,49 @@ void FreecamTick() {
   if (want != g_active) {
     g_active = want;
     g_need_seed = want;
+    eot::controller::MouseGrabForDebug(want);
     return;
   }
   if (!g_active || g_need_seed || !WindowHasFocus())
     return;
 
+  if (KeyDown(Key::R)) {
+    std::lock_guard<std::mutex> lock(g_cams_mutex);
+    for (int i = 0; i < g_cam_count; ++i) {
+      if (!Fresh(g_cams[i]))
+        continue;
+      SeedFrom(g_cams[i].saved);
+      break;
+    }
+    return;
+  }
+
   const double dt = HostDelta();
   if (dt <= 0.0)
     return;
 
-  double speed = REXCVAR_GET(eot_freecam_speed);
+  float mdx = 0.0f, mdy = 0.0f;
+  int notches = 0;
+  eot::controller::MouseTakeForDebug(&mdx, &mdy, &notches);
+  double base = REXCVAR_GET(eot_freecam_speed);
+  if (notches) {
+    base = std::clamp(base * std::pow(1.25, notches), 0.05, 5000.0);
+    REXCVAR_SET(eot_freecam_speed, base);
+    g_speed_shown = base;
+  }
+
+  double speed = base;
   if (KeyDown(Key::Shift))
     speed *= 5.0;
   if (KeyDown(Key::Control))
     speed /= 5.0;
+  g_speed_shown = speed;
 
+  const double per_pixel = REXCVAR_GET(eot_freecam_mouse_speed) * (kPi / 180.0);
   const double turn = REXCVAR_GET(eot_freecam_turn_speed) * (kPi / 180.0) * dt;
-  g_yaw += Axis(Key::Right, Key::Left) * turn;
-  g_pitch = std::clamp(g_pitch + Axis(Key::Up, Key::Down) * turn, -kPitchLimit, kPitchLimit);
+  g_yaw += Axis(Key::Right, Key::Left) * turn + mdx * per_pixel;
+  g_pitch = std::clamp(g_pitch + Axis(Key::Up, Key::Down) * turn - mdy * per_pixel, -kPitchLimit,
+                       kPitchLimit);
 
   Vec3 right, up, forward;
   Basis(right, up, forward);
@@ -292,9 +368,9 @@ REX_HOOK_RAW(eot_Renderer_Present) {
       const uint32_t flags = eot::mem::load<uint32_t>(cam + kCameraFlags);
       if (!(flags & kFlagPublished) || (flags & kFlagSkip))
         continue;
-      const Adopted *known = FindCamera(cam);
+      Adopted *known = FindCamera(cam);
       if (known && Fresh(*known))
-        WriteWorld(cam);
+        WriteWorld(cam, known);
     }
   }
   __imp__eot_Renderer_Present(ctx, base);
@@ -303,9 +379,12 @@ REX_HOOK_RAW(eot_Renderer_Present) {
 REX_HOOK_RAW(eot_Renderer_SetupCamera) {
   if (g_active) {
     std::lock_guard<std::mutex> lock(g_cams_mutex);
-    for (int i = 0; i < g_cam_count; ++i)
-      if (Fresh(g_cams[i]))
-        WriteWorld(g_cams[i].camera);
+    for (int i = 0; i < g_cam_count; ++i) {
+      if (!Fresh(g_cams[i]))
+        continue;
+      RefreshSaved(g_cams[i]);
+      WriteWorld(g_cams[i].camera, &g_cams[i]);
+    }
   }
   __imp__eot_Renderer_SetupCamera(ctx, base);
 }
@@ -320,6 +399,7 @@ REX_HOOK_RAW(eot_GRMainCamera_ViewBegin) {
     Adopted *known = FindCamera(camera);
     if (known) {
       known->last_seen = g_frame;
+      RefreshSaved(*known);
     } else if (g_cam_count < kMaxCameras) {
       if (auto *seed = eot::mem::at<eot::be<float>>(camera + kWorldMatrix)) {
         Adopted &slot = g_cams[g_cam_count++];
@@ -328,23 +408,17 @@ REX_HOOK_RAW(eot_GRMainCamera_ViewBegin) {
         for (int i = 0; i < 16; ++i)
           slot.saved[i] = seed[i];
 
+        known = &slot;
         if (g_need_seed) {
           g_need_seed = false;
-          g_pos = {slot.saved[12], slot.saved[13], slot.saved[14]};
-          const double fx = slot.saved[8], fy = slot.saved[9], fz = slot.saved[10];
-          const double len = std::sqrt(fx * fx + fy * fy + fz * fz);
-          if (len > 1e-6) {
-            g_pitch =
-                std::clamp(std::asin(std::clamp(fy / len, -1.0, 1.0)), -kPitchLimit, kPitchLimit);
-            g_yaw = std::atan2(fx / len, fz / len);
-          }
+          SeedFrom(slot.saved);
         }
         EOT_INFO("[freecam] camera {} is 0x{:08X}, at ({:.1f}, {:.1f}, {:.1f})", g_cam_count,
                  camera, slot.saved[12], slot.saved[13], slot.saved[14]);
       }
     }
 
-    WriteWorld(camera);
+    WriteWorld(camera, known);
   } else if (g_cam_count > 0) {
     std::lock_guard<std::mutex> lock(g_cams_mutex);
     int restored = 0;

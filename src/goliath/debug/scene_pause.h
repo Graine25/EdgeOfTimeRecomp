@@ -6,4 +6,8 @@ void ScenePauseTick();
 
 bool ScenePauseActive();
 
+void ScenePauseStep();
+
+int ScenePauseStepsPending();
+
 }
