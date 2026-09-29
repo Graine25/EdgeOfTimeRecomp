@@ -38,6 +38,7 @@
 #include "goliath/controller/menu_keys.h"
 #include "goliath/controller/mouse_input.h"
 #include "goliath/controller/pc_controls.h"
+#include "goliath/debug/input_script.h"
 #include "goliath/debug/scene_pause.h"
 #include "goliath/text/translation.h"
 #include "goliath/ui/overlays/fps.h"
@@ -590,6 +591,8 @@ std::unique_ptr<rex::ui::AchievementNotificationDialog> ReeotApp::CreateAchievem
   return std::make_unique<GatedAchievementToast>(imgui_drawer(), immediate_drawer(), runtime());
 }
 
+bool ReeotApp::AllowDevOverlays() { return eot::controller::DebugModeActive(); }
+
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
   eot::goliath::InstallPcControls();
   ApplyBackgroundInput(REXCVAR_GET(eot_background_input));
@@ -599,6 +602,11 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
 
   SetCvarValue("eot_debug_pause", "false");
   SetCvarValue("eot_freecam", "false");
+  SetCvarValue("eot_debug_script", "");
+  rex::cvar::RegisterChangeCallback("eot_debug_script",
+                                    [](std::string_view, std::string_view value) {
+                                      eot::debug::InputScriptSet(value);
+                                    });
   if (eot::gpu::Settings::Profiler()) {
 #if defined(EOT_PROFILING)
     rex::perf::Profiler::Startup();
@@ -650,6 +658,11 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
       return;
     }
     eot::debug::ScenePauseStep();
+  });
+  rex::ui::RegisterBind("bind_input_script", "F10", "Debug mode: replay the input script", [] {
+    if (!eot::controller::DebugModeActive())
+      return;
+    eot::debug::InputScriptReplay();
   });
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
