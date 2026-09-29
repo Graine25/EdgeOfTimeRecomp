@@ -38,6 +38,8 @@ float g_game_scale = 1.0f;
 
 std::atomic<bool> g_frozen{false};
 
+std::atomic<int> g_steps{0};
+
 bool Sane(float scale) { return scale > 0.0f && std::isfinite(scale); }
 
 float LoadScale() { return std::bit_cast<float>(eot::mem::load<uint32_t>(kTimeScale)); }
@@ -60,14 +62,28 @@ namespace eot::debug {
 
 bool ScenePauseActive() { return g_frozen.load(std::memory_order_relaxed); }
 
+void ScenePauseStep() {
+  if (!g_frozen.load(std::memory_order_relaxed))
+    return;
+  g_steps.fetch_add(1, std::memory_order_relaxed);
+}
+
+int ScenePauseStepsPending() { return g_steps.load(std::memory_order_relaxed); }
+
 void ScenePauseTick() {
   const bool want = REXCVAR_GET(eot_debug_pause);
 
   if (want) {
     g_frozen.store(true, std::memory_order_relaxed);
-    StoreScale(kFrozenScale);
+
+    int owed = g_steps.load(std::memory_order_relaxed);
+    while (owed > 0 && !g_steps.compare_exchange_weak(owed, owed - 1, std::memory_order_relaxed)) {
+    }
+    StoreScale(owed > 0 ? g_game_scale : kFrozenScale);
     return;
   }
+
+  g_steps.store(0, std::memory_order_relaxed);
 
   if (g_frozen.exchange(false, std::memory_order_relaxed)) {
     StoreScale(g_game_scale);

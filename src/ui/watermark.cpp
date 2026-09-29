@@ -11,6 +11,8 @@
 #include <rex/version.h>
 
 #include "core/build_info.h"
+#include "goliath/debug/freecam.h"
+#include "goliath/debug/scene_pause.h"
 #include "gpu/device.h"
 #include "gpu/settings.h"
 #include "platform/update_check.h"
@@ -36,12 +38,36 @@ std::string Resolution() {
 }
 
 void WatermarkOverlay::OnDraw(ImGuiIO &io) {
-  if (!REXCVAR_GET(eot_watermark))
-    return;
-
   constexpr ImU32 kText = IM_COL32(255, 255, 255, 96);
   constexpr ImU32 kShadow = IM_COL32(0, 0, 0, 112);
   constexpr ImU32 kNotice = IM_COL32(255, 216, 96, 232);
+  constexpr ImU32 kFlying = IM_COL32(128, 224, 255, 232);
+
+  {
+    std::vector<std::string> debug_lines;
+    float x = 0.0f, y = 0.0f, z = 0.0f, yaw = 0.0f, pitch = 0.0f;
+    double speed = 0.0;
+    if (debug::FreecamReadout(x, y, z, yaw, pitch, speed))
+      debug_lines.push_back(
+          std::format("free camera  {:.1f}, {:.1f}, {:.1f}   yaw {:.0f}  pitch {:.0f}   {:.1f}/s",
+                      x, y, z, yaw, pitch, speed));
+    if (debug::ScenePauseActive()) {
+      const int owed = debug::ScenePauseStepsPending();
+      debug_lines.push_back(owed ? std::format("scene frozen  stepping {} frame(s)", owed)
+                                 : std::string("scene frozen  F9 steps a frame"));
+    }
+    ImDrawList *fdl = ImGui::GetForegroundDrawList();
+    float dy = 10.0f;
+    for (const std::string &line : debug_lines) {
+      const ImVec2 at(10.0f, dy);
+      fdl->AddText(ImVec2(at.x + 1.0f, at.y + 1.0f), kShadow, line.c_str());
+      fdl->AddText(at, kFlying, line.c_str());
+      dy += ImGui::GetTextLineHeight();
+    }
+  }
+
+  if (!REXCVAR_GET(eot_watermark))
+    return;
 
   std::vector<std::pair<std::string, ImU32>> lines;
   if (const auto done = platform::LastInstallUpdate())
