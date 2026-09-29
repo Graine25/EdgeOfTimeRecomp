@@ -53,7 +53,7 @@ void AnnounceDebugMode() {
   told = true;
   if (auto *tell = reinterpret_cast<void (*)(int32_t)>(eot::HostEntryPoint("eot_debug_mode_active")))
     tell(1);
-  EOT_INFO("[debug] debug mode: F5 flies the camera, F6 freezes the scene");
+  EOT_INFO("[debug] debug mode: F5 flies the camera, F6 freezes the scene, F9 steps a frame, F10 replays eot_debug_script; the SDK's own overlays (F3, F4, F7) answer only in this mode");
 }
 
 bool BackPressed(const PPCContext &ctx, uint8_t *base) {
