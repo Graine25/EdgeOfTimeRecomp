@@ -48,4 +48,8 @@ void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf);
 bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf);
 void TextureReleaseBorrower(VideoState &s, GuestTexture &t);
 
+bool FlushAliasCopy(VideoState &s, GuestTexture &t);
+
+void FlushAliasDependents(VideoState &s, GuestTexture &src);
+
 }

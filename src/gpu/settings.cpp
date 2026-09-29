@@ -33,7 +33,7 @@ REXCVAR_DEFINE_INT32(eot_pso_hold_max_ms, 8000, "EdgeOfTime/Graphics", "Max load
     .range(0, 600000);
 REXCVAR_DEFINE_BOOL(eot_dynamic_depth_bias, true, "EdgeOfTime/Graphics", "Per-draw depth bias")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug", "Log frames slower than this")
+REXCVAR_DEFINE_INT32(eot_hitch_ms, 40, "EdgeOfTime/Debug", "Log frames slower than this")
     .range(0, 1000);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);

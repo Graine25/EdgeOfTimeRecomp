@@ -22,6 +22,7 @@
 #endif
 
 #include "core/logging.h"
+#include "gpu/memory_report.h"
 #include "gpu/backend.h"
 #include "gpu/render_thread.h"
 #include "core/profiling.h"
@@ -459,6 +460,7 @@ void PublishLiveStatsLocked(const VideoState &s, const PerfCounters &p) {
 }
 
 void LogPerfLocked(VideoState &s) {
+  MemoryReportTick();
   const i32 every = Settings::PerfFrames();
   PerfCounters &p = s.perf;
   const auto now = std::chrono::steady_clock::now();
@@ -472,6 +474,11 @@ void LogPerfLocked(VideoState &s) {
     const f64 wall = p.frame_ms - s.perf_prev_frame.frame_ms;
     if (wall >= 0.0 && s.frame_walls.size() < 4096)
       s.frame_walls.push_back(static_cast<f32>(wall));
+    const PerfCounters &q = s.perf_prev_frame;
+    if (p.uploads >= q.uploads && p.upload_ms >= q.upload_ms && p.upload_ms - q.upload_ms > p.upload_frame_max_ms) {
+      p.upload_frame_max_ms = p.upload_ms - q.upload_ms;
+      p.upload_frame_max = p.uploads - q.uploads;
+    }
   }
   if (hitch_ms > 0 && p.last_present.time_since_epoch().count() != 0) {
     const PerfCounters &q = s.perf_prev_frame;
@@ -612,7 +619,7 @@ void LogPerfLocked(VideoState &s) {
     return;
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall (p50 {:.2f} p95 {:.2f} p99 {:.2f} max {:.2f}) | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} refresh, {} twin; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
+           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} refresh, {} twin, {:.1f} alias deferred, {:.2f} alias copied; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} (@{:#x}) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
            "| hostbind/f vb {:.1f}/{:.1f} (1s {:.1f}) ib {:.1f}/{:.1f} fb reuse {:.1f} tgtmemo {:.1f} (miss g{:.0f} w{:.0f} s{:.0f}) sorted {:.0f}/{:.0f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f} (hit {:.1f})/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
            "| present acquire {:.2f} blit {:.2f} submit {:.2f} fence {:.2f} house {:.2f} pace {:.2f} | KB/frame vtx {} "
@@ -625,7 +632,7 @@ void LogPerfLocked(VideoState &s) {
            p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
            p.const_file_mask_misses,
            p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames, p.resolve_refreshes / p.frames,
-           p.surface_transfers / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
+           p.surface_transfers / p.frames, static_cast<f64>(p.alias_deferred) / p.frames, static_cast<f64>(p.alias_copies) / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
            p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
            p.guest_d3d_calls / p.frames, g_device_block_misses.exchange(0, std::memory_order_relaxed),
@@ -658,6 +665,19 @@ void LogPerfLocked(VideoState &s) {
            p.vertex_bytes / p.frames / 1024,
            p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024,
            GpuTimingSummary(p));
+  if (p.uploads || p.uploads_skipped)
+    EOT_INFO("[uploads] {} ({} new, {} made again ({} reloaded by the game), {} of changed memory) in {:.1f} ms: {:.2f} M blocks at "
+             "{:.1f} ns, CPU mip chains {:.1f} ms | worst frame {} uploads in {:.1f} ms | new textures the "
+             "game's loader had in: under 50 ms before {}, 50-250 ms {}, 250 ms-1 s {}, over 1 s {}, "
+             "not announced {} ({}) | preloaded {} | render-target headers cleared instead {} | mirrors let "
+             "go: {} ({} as the game freed them)",
+             p.uploads, p.uploads_new, p.uploads_again, p.uploads_again_reloaded, p.uploads_refresh, p.upload_ms,
+             p.upload_blocks * 1e-6,
+             p.upload_blocks ? (p.upload_ms - p.upload_synth_ms) * 1e6 / static_cast<f64>(p.upload_blocks) : 0.0,
+             p.upload_synth_ms, p.upload_frame_max, p.upload_frame_max_ms, p.upload_lead[0], p.upload_lead[1],
+             p.upload_lead[2], p.upload_lead[3], p.upload_lead[4], TakeUnannouncedShapes(), p.uploads_preloaded,
+             p.uploads_skipped, p.textures_evicted,
+             p.textures_released);
   LogRenderAreaLocked(s, p.frames);
   p = PerfCounters{};
   s.perf_resets++;
@@ -757,9 +777,12 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   GuestTexture *front = nullptr;
   if (front_buffer_texture_va) {
     front = GetGuestTexture(s, front_buffer_texture_va);
+    if (front)
+      FlushAliasCopy(s, *front);
     if (front && !front->host.valid())
       front = nullptr;
   }
+  PreloadAnnouncedTextures(s, PsoCacheInLoadingScreen() ? 8.0 : 1.0);
   const bool want_vsync = Settings::Vsync();
   const bool vsync_changed = s.swap_chain->isVsyncEnabled() != want_vsync;
   s.swap_chain->setVsyncEnabled(want_vsync);

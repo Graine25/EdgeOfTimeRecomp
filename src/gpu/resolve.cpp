@@ -302,6 +302,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
     if (auto it = s.textures.find(dest_texture_va); it != s.textures.end())
       dest_ref = it->second;
     auto mark = [&](GuestTexture &target, u32 level) {
+      if (!target.resolveOwned)
+        NoteResolveDestination(s, target);
       target.resolveOwned = true;
       target.uploaded = true;
       target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
@@ -361,6 +363,15 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
                  target.resolvedRect[4], target.resolvedRect[5], vx, vy, vw, vh, sx0, sy0,
                  target.host.needsClear, reorder, target.storeSwapRB);
       TextureReleaseBorrower(s, target);
+      if (target.aliasPending) {
+        if (covers_image) {
+          target.aliasPending = false;
+          target.aliasSource.reset();
+        } else {
+          FlushAliasCopy(s, target);
+          resolve_dynamic_valid = false;
+        }
+      }
       target.contentSerial++;
       target.resolvedSurfaceUid = content_surf.uid;
       target.resolvedSurfaceSerial = content_surf.serial;
@@ -639,6 +650,38 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
             EOT_DEBUG("[resolve] {:#x} also lands in {:#x} ({}x{} base {:#x}) at {},{} ({}x{})",
                      dest_texture_va, alias_va, t->width, t->height, t->baseAddress, cx0, cy0,
                      cx1 - cx0, cy1 - cy0);
+        }
+        const bool deferrable =
+            dest_ref.get() == dest && tx == 0 && ty == 0 && vx == 0 && vy == 0 &&
+            vw == static_cast<i32>(dest->width) && vh == static_cast<i32>(dest->height) &&
+            cx1 == static_cast<i32>(t->width) && cy1 == static_cast<i32>(t->height) &&
+            dest->host.valid() && t->host.mipLevels == 1 && t->host.arraySize == 1 &&
+            t->host.depth == 1 && t->host.sampleCount == 1 && dest->host.sampleCount == 1 &&
+            t->host.format == dest->host.format && t->host.width <= dest->host.width &&
+            t->host.height <= dest->host.height &&
+            (depth_source || ResolveStoreSwizzle(t->fetch[3]) == ResolveStoreSwizzle(dest->fetch[3]));
+        std::shared_ptr<GuestTexture> t_ref;
+        if (deferrable)
+          if (auto it = s.textures.find(alias_va); it != s.textures.end() && it->second.get() == t)
+            t_ref = it->second;
+        if (t_ref) {
+          TextureReleaseBorrower(s, *t);
+          t->contentSerial++;
+          t->aliasPending = true;
+          t->aliasSource = dest_ref;
+          t->aliasSourceImage = dest->host.texture.get();
+          t->velocity = dest->velocity;
+          auto &dependents = dest->aliasDependents;
+          bool noted = false;
+          for (const auto &weak : dependents)
+            noted |= weak.lock() == t_ref;
+          if (!noted) {
+            std::erase_if(dependents, [](const std::weak_ptr<GuestTexture> &w) { return w.expired(); });
+            dependents.push_back(t_ref);
+          }
+          s.perf.alias_deferred++;
+          mark(*t, 0);
+          continue;
         }
         blit(*t, 0, cx0, cy0, cx1 - cx0, cy1 - cy0, x0 + (cx0 - ax0), y0 + (cy0 - ay0));
       }

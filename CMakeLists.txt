@@ -230,6 +230,7 @@ set(REEOT_SOURCES
     src/gpu/trace.cpp
     src/gpu/pipeline/pipeline_cache.cpp
     src/gpu/gpu_timing.cpp
+    src/gpu/memory_report.cpp
     src/gpu/pipeline/pso_records.cpp
     src/gpu/pipeline/pso_assets.cpp
     src/gpu/hooks/package_load.cpp

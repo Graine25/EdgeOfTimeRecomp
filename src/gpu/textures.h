@@ -18,6 +18,10 @@ u32 SamplingSwizzle(const GuestTexture &t, u32 fetch_swizzle);
 
 bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, float scale = 0.0f);
 
+void NoteResolveDestination(VideoState &s, const GuestTexture &t);
+
+void PreloadAnnouncedTextures(VideoState &s, f64 budget_ms);
+
 plume::RenderFramebuffer *GetMipFramebuffer(VideoState &s, GuestTexture &t, u32 mip);
 
 void NotifyResourceUnlocked(u32 resource_va);
