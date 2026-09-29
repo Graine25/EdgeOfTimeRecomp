@@ -994,7 +994,21 @@ bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, 
     return false;
   std::lock_guard lock(pool.mutex);
 
-  while (pool.totalBytes + bytes > kIndexCacheBudgetBytes && !pool.chunks.empty()) {
+  auto capacity = [&] {
+    u64 c = 0;
+    for (const auto &ch : pool.chunks)
+      c += ch.capacity;
+    return c;
+  };
+  auto needs_chunk = [&] {
+    return pool.chunks.empty() || ((pool.chunks.back().used + 3) & ~3ull) + bytes > pool.chunks.back().capacity;
+  };
+  auto over_budget = [&] {
+    return pool.totalBytes + bytes > kIndexCacheBudgetBytes ||
+           (needs_chunk() && capacity() + std::max(kIndexCacheChunkBytes, bytes) > kIndexCacheBudgetBytes);
+  };
+  bool recycled_one = false;
+  while (over_budget() && !pool.chunks.empty()) {
     auto victim = std::min_element(
         pool.chunks.begin(), pool.chunks.end(),
         [](const IndexCacheChunk &a, const IndexCacheChunk &b) {
@@ -1013,7 +1027,8 @@ bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, 
     const u64 released = victim->accounted;
     const bool gpu_idle = victim->lastUseFrame + kNumFrames < s.guest_frames;
     IndexCacheChunk recycled;
-    if (gpu_idle && bytes <= victim->capacity) {
+    if (gpu_idle && bytes <= victim->capacity && !recycled_one) {
+      recycled_one = true;
       recycled = std::move(*victim);
       recycled.used = 0;
       recycled.sealed = 0;
@@ -1641,6 +1656,14 @@ bool RefreshResolvedMirror(VideoState &s, GuestTexture &mirror, const Targets &t
   return s.command_list_open;
 }
 
+bool FlushAliasCopyForDraw(VideoState &s, GuestTexture &t) {
+  const bool defer = s.defer_shader_read_transitions;
+  s.defer_shader_read_transitions = false;
+  const bool copied = FlushAliasCopy(s, t);
+  s.defer_shader_read_transitions = defer;
+  return copied;
+}
+
 void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
                              SharedConstants &sc, const Targets *refresh_targets) {
   const u32 sampler_policy = static_cast<u32>(Settings::Anisotropy());
@@ -1660,6 +1683,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
   const u64 generation = s.texture_generation.load(std::memory_order_relaxed);
   for (u32 slot = 0; slot < 16; ++slot)
     s.draw_bound_textures[slot] = nullptr;
+  bool copied_while_binding = false;
   for (u32 slot = 0; slot < 16; ++slot) {
     if (!(texture_mask & (1u << slot)))
       continue;
@@ -1677,6 +1701,8 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
     VideoState::TextureSlotCache *hit = nullptr;
     for (u32 w = 0; w < VideoState::kTextureSlotWays; ++w) {
       VideoState::TextureSlotCache &cs = s.slot_cache[slot][w];
+      if (cs.texVa == tex_va && cs.generation == generation && cs.texture && cs.texture->aliasPending)
+        copied_while_binding |= FlushAliasCopyForDraw(s, *cs.texture);
       if (cs.texVa == tex_va && cs.generation == generation && cs.texture &&
           cs.resourceGeneration == cs.texture->bindingGeneration &&
           cs.samplerPolicy == sampler_policy && std::memcmp(cs.fc, fc_raw, sizeof(cs.fc)) == 0) {
@@ -1689,7 +1715,7 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
       gt->lastUseFrame = s.guest_frames;
       gt->lastSampledFrame = s.guest_frames;
       if (refresh_copies && gt->lastResolve)
-        RefreshResolvedMirror(s, *gt, *refresh_targets);
+        copied_while_binding |= RefreshResolvedMirror(s, *gt, *refresh_targets);
       TransitionLocked(s, gt->host, plume::RenderTextureLayout::SHADER_READ);
       index = hit->index;
       sampler = hit->sampler;
@@ -1709,9 +1735,11 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
         continue;
       }
       const u32 swizzle = (fc[3] >> 1) & 0xFFF;
+      if (gt->aliasPending)
+        copied_while_binding |= FlushAliasCopyForDraw(s, *gt);
       gt->lastSampledFrame = s.guest_frames;
       if (refresh_copies && gt->lastResolve)
-        RefreshResolvedMirror(s, *gt, *refresh_targets);
+        copied_while_binding |= RefreshResolvedMirror(s, *gt, *refresh_targets);
       index = PrepareTextureForSampling(s, *gt, swizzle);
       if (index == kInvalidDescriptorIndex) {
         u32 n;
@@ -1773,6 +1801,10 @@ void BindTexturesAndSamplers(VideoState &s, DeviceView dev, u32 texture_mask,
     if (biased_bits & 4)
       sc.sintTexcoords |= 1u << (16 + slot);
   }
+  if (copied_while_binding)
+    for (u32 slot = 0; slot < 16; ++slot)
+      if (GuestTexture *bound = s.draw_bound_textures[slot])
+        TransitionLocked(s, bound->host, plume::RenderTextureLayout::SHADER_READ);
 }
 
 bool UploadZeroBuffer(VideoState &s, UploadAlloc *out) {

@@ -28,7 +28,7 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "EdgeOfTime/Debug", "Renderer log verbosity")
 
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Sync frames to display");
 REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug", "Start Tracy at boot");
-REXCVAR_DEFINE_INT32(eot_hitch_ms, 0, "EdgeOfTime/Debug", "Log frames slower than this")
+REXCVAR_DEFINE_INT32(eot_hitch_ms, 40, "EdgeOfTime/Debug", "Log frames slower than this")
     .range(0, 1000);
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
