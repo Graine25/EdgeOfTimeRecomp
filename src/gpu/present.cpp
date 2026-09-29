@@ -37,6 +37,7 @@
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/surfaces.h"
+#include "gpu/upload_census.h"
 #include "gpu/taa.h"
 #include "gpu/textures.h"
 #include "gpu/velocity.h"
@@ -477,6 +478,11 @@ void LogPerfLocked(VideoState &s) {
     const f64 wall = p.frame_ms - s.perf_prev_frame.frame_ms;
     if (wall >= 0.0 && s.frame_walls.size() < 4096)
       s.frame_walls.push_back(static_cast<f32>(wall));
+    const PerfCounters &q = s.perf_prev_frame;
+    if (p.uploads >= q.uploads && p.upload_ms >= q.upload_ms && p.upload_ms - q.upload_ms > p.upload_frame_max_ms) {
+      p.upload_frame_max_ms = p.upload_ms - q.upload_ms;
+      p.upload_frame_max = p.uploads - q.uploads;
+    }
   }
   if (hitch_ms > 0 && p.last_present.time_since_epoch().count() != 0) {
     const PerfCounters &q = s.perf_prev_frame;
@@ -575,7 +581,6 @@ void LogPerfLocked(VideoState &s) {
   }
   EvictStaleGuestTextures(s);
   EvictHostTexturePool(s);
-  RetireIdleSurfaces(s);
   p.live_textures = static_cast<u32>(s.textures.size());
   if (every > 0 && static_cast<i32>(p.frames) >= every) {
     u32 buckets[6] = {};
@@ -664,6 +669,19 @@ void LogPerfLocked(VideoState &s) {
            p.vertex_bytes / p.frames / 1024,
            p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024,
            GpuTimingSummary(p));
+  if (p.uploads || p.uploads_skipped)
+    EOT_INFO("[uploads] {} ({} new, {} made again ({} reloaded by the game), {} of changed memory) in {:.1f} ms: {:.2f} M blocks at "
+             "{:.1f} ns, CPU mip chains {:.1f} ms | worst frame {} uploads in {:.1f} ms | new textures the "
+             "game's loader had in: under 50 ms before {}, 50-250 ms {}, 250 ms-1 s {}, over 1 s {}, "
+             "not announced {} ({}) | preloaded {} | render-target headers cleared instead {} | mirrors let "
+             "go: {} ({} as the game freed them)",
+             p.uploads, p.uploads_new, p.uploads_again, p.uploads_again_reloaded, p.uploads_refresh, p.upload_ms,
+             p.upload_blocks * 1e-6,
+             p.upload_blocks ? (p.upload_ms - p.upload_synth_ms) * 1e6 / static_cast<f64>(p.upload_blocks) : 0.0,
+             p.upload_synth_ms, p.upload_frame_max, p.upload_frame_max_ms, p.upload_lead[0], p.upload_lead[1],
+             p.upload_lead[2], p.upload_lead[3], p.upload_lead[4], TakeUnannouncedShapes(), p.uploads_preloaded,
+             p.uploads_skipped, p.textures_evicted,
+             p.textures_released);
   LogRenderAreaLocked(s, p.frames);
   p = PerfCounters{};
   s.perf_resets++;
@@ -768,6 +786,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
     if (front && !front->host.valid())
       front = nullptr;
   }
+  PreloadAnnouncedTextures(s, PsoCacheInLoadingScreen() ? 8.0 : 1.0);
   const bool want_vsync = Settings::Vsync();
   const bool vsync_changed = s.swap_chain->isVsyncEnabled() != want_vsync;
   s.swap_chain->setVsyncEnabled(want_vsync);

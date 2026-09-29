@@ -2707,6 +2707,7 @@ out_directory_path = "generated/default_xex"
 0x821794A0 = { name = "eot_RZTexture_Destroy" }
 0x82179FC8 = { name = "eot_RZTexture_EnsureStreamDescriptor" }
 0x8217A390 = { name = "eot_RZTexture_FreeResidentDescriptors" }
+0x8217A410 = { name = "eot_RZTexture_UnloadDiscardableData" }
 0x8217A068 = { name = "eot_TextureAsset_LoadInitialResidentDescriptor" }
 0x82172F10 = { name = "eot_RefResAsyncQueue_EnqueueRequest" }
 

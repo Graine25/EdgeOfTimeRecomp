@@ -24,6 +24,7 @@
 #include "gpu/settings.h"
 #include "gpu/surfaces.h"
 #include "gpu/format.h"
+#include "gpu/upload_census.h"
 
 namespace eot::gpu {
 
@@ -76,6 +77,130 @@ bool SynthesizesMips(const TextureInfo &info, const TextureFormatMapping &m) {
     return false;
   return m.format == plume::RenderFormat::R8_UNORM || m.format == plume::RenderFormat::R8G8_UNORM ||
          m.format == plume::RenderFormat::R8G8B8A8_UNORM;
+}
+
+inline u32 TiledRowOffset(u32 y, u32 width, u32 log2_bpp) {
+  const u32 macro = ((y / 32) * (width / 32)) << (log2_bpp + 7);
+  const u32 micro = ((y & 6) << 2) << log2_bpp;
+  return macro + ((micro & ~0xFu) << 1) + (micro & 0xF) + ((y & 8) << (3 + log2_bpp)) + ((y & 1) << 4);
+}
+
+inline u32 TiledColumnOffset(u32 x, u32 y, u32 log2_bpp, u32 base_offset) {
+  const u32 macro = (x / 32) << (log2_bpp + 7);
+  const u32 micro = (x & 7) << log2_bpp;
+  const u32 offset = base_offset + (macro + ((micro & ~0xFu) << 1) + (micro & 0xF));
+  return ((offset & ~0x1FFu) << 3) + ((offset & 0x1C0) << 2) + (offset & 0x3F) + ((y & 16) << 7) +
+         (((((y & 8) >> 2) + (x >> 3)) & 3) << 6);
+}
+
+template <u32 kBpb, xe::Endian kEndian> inline void CopySwapBlockFixed(u8 *out, const u8 *in) {
+  if constexpr (kEndian == xe::Endian::k8in16) {
+    for (u32 i = 0; i < kBpb; i += 2) {
+      u16 v;
+      std::memcpy(&v, in + i, 2);
+      v = static_cast<u16>((v >> 8) | (v << 8));
+      std::memcpy(out + i, &v, 2);
+    }
+  } else if constexpr (kEndian == xe::Endian::k8in32) {
+    for (u32 i = 0; i < kBpb; i += 4) {
+      u32 v;
+      std::memcpy(&v, in + i, 4);
+      v = __builtin_bswap32(v);
+      std::memcpy(out + i, &v, 4);
+    }
+  } else if constexpr (kEndian == xe::Endian::k16in32) {
+    for (u32 i = 0; i < kBpb; i += 4) {
+      u32 v;
+      std::memcpy(&v, in + i, 4);
+      v = (v >> 16) | (v << 16);
+      std::memcpy(out + i, &v, 4);
+    }
+  } else {
+    std::memcpy(out, in, kBpb);
+  }
+}
+
+template <u32 kBpb, xe::Endian kEndian>
+void UntileFixed(u8 *out, const u8 *in, const tc::UntileInfo &ui) {
+  constexpr u32 kLog2Bpp = (kBpb / 4) + ((kBpb / 2) >> (kBpb / 4));
+  const u64 out_pitch = u64(ui.output_pitch) * kBpb;
+  for (u32 y = 0; y < ui.height; ++y) {
+    const u32 gy = ui.offset_y + y;
+    const u32 row = TiledRowOffset(gy, ui.input_pitch, kLog2Bpp);
+    u8 *dst = out + y * out_pitch;
+    for (u32 x = 0; x < ui.width; ++x, dst += kBpb) {
+      const u32 block = TiledColumnOffset(ui.offset_x + x, gy, kLog2Bpp, row) >> kLog2Bpp;
+      CopySwapBlockFixed<kBpb, kEndian>(dst, in + u64(block) * kBpb);
+    }
+  }
+}
+
+template <u32 kBpb> bool UntileForBpb(u8 *out, const u8 *in, const tc::UntileInfo &ui, xe::Endian endian) {
+  switch (endian) {
+  case xe::Endian::k8in16:
+    if constexpr (kBpb % 2 == 0) {
+      UntileFixed<kBpb, xe::Endian::k8in16>(out, in, ui);
+      return true;
+    }
+    return false;
+  case xe::Endian::k8in32:
+    if constexpr (kBpb % 4 == 0) {
+      UntileFixed<kBpb, xe::Endian::k8in32>(out, in, ui);
+      return true;
+    }
+    return false;
+  case xe::Endian::k16in32:
+    if constexpr (kBpb % 4 == 0) {
+      UntileFixed<kBpb, xe::Endian::k16in32>(out, in, ui);
+      return true;
+    }
+    return false;
+  default:
+    UntileFixed<kBpb, xe::Endian::kNone>(out, in, ui);
+    return true;
+  }
+}
+
+bool UntileFast(u8 *out, const u8 *in, const tc::UntileInfo &ui, u32 bpb, xe::Endian endian) {
+  switch (bpb) {
+  case 1: return UntileForBpb<1>(out, in, ui, endian);
+  case 2: return UntileForBpb<2>(out, in, ui, endian);
+  case 4: return UntileForBpb<4>(out, in, ui, endian);
+  case 8: return UntileForBpb<8>(out, in, ui, endian);
+  case 16: return UntileForBpb<16>(out, in, ui, endian);
+  default: return false;
+  }
+}
+
+void UntileLevel(u8 *out, const u8 *in, const tc::UntileInfo &ui, u32 bpb, xe::Endian endian) {
+  static u8 verdict[17][4] = {};
+  const u32 e = static_cast<u32>(endian) & 3;
+  u8 &state = verdict[std::min(bpb, 16u)][e];
+  if (state != 2 && UntileFast(out, in, ui, bpb, endian)) {
+    if (state == 1)
+      return;
+    const u64 pitch = u64(ui.output_pitch) * bpb;
+    std::vector<u8> reference(pitch * ui.height + 64 * bpb, 0);
+    tc::UntileInfo sdk = ui;
+    sdk.copy_callback = [endian](void *o, const void *i, size_t n) { tc::CopySwapBlock(endian, o, i, n); };
+    tc::Untile(reference.data(), in, &sdk);
+    bool same = true;
+    for (u32 y = 0; y < ui.height && same; ++y)
+      same = std::memcmp(out + y * pitch, reference.data() + y * pitch, u64(ui.width) * bpb) == 0;
+    state = same ? 1 : 2;
+    if (same) {
+      EOT_INFO("[textures] fast untile checked against the SDK's for {}-byte blocks, byte order {}", bpb, e);
+    } else {
+      EOT_ERROR("[textures] fast untile differs from the SDK's for {}-byte blocks, byte order {}; "
+                "using the SDK's",
+                bpb, e);
+      std::memcpy(out, reference.data(), pitch * ui.height);
+    }
+    return;
+  }
+  tc::UntileInfo sdk = ui;
+  sdk.copy_callback = [endian](void *o, const void *i, size_t n) { tc::CopySwapBlock(endian, o, i, n); };
+  tc::Untile(out, in, &sdk);
 }
 
 void SynthesizeMipChain(VideoState &s, HostTexture &host, plume::RenderFormat format,
@@ -211,6 +336,26 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
     return;
   PerfScope perf_scope(s.perf.upload_ms);
   s.perf.uploads++;
+  if (t.uploaded) {
+    s.perf.uploads_refresh++;
+  } else if (UploadSeenBefore((u64(info.memory.base_address) << 32) ^ (u64(t.fetch[1]) << 16) ^ t.fetch[2] ^
+                              (u64(info.memory.mip_address) << 7))) {
+    s.perf.uploads_again++;
+    f64 age_ms = 0;
+    if (TakeTextureResidentAge(t.va, age_ms))
+      s.perf.uploads_again_reloaded++;
+  } else {
+    s.perf.uploads_new++;
+    f64 age_ms = 0;
+    const u32 bucket = !TakeTextureResidentAge(t.va, age_ms) ? 4
+                       : age_ms < 50.0                       ? 0
+                       : age_ms < 250.0                      ? 1
+                       : age_ms < 1000.0                     ? 2
+                                                             : 3;
+    s.perf.upload_lead[bucket]++;
+    if (bucket == 4)
+      NoteUnannouncedUpload(InfoWidth(info), InfoHeight(info), static_cast<u32>(info.format), info.is_tiled);
+  }
   const TextureFormatMapping m = MapTextureFormat(info.format);
   if (m.convert) {
     if (!t.uploadFailed) {
@@ -325,11 +470,7 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
         ui.output_pitch = static_cast<u32>(host_pitch / bpb);
         ui.input_format_info = fi;
         ui.output_format_info = fi;
-        const xe::Endian endian = info.endianness;
-        ui.copy_callback = [endian](void *o, const void *i, size_t n) {
-          tc::CopySwapBlock(endian, o, i, n);
-        };
-        tc::Untile(dst, src, &ui);
+        UntileLevel(dst, src, ui, bpb, info.endianness);
       } else {
         const u8 *row = src + u64(y_blocks) * lvl->row_pitch_bytes + u64(x_blocks) * bpb;
         for (u32 y = 0; y < bh; ++y) {
@@ -349,8 +490,11 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
               staging.offset + slice * host_slice_bytes),
           0, 0, is_3d ? slice : 0);
     }
-    if (!scratch.empty())
+    s.perf.upload_blocks += u64(bw) * bh * slices;
+    if (!scratch.empty()) {
+      PerfScope synth_scope(s.perf.upload_synth_ms);
       SynthesizeMipChain(s, host, m.format, scratch, w, h, host_pitch, bpb);
+    }
   }
   t.uploaded = true;
   if (info.mip_min_level == 0 && info.mip_max_level + 1 >= host.mipLevels)
@@ -360,11 +504,32 @@ void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
 }
 
 constexpr f64 kTextureIdleSeconds = 30.0;
+constexpr f64 kUploadedTextureIdleSeconds = 300.0;
 constexpr size_t kTextureCap = 4096;
 
 void EvictStaleGuestTextures(VideoState &s) {
   EOT_CPU_ZONE("evict guest textures");
   bool evicted = false;
+  {
+    static std::vector<u32> released;
+    released.clear();
+    TakeReleasedTextures(released);
+    for (u32 va : released) {
+      const auto it = s.textures.find(va);
+      if (it == s.textures.end() || !it->second || it->second->resolveOwned)
+        continue;
+      if (it->second.use_count() == 1) {
+        TextureReleaseBorrower(s, *it->second);
+        FlushAliasDependents(s, *it->second);
+        ParkHostTexture(s, it->second->host);
+      }
+      infos().erase(it->first);
+      s.textures.erase(it);
+      s.perf.textures_evicted++;
+      s.perf.textures_released++;
+      evicted = true;
+    }
+  }
   u64 oldest_kept_frame = 0;
   if (s.textures.size() > kTextureCap) {
     std::vector<u64> frames;
@@ -383,8 +548,8 @@ void EvictStaleGuestTextures(VideoState &s) {
       evicted = true;
       continue;
     }
-    if (FrameAgeSeconds(s, slot->lastUseFrame) < kTextureIdleSeconds &&
-        slot->lastUseFrame >= oldest_kept_frame) {
+    const f64 idle_seconds = slot->resolveOwned ? kTextureIdleSeconds : kUploadedTextureIdleSeconds;
+    if (FrameAgeSeconds(s, slot->lastUseFrame) < idle_seconds && slot->lastUseFrame >= oldest_kept_frame) {
       ++it;
       continue;
     }
@@ -400,6 +565,24 @@ void EvictStaleGuestTextures(VideoState &s) {
   }
   if (evicted)
     s.texture_generation.fetch_add(1, std::memory_order_relaxed);
+}
+
+void PreloadAnnouncedTextures(VideoState &s, f64 budget_ms) {
+  if (!s.command_list_open || budget_ms <= 0.0)
+    return;
+  const u64 start = PerfNow();
+  const f64 ms_per_tick = PerfMsPerTick();
+  u32 header = 0;
+  while (static_cast<f64>(PerfNow() - start) * ms_per_tick < budget_ms && TakeAnnouncedHeader(header)) {
+    if (s.textures.count(header))
+      continue;
+    GuestTexture *t = GetGuestTexture(s, header);
+    if (!t || t->resolveOwned || !t->host.texture || t->host.isDepth)
+      continue;
+    const u32 before = s.perf.uploads;
+    PrepareTextureForSampling(s, *t);
+    s.perf.uploads_preloaded += s.perf.uploads - before;
+  }
 }
 
 void NotifyResourceUnlocked(u32 resource_va) {
@@ -555,6 +738,67 @@ u32 SamplingSwizzle(const GuestTexture &t, u32 fetch_swizzle) {
   return out;
 }
 
+static std::pair<u32, u32> BaseRange(const GuestTexture &t) {
+  const auto it = infos().find(t.va);
+  if (it == infos().end() || !t.baseAddress)
+    return {0, 0};
+  return {t.baseAddress, t.baseAddress + std::max<u32>(it->second.memory.base_size, 1)};
+}
+
+static bool InResolveMemory(const VideoState &s, const GuestTexture &t) {
+  const auto [start, end] = BaseRange(t);
+  if (start >= end || s.resolve_ranges.empty())
+    return false;
+  auto it = s.resolve_ranges.upper_bound(start);
+  if (it != s.resolve_ranges.begin() && std::prev(it)->second > start)
+    return true;
+  return it != s.resolve_ranges.end() && it->first < end;
+}
+
+void NoteResolveDestination(VideoState &s, const GuestTexture &t) {
+  auto [start, end] = BaseRange(t);
+  if (start >= end)
+    return;
+  auto &ranges = s.resolve_ranges;
+  auto it = ranges.upper_bound(start);
+  if (it != ranges.begin() && std::prev(it)->second >= start)
+    --it;
+  while (it != ranges.end() && it->first <= end) {
+    start = std::min(start, it->first);
+    end = std::max(end, it->second);
+    it = ranges.erase(it);
+  }
+  ranges.emplace(start, end);
+}
+
+static bool TakeOverAsResolveTarget(VideoState &s, GuestTexture &t) {
+  if (t.host.isDepth || !s.command_list_open)
+    return false;
+  if (t.host.texture && !t.host.renderable) {
+    ParkHostTexture(s, t.host);
+    t.host = HostTexture{};
+    t.bindingGeneration++;
+  }
+  if (!EnsureResolveMirror(s, t, false) || !t.host.renderable)
+    return false;
+  for (u32 m = 0; m < t.host.mipLevels; ++m) {
+    plume::RenderFramebuffer *fb = GetMipFramebuffer(s, t, m);
+    if (!fb)
+      continue;
+    TransitionLocked(s, t.host, plume::RenderTextureLayout::COLOR_WRITE);
+    s.command_list->setFramebuffer(fb);
+    s.command_list->clearColor(0, plume::RenderColor(0, 0, 0, 0), nullptr, 0);
+  }
+  s.bound_framebuffer = nullptr;
+  s.bound_pipeline = nullptr;
+  s.bound_draw_targets_valid = false;
+  t.host.needsClear = false;
+  t.resolveOwned = true;
+  t.uploaded = true;
+  s.perf.uploads_skipped++;
+  return true;
+}
+
 u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
   if (!t.host.texture)
     return kInvalidDescriptorIndex;
@@ -566,6 +810,8 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
     if (seq > t.uploadedUnlockSeq && DiagShouldLog(0x5E80 ^ t.va, &n))
       EOT_DEBUG("[textures] {:#x}: Unlock on a resolve-owned mirror ignored (seq {} -> {})", t.va,
                t.uploadedUnlockSeq, seq);
+    t.uploadedUnlockSeq = seq;
+  } else if (stale && !t.uploaded && InResolveMemory(s, t) && TakeOverAsResolveTarget(s, t)) {
     t.uploadedUnlockSeq = seq;
   } else if (stale) {
     auto it = infos().find(t.va);
@@ -637,7 +883,11 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       desc.format = want;
       desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
-      desc.committed = u64(desc.width) * desc.height >= 256ull * 256ull;
+      const u32 gw = InfoWidth(info), gh = InfoHeight(info);
+      bool frame_shape = gw >= 2048 && gh >= 2048;
+      for (u32 k = 0; k < 4; ++k)
+        frame_shape |= gw == (kGuestRenderWidth >> k) && gh == (kGuestRenderHeight >> k);
+      desc.committed = frame_shape && u64(desc.width) * desc.height >= 256ull * 256ull;
       t.host.format = want;
       t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
       t.host.width = desc.width;
