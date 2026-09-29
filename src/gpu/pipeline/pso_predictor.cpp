@@ -432,8 +432,8 @@ u32 PredictModelLoad(u32 model_va) {
   ModelDiag diag;
   SnapshotModel(s, model_va, slots, diag);
   u32 no_template = 0;
-  const PsoLane lane = PsoCacheLevelKnown() ? PsoLane::Background : PsoLane::Predicted;
-  const u32 queued = EnqueueSlots(slots, lane, &no_template);
+  const bool known = PsoCacheLevelKnown();
+  const u32 queued = known ? 0 : EnqueueSlots(slots, PsoLane::Predicted, &no_template);
   auto &p = predictor();
   {
     std::lock_guard lock(p.mutex);
@@ -463,7 +463,7 @@ u32 PredictMaterialLoad(u32 material_va) {
       WalkMaterial(s, mat, nullptr, slots, diag);
   }
   u32 no_template = 0;
-  const u32 queued = EnqueueSlots(slots, PsoLane::Background, &no_template);
+  const u32 queued = PsoCacheLevelKnown() ? 0 : EnqueueSlots(slots, PsoLane::Background, &no_template);
   auto &p = predictor();
   {
     std::lock_guard lock(p.mutex);

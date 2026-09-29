@@ -202,6 +202,8 @@ bool CreateHostImage(VideoState &s, GuestTexture &t, const TextureInfo &info) {
 void UploadFromGuest(VideoState &s, GuestTexture &t, const TextureInfo &info) {
   t.storeSwapRB = false;
   TextureReleaseBorrower(s, t);
+  FlushAliasDependents(s, t);
+  t.aliasPending = false;
   t.contentSerial++;
   EOT_CPU_ZONE("texture upload");
   HostTexture &host = t.host;
@@ -388,6 +390,7 @@ void EvictStaleGuestTextures(VideoState &s) {
     }
     if (slot.use_count() == 1) {
       TextureReleaseBorrower(s, *slot);
+      FlushAliasDependents(s, *slot);
       ParkHostTexture(s, slot->host);
     }
     infos().erase(it->first);
@@ -493,6 +496,7 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
                static_cast<u32>(info.format), info.memory.base_address, n + 1);
     if (slot.use_count() == 1) {
       TextureReleaseBorrower(s, *slot);
+      FlushAliasDependents(s, *slot);
       ParkHostTexture(s, slot->host);
     }
     s.texture_generation.fetch_add(1, std::memory_order_relaxed);
@@ -607,7 +611,9 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
                 t.va, static_cast<u32>(want), want_w, want_h, static_cast<u32>(t.host.format),
                 t.host.width, t.host.height);
       const bool replacing_host = t.host.texture != nullptr;
+      FlushAliasDependents(s, t);
       ParkHostTexture(s, t.host);
+      t.aliasPending = false;
       t.bindingGeneration++;
       s.mirror_generation++;
       const bool is_depth = depth_source;
@@ -631,7 +637,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       desc.format = want;
       desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
-      desc.committed = false;
+      desc.committed = u64(desc.width) * desc.height >= 256ull * 256ull;
       t.host.format = want;
       t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
       t.host.width = desc.width;
