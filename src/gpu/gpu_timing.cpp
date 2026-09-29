@@ -15,6 +15,7 @@
 #endif
 
 #include "core/logging.h"
+#include "gpu/adapter_sensors.h"
 #include "gpu/device.h"
 #include "gpu/settings.h"
 
@@ -261,8 +262,8 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
       std::string line;
       for (size_t i = 0; i < order.size() && i < 8; ++i)
         line += std::format(" {} {:.2f}", GpuCategoryName(order[i].second), order[i].first);
-      EOT_WARN("[hitch-gpu] frame {} took {:.2f} ms on the GPU (average {:.2f}):{}", s.guest_frames,
-               total, average, line);
+      EOT_WARN("[hitch-gpu] frame {} took {:.2f} ms on the GPU (average {:.2f}):{}{}", s.guest_frames,
+               total, average, line, AdapterSensorsSummary());
       static u32 diag_armed = 0;
       static u64 diag_next = 0;
       const i32 from = Settings::DiagHitch();
@@ -349,7 +350,7 @@ std::string GpuTimingSummary(const PerfCounters &p) {
     if (++shown >= 10)
       break;
   }
-  return out;
+  return out + AdapterSensorsSummary();
 }
 
 }
