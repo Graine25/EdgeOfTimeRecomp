@@ -5,6 +5,10 @@
 #include <string>
 
 #include <rex/cvar.h>
+#include <algorithm>
+#include <chrono>
+#include <rex/system/kernel_state.h>
+#include <rex/system/xmemory.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
@@ -15,6 +19,8 @@
 
 REX_EXTERN(__imp__eot_RZTexture_TextureReplace); // (record r3, replacement r4)
 REX_EXTERN(__imp__eot_PKPackageMgrBC_Update);
+REX_EXTERN(__imp__eot_GLAPIResource_LoadDiscardableData);   // (handle r3): one more reference on its data
+REX_EXTERN(__imp__eot_GLAPIResource_UnloadDiscardableData); // (handle r3): one reference less
 
 REXCVAR_DEFINE_BOOL(eot_texture_overrides, true, "EdgeOfTime/Config", "Use our replacement textures");
 REXCVAR_DEFINE_BOOL(eot_antivenom_normals, true, "EdgeOfTime/Config", "Anti-Venom remastered normal maps");
@@ -115,6 +121,8 @@ std::recursive_mutex g_apply_mutex;
 uint32_t g_requested = 0;
 uint32_t g_waiting_data = 0;
 uint32_t g_swapped[kOverrideCount] = {};
+uint32_t g_held[kOverrideCount] = {};
+constexpr uint32_t kDataReferences = 36;
 uint32_t g_ticks = 0;
 constexpr uint32_t kMaxTicks = 6000;
 
@@ -150,25 +158,93 @@ void RepointFontAtlas(const PPCContext &ctx, uint8_t *base, const Override &o, u
 
 enum class Try { Applied, NoRetail, NotReady };
 
+void TextureReplace(const PPCContext &ctx, uint8_t *base, uint32_t record, uint32_t replacement) {
+  PPCContext call = ctx;
+  call.r3.u32 = record;
+  call.r4.u32 = replacement;
+  __imp__eot_RZTexture_TextureReplace(call, base);
+}
+
+void LoadData(const PPCContext &ctx, uint8_t *base, uint32_t handle) {
+  PPCContext call = ctx;
+  call.r3.u32 = handle;
+  __imp__eot_GLAPIResource_LoadDiscardableData(call, base);
+}
+
+void UnloadData(const PPCContext &ctx, uint8_t *base, uint32_t handle) {
+  PPCContext call = ctx;
+  call.r3.u32 = handle;
+  __imp__eot_GLAPIResource_UnloadDiscardableData(call, base);
+}
+
+bool ReleaseSuit(const PPCContext &ctx, uint8_t *base, uint32_t i) {
+  const bool had = g_swapped[i] || g_held[i];
+  if (g_swapped[i]) {
+    const uint32_t retail = AcquireResource(ctx, base, g_swapped[i]);
+    if (retail) {
+      TextureReplace(ctx, base, retail, 0);
+      ReleaseResource(ctx, base, retail);
+    }
+    g_swapped[i] = 0;
+  }
+  if (g_held[i]) {
+    UnloadData(ctx, base, g_held[i]);
+    g_held[i] = 0;
+  }
+  return had;
+}
+
+void TrackSuit(const PPCContext &ctx, uint8_t *base, uint32_t i) {
+  const Override &o = kOverrides[i];
+  const uint32_t retailHandle = FindResourceFromCrc(ctx, base, kTypeTexture, o.retailCrc);
+  const uint32_t retail = AcquireResource(ctx, base, retailHandle);
+  const bool wanted =
+      retail && (eot::mem::load<uint16_t>(retail + kDataReferences) != 0 || ResourceResident(retail));
+  if (!wanted) {
+    if (ReleaseSuit(ctx, base, i))
+      EOT_INFO("[tex] {} let go with {}", o.replacement, o.retail);
+    ReleaseResource(ctx, base, retail);
+    return;
+  }
+  if (!g_held[i]) {
+    const uint32_t replacementHandle = FindResourceFromCrc(ctx, base, kTypeTexture, o.replacementCrc);
+    if (replacementHandle) {
+      LoadData(ctx, base, replacementHandle);
+      g_held[i] = replacementHandle;
+      EOT_INFO("[tex] {} loading with {}", o.replacement, o.retail);
+    }
+  }
+  if (g_held[i] && g_swapped[i] != retailHandle) {
+    const uint32_t replacement = AcquireResource(ctx, base, g_held[i]);
+    const uint32_t descriptor =
+        replacement && ResourceResident(replacement) ? TextureDescriptor(ctx, base, replacement) : 0;
+    if (descriptor) {
+      TextureReplace(ctx, base, retail, replacement);
+      g_swapped[i] = retailHandle;
+      EOT_INFO("[tex] {} -> {} ({:#x} -> {:#x}, descriptor {:#x})", o.retail, o.replacement, retail,
+               replacement, descriptor);
+    }
+    ReleaseResource(ctx, base, replacement);
+  }
+  ReleaseResource(ctx, base, retail);
+}
+
+void TrackSuits(const PPCContext &ctx, uint8_t *base) {
+  const uint32_t mask = g_wanted & kSuitMask & ~g_off;
+  for (uint32_t i = 0; i < kOverrideCount; ++i) {
+    if (mask & (1u << i))
+      TrackSuit(ctx, base, i);
+  }
+}
+
 void RevertSuits(const PPCContext &ctx, uint8_t *base) {
   uint32_t done = 0;
   for (uint32_t i = 0; i < kOverrideCount; ++i) {
     if (!(g_wanted & kSuitMask & (1u << i)))
       continue;
     g_off |= 1u << i;
-    g_pending &= ~(1u << i);
-    if (!g_swapped[i])
-      continue;
-    const uint32_t retail = AcquireResource(ctx, base, g_swapped[i]);
-    if (retail) {
-      PPCContext call = ctx;
-      call.r3.u32 = retail;
-      call.r4.u32 = 0;
-      __imp__eot_RZTexture_TextureReplace(call, base);
-      ReleaseResource(ctx, base, retail);
+    if (ReleaseSuit(ctx, base, i))
       ++done;
-    }
-    g_swapped[i] = 0;
   }
   EOT_INFO("[tex] suits remaster off: {} texture(s) back to the console's own", done);
 }
@@ -223,8 +299,8 @@ void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
     g_wanted = REXCVAR_GET(eot_texture_overrides) ? WantedMask() : 0;
     g_suits_on = REXCVAR_GET(eot_suits_remaster);
     g_off = g_suits_on ? 0 : (g_wanted & kSuitMask);
-    g_pending = g_wanted & ~g_off;
-    EOT_INFO("[tex] overrides wanted: {:#x} of {}{}", g_pending, kOverrideCount,
+    g_pending = g_wanted & kFontMask;
+    EOT_INFO("[tex] overrides wanted: {:#x} of {}{}", g_wanted, kOverrideCount,
              g_suits_on ? "" : " (the suits are switched off)");
   }
   if (!g_pending)
@@ -250,18 +326,6 @@ void TextureOverridesPackageMounted(const PPCContext &ctx, uint8_t *base) {
   std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
   if (!g_pending_chosen)
     return;
-  uint32_t again = 0;
-  for (uint32_t i = 0; i < kOverrideCount; ++i) {
-    if (!(g_wanted & (1u << i)) || (g_pending & (1u << i)) || (g_off & (1u << i)) || kOverrides[i].font)
-      continue;
-    const uint32_t handle = FindResourceFromCrc(ctx, base, kTypeTexture, kOverrides[i].retailCrc);
-    if (handle && handle != g_swapped[i])
-      again |= 1u << i;
-  }
-  if (again) {
-    EOT_INFO("[tex] {} retail texture(s) registered anew; swapping again", __builtin_popcount(again));
-    g_pending |= again;
-  }
   if (g_pending)
     ApplyTextureOverrides(ctx, base);
 }
@@ -276,11 +340,8 @@ void SuitsRemasterTick(const PPCContext &ctx, uint8_t *base) {
   std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
   g_suits_on = !g_suits_on;
   if (g_suits_on) {
-    g_pending |= g_off;
     g_off = 0;
-    g_ticks = 0;
-    EOT_INFO("[tex] suits remaster on: swapping the port's art in again");
-    ApplyTextureOverrides(ctx, base);
+    EOT_INFO("[tex] suits remaster on: the port's art follows the retail textures again");
   } else {
     RevertSuits(ctx, base);
   }
@@ -294,6 +355,11 @@ REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   __imp__eot_PKPackageMgrBC_Update(ctx, base);
   using namespace eot::loading;
   SuitsRemasterTick(ctx, base);
+  static uint32_t track_tick = 0;
+  if (g_pending_chosen && (++track_tick & 3) == 0) {
+    std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
+    TrackSuits(ctx, base);
+  }
   if (g_pending_chosen && g_pending) {
     std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
     ApplyTextureOverrides(ctx, base);
@@ -306,4 +372,85 @@ REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
       EOT_DEBUG("[tex] overrides in place after {} manager ticks", g_ticks);
   }
   eot::controller::ButtonGlyphsTick(ctx, base);
+  HeapCensusTick(ctx, base);
+}
+
+REX_EXTERN(eot_WorkBuf_Lock);   // (section r3, timeout r4)
+REX_EXTERN(eot_WorkBuf_Unlock);
+
+namespace eot::loading {
+namespace {
+
+constexpr uint32_t kHeapTable = 0x824E61F0;
+constexpr uint32_t kMainHeapSlot = 4;
+constexpr uint32_t kHeapLock = 12;
+constexpr uint32_t kHeapInUse = 32;
+constexpr uint32_t kHeapFreeCells = 60;
+constexpr uint32_t kSizeClasses = 12;
+constexpr uint32_t kBlockNext = 0;
+constexpr uint32_t kBlockSize = 12;
+constexpr uint32_t kBlockSizeMask = 0x3FFFFFFF;
+constexpr uint32_t kMaxBlocks = 1u << 20;
+constexpr auto kInterval = std::chrono::seconds(30);
+
+struct Census {
+  uint32_t heap = 0;
+  uint32_t in_use = 0;
+  uint64_t free = 0;
+  uint32_t largest = 0;
+  uint32_t blocks = 0;
+};
+
+Census Walk(const PPCContext &ctx, uint8_t *base) {
+  Census census;
+  const uint32_t table = eot::mem::load<uint32_t>(kHeapTable);
+  census.heap = table ? eot::mem::load<uint32_t>(table + kMainHeapSlot) : 0;
+  if (!census.heap)
+    return census;
+
+  PPCContext call = ctx;
+  call.r3.u32 = census.heap + kHeapLock;
+  call.r4.u32 = 0xFFFFFFFFu;
+  eot_WorkBuf_Lock(call, base);
+  census.in_use = eot::mem::load<uint32_t>(census.heap + kHeapInUse);
+  for (uint32_t size_class = 0; size_class < kSizeClasses && census.blocks < kMaxBlocks; ++size_class) {
+    const uint32_t cell = eot::mem::load<uint32_t>(census.heap + kHeapFreeCells + 4 * size_class);
+    for (uint32_t block = cell ? eot::mem::load<uint32_t>(cell) : 0; block && census.blocks < kMaxBlocks;
+         block = eot::mem::load<uint32_t>(block + kBlockNext)) {
+      const uint32_t size = eot::mem::load<uint32_t>(block + kBlockSize) & kBlockSizeMask;
+      census.free += size;
+      census.largest = std::max(census.largest, size);
+      ++census.blocks;
+    }
+  }
+  call = ctx;
+  call.r3.u32 = census.heap + kHeapLock;
+  eot_WorkBuf_Unlock(call, base);
+  return census;
+}
+
+uint64_t FreePhysicalBytes() {
+  auto *kernel = REX_KERNEL_STATE();
+  auto *memory = kernel ? kernel->memory() : nullptr;
+  auto *physical = memory ? memory->GetPhysicalHeap() : nullptr;
+  return physical ? uint64_t(physical->GetUnreservedPageCount()) * physical->page_size() : 0;
+}
+
+std::chrono::steady_clock::time_point g_next{};
+
+}
+
+void HeapCensusTick(const PPCContext &ctx, uint8_t *base) {
+  const auto now = std::chrono::steady_clock::now();
+  if (now < g_next)
+    return;
+  g_next = now + kInterval;
+  const Census census = Walk(ctx, base);
+  if (!census.heap)
+    return;
+  EOT_INFO("[mem] heap 0: {} MB in use, {} MB free in {} blocks (largest {} KB); {} MB of physical memory "
+           "outside it",
+           census.in_use >> 20, census.free >> 20, census.blocks, census.largest >> 10, FreePhysicalBytes() >> 20);
+}
+
 }

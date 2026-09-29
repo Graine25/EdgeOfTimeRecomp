@@ -72,3 +72,9 @@ inline void RequestResourceLoad(const PPCContext &ctx, uint8_t *base, uint32_t r
 }
 
 }
+
+namespace eot::loading {
+
+void HeapCensusTick(const PPCContext &ctx, uint8_t *base);
+
+}
