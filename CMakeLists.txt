@@ -270,6 +270,7 @@ set(REEOT_SOURCES
     src/goliath/debug/scene_pause.cpp
     src/goliath/debug/freecam.cpp
     src/goliath/debug/input_script.cpp
+    src/goliath/debug/occlusion.cpp
     src/goliath/ui/aspect_policy.cpp
     src/goliath/ui/text_scale.cpp
     src/goliath/ui/overlays/fps.cpp

@@ -27,9 +27,20 @@ REXCVAR_DEFINE_BOOL(eot_freecam, false, "EdgeOfTime/Debug",
                     "Fly the camera with WASD, E/Q and the arrow keys. Game input is blanked "
                     "while it is on. Pair it with eot_debug_pause to fly a frozen scene.");
 
-REXCVAR_DEFINE_DOUBLE(eot_freecam_speed, 20.0, "EdgeOfTime/Debug",
+REXCVAR_DEFINE_DOUBLE(eot_freecam_speed, 8.0, "EdgeOfTime/Debug",
                       "Free camera movement speed in world units a second. Shift multiplies it "
-                      "by five, Ctrl divides it by five.");
+                      "by five, Ctrl divides it by five, and the wheel steps it a quarter a "
+                      "notch. The game's units are small -- the Alchemax tunnel is about six "
+                      "across -- so the old default of twenty left the level in under a "
+                      "second.");
+
+REXCVAR_DEFINE_BOOL(eot_freecam_two_sided, true, "EdgeOfTime/Debug",
+                    "While the free camera is flying, draw every face of the world, not just "
+                    "the ones turned towards the camera. The level is built to be seen from "
+                    "the inside, so its walls are single-sided and a camera outside a room "
+                    "looks straight through them into nothing; this makes them solid again. "
+                    "It costs a second pipeline variant per material the first time each is "
+                    "drawn.");
 
 REXCVAR_DEFINE_DOUBLE(eot_freecam_turn_speed, 120.0, "EdgeOfTime/Debug",
                       "Free camera turn speed in degrees a second, for the arrow keys.");
@@ -62,6 +73,9 @@ double g_pitch = 0.0;
 
 bool g_active = false;
 double g_speed_shown = 0.0;
+
+float g_frame_rows[16] = {};
+bool g_frame_rows_valid = false;
 bool g_need_seed = false;
 
 constexpr int kMaxCameras = 8;
@@ -244,13 +258,10 @@ void RefreshSaved(Adopted &a) {
   std::memcpy(a.saved, live, sizeof(live));
 }
 
-void WriteWorld(uint32_t camera, Adopted *note = nullptr) {
-  auto *m = camera ? eot::mem::at<eot::be<float>>(camera + kWorldMatrix) : nullptr;
-  if (!m)
-    return;
+void BuildRows(float rows[16]) {
   Vec3 right, up, forward;
   Basis(right, up, forward);
-  const float rows[16] = {
+  const float built[16] = {
       static_cast<float>(right.x),   static_cast<float>(right.y),
       static_cast<float>(right.z),   0.0f,
       static_cast<float>(up.x),      static_cast<float>(up.y),
@@ -260,12 +271,26 @@ void WriteWorld(uint32_t camera, Adopted *note = nullptr) {
       static_cast<float>(g_pos.x),   static_cast<float>(g_pos.y),
       static_cast<float>(g_pos.z),   1.0f,
   };
+  std::memcpy(rows, built, sizeof(built));
+}
+
+void WriteWorld(uint32_t camera, Adopted *note, const float rows[16]) {
+  auto *m = camera ? eot::mem::at<eot::be<float>>(camera + kWorldMatrix) : nullptr;
+  if (!m)
+    return;
   for (int i = 0; i < 16; ++i)
     m[i] = rows[i];
   if (note) {
-    std::memcpy(note->written, rows, sizeof(rows));
+    std::memcpy(note->written, rows, sizeof(float) * 16);
     note->ever_written = true;
   }
+}
+
+void FrameRows(float rows[16]) {
+  if (g_frame_rows_valid)
+    std::memcpy(rows, g_frame_rows, sizeof(float) * 16);
+  else
+    BuildRows(rows);
 }
 
 }
@@ -273,6 +298,8 @@ void WriteWorld(uint32_t camera, Adopted *note = nullptr) {
 namespace eot::debug {
 
 bool FreecamActive() { return g_active; }
+
+bool FreecamDrawTwoSided() { return g_active && REXCVAR_GET(eot_freecam_two_sided); }
 
 bool FreecamReadout(float &x, float &y, float &z, float &yaw_degrees, float &pitch_degrees,
                     double &speed) {
@@ -299,6 +326,10 @@ void FreecamTick() {
   if (want != g_active) {
     g_active = want;
     g_need_seed = want;
+    {
+      std::lock_guard<std::mutex> lock(g_cams_mutex);
+      g_frame_rows_valid = false;
+    }
     eot::controller::MouseGrabForDebug(want);
     return;
   }
@@ -361,6 +392,8 @@ void FreecamTick() {
 REX_HOOK_RAW(eot_Renderer_Present) {
   if (g_active) {
     std::lock_guard<std::mutex> lock(g_cams_mutex);
+    BuildRows(g_frame_rows);
+    g_frame_rows_valid = true;
     for (int i = 0; i < kCameraListEntries; ++i) {
       const uint32_t cam = eot::mem::load<uint32_t>(kCameraList + i * 4);
       if (!cam)
@@ -370,7 +403,7 @@ REX_HOOK_RAW(eot_Renderer_Present) {
         continue;
       Adopted *known = FindCamera(cam);
       if (known && Fresh(*known))
-        WriteWorld(cam, known);
+        WriteWorld(cam, known, g_frame_rows);
     }
   }
   __imp__eot_Renderer_Present(ctx, base);
@@ -379,11 +412,13 @@ REX_HOOK_RAW(eot_Renderer_Present) {
 REX_HOOK_RAW(eot_Renderer_SetupCamera) {
   if (g_active) {
     std::lock_guard<std::mutex> lock(g_cams_mutex);
+    BuildRows(g_frame_rows);
+    g_frame_rows_valid = true;
     for (int i = 0; i < g_cam_count; ++i) {
       if (!Fresh(g_cams[i]))
         continue;
       RefreshSaved(g_cams[i]);
-      WriteWorld(g_cams[i].camera, &g_cams[i]);
+      WriteWorld(g_cams[i].camera, &g_cams[i], g_frame_rows);
     }
   }
   __imp__eot_Renderer_SetupCamera(ctx, base);
@@ -412,13 +447,17 @@ REX_HOOK_RAW(eot_GRMainCamera_ViewBegin) {
         if (g_need_seed) {
           g_need_seed = false;
           SeedFrom(slot.saved);
+          BuildRows(g_frame_rows);
+          g_frame_rows_valid = true;
         }
         EOT_INFO("[freecam] camera {} is 0x{:08X}, at ({:.1f}, {:.1f}, {:.1f})", g_cam_count,
                  camera, slot.saved[12], slot.saved[13], slot.saved[14]);
       }
     }
 
-    WriteWorld(camera, known);
+    float rows[16];
+    FrameRows(rows);
+    WriteWorld(camera, known, rows);
   } else if (g_cam_count > 0) {
     std::lock_guard<std::mutex> lock(g_cams_mutex);
     int restored = 0;
@@ -433,6 +472,7 @@ REX_HOOK_RAW(eot_GRMainCamera_ViewBegin) {
     }
     EOT_INFO("[freecam] released {} of {} camera(s)", restored, g_cam_count);
     g_cam_count = 0;
+    g_frame_rows_valid = false;
   }
 
   __imp__eot_GRMainCamera_ViewBegin(ctx, base);
