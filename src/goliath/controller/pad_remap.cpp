@@ -18,6 +18,7 @@
 #include "goliath/controller/menu_keys.h"
 #include "goliath/controller/pad_identity.h"
 #include "goliath/controller/pc_controls.h"
+#include "goliath/debug/input_script.h"
 
 REX_EXTERN(__imp__eot_XInputGetState);
 
@@ -204,6 +205,7 @@ REX_HOOK_RAW(eot_XInputGetState) {
     RemapPad(pad);
     ApplyMenuKeys(pad);
   }
+  eot::debug::InputScriptPad(pad);
   eot::mem::store<uint16_t>(state + 4, pad.buttons);
   eot::mem::store<uint8_t>(state + 6, pad.left_trigger);
   eot::mem::store<uint8_t>(state + 7, pad.right_trigger);

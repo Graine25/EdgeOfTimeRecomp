@@ -8,6 +8,7 @@
 
 #include "core/memory_helpers.h"
 #include "goliath/debug/freecam.h"
+#include "goliath/debug/input_script.h"
 #include "goliath/debug/scene_pause.h"
 
 REX_EXTERN(__imp__eot_GLAPIEngine_SetTimeScale);
@@ -53,6 +54,8 @@ bool HudHidden() {
 }
 
 bool InputBlocked() {
+  if (eot::debug::InputScriptHoldsInput())
+    return false;
   return g_frozen.load(std::memory_order_relaxed) || eot::debug::FreecamActive();
 }
 
@@ -72,6 +75,7 @@ int ScenePauseStepsPending() { return g_steps.load(std::memory_order_relaxed); }
 
 void ScenePauseTick() {
   const bool want = REXCVAR_GET(eot_debug_pause);
+  bool simulating = true;
 
   if (want) {
     g_frozen.store(true, std::memory_order_relaxed);
@@ -79,20 +83,21 @@ void ScenePauseTick() {
     int owed = g_steps.load(std::memory_order_relaxed);
     while (owed > 0 && !g_steps.compare_exchange_weak(owed, owed - 1, std::memory_order_relaxed)) {
     }
-    StoreScale(owed > 0 ? g_game_scale : kFrozenScale);
-    return;
+    simulating = owed > 0;
+    StoreScale(simulating ? g_game_scale : kFrozenScale);
+  } else {
+    g_steps.store(0, std::memory_order_relaxed);
+
+    if (g_frozen.exchange(false, std::memory_order_relaxed)) {
+      StoreScale(g_game_scale);
+    } else {
+      const float live = LoadScale();
+      if (Sane(live))
+        g_game_scale = live;
+    }
   }
 
-  g_steps.store(0, std::memory_order_relaxed);
-
-  if (g_frozen.exchange(false, std::memory_order_relaxed)) {
-    StoreScale(g_game_scale);
-    return;
-  }
-
-  const float live = LoadScale();
-  if (Sane(live))
-    g_game_scale = live;
+  eot::debug::InputScriptTick(simulating);
 }
 
 }

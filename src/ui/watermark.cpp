@@ -12,6 +12,7 @@
 
 #include "core/build_info.h"
 #include "goliath/debug/freecam.h"
+#include "goliath/debug/input_script.h"
 #include "goliath/debug/scene_pause.h"
 #include "gpu/device.h"
 #include "gpu/settings.h"
@@ -56,6 +57,8 @@ void WatermarkOverlay::OnDraw(ImGuiIO &io) {
       debug_lines.push_back(owed ? std::format("scene frozen  stepping {} frame(s)", owed)
                                  : std::string("scene frozen  F9 steps a frame"));
     }
+    if (std::string script = debug::InputScriptReadout(); !script.empty())
+      debug_lines.push_back(std::move(script));
     ImDrawList *fdl = ImGui::GetForegroundDrawList();
     float dy = 10.0f;
     for (const std::string &line : debug_lines) {
