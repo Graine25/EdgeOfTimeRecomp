@@ -29,6 +29,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "goliath/debug/freecam.h"
 #include "gpu/constant_buffers.h"
 #include "gpu/backend.h"
 #include "gpu/d3d.h"
@@ -1519,6 +1520,8 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
   else if (cull_back)
     st.cull = plume::RenderCullMode::BACK;
   else
+    st.cull = plume::RenderCullMode::NONE;
+  if (eot::debug::FreecamDrawTwoSided())
     st.cull = plume::RenderCullMode::NONE;
   st.frontFace = face_cw ? plume::RenderFrontFace::CLOCKWISE
                          : plume::RenderFrontFace::COUNTER_CLOCKWISE;
