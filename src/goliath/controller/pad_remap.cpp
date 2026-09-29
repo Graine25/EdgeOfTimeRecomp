@@ -3,25 +3,32 @@
 #include <array>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include <rex/cvar.h>
 #include <rex/hook.h>
+#include <rex/input/device_assignment.h>
 #include <rex/input/input.h>
-#include <vector>
-#include <rex/input/mnk/mnk_input_driver.h>
-#include <cstdlib>
-#include <string_view>
-#include <rex/input/input_system.h>
-#include <rex/runtime.h>
+#include <rex/kernel/xam/module.h>
+#include <rex/ui/keybinds.h>
+#include <rex/ui/ui_event.h>
+#include <rex/ui/virtual_key.h>
+#include <rex/ui/window.h>
+#include <rex/ui/window_listener.h>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/bind_capture.h"
 #include "goliath/controller/menu_keys.h"
+#include "goliath/debug/freecam.h"
 
 REX_EXTERN(__imp__eot_XInputGetState);
 
@@ -168,10 +175,316 @@ void RemapPad(RawPad &pad) {
   pad = out;
 }
 
+namespace {
+
+// Keys are bound per action and pressed here: one key can press a chord, and a modifier bound
+// as a key of its own does not silence the other binds.
+constexpr size_t kKeysZOrder = 1;
+constexpr uint8_t kModShift = 1, kModCtrl = 2, kModAlt = 4;
+constexpr int16_t kStickInUse = 12000;
+constexpr float kMeantMotion = 24.0f;
+constexpr auto kMotionWindow = std::chrono::milliseconds(500);
+constexpr auto kMouseLookFresh = std::chrono::milliseconds(150);
+
+using Clock = std::chrono::steady_clock;
+
+int64_t Now() { return Clock::now().time_since_epoch().count(); }
+
+int64_t Ticks(Clock::duration d) { return d.count(); }
+
+uint16_t KeyIndex(rex::ui::VirtualKey vk) {
+  using rex::ui::VirtualKey;
+  switch (vk) {
+  case VirtualKey::kLShift:
+  case VirtualKey::kRShift:
+    return static_cast<uint16_t>(VirtualKey::kShift);
+  case VirtualKey::kLControl:
+  case VirtualKey::kRControl:
+    return static_cast<uint16_t>(VirtualKey::kControl);
+  case VirtualKey::kLMenu:
+  case VirtualKey::kRMenu:
+    return static_cast<uint16_t>(VirtualKey::kMenu);
+  default:
+    return static_cast<uint16_t>(vk);
+  }
+}
+
+uint16_t MouseKey(rex::ui::MouseEvent::Button button) {
+  switch (button) {
+  case rex::ui::MouseEvent::Button::kLeft:
+    return static_cast<uint16_t>(rex::ui::VirtualKey::kLButton);
+  case rex::ui::MouseEvent::Button::kRight:
+    return static_cast<uint16_t>(rex::ui::VirtualKey::kRButton);
+  case rex::ui::MouseEvent::Button::kMiddle:
+    return static_cast<uint16_t>(rex::ui::VirtualKey::kMButton);
+  default:
+    return 0;
+  }
+}
+
+using Keys = std::array<bool, 256>;
+
+class KeyState final : public rex::ui::WindowInputListener, public rex::ui::WindowListener {
+public:
+  void Attach(rex::ui::Window *window) {
+    if (!window || window_)
+      return;
+    window_ = window;
+    window->AddInputListener(this, kKeysZOrder);
+    window->AddListener(this);
+  }
+
+  Keys Snapshot() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return down_;
+  }
+
+  bool Focused() const { return focused_.load(std::memory_order_acquire); }
+  int64_t LastUsed() const { return last_used_.load(std::memory_order_acquire); }
+  bool MouseLookFresh() const {
+    return Now() - last_motion_.load(std::memory_order_acquire) <= Ticks(kMouseLookFresh);
+  }
+
+  void OnKeyDown(rex::ui::KeyEvent &e) override { Set(KeyIndex(e.virtual_key()), true); }
+  void OnKeyUp(rex::ui::KeyEvent &e) override { Set(KeyIndex(e.virtual_key()), false); }
+  void OnMouseDown(rex::ui::MouseEvent &e) override { Set(MouseKey(e.button()), true); }
+  void OnMouseUp(rex::ui::MouseEvent &e) override { Set(MouseKey(e.button()), false); }
+
+  void OnMouseMove(rex::ui::MouseEvent &e) override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    float motion = std::fabs(e.dx()) + std::fabs(e.dy());
+    if (motion == 0.0f && have_position_)
+      motion = static_cast<float>(std::abs(e.x() - x_) + std::abs(e.y() - y_));
+    x_ = e.x();
+    y_ = e.y();
+    have_position_ = true;
+    if (motion == 0.0f)
+      return;
+    const int64_t now = Now();
+    if (now - last_motion_.load(std::memory_order_relaxed) > Ticks(kMotionWindow))
+      motion_ = 0.0f;
+    motion_ += motion;
+    last_motion_.store(now, std::memory_order_release);
+    if (motion_ >= kMeantMotion)
+      last_used_.store(now, std::memory_order_release);
+  }
+
+  void OnLostFocus(rex::ui::UISetupEvent &) override {
+    focused_.store(false, std::memory_order_release);
+    std::lock_guard<std::mutex> lock(mutex_);
+    down_ = {};
+    motion_ = 0.0f;
+    have_position_ = false;
+  }
+  void OnGotFocus(rex::ui::UISetupEvent &) override { focused_.store(true, std::memory_order_release); }
+
+  void OnClosing(rex::ui::UIEvent &) override {
+    if (window_) {
+      window_->RemoveInputListener(this);
+      window_->RemoveListener(this);
+      window_ = nullptr;
+    }
+  }
+
+private:
+  void Set(uint16_t index, bool down) {
+    if (!index || index >= 256)
+      return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    down_[index] = down;
+    if (down)
+      last_used_.store(Now(), std::memory_order_release);
+  }
+
+  rex::ui::Window *window_ = nullptr;
+  std::mutex mutex_;
+  Keys down_{};
+  std::atomic<bool> focused_{true};
+  std::atomic<int64_t> last_used_{0};
+  std::atomic<int64_t> last_motion_{0};
+  float motion_ = 0.0f;
+  int32_t x_ = 0, y_ = 0;
+  bool have_position_ = false;
+};
+KeyState g_keys;
+
+std::atomic<int64_t> g_pad_used{0};
+std::atomic<bool> g_has_pad{false};
+std::atomic<PadBrand> g_pad_brand{PadBrand::Unknown};
+
+bool MnkMode() { return rex::cvar::GetFlagByName("mnk_mode") == "true"; }
+
+std::string_view Trim(std::string_view s) {
+  while (!s.empty() && s.front() == ' ')
+    s.remove_prefix(1);
+  while (!s.empty() && s.back() == ' ')
+    s.remove_suffix(1);
+  return s;
+}
+
+uint8_t TakeModifiers(std::string_view &token) {
+  uint8_t mods = 0;
+  for (;;) {
+    const size_t plus = token.find('+');
+    if (plus == std::string_view::npos || plus == 0)
+      return mods;
+    const std::string_view head = token.substr(0, plus);
+    if (head == "Shift")
+      mods |= kModShift;
+    else if (head == "Ctrl" || head == "Control")
+      mods |= kModCtrl;
+    else if (head == "Alt")
+      mods |= kModAlt;
+    else
+      return mods;
+    token.remove_prefix(plus + 1);
+  }
+}
+
+template <typename F> void ForEachToken(std::string_view value, F &&f) {
+  while (!value.empty()) {
+    const size_t comma = value.find(',');
+    const std::string_view token = Trim(value.substr(0, comma));
+    value = comma == std::string_view::npos ? std::string_view() : value.substr(comma + 1);
+    if (!token.empty())
+      f(token);
+  }
+}
+
+uint8_t BoundModifiers(std::string_view value) {
+  uint8_t mods = 0;
+  ForEachToken(value, [&](std::string_view token) {
+    TakeModifiers(token);
+    if (token == "Shift")
+      mods |= kModShift;
+    else if (token == "Ctrl" || token == "Control")
+      mods |= kModCtrl;
+    else if (token == "Alt")
+      mods |= kModAlt;
+  });
+  return mods;
+}
+
+uint8_t LiveModifiers(const Keys &keys) {
+  uint8_t mods = 0;
+  if (keys[static_cast<uint16_t>(rex::ui::VirtualKey::kShift)])
+    mods |= kModShift;
+  if (keys[static_cast<uint16_t>(rex::ui::VirtualKey::kControl)])
+    mods |= kModCtrl;
+  if (keys[static_cast<uint16_t>(rex::ui::VirtualKey::kMenu)])
+    mods |= kModAlt;
+  return mods;
+}
+
+bool BindPressed(const Keys &keys, std::string_view value, uint8_t live, uint8_t bound) {
+  bool pressed = false;
+  ForEachToken(value, [&](std::string_view token) {
+    if (pressed || TakeModifiers(token) != (live & ~bound))
+      return;
+    const rex::ui::VirtualKey vk = rex::ui::ParseVirtualKey(token);
+    const uint16_t index = KeyIndex(vk);
+    pressed = vk != rex::ui::VirtualKey::kNone && index < keys.size() && keys[index];
+  });
+  return pressed;
+}
+
+struct KeyboardPad {
+  uint16_t buttons = 0;
+  uint8_t left_trigger = 0, right_trigger = 0;
+  int32_t lx = 0, ly = 0, rx = 0, ry = 0;
+  bool left_keys = false, right_keys = false;
+};
+
+KeyboardPad ReadKeyboard(const Table &t) {
+  KeyboardPad out;
+  if (!MnkMode() || !g_keys.Focused() || rex::kernel::xam::xeXamIsUIActive())
+    return out;
+  const Keys keys = g_keys.Snapshot();
+
+  struct Bind {
+    std::string value;
+    PadInput input;
+  };
+  std::vector<Bind> binds;
+  binds.reserve(kPadActionCount + 3);
+  for (uint32_t i = 0; i < kPadActionCount; ++i)
+    binds.push_back({rex::cvar::GetFlagByName(kActions[i].key_cvar), t.physical[i]});
+  binds.push_back({rex::cvar::GetFlagByName("eot_key_dpad_down"), PadInput::Down});
+  binds.push_back({rex::cvar::GetFlagByName("eot_key_dpad_left"), PadInput::Left});
+  binds.push_back({rex::cvar::GetFlagByName("eot_key_dpad_right"), PadInput::Right});
+  std::array<std::string, 8> sticks;
+  for (size_t i = 0; i < 4; ++i) {
+    sticks[i] = rex::cvar::GetFlagByName(kMoveKeyCvars[i]);
+    sticks[i + 4] = rex::cvar::GetFlagByName(kLookKeyCvars[i]);
+  }
+
+  uint8_t bound = 0;
+  for (const Bind &b : binds)
+    bound |= BoundModifiers(b.value);
+  for (const std::string &v : sticks)
+    bound |= BoundModifiers(v);
+  const uint8_t live = LiveModifiers(keys);
+
+  for (const Bind &b : binds) {
+    if (!BindPressed(keys, b.value, live, bound))
+      continue;
+    if (b.input == PadInput::LT)
+      out.left_trigger = 0xFF;
+    else if (b.input == PadInput::RT)
+      out.right_trigger = 0xFF;
+    else
+      out.buttons |= PadInputBit(b.input);
+  }
+
+  bool held[8];
+  for (size_t i = 0; i < sticks.size(); ++i) {
+    held[i] = BindPressed(keys, sticks[i], live, bound);
+    out.left_keys = out.left_keys || (i < 4 && BindPressed(keys, sticks[i], 0, 0xFF));
+    out.right_keys = out.right_keys || (i >= 4 && BindPressed(keys, sticks[i], 0, 0xFF));
+  }
+  out.ly = (held[0] ? INT16_MAX : 0) - (held[1] ? INT16_MAX : 0);
+  out.lx = (held[3] ? INT16_MAX : 0) - (held[2] ? INT16_MAX : 0);
+  out.ry = (held[4] ? INT16_MAX : 0) - (held[5] ? INT16_MAX : 0);
+  out.rx = (held[7] ? INT16_MAX : 0) - (held[6] ? INT16_MAX : 0);
+  return out;
+}
+
+void NotePadUse(const RawPad &pad, const KeyboardPad &keys) {
+  bool used = pad.buttons != 0 || pad.left_trigger > kTriggerPressed || pad.right_trigger > kTriggerPressed;
+  if (!keys.left_keys && (std::abs(pad.thumb_lx) > kStickInUse || std::abs(pad.thumb_ly) > kStickInUse))
+    used = true;
+  if (!keys.right_keys && !g_keys.MouseLookFresh() &&
+      (std::abs(pad.thumb_rx) > kStickInUse || std::abs(pad.thumb_ry) > kStickInUse))
+    used = true;
+  if (used)
+    g_pad_used.store(Now(), std::memory_order_release);
+}
+
+void Merge(int16_t &axis, int32_t keys) {
+  if (!keys)
+    return;
+  const int16_t value = static_cast<int16_t>(std::clamp<int32_t>(keys, -INT16_MAX, INT16_MAX));
+  if (std::abs(value) >= std::abs(axis))
+    axis = value;
+}
+
+void ApplyKeyboard(RawPad &pad, const KeyboardPad &keys) {
+  pad.buttons |= keys.buttons;
+  pad.left_trigger = std::max(pad.left_trigger, keys.left_trigger);
+  pad.right_trigger = std::max(pad.right_trigger, keys.right_trigger);
+  Merge(pad.thumb_lx, keys.lx);
+  Merge(pad.thumb_ly, keys.ly);
+  Merge(pad.thumb_rx, keys.rx);
+  Merge(pad.thumb_ry, keys.ry);
+}
+
+}
+
 }
 
 REX_HOOK_RAW(eot_XInputGetState) {
   using namespace eot::controller;
+  const uint32_t user = ctx.r3.u32;
   const uint32_t state = ctx.r4.u32;
   __imp__eot_XInputGetState(ctx, base);
   if (ctx.r3.u32 != 0 || !state)
@@ -185,7 +498,6 @@ REX_HOOK_RAW(eot_XInputGetState) {
       g_table = t;
     }
     if (changed) {
-      eot::goliath::InstallPcControls();
       EOT_INFO("[pad] binds {}: {}{}", t.identity ? "native" : "remapped", [&] {
         std::string s;
         for (uint32_t i = 0; i < kPadActionCount; ++i)
@@ -203,11 +515,22 @@ REX_HOOK_RAW(eot_XInputGetState) {
   pad.thumb_ly = eot::mem::load<int16_t>(state + 10);
   pad.thumb_rx = eot::mem::load<int16_t>(state + 12);
   pad.thumb_ry = eot::mem::load<int16_t>(state + 14);
+  if (user == 0) {
+    Table t;
+    {
+      std::lock_guard<std::mutex> lock(g_table_mutex);
+      t = g_table;
+    }
+    const KeyboardPad keys = ReadKeyboard(t);
+    NotePadUse(pad, keys);
+    ApplyKeyboard(pad, keys);
+  }
   const bool swallowed = FilterPadForCapture(pad);
   if (!swallowed) {
     RemapPad(pad);
     ApplyMenuKeys(pad);
   }
+  eot::debug::InputScriptPad(pad);
   eot::mem::store<uint16_t>(state + 4, pad.buttons);
   eot::mem::store<uint8_t>(state + 6, pad.left_trigger);
   eot::mem::store<uint8_t>(state + 7, pad.right_trigger);
@@ -235,51 +558,6 @@ REXCVAR_DEFINE_STRING(eot_key_pause, "Escape", EOT_KEYS, "Pause key (Start)");
 REXCVAR_DEFINE_STRING(eot_key_dpad_down, "C", EOT_KEYS, "D-pad down key");
 REXCVAR_DEFINE_STRING(eot_key_dpad_left, "", EOT_KEYS, "D-pad left key");
 REXCVAR_DEFINE_STRING(eot_key_dpad_right, "", EOT_KEYS, "D-pad right key");
-
-namespace eot::goliath {
-
-namespace {
-
-constexpr uint16_t Buttons(int mask) { return static_cast<uint16_t>(mask); }
-
-rex::input::mnk::KeyboardAction Button(const char *name, const char *cvar, int mask) {
-  rex::input::mnk::KeyboardAction a;
-  a.name = name;
-  a.cvar = cvar;
-  a.buttons = Buttons(mask);
-  return a;
-}
-
-rex::input::mnk::KeyboardAction Trigger(const char *name, const char *cvar, bool left) {
-  rex::input::mnk::KeyboardAction a;
-  a.name = name;
-  a.cvar = cvar;
-  (left ? a.left_trigger : a.right_trigger) = 0xFF;
-  return a;
-}
-
-rex::input::mnk::KeyboardAction On(const eot::controller::PadAction &action) {
-  using eot::controller::PadInput;
-  const PadInput physical = eot::controller::PhysicalFor(action);
-  if (physical == PadInput::LT || physical == PadInput::RT)
-    return Trigger(action.id, action.key_cvar, physical == PadInput::LT);
-  return Button(action.id, action.key_cvar, eot::controller::PadInputBit(physical));
-}
-
-}
-
-void InstallPcControls() {
-  using namespace rex::input;
-  std::vector<rex::input::mnk::KeyboardAction> actions;
-  for (const eot::controller::PadAction &action : eot::controller::kPadActions)
-    actions.push_back(On(action));
-  actions.push_back(Button("dpad_down", "eot_key_dpad_down", X_INPUT_GAMEPAD_DPAD_DOWN));
-  actions.push_back(Button("dpad_left", "eot_key_dpad_left", X_INPUT_GAMEPAD_DPAD_LEFT));
-  actions.push_back(Button("dpad_right", "eot_key_dpad_right", X_INPUT_GAMEPAD_DPAD_RIGHT));
-  rex::input::mnk::SetActions(std::move(actions));
-}
-
-}
 
 namespace eot::controller {
 
@@ -342,15 +620,56 @@ const char *ToString(PadBrand brand) {
   }
 }
 
+namespace {
+
+// The first player's pad, as the SDK's slot assignment hands it out.
+class TrackedAssignment final : public rex::input::DeviceAssignment {
+public:
+  void OnDevicesChanged(const std::vector<rex::input::DeviceInfo> &devices) override {
+    inner_.OnDevicesChanged(devices);
+    std::vector<rex::input::DeviceId> ids;
+    inner_.DevicesForUser(0, ids);
+    const rex::input::DeviceInfo *pad = nullptr;
+    for (const rex::input::DeviceId id : ids) {
+      for (const rex::input::DeviceInfo &d : devices)
+        if (d.id == id && !d.synthetic)
+          pad = &d;
+      if (pad)
+        break;
+    }
+    g_has_pad.store(pad != nullptr, std::memory_order_release);
+    if (!pad) {
+      EOT_INFO("[pad] no controller for the first player");
+      return;
+    }
+    const PadBrand brand = BrandOf(*pad);
+    g_pad_brand.store(brand, std::memory_order_release);
+    EOT_INFO("[pad] the first player's controller: {} ({})", pad->name, ToString(brand));
+  }
+
+  void DevicesForUser(uint32_t user_index, std::vector<rex::input::DeviceId> &out) const override {
+    inner_.DevicesForUser(user_index, out);
+  }
+
+private:
+  rex::input::SlotAssignment inner_;
+};
+
+}
+
 PadBrand ActivePad() {
-  rex::Runtime *runtime = rex::Runtime::instance();
-  if (!runtime || !runtime->input_system())
-    return PadBrand::Unknown;
-  auto *input = static_cast<rex::input::InputSystem *>(runtime->input_system());
-  rex::input::DeviceInfo info;
-  if (!input->ActiveDevice(0, &info))
-    return PadBrand::Unknown;
-  return BrandOf(info);
+  const bool keyboard = MnkMode();
+  if (!g_has_pad.load(std::memory_order_acquire))
+    return keyboard ? PadBrand::Keyboard : PadBrand::Unknown;
+  if (keyboard && g_keys.LastUsed() > g_pad_used.load(std::memory_order_acquire))
+    return PadBrand::Keyboard;
+  return g_pad_brand.load(std::memory_order_acquire);
+}
+
+void AttachKeyboard(rex::ui::Window *window) { g_keys.Attach(window); }
+
+std::unique_ptr<rex::input::DeviceAssignment> MakeTrackedAssignment() {
+  return std::make_unique<TrackedAssignment>();
 }
 
 }

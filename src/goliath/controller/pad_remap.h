@@ -1,8 +1,17 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 
 #include "goliath/controller/pad_actions.h"
+
+namespace rex::ui {
+class Window;
+}
+
+namespace rex::input {
+class DeviceAssignment;
+}
 
 namespace eot::controller {
 
@@ -17,12 +26,6 @@ struct RawPad {
   int16_t thumb_lx, thumb_ly, thumb_rx, thumb_ry;
 };
 void RemapPad(RawPad &pad);
-
-}
-
-namespace eot::goliath {
-
-void InstallPcControls();
 
 }
 
@@ -41,5 +44,9 @@ enum class PadBrand {
 const char *ToString(PadBrand brand);
 
 PadBrand ActivePad();
+
+void AttachKeyboard(rex::ui::Window *window);
+
+std::unique_ptr<rex::input::DeviceAssignment> MakeTrackedAssignment();
 
 }

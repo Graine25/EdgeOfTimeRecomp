@@ -14,6 +14,10 @@ void MouseCursorTick(bool overlay_wants_pointer);
 
 void NoteMenuBarShown();
 
+void MouseGrabForDebug(bool on);
+
+void MouseTakeForDebug(float *dx, float *dy, int *wheel);
+
 }
 
 extern "C" {

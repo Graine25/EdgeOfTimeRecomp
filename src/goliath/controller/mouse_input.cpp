@@ -1,5 +1,6 @@
 #include "goliath/controller/mouse_input.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -43,12 +44,44 @@ public:
 
   void Take(float *dx, float *dy) {
     std::lock_guard<std::mutex> lock(mutex_);
-    const bool live = focused_ && fullscreen_.load(std::memory_order_relaxed) && !cursor_shown_;
+    const bool live = focused_ && !grab_.load(std::memory_order_relaxed) &&
+                      fullscreen_.load(std::memory_order_relaxed) && !cursor_shown_;
     if (dx)
       *dx = live ? dx_ : 0.0f;
     if (dy)
       *dy = live ? dy_ : 0.0f;
+    if (!grab_.load(std::memory_order_relaxed))
+      dx_ = dy_ = 0.0f;
+  }
+
+  void TakeForDebug(float *dx, float *dy, int *wheel) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const bool live = focused_ && grab_.load(std::memory_order_relaxed) && !cursor_shown_;
+    if (dx)
+      *dx = live ? dx_ : 0.0f;
+    if (dy)
+      *dy = live ? dy_ : 0.0f;
+    if (wheel)
+      *wheel = live ? wheel_ : 0;
     dx_ = dy_ = 0.0f;
+    wheel_ = 0;
+  }
+
+  void SetGrab(bool on) {
+    if (grab_.exchange(on, std::memory_order_acq_rel) == on)
+      return;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      dx_ = dy_ = 0.0f;
+      wheel_ = 0;
+      cursor_shown_ = false;
+    }
+    rex::input::mnk::SetMouseLookActive(on || fullscreen_.load(std::memory_order_relaxed));
+    if (window_)
+      window_->SetCursorVisibility(on || fullscreen_.load(std::memory_order_relaxed)
+                                       ? rex::ui::Window::CursorVisibility::kHidden
+                                       : rex::ui::Window::CursorVisibility::kVisible);
+    EOT_INFO("[input] the free camera {} the mouse", on ? "takes" : "hands back");
   }
 
   void ApplyPolicy(bool fullscreen) {
@@ -67,8 +100,24 @@ public:
   }
 
   void Tick(bool overlay_wants_pointer) {
-    if (!window_ || !fullscreen_.load(std::memory_order_relaxed))
+    const bool grab = grab_.load(std::memory_order_relaxed);
+    if (!window_ || (!grab && !fullscreen_.load(std::memory_order_relaxed)))
       return;
+    if (grab) {
+      bool changed = false;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        changed = overlay_wants_pointer != cursor_shown_;
+        cursor_shown_ = overlay_wants_pointer;
+      }
+      if (changed)
+        rex::input::mnk::SetMouseLookActive(!overlay_wants_pointer);
+      const auto want = overlay_wants_pointer ? rex::ui::Window::CursorVisibility::kVisible
+                                              : rex::ui::Window::CursorVisibility::kHidden;
+      if (changed || window_->GetCursorVisibility() != want)
+        window_->SetCursorVisibility(want);
+      return;
+    }
     const auto now = clock::now();
     const bool menu = now.time_since_epoch().count() - g_menu_bar_ns.load(std::memory_order_acquire) <=
                       std::chrono::duration_cast<clock::duration>(kMenuBarFresh).count();
@@ -97,6 +146,16 @@ public:
         want ? rex::ui::Window::CursorVisibility::kVisible : rex::ui::Window::CursorVisibility::kHidden;
     if (changed || (want && window_->GetCursorVisibility() != visibility))
       window_->SetCursorVisibility(visibility);
+  }
+
+  void OnMouseWheel(rex::ui::MouseEvent &e) override {
+    if (!grab_.load(std::memory_order_relaxed))
+      return;
+    const int notches = e.scroll_y() / static_cast<int>(rex::ui::MouseEvent::kScrollPerDetent);
+    if (!notches)
+      return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    wheel_ = std::clamp(wheel_ + notches, -8, 8);
   }
 
   void OnMouseMove(rex::ui::MouseEvent &e) override {
@@ -152,6 +211,8 @@ private:
   bool have_position_ = false;
   bool focused_ = true;
   bool cursor_shown_ = false;
+  int wheel_ = 0;
+  std::atomic<bool> grab_{false};
   float meant_motion_ = 0.0f;
   clock::time_point last_motion_{};
 };
@@ -174,6 +235,10 @@ void AttachMouseInput(rex::ui::Window *window) {
 }
 
 void MouseCursorTick(bool overlay_wants_pointer) { g_mouse.Tick(overlay_wants_pointer); }
+
+void MouseGrabForDebug(bool on) { g_mouse.SetGrab(on); }
+
+void MouseTakeForDebug(float *dx, float *dy, int *wheel) { g_mouse.TakeForDebug(dx, dy, wheel); }
 
 void NoteMenuBarShown() {
   g_menu_bar_ns.store(clock::now().time_since_epoch().count(), std::memory_order_release);

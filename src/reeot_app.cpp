@@ -16,6 +16,7 @@
 #include <imgui_internal.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
+#include <rex/input/input_system.h>
 #include <rex/perf/counter.h>
 #include <rex/runtime.h>
 #include <rex/ui/keybinds.h>
@@ -41,6 +42,7 @@
 #include "goliath/controller/menu_keys.h"
 #include "goliath/controller/mouse_input.h"
 #include "goliath/controller/pad_remap.h"
+#include "goliath/debug/freecam.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/overlays/fps.h"
 #include "ui/watermark.h"
@@ -160,9 +162,21 @@ bool SetCvarDefault(std::string_view name, const std::string &value) {
   return false;
 }
 
+// Buttons come from the eot_key_* binds (pad_remap.cpp); the SDK's mnk keeps the mouse.
+constexpr const char *kSdkButtonBinds[] = {
+    "keybind_a",          "keybind_b",          "keybind_x",
+    "keybind_y",          "keybind_left_trigger", "keybind_right_trigger",
+    "keybind_left_shoulder", "keybind_right_shoulder", "keybind_lstick_press",
+    "keybind_rstick_press", "keybind_dpad_up",    "keybind_dpad_down",
+    "keybind_dpad_left",  "keybind_dpad_right", "keybind_back",
+    "keybind_start",      "keybind_guide",
+};
+
 void ApplyReeotCvarDefaults() {
   SetCvarDefault("mnk_mode", "true");
   SetCvarDefault("mnk_mouse", "true");
+  for (const char *bind : kSdkButtonBinds)
+    SetCvarDefault(bind, "");
   SetCvarDefault("hid_mappings_file",
                  (rex::filesystem::GetExecutableFolder() / "gamecontrollerdb.txt").generic_string());
   SetCvarDefault("log_flush_interval", "1");
@@ -593,7 +607,12 @@ std::unique_ptr<rex::ui::AchievementNotificationDialog> ReeotApp::CreateAchievem
 }
 
 void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
-  eot::goliath::InstallPcControls();
+  config.input_factory = [](bool tool_mode) -> std::unique_ptr<rex::system::IInputSystem> {
+    auto input = rex::input::CreateDefaultInputSystem(tool_mode);
+    if (input)
+      input->SetDeviceAssignment(eot::controller::MakeTrackedAssignment());
+    return input;
+  };
   ApplyBackgroundInput(REXCVAR_GET(eot_background_input));
   rex::cvar::RegisterChangeCallback("eot_background_input", [](std::string_view, std::string_view value) {
     ApplyBackgroundInput(value == "true" || value == "1");
@@ -601,6 +620,11 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
 
   SetCvarValue("eot_debug_pause", "false");
   SetCvarValue("eot_freecam", "false");
+  SetCvarValue("eot_debug_script", "");
+  rex::cvar::RegisterChangeCallback("eot_debug_script",
+                                    [](std::string_view, std::string_view value) {
+                                      eot::debug::InputScriptSet(value);
+                                    });
   if (eot::gpu::Settings::Profiler()) {
 #if defined(EOT_PROFILING)
     rex::perf::Profiler::Startup();
@@ -625,6 +649,7 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   EOT_INFO("[window] {}x{}, {}", window()->GetActualPhysicalWidth(), window()->GetActualPhysicalHeight(),
            window()->IsFullscreen() ? "fullscreen" : "windowed");
   eot::controller::AttachMouseInput(window());
+  eot::controller::AttachKeyboard(window());
   eot::controller::AttachBindCapture(window());
   eot::controller::AttachMenuKeys(window());
   drawer->AddDialog(new FpsOverlayDialog(drawer));
@@ -644,6 +669,20 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
   rex::ui::RegisterBind("bind_freecam", "F5", "Debug mode: fly the camera", debug_toggle("eot_freecam"));
   rex::ui::RegisterBind("bind_scene_pause", "F6", "Debug mode: freeze the scene",
                         debug_toggle("eot_debug_pause"));
+  rex::ui::RegisterBind("bind_scene_step", "F9", "Debug mode: step one frame", [] {
+    if (!eot::controller::DebugModeActive())
+      return;
+    if (!eot::debug::ScenePauseActive()) {
+      EOT_INFO("[debug] nothing to step: the scene is not frozen (F6)");
+      return;
+    }
+    eot::debug::ScenePauseStep();
+  });
+  rex::ui::RegisterBind("bind_input_script", "F10", "Debug mode: replay the input script", [] {
+    if (!eot::controller::DebugModeActive())
+      return;
+    eot::debug::InputScriptReplay();
+  });
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
 

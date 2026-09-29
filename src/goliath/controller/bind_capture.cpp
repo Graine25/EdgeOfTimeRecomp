@@ -8,6 +8,7 @@
 #include <mutex>
 #include <string>
 
+#include <rex/cvar.h>
 #include <rex/ui/keybinds.h>
 #include <rex/ui/ui_event.h>
 #include <rex/ui/virtual_key.h>
@@ -42,6 +43,15 @@ struct Capture {
 };
 Capture g_capture;
 
+constexpr const char *kDevOverlayBinds[] = {"bind_debug_overlay", "bind_settings", "bind_achievements"};
+
+bool IsDevOverlayKey(rex::ui::VirtualKey vk) {
+  for (const char *bind : kDevOverlayBinds)
+    if (rex::ui::ParseVirtualKey(rex::cvar::GetFlagByName(bind)) == vk)
+      return true;
+  return false;
+}
+
 bool IsCtrl(rex::ui::VirtualKey vk) {
   return vk == rex::ui::VirtualKey::kControl || vk == rex::ui::VirtualKey::kLControl ||
          vk == rex::ui::VirtualKey::kRControl;
@@ -71,6 +81,8 @@ public:
     if (!g_capture.kinds) {
       if (IsCtrl(vk) && !e.prev_state())
         g_capture.ctrl_edge = true;
+      if (!DebugModeActive() && IsDevOverlayKey(vk))
+        e.set_handled(true);
       return;
     }
     if (e.prev_state())
