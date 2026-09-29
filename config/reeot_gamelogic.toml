@@ -2294,6 +2294,10 @@ out_directory_path = "generated/gamelogic"
 0x88296DD8 = { name = "eot_TextPopup_SetBody", size = 0xF8 }
 0x883114E8 = { name = "eot_SM2099_Activate", size = 0x530 }
 0x881A9618 = { name = "eot_SM2099HealthFX_HandleMessage", size = 0x62C }
+0x880FB680 = { name = "eot_BaseAI_SetNextState" }
+0x880F9420 = { name = "eot_BaseAI_PlayAnimSet" }
+0x880FA308 = { name = "eot_BaseAI_ActivateAttackCol" }
+0x88385FF8 = { name = "eot_BaseAntiVenom_EnableChargeColPrim" }
 
 [[midasm_hook]]
 address = 0x882314D4
