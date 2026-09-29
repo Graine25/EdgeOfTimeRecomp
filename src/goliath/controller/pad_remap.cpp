@@ -27,7 +27,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/bind_capture.h"
-#include "goliath/controller/menu_keys.h"
+#include "goliath/controller/mouse_input.h"
 #include "goliath/debug/freecam.h"
 
 REX_EXTERN(__imp__eot_XInputGetState);
