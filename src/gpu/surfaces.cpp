@@ -111,7 +111,7 @@ bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u3
   desc.flags = surf.isDepth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
   desc.multisampling.sampleCount = static_cast<plume::RenderSampleCounts>(host.sampleCount);
-  desc.committed = false;
+  desc.committed = u64(desc.width) * desc.height >= 256ull * 256ull;
   plume::RenderClearValue clear;
   if (!surf.isDepth) {
     clear = plume::RenderClearValue::Color(plume::RenderColor(0, 0, 0, 0), host.format);
@@ -156,6 +156,7 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   surf.uid = next_uid++;
   surf.serial++;
   surf.wholeClearSerial = surf.serial;
+  surf.lastUseFrame = s.guest_frames;
   return CreateSurfaceImage(s, surf, surf.host, HostSampleCountFor(s, surf),
                             surf.isDepth ? "surface-ds" : "surface-rt");
 }
@@ -247,6 +248,7 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
   if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
       std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
     lookup.surf->va = surface_va;
+    lookup.surf->lastUseFrame = s.guest_frames;
     return lookup.surf;
   }
   GuestSurface decoded;
@@ -276,6 +278,7 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
     slot->width = decoded.width;
     slot->height = decoded.height;
     slot->colorExpBias = decoded.colorExpBias;
+    slot->lastUseFrame = s.guest_frames;
     return remember(slot.get());
   }
   if (slot) {
@@ -568,7 +571,7 @@ void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf) {
       return;
   }
   std::shared_ptr<GuestTexture> m = p.mirror.lock();
-  if (!m || !m->host.valid() || m->host.texture.get() != p.texture || !m->host.isDepth ||
+  if (!m || m->aliasPending || !m->host.valid() || m->host.texture.get() != p.texture || !m->host.isDepth ||
       !m->host.renderable || m->host.format != surf.host.format || m->host.sampleCount != 1 ||
       m->host.mipLevels != 1 || m->host.arraySize != 1 || p.x < 0 || p.y < 0 ||
       p.x + surf.host.width > m->host.width || p.y + surf.host.height > m->host.height)
@@ -652,6 +655,53 @@ void TextureReleaseBorrower(VideoState &s, GuestTexture &t) {
   if (surf->content == GuestSurface::Content::Borrowed && surf->borrowed.lock().get() == &t)
     SurfaceTakeBack(s, *surf);
   t.borrower = nullptr;
+}
+
+void FlushAliasDependents(VideoState &s, GuestTexture &src) {
+  std::vector<std::weak_ptr<GuestTexture>> dependents;
+  dependents.swap(src.aliasDependents);
+  for (const std::weak_ptr<GuestTexture> &weak : dependents) {
+    std::shared_ptr<GuestTexture> d = weak.lock();
+    if (d && d->aliasPending && d->aliasSource.lock().get() == &src)
+      FlushAliasCopy(s, *d);
+  }
+}
+
+bool FlushAliasCopy(VideoState &s, GuestTexture &t) {
+  if (!t.aliasPending)
+    return true;
+  t.aliasPending = false;
+  std::shared_ptr<GuestTexture> src = t.aliasSource.lock();
+  t.aliasSource.reset();
+  if (!src || !src->host.valid() || src->host.texture.get() != t.aliasSourceImage || !t.host.valid() ||
+      src->host.format != t.host.format || src->host.isDepth != t.host.isDepth ||
+      src->host.width < t.host.width || src->host.height < t.host.height || !s.command_list_open) {
+    u32 n;
+    if (DiagShouldLog(0x7700 ^ t.va, &n))
+      EOT_DEBUG("[resolve] {:#x}: the alias source's image went before the alias was sampled", t.va);
+    return false;
+  }
+  GpuTimingMark(s, s.command_list, t.host.isDepth ? kGpuCatResolveDepth : kGpuCatResolve);
+  s.perf.alias_copies++;
+  const bool same_size = src->host.width == t.host.width && src->host.height == t.host.height;
+  if (t.host.isDepth && !same_size) {
+    const float rect[4] = {0.0f, 0.0f, static_cast<float>(t.host.width) / static_cast<float>(src->host.width),
+                           static_cast<float>(t.host.height) / static_cast<float>(src->host.height)};
+    return HelperBlit(s, src->host, t.host, GetDepthCopyPipeline(s, t.host.format), 0, rect);
+  }
+  const HostTextureTransition transitions[] = {{&src->host, plume::RenderTextureLayout::COPY_SOURCE},
+                                               {&t.host, plume::RenderTextureLayout::COPY_DEST}};
+  TransitionManyLocked(s, transitions, 2);
+  const plume::RenderBox box(0, 0, static_cast<i32>(t.host.width), static_cast<i32>(t.host.height));
+  s.command_list->copyTextureRegion(plume::RenderTextureCopyLocation::Subresource(t.host.texture.get(), 0, 0),
+                                    plume::RenderTextureCopyLocation::Subresource(src->host.texture.get(), 0, 0),
+                                    0, 0, 0, same_size ? nullptr : &box);
+  t.host.needsClear = false;
+  if (t.storeSwapRB != src->storeSwapRB) {
+    t.storeSwapRB = src->storeSwapRB;
+    t.bindingGeneration++;
+  }
+  return true;
 }
 
 HostTexture *SurfaceImageForDraw(VideoState &s, GuestSurface &surf, u32 samples,
@@ -830,6 +880,47 @@ void DestroySurfaceImages(VideoState &s, GuestSurface &surf) {
   surf.imagesAgree = true;
   surf.resolvedSinceDraw = false;
   surf.content = GuestSurface::Content::Undefined;
+}
+
+static bool IsTextureCameraSurface(const GuestSurface &surf) {
+  if (surf.isDepth && surf.width == 1024 && surf.height == 1024)
+    return false;
+  if (surf.width <= 256 || surf.height <= 256)
+    return false;
+  for (u32 k = 0; k < 4; ++k)
+    if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
+      return false;
+  return true;
+}
+
+constexpr f64 kTextureCameraIdleSeconds = 1.0;
+
+void RetireIdleSurfaces(VideoState &s) {
+  static u64 next_sweep = 0;
+  if (s.guest_frames < next_sweep)
+    return;
+  next_sweep = s.guest_frames + 16;
+  u32 retired = 0;
+  u64 bytes = 0;
+  for (auto it = s.surfaces.begin(); it != s.surfaces.end();) {
+    GuestSurface *surf = it->second.get();
+    if (!surf || !IsTextureCameraSurface(*surf) ||
+        FrameAgeSeconds(s, surf->lastUseFrame) < kTextureCameraIdleSeconds) {
+      ++it;
+      continue;
+    }
+    for (const HostTexture *image : {&surf->host, &surf->single})
+      if (image->valid())
+        bytes += u64(image->width) * image->height * image->sampleCount;
+    DestroySurfaceImages(s, *surf);
+    it = s.surfaces.erase(it);
+    ++retired;
+  }
+  if (!retired)
+    return;
+  s.surface_generation++;
+  EOT_DEBUG("[surfaces] retired {} idle texture-camera surface(s) (~{} Mpx of targets)", retired,
+            bytes / 1000000);
 }
 
 }

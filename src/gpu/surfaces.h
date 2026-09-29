@@ -41,11 +41,17 @@ inline bool SurfaceIsMultisampled(const GuestSurface &surf) { return surf.host.s
 
 void DestroySurfaceImages(VideoState &s, GuestSurface &surf);
 
+void RetireIdleSurfaces(VideoState &s);
+
 void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src,
                              GuestTexture &target, const std::shared_ptr<GuestTexture> &target_ref);
 bool SurfaceTakeBack(VideoState &s, GuestSurface &surf);
 void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf);
 bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf);
 void TextureReleaseBorrower(VideoState &s, GuestTexture &t);
+
+bool FlushAliasCopy(VideoState &s, GuestTexture &t);
+
+void FlushAliasDependents(VideoState &s, GuestTexture &src);
 
 }

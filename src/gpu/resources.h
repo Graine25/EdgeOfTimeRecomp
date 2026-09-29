@@ -93,6 +93,10 @@ struct GuestTexture {
   bool storeSwapRB = false;
   u64 contentSerial = 0;
   GuestSurface *borrower = nullptr;
+  std::weak_ptr<GuestTexture> aliasSource;
+  const plume::RenderTexture *aliasSourceImage = nullptr;
+  bool aliasPending = false;
+  std::vector<std::weak_ptr<GuestTexture>> aliasDependents;
   u64 resolvedSurfaceUid = 0;
   u64 resolvedSurfaceSerial = 0;
   u64 resolvedOwnSerial = 0;

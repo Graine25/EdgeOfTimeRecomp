@@ -1,5 +1,6 @@
 #include "gpu/device.h"
 #include "gpu/gpu_profiling.h"
+#include "gpu/memory_report.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/pipeline/pso_precache.h"
 
@@ -620,6 +621,7 @@ CreateHostBuffer(plume::RenderDevice *device, const plume::RenderBufferDesc &des
     ReportCreationFailure(device);
     return nullptr;
   }
+  TagHostAllocation(buffer.get(), tag);
   return buffer;
 }
 
@@ -654,6 +656,7 @@ CreateHostTexture(plume::RenderDevice *device, const plume::RenderTextureDesc &d
     ReportCreationFailure(device);
     return nullptr;
   }
+  TagHostAllocation(texture.get(), tag, desc);
   return texture;
 }
 
