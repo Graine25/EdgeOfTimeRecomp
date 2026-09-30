@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include <rex/types.h>
 #include "gpu/resources.h"
 
@@ -7,6 +9,7 @@ namespace eot::gpu {
 
 struct VideoState;
 struct GuestTexture;
+struct HostTexture;
 
 namespace taa {
 
@@ -27,6 +30,8 @@ void EndFrame(VideoState &s);
 
 void Reset(VideoState &s);
 void Shutdown(VideoState &s);
+
+void ForEachImage(const std::function<void(const HostTexture &)> &fn);
 
 }
 }
@@ -66,6 +71,9 @@ HostTexture *ResolvedImage(VideoState &s, const VelocityHandle &h, u64 frame);
 
 void EndFrame(VideoState &s);
 void Shutdown(VideoState &s);
+
+void ForEachImage(const std::function<void(const HostTexture &)> &fn);
+u64 HistoryArenaBytes(u32 *chunks = nullptr);
 
 }
 }

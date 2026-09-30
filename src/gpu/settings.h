@@ -49,6 +49,8 @@ struct Settings {
   static bool DynamicDepthBias();
   static bool Profiler();
   static i32 PerfFrames();
+  static i32 VramReportSeconds();
+  static bool VramCsv();
   static i32 DumpEvery();
   static i32 DumpBurst();
   static i32 DiagFrame();

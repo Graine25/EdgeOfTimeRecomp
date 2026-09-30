@@ -188,6 +188,7 @@ constexpr u32 kMaxPendingTransitions = 24;
 struct VideoState {
   std::unique_ptr<plume::RenderInterface> render_iface;
   std::unique_ptr<plume::RenderDevice> device;
+  std::unique_ptr<plume::RenderPool> transient_mirror_pool;
   std::unique_ptr<plume::RenderCommandQueue> queue;
   std::unique_ptr<plume::RenderCommandList> command_lists[kNumFrames];
   std::unique_ptr<plume::RenderCommandFence> fences[kNumFrames];
@@ -319,8 +320,10 @@ struct VideoState {
   struct PooledHostTexture {
     HostTexture host;
     u64 freedFrame = 0;
+    u64 bytes = 0;
   };
   std::vector<PooledHostTexture> host_texture_pool;
+  u64 host_texture_pool_bytes = 0;
   const plume::RenderFramebuffer *bound_framebuffer = nullptr;
   const plume::RenderPipeline *bound_pipeline = nullptr;
   struct BoundVertexStream {
@@ -397,7 +400,8 @@ std::unique_ptr<plume::RenderBuffer> CreateHostBuffer(plume::RenderDevice *devic
                                                       const char *tag);
 std::unique_ptr<plume::RenderTexture> CreateHostTexture(plume::RenderDevice *device,
                                                         const plume::RenderTextureDesc &desc,
-                                                        const char *tag);
+                                                        const char *tag,
+                                                        plume::RenderPool *pool = nullptr);
 std::unique_ptr<plume::RenderPipeline>
 CreateHostGraphicsPipeline(plume::RenderDevice *device,
                            const plume::RenderGraphicsPipelineDesc &desc, const char *tag);
@@ -424,7 +428,8 @@ void ParkFramebuffer(VideoState &s, std::unique_ptr<plume::RenderFramebuffer> f)
 void ParkBuffer(VideoState &s, std::unique_ptr<plume::RenderBuffer> b);
 void PresentLocked(VideoState &s, u32 front_buffer_texture_va);
 bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
-                                const plume::RenderTextureDesc &desc, const char *tag);
+                                const plume::RenderTextureDesc &desc, const char *tag,
+                                plume::RenderPool *pool = nullptr);
 void EvictHostTexturePool(VideoState &s);
 void EvictStaleGuestTextures(VideoState &s);
 

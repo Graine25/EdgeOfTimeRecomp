@@ -625,7 +625,7 @@ CreateHostBuffer(plume::RenderDevice *device, const plume::RenderBufferDesc &des
 
 std::unique_ptr<plume::RenderTexture>
 CreateHostTexture(plume::RenderDevice *device, const plume::RenderTextureDesc &desc,
-                  const char *tag) {
+                  const char *tag, plume::RenderPool *pool) {
   if (!device)
     return nullptr;
   EOT_CPU_ZONE_DYN(tag ? tag : "host texture");
@@ -638,7 +638,7 @@ CreateHostTexture(plume::RenderDevice *device, const plume::RenderTextureDesc &d
     else if (tag[0] == 'g')
       state().perf.host_tex_guest++;
   }
-  auto texture = device->createTexture(desc);
+  auto texture = pool ? pool->createTexture(desc) : device->createTexture(desc);
   if (!texture
 #if defined(EOT_D3D12)
       || static_cast<plume::D3D12Texture *>(texture.get())->d3d == nullptr
@@ -1152,6 +1152,19 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
     }
     s.host_msaa_samples = samples;
   }
+#if defined(EOT_D3D12)
+  if (auto *d3d_device = static_cast<plume::D3D12Device *>(s.device.get());
+      d3d_device->allocator &&
+      d3d_device->allocator->GetD3D12Options().ResourceHeapTier >= D3D12_RESOURCE_HEAP_TIER_2) {
+    plume::RenderPoolDesc pool_desc;
+    pool_desc.heapType = plume::RenderHeapType::DEFAULT;
+    auto pool = s.device->createPool(pool_desc);
+    if (pool && static_cast<plume::D3D12Pool *>(pool.get())->d3d)
+      s.transient_mirror_pool = std::move(pool);
+    else
+      EOT_WARN("[gpu] no allocator pool for the picture-in-picture mirrors; they share the heaps");
+  }
+#endif
   s.ready = true;
   RenderThreadStart();
   EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots, msaa {}x on the "

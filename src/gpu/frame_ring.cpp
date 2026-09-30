@@ -16,6 +16,7 @@
 #include "gpu/device.h"
 #include "gpu/draw.h"
 #include "gpu/gpu_timing.h"
+#include "gpu/memory_report.h"
 #include "gpu/format.h"
 
 namespace eot::gpu {
@@ -37,6 +38,16 @@ bool SameTextureShape(const HostTexture &pooled, const HostTexture &want,
 
 constexpr f64 kHostTexturePoolSeconds = 10.0;
 constexpr size_t kHostTexturePoolMax = 192;
+constexpr u64 kHostTexturePoolMaxBytes = 256ull << 20;
+
+void TrimHostTexturePool(VideoState &s) {
+  while (!s.host_texture_pool.empty() && s.host_texture_pool_bytes > kHostTexturePoolMaxBytes) {
+    auto &oldest = s.host_texture_pool.front();
+    s.host_texture_pool_bytes -= std::min(s.host_texture_pool_bytes, oldest.bytes);
+    DestroyHostTexture(s, oldest.host);
+    s.host_texture_pool.erase(s.host_texture_pool.begin());
+  }
+}
 
 }
 
@@ -131,10 +142,11 @@ void AdvanceAndWaitReused(VideoState &s) {
 }
 
 void ParkTexture(VideoState &s, std::unique_ptr<plume::RenderTexture> t) {
-  if (t)
-    s.perf.host_parked++;
-  if (t)
-    s.texture_graveyard[s.recording_slot()].push_back(std::move(t));
+  if (!t)
+    return;
+  s.perf.host_parked++;
+  NoteHostRelease(t.get());
+  s.texture_graveyard[s.recording_slot()].push_back(std::move(t));
 }
 
 void ParkView(VideoState &s, std::unique_ptr<plume::RenderTextureView> v) {
@@ -148,17 +160,24 @@ void ParkFramebuffer(VideoState &s, std::unique_ptr<plume::RenderFramebuffer> f)
 }
 
 void ParkBuffer(VideoState &s, std::unique_ptr<plume::RenderBuffer> b) {
-  if (b)
-    s.buffer_graveyard[s.recording_slot()].push_back(std::move(b));
+  if (!b)
+    return;
+  NoteHostRelease(b.get());
+  s.buffer_graveyard[s.recording_slot()].push_back(std::move(b));
 }
 
 void ParkHostTexture(VideoState &s, HostTexture &host) {
-  if (host.texture && s.host_texture_pool.size() < kHostTexturePoolMax) {
+  const u64 bytes = host.texture ? HostTextureBytes(host) : 0;
+  if (host.texture && s.host_texture_pool.size() < kHostTexturePoolMax &&
+      bytes <= kHostTexturePoolMaxBytes) {
     VideoState::PooledHostTexture entry;
     entry.host = std::move(host);
     entry.freedFrame = s.guest_frames;
+    entry.bytes = bytes;
     s.host_texture_pool.push_back(std::move(entry));
+    s.host_texture_pool_bytes += bytes;
     host = HostTexture{};
+    TrimHostTexturePool(s);
     return;
   }
   DestroyHostTexture(s, host);
@@ -188,21 +207,25 @@ void DestroyHostTexture(VideoState &s, HostTexture &host) {
   for (auto &v : host.mipViews)
     ParkView(s, std::move(v));
   host.mipViews.clear();
+  ParkView(s, std::move(host.depthView));
   ParkView(s, std::move(host.srv));
   ParkTexture(s, std::move(host.texture));
   host.layout = plume::RenderTextureLayout::UNKNOWN;
 }
 
 bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
-                                const plume::RenderTextureDesc &desc, const char *tag) {
+                                const plume::RenderTextureDesc &desc, const char *tag,
+                                plume::RenderPool *pool) {
   const bool renderable = (desc.flags & plume::RenderTextureFlag::RENDER_TARGET) ||
                           (desc.flags & plume::RenderTextureFlag::DEPTH_TARGET);
+  const bool transient = pool != nullptr;
   for (size_t i = 0; i < s.host_texture_pool.size(); ++i) {
     auto &entry = s.host_texture_pool[i];
-    if (entry.freedFrame + kNumFrames > s.guest_frames ||
+    if (entry.freedFrame + kNumFrames > s.guest_frames || entry.host.transientPool != transient ||
         !SameTextureShape(entry.host, host, desc))
       continue;
     HostTexture pooled = std::move(entry.host);
+    s.host_texture_pool_bytes -= std::min(s.host_texture_pool_bytes, entry.bytes);
     s.host_texture_pool.erase(s.host_texture_pool.begin() + i);
     host.texture = std::move(pooled.texture);
     host.desc = pooled.desc;
@@ -211,12 +234,18 @@ bool CreateOrRecycleHostTexture(VideoState &s, HostTexture &host,
     host.swizzledSrvs = std::move(pooled.swizzledSrvs);
     host.mipViews = std::move(pooled.mipViews);
     host.mipFramebuffers = std::move(pooled.mipFramebuffers);
+    host.depthView = std::move(pooled.depthView);
+    host.transientPool = pooled.transientPool;
     host.layout = pooled.layout;
     host.needsClear = renderable;
     s.perf.host_tex_recycled++;
+    RetagHostAllocation(host.texture.get(), tag, desc);
     return true;
   }
-  host.texture = CreateHostTexture(s.device.get(), desc, tag);
+  host.texture = CreateHostTexture(s.device.get(), desc, tag, pool);
+  host.transientPool = transient && host.texture != nullptr;
+  if (!host.texture && transient)
+    host.texture = CreateHostTexture(s.device.get(), desc, tag);
   host.desc = desc;
   host.desc.optimizedClearValue = nullptr;
   host.layout = plume::RenderTextureLayout::UNKNOWN;
@@ -228,11 +257,13 @@ void EvictHostTexturePool(VideoState &s) {
   size_t i = 0;
   while (i < s.host_texture_pool.size()) {
     const bool idle = FrameAgeSeconds(s, s.host_texture_pool[i].freedFrame) > kHostTexturePoolSeconds;
-    const bool over = s.host_texture_pool.size() > kHostTexturePoolMax;
+    const bool over = s.host_texture_pool.size() > kHostTexturePoolMax ||
+                      s.host_texture_pool_bytes > kHostTexturePoolMaxBytes;
     if (!idle && !over) {
       ++i;
       continue;
     }
+    s.host_texture_pool_bytes -= std::min(s.host_texture_pool_bytes, s.host_texture_pool[i].bytes);
     DestroyHostTexture(s, s.host_texture_pool[i].host);
     s.host_texture_pool.erase(s.host_texture_pool.begin() + i);
   }
@@ -413,6 +444,21 @@ bool UploadBytes(const void *src, u64 size, u64 alignment, UploadAlloc *out) {
 u64 UploadRingBytesThisFrame() {
   auto &s = state();
   return ring().frame_bytes[s.recording_slot()];
+}
+
+u64 UploadRingCapacityBytes(u32 *chunks) {
+  std::lock_guard lock(g_ring_mutex);
+  u64 bytes = 0;
+  u32 n = 0;
+  for (const auto &slot : ring().chunks) {
+    for (const Chunk &c : slot) {
+      bytes += c.capacity;
+      n++;
+    }
+  }
+  if (chunks)
+    *chunks = n;
+  return bytes;
 }
 
 }

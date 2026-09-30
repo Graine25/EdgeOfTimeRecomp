@@ -214,7 +214,7 @@ void PsoApplyTargetScale(PipelineState &s) {
   if (s.depthBias || s.slopeScaledDepthBias != 0.0f) {
     s.targetScale = follows ? FollowTargetScale(s) : s.targetScale;
     if (follows && s.rtCount == 0 && s.sampleCount <= 1 && !s.stencilEnable && IsDepthFormat(s.dsFormat))
-      s.dsFormat = DepthRenderTargetFormat();
+      s.dsFormat = ShadowDepthFormat();
   } else {
     s.targetScale = 1.0f;
   }

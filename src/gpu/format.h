@@ -13,6 +13,26 @@ inline plume::RenderFormat DepthRenderTargetFormat() {
   return plume::RenderFormat::D32_FLOAT_S8_UINT;
 }
 
+inline plume::RenderFormat ShadowDepthFormat() {
+#if defined(EOT_D3D12)
+  return plume::RenderFormat::D32_FLOAT;
+#else
+  return DepthRenderTargetFormat();
+#endif
+}
+
+inline bool FormatHasStencil(plume::RenderFormat format) {
+  return format == plume::RenderFormat::D32_FLOAT_S8_UINT;
+}
+
+inline plume::RenderFormat ImageResourceFormat(plume::RenderFormat format) {
+#if defined(EOT_D3D12)
+  if (format == plume::RenderFormat::D32_FLOAT)
+    return plume::RenderFormat::R32_TYPELESS;
+#endif
+  return format;
+}
+
 plume::RenderFormat SampledViewFormat(plume::RenderFormat format);
 
 inline bool IsDepthFormat(plume::RenderFormat format) {

@@ -32,6 +32,11 @@ u64 DrawSortKey(const DrawPacket &pk, u32 *depth_func = nullptr);
 
 void FlushPendingTransitions(VideoState &s);
 void FlushGeometryStaging(VideoState &s);
+struct GeometryCacheSizes {
+  u64 indexUpload = 0, indexVram = 0, vertexUpload = 0, vertexVram = 0;
+  u32 indexChunks = 0, vertexChunks = 0;
+};
+void GeometryCacheBytes(GeometryCacheSizes *out);
 void ClearGuestTargets(u32 device_va, u32 flags, u32 rect_va, u32 color_va, float z, u32 stencil);
 
 void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va,
