@@ -18,7 +18,7 @@ REX_EXTERN(__imp__eot_Camera3rd_ReadStick);
 REXCVAR_DEFINE_BOOL(eot_mouse_look, true, "EdgeOfTime/Input",
                     "Turn the camera by the mouse's motion directly (so many degrees a pixel, mnk_sensitivity "
                     "scaling it) instead of driving the right stick's turning speed with it.");
-REXCVAR_DEFINE_DOUBLE(eot_mouse_look_degrees, 0.03, "EdgeOfTime/Input",
+REXCVAR_DEFINE_DOUBLE(eot_mouse_look_degrees, 0.1, "EdgeOfTime/Input",
                       "Degrees of camera turn per count of mouse motion at sensitivity 1.");
 
 namespace {

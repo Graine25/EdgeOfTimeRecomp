@@ -44,14 +44,24 @@ public:
 
   void Take(float *dx, float *dy) {
     std::lock_guard<std::mutex> lock(mutex_);
-    const bool live = focused_ && !grab_.load(std::memory_order_relaxed) &&
-                      fullscreen_.load(std::memory_order_relaxed) && !cursor_shown_;
+    const bool grab = grab_.load(std::memory_order_relaxed);
+    const bool live = focused_ && !grab && fullscreen_.load(std::memory_order_relaxed) &&
+                      !cursor_shown_;
+    const float turn = (focused_ && !grab) ? turn_ : 0.0f;
     if (dx)
-      *dx = live ? dx_ : 0.0f;
+      *dx = (live ? dx_ : 0.0f) + turn;
     if (dy)
       *dy = live ? dy_ : 0.0f;
-    if (!grab_.load(std::memory_order_relaxed))
+    turn_ = 0.0f;
+    if (!grab)
       dx_ = dy_ = 0.0f;
+  }
+
+  void AddTurn(float counts) {
+    if (grab_.load(std::memory_order_relaxed))
+      return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    turn_ += counts;
   }
 
   void TakeForDebug(float *dx, float *dy, int *wheel) {
@@ -211,6 +221,7 @@ private:
   bool have_position_ = false;
   bool focused_ = true;
   bool cursor_shown_ = false;
+  float turn_ = 0.0f;
   int wheel_ = 0;
   std::atomic<bool> grab_{false};
   float meant_motion_ = 0.0f;
@@ -239,6 +250,8 @@ void MouseCursorTick(bool overlay_wants_pointer) { g_mouse.Tick(overlay_wants_po
 void MouseGrabForDebug(bool on) { g_mouse.SetGrab(on); }
 
 void MouseTakeForDebug(float *dx, float *dy, int *wheel) { g_mouse.TakeForDebug(dx, dy, wheel); }
+
+void MouseAddTurn(float counts) { g_mouse.AddTurn(counts); }
 
 void NoteMenuBarShown() {
   g_menu_bar_ns.store(clock::now().time_since_epoch().count(), std::memory_order_release);
