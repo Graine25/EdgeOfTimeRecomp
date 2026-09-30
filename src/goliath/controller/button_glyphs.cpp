@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cctype>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,6 +27,7 @@ namespace eot::controller {
 namespace {
 
 constexpr uint32_t kTagCount = 0x824A18FC;
+constexpr uint32_t kTagNames = 0x824A1900;
 constexpr uint32_t kTagText = 0x824A5900;
 constexpr uint32_t kTagStride = 256;
 constexpr uint32_t kTagPromptTable = 0x883C9BC8;
@@ -85,6 +87,7 @@ constexpr KeySlot kKeySlots[] = {
     {0x1B, "keybind_lstick_down", nullptr, 0x00},   {0x1E, "eot_key_spider_sense", nullptr, 0xFF},
     {kLeftClickCapSlot, "eot_key_left_stick_click", nullptr, 0x00, false},
     {kRightClickCapSlot, "eot_key_right_stick_click", nullptr, 0x00, false},
+    {kTimeParadoxCapSlot, "eot_key_time_paradox", nullptr, 0x00, false},
     {kMoveKeyCapSlots[0], kMoveKeyCvars[0], nullptr, 0x00, false},
     {kMoveKeyCapSlots[1], kMoveKeyCvars[1], nullptr, 0x00, false},
     {kMoveKeyCapSlots[2], kMoveKeyCvars[2], nullptr, 0x00, false},
@@ -308,10 +311,33 @@ bool InstallInto(const PPCContext &ctx, uint8_t *base, const Font &font, const s
   return ok;
 }
 
+constexpr const char *kStickClickTag = "TIMEPARADOX";
+struct ClickCap {
+  uint8_t stick;
+  uint8_t cap;
+};
+constexpr ClickCap kStickClickCaps[] = {
+    {0x07, kLeftClickCapSlot},
+    {0x06, kRightClickCapSlot},
+};
+
+bool TagIs(uint32_t index, const char *name) {
+  for (uint32_t k = 0; k < kTagChars; ++k) {
+    const uint16_t c = eot::mem::load<uint16_t>(kTagNames + index * kTagStride + k * 2);
+    const unsigned char want = static_cast<unsigned char>(name[k]);
+    if (!want)
+      return c == 0;
+    if (c > 0x7F || std::toupper(static_cast<int>(c)) != std::toupper(static_cast<int>(want)))
+      return false;
+  }
+  return false;
+}
+
 void ApplyPage(uint32_t page) {
   const uint32_t count = eot::mem::load<uint32_t>(kTagCount);
   for (uint32_t i = 0; i < count && i < kMaxTags; ++i) {
     const uint32_t text = kTagText + i * kTagStride;
+    const bool clicks = TagIs(i, kStickClickTag);
     for (uint32_t k = 0; k < kTagChars; ++k) {
       const uint16_t c = eot::mem::load<uint16_t>(text + k * 2);
       if (!c)
@@ -319,10 +345,20 @@ void ApplyPage(uint32_t page) {
       const uint32_t high = c >> 8;
       if (high != kRetailPage && (high < kFirstPage || high > kKeyboardPage))
         continue;
-      const uint32_t slot = c & 0xFF;
+      uint32_t slot = c & 0xFF;
+      if (clicks)
+        for (const ClickCap &cap : kStickClickCaps)
+          if (slot == cap.cap)
+            slot = cap.stick;
+      uint32_t want = slot;
+      if (clicks && page == kKeyboardPage)
+        for (const ClickCap &cap : kStickClickCaps)
+          if (slot == cap.stick)
+            want = cap.cap;
       const uint32_t to =
-          (page != kRetailPage && slot < kSlotCount && (g_have[page] & (1ull << slot))) ? page : kRetailPage;
-      eot::mem::store<uint16_t>(text + k * 2, static_cast<uint16_t>((to << 8) | slot));
+          (page != kRetailPage && want < kSlotCount && (g_have[page] & (1ull << want))) ? page : kRetailPage;
+      eot::mem::store<uint16_t>(text + k * 2,
+                                static_cast<uint16_t>((to << 8) | (to == kRetailPage ? slot : want)));
     }
   }
   g_applied_page = page;

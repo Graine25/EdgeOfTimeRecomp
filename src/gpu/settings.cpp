@@ -35,9 +35,6 @@ REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal rende
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video", "Internal render resolution")
     .allowed({"native", "720p", "1080p", "1440p", "2160p", "display"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_INT32(eot_display_scale, 100, "EdgeOfTime/Video", "Render percent of display")
-    .range(25, 200)
-    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_fullscreen_mode, "borderless", "EdgeOfTime/Video", "Borderless or exclusive fullscreen")
     .allowed({"borderless", "exclusive"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
@@ -121,7 +118,6 @@ bool Settings::Vsync() { return REXCVAR_GET(eot_vsync); }
 bool Settings::FastSettersVerify() { return REXCVAR_GET(eot_fast_setters_verify); }
 f64 Settings::RenderScale() { return REXCVAR_GET(eot_render_scale); }
 std::string Settings::Resolution() { return std::string(REXCVAR_GET(eot_resolution)); }
-i32 Settings::DisplayScalePercent() { return REXCVAR_GET(eot_display_scale); }
 std::string Settings::FullscreenMode() { return std::string(REXCVAR_GET(eot_fullscreen_mode)); }
 i32 Settings::PipScalePercent() { return REXCVAR_GET(eot_pip_scale); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
@@ -209,12 +205,9 @@ f32 ComputeRenderScale() {
   u32 target_height = 0;
   if (!Settings::Fullscreen())
     target_height = g_auto_render_height;
-  else if (preset == "display") {
-    const u32 rows = g_display_height ? g_display_height : g_auto_render_height;
-    target_height = std::max(
-        kGuestRenderHeight,
-        static_cast<u32>(std::lround(static_cast<f64>(rows) * Settings::DisplayScalePercent() / 100.0)));
-  } else if (preset != "native") {
+  else if (preset == "display")
+    target_height = g_display_height ? g_display_height : g_auto_render_height;
+  else if (preset != "native") {
     target_height = PresetRows(preset);
     if (target_height == 0) {
       target_height = g_auto_render_height;
@@ -223,9 +216,10 @@ f32 ComputeRenderScale() {
                preset, target_height);
     }
   }
-  const f64 scale = target_height != 0
-                        ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
-                        : Settings::RenderScale();
+  const f64 base = target_height != 0
+                       ? static_cast<f64>(target_height) / static_cast<f64>(kGuestRenderHeight)
+                       : 1.0;
+  const f64 scale = base * Settings::RenderScale();
   return static_cast<f32>(std::clamp(scale, 0.25, 5.0));
 }
 

@@ -37,7 +37,6 @@ struct Settings {
   static bool FastSettersVerify();
   static f64 RenderScale();
   static std::string Resolution();
-  static i32 DisplayScalePercent();
   static std::string FullscreenMode();
   static i32 PipScalePercent();
   static i32 FpsLimit();
