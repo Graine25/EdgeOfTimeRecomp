@@ -131,6 +131,7 @@ struct ResolvePacket {
   u32 dsVa = 0;
   u32 dsWords[5] = {};
   bool refresh = false;
+  bool clearDestOnly = false;
 };
 
 }
