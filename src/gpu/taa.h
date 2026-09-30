@@ -1,11 +1,14 @@
 #pragma once
 
+#include <functional>
+
 #include <rex/types.h>
 
 namespace eot::gpu {
 
 struct VideoState;
 struct GuestTexture;
+struct HostTexture;
 
 namespace taa {
 
@@ -26,6 +29,8 @@ void EndFrame(VideoState &s);
 
 void Reset(VideoState &s);
 void Shutdown(VideoState &s);
+
+void ForEachImage(const std::function<void(const HostTexture &)> &fn);
 
 }
 }

@@ -100,22 +100,22 @@ bool ResolveTargets(VideoState &s, DeviceView dev, Targets &t) {
     if (!va)
       break;
     GuestSurface *surf = GetGuestSurface(s, va);
-    if (!surf || !surf->host.valid())
+    if (!surf || !SurfaceHasImage(*surf))
       break;
     const u32 packet = dev.U32(i == 0 ? dev::kColor0Info : dev::kColor1Info + 4 * (i - 1));
     const u32 bias = (packet >> 20) & 0x3F;
     surf->colorExpBias = bias & 0x20 ? static_cast<i32>(bias) - 64 : static_cast<i32>(bias);
     t.color[i] = surf;
-    t.colorImage[i] = &surf->host;
+    t.colorImage[i] = surf->host.valid() ? &surf->host : &surf->single;
     t.colorCount = i + 1;
   }
   const u32 ds_va = dev.U32(dev::kDepthSurface);
   if (ds_va)
     t.depth = GetGuestSurface(s, ds_va);
-  if (t.depth && !t.depth->host.valid())
+  if (t.depth && !SurfaceHasImage(*t.depth))
     t.depth = nullptr;
   if (t.depth)
-    t.depthImage = &t.depth->host;
+    t.depthImage = t.depth->host.valid() ? &t.depth->host : &t.depth->single;
   if (t.colorCount) {
     t.width = t.color[0]->width;
     t.height = t.color[0]->height;
@@ -152,20 +152,20 @@ bool ResolveTargetsFromWords(VideoState &s, const TargetWords &tw, Targets &t) {
   t = Targets{};
   for (u32 i = 0; i < tw.colorCount; ++i) {
     GuestSurface *surf = GetGuestSurfaceWords(s, tw.colorVa[i], tw.colorWords[i]);
-    if (!surf || !surf->host.valid())
+    if (!surf || !SurfaceHasImage(*surf))
       break;
     const u32 bias = (tw.colorInfo[i] >> 20) & 0x3F;
     surf->colorExpBias = bias & 0x20 ? static_cast<i32>(bias) - 64 : static_cast<i32>(bias);
     t.color[i] = surf;
-    t.colorImage[i] = &surf->host;
+    t.colorImage[i] = surf->host.valid() ? &surf->host : &surf->single;
     t.colorCount = i + 1;
   }
   if (tw.depthVa)
     t.depth = GetGuestSurfaceWords(s, tw.depthVa, tw.depthWords);
-  if (t.depth && !t.depth->host.valid())
+  if (t.depth && !SurfaceHasImage(*t.depth))
     t.depth = nullptr;
   if (t.depth)
-    t.depthImage = &t.depth->host;
+    t.depthImage = t.depth->host.valid() ? &t.depth->host : &t.depth->single;
   if (t.colorCount) {
     t.width = t.color[0]->width;
     t.height = t.color[0]->height;
@@ -253,6 +253,14 @@ bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
   u32 samples = SelectPassSamples(t, c, s.stencil_ref_supported);
   if (t.depth && t.colorCount && samples > 1 && t.depth->host.sampleCount != samples)
     samples = 1;
+  if (samples > 1) {
+    for (u32 i = 0; i < t.colorCount && samples > 1; ++i)
+      if (!t.color[i]->host.valid() && !SurfaceMakeMultisampled(s, *t.color[i]))
+        samples = 1;
+    if (samples > 1 && t.depth && t.depth->host.sampleCount == samples && !t.depth->host.valid() &&
+        !SurfaceMakeMultisampled(s, *t.depth))
+      samples = 1;
+  }
   for (u32 i = 0; i < t.colorCount; ++i) {
     t.colorImage[i] = SurfaceImageForDraw(s, *t.color[i], samples, !c.nullPs);
     if (!t.colorImage[i])
@@ -331,7 +339,7 @@ bool BindImages(VideoState &s, HostTexture *const colors[4], u32 color_count, Ho
     colors[i]->needsClear = false;
   }
   if (depth && depth->needsClear) {
-    s.command_list->clearDepthStencil(true, true, 0.0f, 0, nullptr, 0);
+    s.command_list->clearDepthStencil(true, FormatHasStencil(depth->format), 0.0f, 0, nullptr, 0);
     depth->needsClear = false;
   }
   return true;
@@ -1566,6 +1574,14 @@ void FillPipelineState(DeviceView dev, const Targets &t, PipelineState &st,
   st.depthFunc = z_test ? ConvertCompareFunc((dc >> 4) & 7)
                         : plume::RenderComparisonFunction::ALWAYS;
   st.stencilEnable = has_ds && (dc & 1);
+  if (st.stencilEnable && !FormatHasStencil(t.depthImage ? t.depthImage->format : t.depth->host.format)) {
+    u32 n;
+    if (DiagShouldLog(0x6C30, &n) && n == 0)
+      EOT_WARN("[draw] a draw into the stencil-less depth target {:#x} ({}x{}) enables the stencil test "
+               "(control {:#x}); drawn without it",
+               t.depth->va, t.depth->width, t.depth->height, dc);
+    st.stencilEnable = false;
+  }
   if (st.stencilEnable) {
     const u32 srm = dev.U32(dev::kStencilRefMask);
     st.stencilReadMask = static_cast<u8>((srm >> 8) & 0xFF);
@@ -3129,6 +3145,20 @@ void FlushGeometryStaging(VideoState &s) {
   PoolFlushToVram(s, vertex_mirrors().pool, plume::RenderBufferFlag::VERTEX);
 }
 
+void GeometryCacheBytes(GeometryCacheSizes *out) {
+  *out = GeometryCacheSizes{};
+  auto sum = [](BufferPool &pool, u64 &upload, u64 &vram, u32 &chunks) {
+    std::lock_guard lock(pool.mutex);
+    for (const auto &ch : pool.chunks) {
+      upload += ch.buffer ? ch.capacity : 0;
+      vram += ch.vram ? ch.capacity : 0;
+      chunks++;
+    }
+  };
+  sum(index_pool(), out->indexUpload, out->indexVram, out->indexChunks);
+  sum(vertex_mirrors().pool, out->vertexUpload, out->vertexVram, out->vertexChunks);
+}
+
 void FlushPendingTransitions(VideoState &s) {
   if (!s.pending_transition_count)
     return;
@@ -3367,14 +3397,22 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
              targets.depth ? targets.depth->va : 0, targets.width, targets.height, rgba[0], rgba[1],
              rgba[2], rgba[3], z, stencil & 0xFF);
   }
+  auto clears_all = [&](const HostTexture &image) {
+    return clear_depth && (clear_stencil || !FormatHasStencil(image.format));
+  };
+  auto clear_depth_image = [&](const HostTexture &image, const plume::RenderRect *r, u32 n) {
+    const bool with_stencil = clear_stencil && FormatHasStencil(image.format);
+    if (clear_depth || with_stencil)
+      cmd->clearDepthStencil(clear_depth, with_stencil, z, stencil & 0xFF, r, n);
+  };
   auto clear_image = [&](GuestSurface &surf, HostTexture &image) {
-    if (whole && (!surf.isDepth || (clear_depth && clear_stencil)))
+    if (whole && (!surf.isDepth || clears_all(image)))
       image.needsClear = false;
     HostTexture *colors[4] = {surf.isDepth ? nullptr : &image, nullptr, nullptr, nullptr};
     if (!BindImages(s, colors, surf.isDepth ? 0u : 1u, surf.isDepth ? &image : nullptr, true))
       return;
     if (surf.isDepth)
-      cmd->clearDepthStencil(clear_depth, clear_stencil, z, stencil & 0xFF, rects, rect_count);
+      clear_depth_image(image, rects, rect_count);
     else
       cmd->clearColor(0, color, rects, rect_count);
     surf.perfClears++;
@@ -3387,7 +3425,8 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
     const bool both = SurfaceHasSingle(surf) &&
                       (whole || surf.imagesAgree || surf.content != GuestSurface::Content::Drawn);
     if (both) {
-      clear_image(surf, surf.host);
+      if (surf.host.valid())
+        clear_image(surf, surf.host);
       clear_image(surf, surf.single);
     } else {
       clear_image(surf, owner);
@@ -3410,18 +3449,17 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
         if (GpuTimingDiagActive(s))
           GpuTimingDiagMark(s, cmd, std::format("redirect region clear {}x{}", surf.host.width,
                                                 surf.host.height));
-        cmd->clearDepthStencil(clear_depth, clear_stencil, z, stencil & 0xFF, &region, 1);
+        clear_depth_image(image, &region, 1);
         surf.perfClears++;
       }
-      NoteSurfaceClearedDepth(surf, z, static_cast<u8>(stencil & 0xFF),
-                              whole && clear_depth && clear_stencil, false);
+      NoteSurfaceClearedDepth(surf, z, static_cast<u8>(stencil & 0xFF), whole && clears_all(surf.host), false);
     } else {
       const bool both = SurfaceHasSingle(surf);
-      clear_image(surf, surf.host);
+      if (surf.host.valid())
+        clear_image(surf, surf.host);
       if (both)
         clear_image(surf, surf.single);
-      NoteSurfaceClearedDepth(surf, z, static_cast<u8>(stencil & 0xFF),
-                              whole && clear_depth && clear_stencil, both);
+      NoteSurfaceClearedDepth(surf, z, static_cast<u8>(stencil & 0xFF), whole && clears_all(surf.host), both);
     }
   }
   s.bound_draw_targets_valid = false;

@@ -20,6 +20,7 @@
 #include "gpu/format.h"
 #include "gpu/gpu_profiling.h"
 #include "gpu/gpu_timing.h"
+#include "gpu/memory_report.h"
 #include "gpu/settings.h"
 
 namespace eot::gpu {
@@ -69,6 +70,10 @@ bool DecodeHeaderWords(u32 va, const u32 words[5], GuestSurface &out) {
   return true;
 }
 
+bool ShadowTileShape(const GuestSurface &surf) {
+  return surf.isDepth && surf.width == 1024 && surf.height == 1024;
+}
+
 u32 HostSampleCountFor(const VideoState &s, const GuestSurface &surf) {
   if (s.host_msaa_samples <= 1 || surf.msaaSamples != 1)
     return 1;
@@ -89,6 +94,16 @@ static bool IsTextureCameraShape(const GuestSurface &surf) {
   return true;
 }
 
+static float TextureCameraScale(bool wide) {
+  const float base = RenderScaleFactor();
+  const float pip = static_cast<float>(std::clamp(Settings::PipScalePercent(), 25, 100)) / 100.0f;
+  return std::max(1.0f, wide ? base : base * pip);
+}
+
+static bool TextureCameraWide(const GuestSurface &surf) {
+  return surf.width > kTextureCameraWideFrom || TextureCameraScale(false) >= TextureCameraScale(true);
+}
+
 static void HostAllocationSize(const GuestSurface &surf, u32 &w, u32 &h) {
   w = surf.width;
   h = surf.height;
@@ -98,15 +113,14 @@ static void HostAllocationSize(const GuestSurface &surf, u32 &w, u32 &h) {
   w = (w + 79u) / 80u * 80u;
   h = (h + 63u) / 64u * 64u;
   if (IsTextureCameraShape(surf)) {
-    const u32 bucket_width = surf.width > kTextureCameraWideFrom ? kGuestRenderWidth : kTextureCameraWideFrom;
+    const u32 bucket_width = TextureCameraWide(surf) ? kGuestRenderWidth : kTextureCameraWideFrom;
     w = std::max(w, (bucket_width + 79u) / 80u * 80u);
     h = std::max(h, (kGuestRenderHeight + 63u) / 64u * 64u);
   }
 }
 
-bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u32 samples,
-                        const char *tag) {
-  host = HostTexture{};
+HostTexture DescribeSurfaceImage(const GuestSurface &surf, u32 samples) {
+  HostTexture host;
   host.format = SurfaceHostFormat(surf);
   host.width = ScaleDimBy(surf.allocWidth, surf.scale);
   host.height = ScaleDimBy(surf.allocHeight, surf.scale);
@@ -116,6 +130,12 @@ bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u3
   host.sampleCount = samples;
   host.isDepth = surf.isDepth;
   host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+  return host;
+}
+
+bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u32 samples,
+                        const char *tag) {
+  host = DescribeSurfaceImage(surf, samples);
 
   plume::RenderTextureDesc desc;
   desc.dimension = plume::RenderTextureDimension::TEXTURE_2D;
@@ -124,7 +144,7 @@ bool CreateSurfaceImage(VideoState &s, GuestSurface &surf, HostTexture &host, u3
   desc.depth = 1;
   desc.mipLevels = 1;
   desc.arraySize = 1;
-  desc.format = host.format;
+  desc.format = ImageResourceFormat(host.format);
   desc.flags = surf.isDepth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
   desc.multisampling.sampleCount = static_cast<plume::RenderSampleCounts>(host.sampleCount);
@@ -155,8 +175,7 @@ float SurfaceRenderScale(const GuestSurface &surf) {
   for (u32 k = 0; k < 4; ++k)
     if (surf.width == (kGuestRenderWidth >> k) && surf.height == (kGuestRenderHeight >> k))
       return base;
-  const float pip = static_cast<float>(std::clamp(Settings::PipScalePercent(), 25, 100)) / 100.0f;
-  return std::max(1.0f, surf.width > kTextureCameraWideFrom ? base : base * pip);
+  return TextureCameraScale(TextureCameraWide(surf));
 }
 
 bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
@@ -171,15 +190,45 @@ bool CreateHostTarget(VideoState &s, GuestSurface &surf) {
   surf.uid = next_uid++;
   surf.serial++;
   surf.wholeClearSerial = surf.serial;
-  return CreateSurfaceImage(s, surf, surf.host, HostSampleCountFor(s, surf),
-                            surf.isDepth ? "surface-ds" : "surface-rt");
+  surf.createdFrame = s.guest_frames;
+  const u32 samples = HostSampleCountFor(s, surf);
+  if (samples <= 1)
+    return CreateSurfaceImage(s, surf, surf.host, samples, surf.isDepth ? "surface-ds" : "surface-rt");
+  if (!CreateSurfaceImage(s, surf, surf.single, 1, surf.isDepth ? "surface-ds-1x" : "surface-rt-1x"))
+    return false;
+  surf.host = DescribeSurfaceImage(surf, samples);
+  surf.imagesAgree = true;
+  surf.singleSerial = surf.writeSerial;
+  return true;
 }
 
 }
+
+bool IsTextureCameraSurface(const GuestSurface &surface) { return IsTextureCameraShape(surface); }
+
+bool IsShadowTile(const GuestSurface &surface) { return ShadowTileShape(surface); }
 
 plume::RenderFormat SurfaceHostFormat(const GuestSurface &surface) {
-  return surface.isDepth ? DepthRenderTargetFormat()
-                         : ConvertColorRenderTargetFormat(surface.colorFormat);
+  if (surface.isDepth)
+    return ShadowTileShape(surface) ? ShadowDepthFormat() : DepthRenderTargetFormat();
+  return ConvertColorRenderTargetFormat(surface.colorFormat);
+}
+
+const plume::RenderTextureView *DepthTargetView(VideoState &s, HostTexture &host) {
+  if (!host.isDepth || !host.texture || ImageResourceFormat(host.format) == host.format)
+    return nullptr;
+  if (!host.depthView) {
+    plume::RenderTextureViewDesc vd;
+    vd.format = host.format;
+    vd.dimension = plume::RenderTextureViewDimension::TEXTURE_2D;
+    vd.mipSlice = 0;
+    vd.mipLevels = 1;
+    vd.arrayIndex = 0;
+    vd.arraySize = 1;
+    s.perf.host_views++;
+    host.depthView = host.texture->createTextureView(vd);
+  }
+  return host.depthView.get();
 }
 
 u64 DescriptorKey(const GuestSurface &d) {
@@ -202,7 +251,7 @@ GuestSurface *FindMultisampleAliasSource(VideoState &s, const GuestSurface &alia
   GuestSurface *best = nullptr;
   for (auto &[key, slot] : s.surfaces) {
     GuestSurface *c = slot.get();
-    if (!c || static_cast<const GuestSurface *>(c) == &alias || !c->drawn || !c->host.valid())
+    if (!c || static_cast<const GuestSurface *>(c) == &alias || !c->drawn || !SurfaceHasImage(*c))
       continue;
     if (c->msaaSamples != 1 || c->isDepth != alias.isDepth || c->baseTile != alias.baseTile)
       continue;
@@ -272,7 +321,7 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
   std::memcpy(words, words_in, sizeof(words));
   const bool header = true;
   if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
-      std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
+      std::memcmp(lookup.words, words, sizeof(words)) == 0 && SurfaceHasImage(*lookup.surf)) {
     lookup.surf->va = surface_va;
     ApplyHeaderFields(*lookup.surf, lookup);
     return lookup.surf;
@@ -302,7 +351,7 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
     lookup.colorExpBias = surf->colorExpBias;
     return surf;
   };
-  if (slot && slot->host.valid()) {
+  if (slot && SurfaceHasImage(*slot)) {
     slot->va = surface_va;
     slot->surfaceInfo = decoded.surfaceInfo;
     slot->info = decoded.info;
@@ -358,6 +407,8 @@ plume::RenderFramebuffer *GetFramebuffer(VideoState &s, HostTexture *const color
   if (it != s.framebuffers.end())
     return it->second.fb.get();
   plume::RenderFramebufferDesc desc(n ? colors : nullptr, n, ds);
+  if (ds)
+    desc.depthAttachmentView = DepthTargetView(s, *depth);
   s.perf.host_framebuffers++;
   auto fb = s.device->createFramebuffer(desc);
   if (!fb) {
@@ -438,7 +489,8 @@ bool ClearImageToRemembered(VideoState &s, GuestSurface &surf, HostTexture &imag
                                  : plume::RenderTextureLayout::COLOR_WRITE);
   BindHelperFramebuffer(s, fb);
   if (image.isDepth) {
-    s.command_list->clearDepthStencil(true, true, surf.clearDepth, surf.clearStencil, nullptr, 0);
+    s.command_list->clearDepthStencil(true, FormatHasStencil(image.format), surf.clearDepth, surf.clearStencil,
+                                      nullptr, 0);
   } else {
     s.command_list->clearColor(0,
                                plume::RenderColor(surf.clearColor[0], surf.clearColor[1],
@@ -540,7 +592,37 @@ bool EnsureSurfaceSingle(VideoState &s, GuestSurface &surf) {
 }
 
 HostTexture &SurfaceContentImage(GuestSurface &surf) {
-  return surf.contentInSingle && surf.single.valid() ? surf.single : surf.host;
+  return (surf.contentInSingle || !surf.host.valid()) && surf.single.valid() ? surf.single : surf.host;
+}
+
+bool SurfaceMakeMultisampled(VideoState &s, GuestSurface &surf) {
+  if (surf.host.valid() || surf.host.sampleCount <= 1)
+    return surf.host.valid();
+  const u32 samples = surf.host.sampleCount;
+  const u64 t0 = PerfNow();
+  if (!CreateSurfaceImage(s, surf, surf.host, samples, surf.isDepth ? "surface-ds" : "surface-rt")) {
+    surf.host = DescribeSurfaceImage(surf, samples);
+    return false;
+  }
+  if (!ClearImageToRemembered(s, surf, surf.host)) {
+    DestroyHostTexture(s, surf.host);
+    surf.host = DescribeSurfaceImage(surf, samples);
+    return false;
+  }
+  if (surf.isDepth) {
+    surf.singleDirty = surf.singleDirty || surf.content == GuestSurface::Content::Drawn;
+    surf.singleSerial = surf.writeSerial;
+  } else if (surf.content == GuestSurface::Content::Drawn) {
+    surf.contentInSingle = true;
+    surf.imagesAgree = false;
+  } else if (surf.content != GuestSurface::Content::Borrowed) {
+    surf.contentInSingle = false;
+    surf.imagesAgree = true;
+  }
+  EOT_INFO("[surfaces] {:#x}: {} {}x{} {}x image made at its first multisampled pass ({} MB, {:.2f} ms)", surf.va,
+           surf.isDepth ? "depth" : "colour", surf.host.width, surf.host.height, samples,
+           HostTextureBytes(surf.host) >> 20, static_cast<f64>(PerfNow() - t0) * PerfMsPerTick());
+  return true;
 }
 
 namespace {
@@ -558,7 +640,7 @@ void DropBorrow(GuestSurface &surf) {
 void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src,
                              GuestTexture &target, const std::shared_ptr<GuestTexture> &target_ref) {
   const bool from_single = &src == &surf.single;
-  const bool host_keeps = from_single && surf.host.sampleCount > 1 &&
+  const bool host_keeps = from_single && surf.host.sampleCount > 1 && surf.host.valid() &&
                           (!surf.contentInSingle || surf.imagesAgree);
   TextureReleaseBorrower(s, target);
   std::swap(target.host, src);
@@ -632,6 +714,13 @@ bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf) {
   surf.perfTransfers++;
   s.perf.surface_transfers++;
   return HelperBlit(s, m->host, surf.host, GetDepthCopyPipeline(s, surf.host.format), 0, rect);
+}
+
+void SurfacesReleaseMirror(VideoState &s, const GuestTexture &t) {
+  for (auto &[key, slot] : s.surfaces) {
+    if (slot && slot->redirectMirror.get() == &t)
+      slot->redirectMirror.reset();
+  }
 }
 
 bool SurfaceTakeBack(VideoState &s, GuestSurface &surf) {
@@ -738,9 +827,11 @@ bool FlushAliasCopy(VideoState &s, GuestTexture &t) {
 
 HostTexture *SurfaceImageForDraw(VideoState &s, GuestSurface &surf, u32 samples,
                                  bool writes_color) {
-  if (!surf.host.valid())
+  if (!SurfaceHasImage(surf))
     return nullptr;
   const bool want_single = samples == 1 && surf.host.sampleCount > 1;
+  if (!want_single && !surf.host.valid() && !SurfaceMakeMultisampled(s, surf))
+    return nullptr;
   if (!writes_color) {
     if (!want_single)
       return &surf.host;
@@ -760,7 +851,8 @@ HostTexture *SurfaceImageForDraw(VideoState &s, GuestSurface &surf, u32 samples,
   }
   if (!EnsureSurfaceSingle(s, surf))
     return nullptr;
-  if (!surf.contentInSingle && !surf.imagesAgree && surf.content == GuestSurface::Content::Drawn) {
+  if (!surf.contentInSingle && !surf.imagesAgree && surf.content == GuestSurface::Content::Drawn &&
+      surf.host.valid()) {
     if (!ResolveHostToSingle(s, surf))
       return nullptr;
     surf.imagesAgree = true;
@@ -770,10 +862,12 @@ HostTexture *SurfaceImageForDraw(VideoState &s, GuestSurface &surf, u32 samples,
 }
 
 HostTexture *SurfaceDepthSingle(VideoState &s, GuestSurface &surf, bool refresh) {
-  if (!surf.host.valid() || !surf.isDepth)
+  if (!surf.isDepth || !SurfaceHasImage(surf))
     return nullptr;
   if (surf.host.sampleCount == 1)
     return &surf.host;
+  if (!surf.host.valid())
+    return &surf.single;
   if (!EnsureSurfaceSingle(s, surf))
     return nullptr;
   if (refresh && surf.singleSerial != surf.writeSerial) {
@@ -797,13 +891,13 @@ HostTexture *SurfaceContentPeek(VideoState &s, GuestSurface &surf) {
 HostTexture *SurfaceColorSingle(VideoState &s, GuestSurface &surf) {
   if (surf.isDepth)
     return SurfaceDepthSingle(s, surf, true);
-  if (!surf.host.valid())
+  if (!SurfaceHasImage(surf))
     return nullptr;
   if (surf.content == GuestSurface::Content::Borrowed)
     SurfaceTakeBack(s, surf);
   if (surf.host.sampleCount == 1)
     return &surf.host;
-  if (surf.contentInSingle && surf.single.valid())
+  if ((surf.contentInSingle || !surf.host.valid()) && surf.single.valid())
     return &surf.single;
   if (!EnsureSurfaceSingle(s, surf))
     return nullptr;
@@ -819,6 +913,10 @@ void NoteSurfaceDrawn(GuestSurface &surf, const HostTexture &image, bool writes_
                       bool writes_depth) {
   surf.drawn = true;
   const bool twin = &image == &surf.single;
+  if (twin)
+    surf.singleDraws++;
+  else if (&image == &surf.host)
+    surf.hostDraws++;
   if (surf.isDepth) {
     if (!writes_depth_stencil)
       return;
@@ -885,7 +983,7 @@ void NoteSurfaceClearedDepth(GuestSurface &surf, float depth, u8 stencil, bool w
 }
 
 bool SurfacePropagateDepthSingle(VideoState &s, GuestSurface &surf) {
-  if (!surf.isDepth || !surf.singleDirty || !surf.single.valid())
+  if (!surf.isDepth || !surf.singleDirty || !surf.single.valid() || !surf.host.valid())
     return true;
   GpuTimingMark(s, s.command_list, kGpuCatBroadcast);
   LogTransfer(s, surf, "propagate depth single->host");

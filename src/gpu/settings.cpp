@@ -155,7 +155,7 @@ REXCVAR_DEFINE_INT32(eot_shadow_map_size, 0, "EdgeOfTime/Graphics",
                      "Shadow map size per cascade in texels: 0 = follow the render resolution "
                      "(the console's 1024 at the nearest whole multiple: 2048 at 1080p and "
                      "1440p, 3072 at 2160p), or 1024 / 2048 / 4096 / 8192 fixed (8192 is the "
-                     "ultra preset's: a 16384-texel atlas, about 2 GB). Always a multiple of "
+                     "ultra preset's: a 16384-texel atlas, 1 GB). Always a multiple of "
                      "1024, since the game holds its cascades still on a 1024-texel grid. "
                      "Applies to shadow surfaces created after the change.")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
@@ -192,6 +192,19 @@ REXCVAR_DEFINE_INT32(eot_perf_frames, 600, "EdgeOfTime/Debug",
                      "Log a [perf] line every N presented frames: CPU ms per frame in draws, "
                      "resolves, texture uploads, shader links, pipeline builds and the present "
                      "phases, plus upload bytes and GPU ms per frame (0 = off).");
+
+REXCVAR_DEFINE_INT32(eot_vram_report_seconds, 30, "EdgeOfTime/Debug",
+                     "Seconds between [vram] memory reports: the process's video memory against the "
+                     "budget the OS gives it, the port's census of what holds it (surface images, "
+                     "resolve mirrors, textures, the recycle list, the temporal pass, the geometry "
+                     "caches), the allocator's view by tag and shape, and the process's RAM "
+                     "(0 = off). Going over the budget is logged whenever it happens, report or not.")
+    .range(0, 3600);
+REXCVAR_DEFINE_BOOL(eot_vram_csv, false, "EdgeOfTime/Debug",
+                    "With each [vram] report, write logs/vram_<frame>_allocations.csv (every live "
+                    "allocation: heap, kind, name with its shape, bytes) and "
+                    "logs/vram_<frame>_surfaces.csv (every EDRAM surface image and the draws that "
+                    "bound it), for a spreadsheet.");
 
 REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug",
                      "Guest frame whose draws are logged in detail and whose resolve "
@@ -268,6 +281,8 @@ std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
+i32 Settings::VramReportSeconds() { return REXCVAR_GET(eot_vram_report_seconds); }
+bool Settings::VramCsv() { return REXCVAR_GET(eot_vram_csv); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DumpBurst() { return REXCVAR_GET(eot_dump_burst); }
 namespace {

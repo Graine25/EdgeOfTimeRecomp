@@ -13,6 +13,9 @@ bool ReadSurfaceHeaderWords(u32 surface_va, u32 words[5]);
 GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 words[5]);
 
 plume::RenderFormat SurfaceHostFormat(const GuestSurface &surface);
+bool IsTextureCameraSurface(const GuestSurface &surface);
+bool IsShadowTile(const GuestSurface &surface);
+const plume::RenderTextureView *DepthTargetView(VideoState &s, HostTexture &host);
 
 GuestSurface *FindMultisampleAliasSource(VideoState &s, const GuestSurface &alias);
 
@@ -38,6 +41,8 @@ void NoteSurfaceClearedColor(GuestSurface &surf, const HostTexture &image, const
 void NoteSurfaceClearedDepth(GuestSurface &surf, float depth, u8 stencil, bool whole, bool both);
 inline bool SurfaceHasSingle(const GuestSurface &surf) { return surf.single.valid(); }
 inline bool SurfaceIsMultisampled(const GuestSurface &surf) { return surf.host.sampleCount > 1; }
+inline bool SurfaceHasImage(const GuestSurface &surf) { return surf.host.valid() || surf.single.valid(); }
+bool SurfaceMakeMultisampled(VideoState &s, GuestSurface &surf);
 
 void DestroySurfaceImages(VideoState &s, GuestSurface &surf);
 
@@ -46,6 +51,7 @@ void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src
 bool SurfaceTakeBack(VideoState &s, GuestSurface &surf);
 void SurfaceRedirectBegin(VideoState &s, GuestSurface &surf);
 bool SurfaceRedirectEnd(VideoState &s, GuestSurface &surf);
+void SurfacesReleaseMirror(VideoState &s, const GuestTexture &t);
 void TextureReleaseBorrower(VideoState &s, GuestTexture &t);
 
 bool FlushAliasCopy(VideoState &s, GuestTexture &t);

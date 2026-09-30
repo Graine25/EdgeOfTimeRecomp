@@ -12,10 +12,9 @@ REXCVAR_DEFINE_STRING(eot_quality_preset, "custom", "EdgeOfTime/Graphics",
                       "Quality preset. low: no multisampling, bilinear upscale, the game's own "
                       "texture filtering, 1024 shadow maps. medium: 2x MSAA, bicubic upscale, 8x "
                       "anisotropic, 2048 shadow maps. high: 4x MSAA, bicubic upscale, 16x "
-                      "anisotropic, 4096 shadow maps (Lanczos costs 0.14 ms more a 4K frame "
-                      "for no visible gain over the Catmull-Rom; pick it under custom). "
-                      "ultra: 8x MSAA, 8192 shadow maps, and temporal anti-aliasing with "
-                      "per-object motion vectors. "
+                      "anisotropic, 4096 shadow maps. ultra: 8x MSAA, Lanczos upscale (0.14 ms "
+                      "more than the Catmull-Rom a 4K frame), 8192 shadow maps, and temporal "
+                      "anti-aliasing with per-object motion vectors. "
                       "Choosing one writes those values into "
                       "eot_msaa (restart), eot_upscale, eot_anisotropy, eot_shadow_map_size, "
                       "eot_host_aa and eot_motion_vectors; "
@@ -34,7 +33,7 @@ struct Gate {
 
 constexpr Gate kGates[] = {
     {"eot_msaa", "0", "2", "4", "8"},
-    {"eot_upscale", "bilinear", "bicubic", "bicubic", "bicubic"},
+    {"eot_upscale", "bilinear", "bicubic", "bicubic", "lanczos"},
     {"eot_anisotropy", "0", "8", "16", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096", "8192"},
     {"eot_host_aa", "off", "off", "off", "taa"},

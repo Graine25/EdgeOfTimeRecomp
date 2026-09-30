@@ -33,6 +33,10 @@ namespace tu = rex::graphics::texture_util;
 
 namespace {
 
+bool MirrorAtScale(const GuestTexture &t, float k) {
+  return t.host.width == ScaleDimBy(t.width, k) && t.host.height == ScaleDimBy(t.height, k);
+}
+
 bool LocateAlias(const GuestTexture &d, const GuestTexture &t, i32 &tx, i32 &ty) {
   if (t.format != d.format || t.tiled != d.tiled)
     return false;
@@ -104,12 +108,13 @@ void ClearSource(VideoState &s, GuestSurface &surf, const float *clear_rgba, flo
     s.bound_framebuffer = fb;
     s.bound_draw_targets_valid = false;
     if (surf.isDepth)
-      s.command_list->clearDepthStencil(true, true, clear_z, 0, nullptr, 0);
+      s.command_list->clearDepthStencil(true, FormatHasStencil(image.format), clear_z, 0, nullptr, 0);
     else
       s.command_list->clearColor(0, plume::RenderColor(rgba[0], rgba[1], rgba[2], rgba[3]), nullptr, 0);
     image.needsClear = false;
   };
-  clear_image(surf.host);
+  if (surf.host.valid())
+    clear_image(surf.host);
   if (SurfaceHasSingle(surf))
     clear_image(surf.single);
   if (surf.isDepth)
@@ -234,7 +239,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
   const bool depth_source = source == 4;
   const u32 src_va = pk.srcVa;
   GuestSurface *surf = src_va ? GetGuestSurfaceWords(s, src_va, pk.srcWords) : nullptr;
-  if (!surf || !surf->host.valid()) {
+  if (!surf || !SurfaceHasImage(*surf)) {
     u32 n;
     if (DiagShouldLog(0x7001, &n))
       EOT_WARN("[resolve] source {} has no bound surface (flags {:#x})", source, flags);
@@ -265,13 +270,21 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
     if (HostTexture *single = SurfaceColorSingle(s, src_surf))
       src_host = single;
   }
+  if (!src_host->valid()) {
+    u32 n;
+    if (DiagShouldLog(0x7B00 ^ src_va, &n))
+      EOT_WARN("[resolve] {:#x}: no image to read (the {}x image not made, no twin)", src_va,
+               surf->host.sampleCount);
+    return;
+  }
 
   GuestTexture *dest = nullptr;
   {
     EOT_CPU_ZONE("resolve destination mirror");
     PerfScope mirror_scope(s.perf.resolve_mirror_ms);
     dest = dest_texture_va ? GetGuestTexture(s, dest_texture_va, false) : nullptr;
-    if (dest && !EnsureResolveMirror(s, *dest, depth_source, surf->scale))
+    if (dest && !EnsureResolveMirror(s, *dest, depth_source, surf->scale,
+                                     depth_source ? surf->host.format : plume::RenderFormat::UNKNOWN))
       dest = nullptr;
   }
 
@@ -339,6 +352,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       if (!target.resolveOwned)
         NoteResolveDestination(s, target);
       target.resolveOwned = true;
+      target.resolveProvisional = false;
       target.uploaded = true;
       target.uploadedUnlockSeq = ResourceUnlockSeq(target.va);
       target.resolvedMipMask |= 1u << level;
@@ -415,14 +429,28 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       target.resolvedLevel = level;
       std::memcpy(target.resolvedRect, rect_now, sizeof(rect_now));
       const float k = surf->scale;
-      const i32 hx0 = ScalePxBy(vx, k), hy0 = ScalePxBy(vy, k), hx1 = ScalePxBy(vx + vw, k),
-                hy1 = ScalePxBy(vy + vh, k);
+      const i32 mip_w_host = static_cast<i32>(std::max(1u, target.host.width >> level));
+      const i32 mip_h_host = static_cast<i32>(std::max(1u, target.host.height >> level));
+      const bool at_k = MirrorAtScale(target, k);
+      const float kx = at_k ? k : static_cast<float>(mip_w_host) / static_cast<float>(mip_w);
+      const float ky = at_k ? k : static_cast<float>(mip_h_host) / static_cast<float>(mip_h);
+      const i32 hx0 = ScalePxBy(vx, kx), hy0 = ScalePxBy(vy, ky), hx1 = ScalePxBy(vx + vw, kx),
+                hy1 = ScalePxBy(vy + vh, ky);
       if (hx1 <= hx0 || hy1 <= hy0)
         return true;
       const i32 sx0h = ScalePxBy(sx0, k) + src_origin_x, sy0h = ScalePxBy(sy0, k) + src_origin_y;
-      const i32 mip_w_host = static_cast<i32>(std::max(1u, target.host.width >> level));
-      const i32 mip_h_host = static_cast<i32>(std::max(1u, target.host.height >> level));
-      const bool copy_fits = sx0h + (hx1 - hx0) <= static_cast<i32>(src_host->width) &&
+      const i32 sw = at_k ? hx1 - hx0 : ScalePxBy(sx0 + vw, k) - ScalePxBy(sx0, k);
+      const i32 sh = at_k ? hy1 - hy0 : ScalePxBy(sy0 + vh, k) - ScalePxBy(sy0, k);
+      if (!at_k) {
+        u32 n;
+        if (DiagShouldLog(0x7A00 ^ target.va ^ static_cast<u32>(k * 1000.0f), &n) && n == 0)
+          EOT_INFO("[resolve] {:#x} {}x{} at x{:.3f} (tile {}) into {:#x} {}x{} fmt {}, a mirror made at "
+                   "x{:.3f} ({}x{} host): drawn scaled, {}x{} -> {}x{} host",
+                   src_va, surf->width, surf->height, k, surf->baseTile, target.va, target.width,
+                   target.height, static_cast<u32>(target.format), kx, target.host.width,
+                   target.host.height, sw, sh, hx1 - hx0, hy1 - hy0);
+      }
+      const bool copy_fits = at_k && sx0h + (hx1 - hx0) <= static_cast<i32>(src_host->width) &&
                              sy0h + (hy1 - hy0) <= static_cast<i32>(src_host->height) &&
                              hx1 <= mip_w_host && hy1 <= mip_h_host;
       const bool whole_host = whole && src_host->width == static_cast<u32>(mip_w_host) &&
@@ -442,11 +470,12 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
                  src_host->desc.committed);
       if (!regretted && &target == dest && dest_ref && !depth_source &&
           !ms_src && !alias_src && own_image && same_format && scale == 1.0f && level == 0 &&
-          whole_host && covers_image && target.host.arraySize == 1 && target.host.depth == 1 &&
+          at_k && whole_host && covers_image && target.host.arraySize == 1 && target.host.depth == 1 &&
           target.host.sampleCount == 1 &&
           target.host.desc.flags == src_host->desc.flags &&
           target.host.desc.dimension == src_host->desc.dimension &&
-          target.host.desc.committed == src_host->desc.committed) {
+          target.host.desc.committed == src_host->desc.committed &&
+          target.host.transientPool == src_host->transientPool) {
         if (target.storeSwapRB != reorder) {
           target.storeSwapRB = reorder;
           target.bindingGeneration++;
@@ -523,7 +552,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
           }
           s.bound_draw_targets_valid = false;
           if (target.host.isDepth)
-            cmd->clearDepthStencil(true, true, 0.0f, 0, nullptr, 0);
+            cmd->clearDepthStencil(true, FormatHasStencil(target.host.format), 0.0f, 0, nullptr, 0);
           else
             cmd->clearColor(0, plume::RenderColor(0, 0, 0, 0), nullptr, 0);
         }
@@ -580,8 +609,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       if (src_is_region) {
         pc.rect[0] = static_cast<float>(sx0h) / static_cast<float>(src_host->width);
         pc.rect[1] = static_cast<float>(sy0h) / static_cast<float>(src_host->height);
-        pc.rect[2] = static_cast<float>(sx0h + (hx1 - hx0)) / static_cast<float>(src_host->width);
-        pc.rect[3] = static_cast<float>(sy0h + (hy1 - hy0)) / static_cast<float>(src_host->height);
+        pc.rect[2] = static_cast<float>(sx0h + sw) / static_cast<float>(src_host->width);
+        pc.rect[3] = static_cast<float>(sy0h + sh) / static_cast<float>(src_host->height);
       } else {
         const float rx = static_cast<float>(src_surf.width) / static_cast<float>(surf->width);
         const float ry = static_cast<float>(src_surf.height) / static_cast<float>(surf->height);
@@ -608,9 +637,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
     const i32 vw = std::min(rw, static_cast<i32>(mip_w) - vx);
     const i32 vh = std::min(rh, static_cast<i32>(mip_h) - vy);
     if (whole_src && dest_level == 0 && !depth_source && vw > 0 && vh > 0 &&
-        (vx != 0 || vy != 0 || vw < static_cast<i32>(mip_w) || vh < static_cast<i32>(mip_h) ||
-         ScalePxBy(vw, surf->scale) < static_cast<i32>(dest->host.width) ||
-         ScalePxBy(vh, surf->scale) < static_cast<i32>(dest->host.height))) {
+        (vx != 0 || vy != 0 || vw < static_cast<i32>(mip_w) || vh < static_cast<i32>(mip_h))) {
       u32 n;
       if (DiagShouldLog(0x7900 ^ dest_texture_va ^ (static_cast<u32>(vw) << 12) ^ static_cast<u32>(vh), &n) && n == 0)
         EOT_INFO("[resolve] {:#x} {}x{} (alloc {}x{}, x{:.3f}, tile {}) covers part of texture {:#x} {}x{} fmt {} "
@@ -641,6 +668,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
         dest->host.sampleCount == 1 && dest->host.mipLevels == 1 && dest->host.arraySize == 1 &&
         dest->host.format == surf->host.format && surf->redirectPassFrame == s.guest_frames &&
         surf->redirectPasses >= 1 && surf->redirectPasses <= GuestSurface::kRedirectPasses &&
+        MirrorAtScale(*dest, surf->scale) &&
         (dest->host.width > surf->host.width || dest->host.height > surf->host.height)) {
       const i32 hx = ScalePxBy(vx, surf->scale), hy = ScalePxBy(vy, surf->scale);
       if (hx >= 0 && hy >= 0 && hx + surf->host.width <= dest->host.width &&
@@ -690,6 +718,11 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
         const i32 cy1 = std::min(ay0 + vh, static_cast<i32>(t->height));
         if (cx1 <= cx0 || cy1 <= cy0)
           continue;
+        if (t->resolveProvisional &&
+            (!EnsureResolveMirror(s, *t, depth_source, surf->scale,
+                                  depth_source ? surf->host.format : plume::RenderFormat::UNKNOWN) ||
+             !t->host.texture || !t->host.renderable || t->host.isDepth != depth_source))
+          continue;
         {
           u32 n;
           if (DiagShouldLog(0x7300 ^ alias_va ^ dest_texture_va, &n) && n == 0)
@@ -701,6 +734,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
             dest_ref.get() == dest && tx == 0 && ty == 0 && vx == 0 && vy == 0 &&
             vw == static_cast<i32>(dest->width) && vh == static_cast<i32>(dest->height) &&
             cx1 == static_cast<i32>(t->width) && cy1 == static_cast<i32>(t->height) &&
+            MirrorAtScale(*dest, surf->scale) && MirrorAtScale(*t, surf->scale) &&
             dest->host.valid() && t->host.mipLevels == 1 && t->host.arraySize == 1 &&
             t->host.depth == 1 && t->host.sampleCount == 1 && dest->host.sampleCount == 1 &&
             t->host.format == dest->host.format && t->host.width <= dest->host.width &&

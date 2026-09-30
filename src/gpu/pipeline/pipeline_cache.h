@@ -69,6 +69,7 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
 void PsoCachePrecache();
 
 void PsoCacheFlushIfDirty(bool force);
+void PipelineCacheCounts(u32 *alive, u32 *used);
 
 void PsoCacheSetLoadingScreen(bool on);
 bool PsoCacheInLoadingScreen();

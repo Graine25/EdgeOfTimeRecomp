@@ -34,6 +34,7 @@
 #include "gpu/device.h"
 #include "gpu/settings.h"
 #include "gpu/imgui_overlay.h"
+#include "gpu/memory_report.h"
 #include "goliath/controller/bind_capture.h"
 #include "goliath/controller/menu_keys.h"
 #include "goliath/controller/mouse_input.h"
@@ -663,6 +664,10 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
     if (!eot::controller::DebugModeActive())
       return;
     eot::debug::InputScriptReplay();
+  });
+  rex::ui::RegisterBind("bind_vram_report", "F11", "Write a video memory report to the log", [] {
+    eot::gpu::RequestMemoryReport();
+    EOT_INFO("[vram] report requested (F11)");
   });
   drawer->AddDialog(new eot::ui::WatermarkOverlay(drawer));
 }
