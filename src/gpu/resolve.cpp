@@ -20,6 +20,7 @@
 #include "gpu/draw.h"
 #include "gpu/format.h"
 #include "gpu/settings.h"
+#include "gpu/patches/movie_aspect.h"
 #include "gpu/surfaces.h"
 #include "gpu/textures.h"
 #include "gpu/trace.h"
@@ -164,21 +165,49 @@ void ResolveGuest(u32 device_va, u32 flags, u32 src_rect_va, u32 dest_texture_va
   auto &s = state();
   if (!s.ready)
     return;
+  const bool clear_only = TakeMovieResolveSkip();
   if (RenderThreadActive()) {
     RenderEnqueue enqueue;
     RenderCommand &c = enqueue.cmd();
     c.type = RenderCommandType::Resolve;
     if (CaptureResolve(device_va, flags, src_rect_va, dest_texture_va, dest_point_va, dest_level,
-                       clear_color_va, clear_z, c.resolve))
+                       clear_color_va, clear_z, c.resolve)) {
+      c.resolve.clearDestOnly = clear_only;
       enqueue.commit(false);
+    }
     return;
   }
   ResolvePacket pk;
   if (!CaptureResolve(device_va, flags, src_rect_va, dest_texture_va, dest_point_va, dest_level,
                       clear_color_va, clear_z, pk))
     return;
+  pk.clearDestOnly = clear_only;
   std::lock_guard video_lock(s.mutex);
   ReplayResolveLocked(s, pk);
+}
+
+static void ClearResolveDestination(VideoState &s, const ResolvePacket &pk) {
+  GuestSurface *surf = pk.srcVa ? GetGuestSurfaceWords(s, pk.srcVa, pk.srcWords) : nullptr;
+  GuestTexture *dest = pk.destVa ? GetGuestTexture(s, pk.destVa, false) : nullptr;
+  if (!surf || !dest || surf->isDepth || !EnsureResolveMirror(s, *dest, false, surf->scale) ||
+      !dest->host.renderable)
+    return;
+  for (u32 m = 0; m < dest->host.mipLevels; ++m) {
+    plume::RenderFramebuffer *fb = GetMipFramebuffer(s, *dest, m);
+    if (!fb)
+      continue;
+    TransitionLocked(s, dest->host, plume::RenderTextureLayout::COLOR_WRITE);
+    s.command_list->setFramebuffer(fb);
+    s.command_list->clearColor(0, plume::RenderColor(0, 0, 0, 0), nullptr, 0);
+  }
+  s.bound_framebuffer = nullptr;
+  s.bound_pipeline = nullptr;
+  s.bound_draw_targets_valid = false;
+  dest->host.needsClear = false;
+  dest->uploaded = true;
+  dest->uploadedUnlockSeq = ResourceUnlockSeq(dest->va);
+  dest->contentSerial++;
+  dest->lastUseFrame = s.guest_frames;
 }
 
 void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
@@ -189,6 +218,10 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
   BeginCommandList(s);
   if (!s.command_list_open)
     return;
+  if (pk.clearDestOnly) {
+    ClearResolveDestination(s, pk);
+    return;
+  }
   EOT_CPU_ZONE("ResolveGuest");
   PerfScope perf_scope(s.perf.resolve_ms);
   s.perf.resolves++;
@@ -574,6 +607,18 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
     const i32 vy = std::clamp(dy, 0, static_cast<i32>(mip_h));
     const i32 vw = std::min(rw, static_cast<i32>(mip_w) - vx);
     const i32 vh = std::min(rh, static_cast<i32>(mip_h) - vy);
+    if (whole_src && dest_level == 0 && !depth_source && vw > 0 && vh > 0 &&
+        (vx != 0 || vy != 0 || vw < static_cast<i32>(mip_w) || vh < static_cast<i32>(mip_h) ||
+         ScalePxBy(vw, surf->scale) < static_cast<i32>(dest->host.width) ||
+         ScalePxBy(vh, surf->scale) < static_cast<i32>(dest->host.height))) {
+      u32 n;
+      if (DiagShouldLog(0x7900 ^ dest_texture_va ^ (static_cast<u32>(vw) << 12) ^ static_cast<u32>(vh), &n) && n == 0)
+        EOT_INFO("[resolve] {:#x} {}x{} (alloc {}x{}, x{:.3f}, tile {}) covers part of texture {:#x} {}x{} fmt {} "
+                 "(host {}x{}): {}x{} at {},{}, {}x{} host",
+                 src_va, surf->width, surf->height, surf->allocWidth, surf->allocHeight, surf->scale, surf->baseTile,
+                 dest_texture_va, dest->width, dest->height, static_cast<u32>(dest->format), dest->host.width,
+                 dest->host.height, vw, vh, vx, vy, ScalePxBy(vw, surf->scale), ScalePxBy(vh, surf->scale));
+    }
     if (vw > 0 && vh > 0 && redirect_hit) {
       dest->contentSerial++;
       dest->resolvedSurfaceUid = surf->uid;

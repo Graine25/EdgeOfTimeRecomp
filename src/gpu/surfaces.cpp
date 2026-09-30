@@ -223,7 +223,19 @@ struct SurfaceLookupEntry {
   u64 key = 0;
   u64 generation = 0;
   GuestSurface *surf = nullptr;
+  u32 surfaceInfo = 0, info = 0, hiControl = 0, sizeBits = 0, width = 0, height = 0;
+  i32 colorExpBias = 0;
 };
+
+void ApplyHeaderFields(GuestSurface &surf, const SurfaceLookupEntry &e) {
+  surf.surfaceInfo = e.surfaceInfo;
+  surf.info = e.info;
+  surf.hiControl = e.hiControl;
+  surf.sizeBits = e.sizeBits;
+  surf.width = e.width;
+  surf.height = e.height;
+  surf.colorExpBias = e.colorExpBias;
+}
 SurfaceLookupEntry g_surface_lookup[16];
 constexpr u32 kHeaderWordOffsets[5] = {obj::kSurfaceInfo, obj::kSurfaceColorInfo,
                                        obj::kSurfaceHiControl, obj::kSurfaceSize,
@@ -262,6 +274,7 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
   if (lookup.surf && lookup.va == surface_va && lookup.generation == s.surface_generation &&
       std::memcmp(lookup.words, words, sizeof(words)) == 0 && lookup.surf->host.valid()) {
     lookup.surf->va = surface_va;
+    ApplyHeaderFields(*lookup.surf, lookup);
     return lookup.surf;
   }
   GuestSurface decoded;
@@ -280,6 +293,13 @@ GuestSurface *GetGuestSurfaceWords(VideoState &s, u32 surface_va, const u32 word
     lookup.key = key;
     lookup.generation = s.surface_generation;
     lookup.surf = header ? surf : nullptr;
+    lookup.surfaceInfo = surf->surfaceInfo;
+    lookup.info = surf->info;
+    lookup.hiControl = surf->hiControl;
+    lookup.sizeBits = surf->sizeBits;
+    lookup.width = surf->width;
+    lookup.height = surf->height;
+    lookup.colorExpBias = surf->colorExpBias;
     return surf;
   };
   if (slot && slot->host.valid()) {
