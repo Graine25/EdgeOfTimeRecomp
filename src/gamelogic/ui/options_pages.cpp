@@ -484,7 +484,7 @@ constexpr Setting kControlsSettings[] = {
      .choices = kGlyphs},
     {.label = "REEOT_OPT_MNK", .description = "REEOT_DESC_MNK", .accessor = &kKeyboardMouse, .choices = kOnOff},
     {.label = "REEOT_OPT_MOUSE_SENSITIVITY", .description = "REEOT_DESC_MOUSE_SENSITIVITY",
-     .cvar = "mnk_sensitivity", .slider = {0.1, 1.9, 0.1, Format::kPlain}, .numeric = true,
+     .cvar = "mnk_sensitivity", .slider = {0.1, 3.0, 0.1, Format::kPlain}, .numeric = true,
      .enabled = MouseLookOn},
     {.label = "REEOT_OPT_BACKGROUND_INPUT", .description = "REEOT_DESC_BACKGROUND_INPUT",
      .cvar = "eot_background_input", .choices = kOnOff},

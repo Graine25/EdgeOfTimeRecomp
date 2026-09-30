@@ -17,7 +17,7 @@
 REX_EXTERN(__imp__eot_Camera3rd_ReadStick);
 
 REXCVAR_DEFINE_BOOL(eot_mouse_look, true, "EdgeOfTime/Input", "Mouse turns the camera");
-REXCVAR_DEFINE_DOUBLE(eot_mouse_look_degrees, 0.03, "EdgeOfTime/Input", "Mouse look turn speed");
+REXCVAR_DEFINE_DOUBLE(eot_mouse_look_degrees, 0.1, "EdgeOfTime/Input", "Mouse look turn speed");
 
 namespace {
 
