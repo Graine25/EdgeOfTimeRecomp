@@ -506,6 +506,15 @@ constexpr f64 kTextureIdleSeconds = 30.0;
 constexpr f64 kUploadedTextureIdleSeconds = 300.0;
 constexpr size_t kTextureCap = 4096;
 
+static bool ReadyToRetire(VideoState &s, const std::shared_ptr<GuestTexture> &slot) {
+  if (slot.use_count() > 1)
+    SurfacesReleaseMirror(s, *slot);
+  if (slot.use_count() > 1 || (!slot->borrower && slot->aliasDependents.empty()))
+    return true;
+  BeginCommandList(s);
+  return s.command_list_open;
+}
+
 void EvictStaleGuestTextures(VideoState &s) {
   EOT_CPU_ZONE("evict guest textures");
   bool evicted = false;
@@ -515,7 +524,7 @@ void EvictStaleGuestTextures(VideoState &s) {
     TakeReleasedTextures(released);
     for (u32 va : released) {
       const auto it = s.textures.find(va);
-      if (it == s.textures.end() || !it->second || it->second->resolveOwned)
+      if (it == s.textures.end() || !it->second || it->second->resolveOwned || !ReadyToRetire(s, it->second))
         continue;
       if (it->second.use_count() == 1) {
         TextureReleaseBorrower(s, *it->second);
@@ -548,7 +557,8 @@ void EvictStaleGuestTextures(VideoState &s) {
       continue;
     }
     const f64 idle_seconds = slot->resolveOwned ? kTextureIdleSeconds : kUploadedTextureIdleSeconds;
-    if (FrameAgeSeconds(s, slot->lastUseFrame) < idle_seconds && slot->lastUseFrame >= oldest_kept_frame) {
+    if ((FrameAgeSeconds(s, slot->lastUseFrame) < idle_seconds && slot->lastUseFrame >= oldest_kept_frame) ||
+        !ReadyToRetire(s, slot)) {
       ++it;
       continue;
     }
@@ -676,6 +686,8 @@ GuestTexture *GetGuestTexture(VideoState &s, u32 header_va, bool create_host_ima
                header_va, slot->width, slot->height, static_cast<u32>(slot->format),
                slot->baseAddress, InfoWidth(info), InfoHeight(info),
                static_cast<u32>(info.format), info.memory.base_address, n + 1);
+    if (slot.use_count() > 1)
+      SurfacesReleaseMirror(s, *slot);
     if (slot.use_count() == 1) {
       TextureReleaseBorrower(s, *slot);
       FlushAliasDependents(s, *slot);
@@ -793,6 +805,7 @@ static bool TakeOverAsResolveTarget(VideoState &s, GuestTexture &t) {
   s.bound_draw_targets_valid = false;
   t.host.needsClear = false;
   t.resolveOwned = true;
+  t.resolveProvisional = true;
   t.uploaded = true;
   s.perf.uploads_skipped++;
   return true;
@@ -824,7 +837,8 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
   return BindTextureSRVSwizzledLocked(s, t.host, swizzle);
 }
 
-bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, float scale) {
+bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, float scale,
+                         plume::RenderFormat depth_format) {
   const float k = scale > 0.0f ? scale : RenderScaleFactor();
   const auto info_it = infos().find(t.va);
   if (info_it == infos().end())
@@ -842,9 +856,11 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       return false;
     t.bindingGeneration++;
   }
-  if (!t.resolveOwned &&
+  if ((!t.resolveOwned || t.resolveProvisional) &&
       (!t.host.texture || (depth_source == t.host.isDepth && t.host.renderable))) {
-    const plume::RenderFormat want = ResolveDestinationFormat(t.format, depth_source);
+    const plume::RenderFormat want = depth_source && depth_format != plume::RenderFormat::UNKNOWN
+                                         ? depth_format
+                                         : ResolveDestinationFormat(t.format, depth_source);
     if (want == plume::RenderFormat::UNKNOWN)
       return false;
     const u32 want_w = ScaleDimBy(InfoWidth(info), k), want_h = ScaleDimBy(InfoHeight(info), k);
@@ -856,6 +872,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
                 t.va, static_cast<u32>(want), want_w, want_h, static_cast<u32>(t.host.format),
                 t.host.width, t.host.height);
       const bool replacing_host = t.host.texture != nullptr;
+      TextureReleaseBorrower(s, t);
       FlushAliasDependents(s, t);
       ParkHostTexture(s, t.host);
       t.aliasPending = false;
@@ -879,14 +896,21 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       desc.mipLevels = is_depth && replacing_host
                            ? 1u
                            : std::min(info.mip_max_level + 1u, max_levels);
-      desc.format = want;
+      desc.format = ImageResourceFormat(want);
       desc.flags = is_depth ? plume::RenderTextureFlag::DEPTH_TARGET
                             : plume::RenderTextureFlag::RENDER_TARGET;
       const u32 gw = InfoWidth(info), gh = InfoHeight(info);
       bool frame_shape = gw >= 2048 && gh >= 2048;
-      for (u32 k = 0; k < 4; ++k)
-        frame_shape |= gw == (kGuestRenderWidth >> k) && gh == (kGuestRenderHeight >> k);
+      bool near_frame = false;
+      for (u32 k = 0; k < 4; ++k) {
+        const i32 fw = static_cast<i32>(kGuestRenderWidth >> k), fh = static_cast<i32>(kGuestRenderHeight >> k);
+        frame_shape |= gw == static_cast<u32>(fw) && gh == static_cast<u32>(fh);
+        near_frame |= std::abs(static_cast<i32>(gw) - fw) <= 2 && std::abs(static_cast<i32>(gh) - fh) <= 2;
+      }
       desc.committed = frame_shape && u64(desc.width) * desc.height >= 256ull * 256ull;
+      plume::RenderPool *pool = !frame_shape && !near_frame && gw > 256 && gh > 256
+                                    ? s.transient_mirror_pool.get()
+                                    : nullptr;
       t.host.format = want;
       t.host.viewDimension = plume::RenderTextureViewDimension::TEXTURE_2D;
       t.host.width = desc.width;
@@ -895,7 +919,7 @@ bool EnsureResolveMirror(VideoState &s, GuestTexture &t, bool depth_source, floa
       t.host.mipLevels = desc.mipLevels;
       t.host.arraySize = 1;
       t.host.isDepth = is_depth;
-      CreateOrRecycleHostTexture(s, t.host, desc, "resolve-mirror");
+      CreateOrRecycleHostTexture(s, t.host, desc, "resolve-mirror", pool);
       t.host.renderable = t.host.texture != nullptr;
       t.uploaded = false;
       if (!t.host.texture)

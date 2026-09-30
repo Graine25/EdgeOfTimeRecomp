@@ -460,7 +460,7 @@ void PublishLiveStatsLocked(const VideoState &s, const PerfCounters &p) {
 }
 
 void LogPerfLocked(VideoState &s) {
-  MemoryReportTick();
+  MemoryReportTick(s);
   const i32 every = Settings::PerfFrames();
   PerfCounters &p = s.perf;
   const auto now = std::chrono::steady_clock::now();

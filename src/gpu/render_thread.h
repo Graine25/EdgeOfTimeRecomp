@@ -32,6 +32,7 @@ bool UploadAllocate(u64 size, u64 alignment, UploadAlloc *out);
 bool UploadBytes(const void *src, u64 size, u64 alignment, UploadAlloc *out);
 
 u64 UploadRingBytesThisFrame();
+u64 UploadRingCapacityBytes(u32 *chunks = nullptr);
 
 }
 

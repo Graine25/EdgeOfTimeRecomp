@@ -79,6 +79,10 @@ REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video", "Screen color sat
 REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video", "Screen gamma curve");
 REXCVAR_DEFINE_INT32(eot_perf_frames, 600, "EdgeOfTime/Debug", "Perf log every N frames");
 
+REXCVAR_DEFINE_INT32(eot_vram_report_seconds, 30, "EdgeOfTime/Debug", "Seconds between VRAM reports")
+    .range(0, 3600);
+REXCVAR_DEFINE_BOOL(eot_vram_csv, false, "EdgeOfTime/Debug", "Write VRAM allocation CSVs");
+
 REXCVAR_DEFINE_INT32(eot_diag_frame, 0, "EdgeOfTime/Debug", "Frame to log in detail")
     .range(0, 100000000);
 REXCVAR_DEFINE_INT32(eot_diag_scene_from, 0, "EdgeOfTime/Debug", "First frame for scene diag")
@@ -125,6 +129,8 @@ std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
+i32 Settings::VramReportSeconds() { return REXCVAR_GET(eot_vram_report_seconds); }
+bool Settings::VramCsv() { return REXCVAR_GET(eot_vram_csv); }
 i32 Settings::DumpEvery() { return REXCVAR_GET(eot_dump_every); }
 i32 Settings::DumpBurst() { return REXCVAR_GET(eot_dump_burst); }
 namespace {
@@ -264,7 +270,7 @@ struct Gate {
 
 constexpr Gate kGates[] = {
     {"eot_msaa", "0", "2", "4", "8"},
-    {"eot_upscale", "bilinear", "bicubic", "bicubic", "bicubic"},
+    {"eot_upscale", "bilinear", "bicubic", "bicubic", "lanczos"},
     {"eot_anisotropy", "0", "8", "16", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096", "8192"},
     {"eot_host_aa", "off", "off", "off", "taa"},
