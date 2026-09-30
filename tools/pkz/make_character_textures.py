@@ -14,6 +14,7 @@ FORMS = [
     ("antivenom/remastd", "Untitled_SMA_Anti_venom_%s", "Reeot_AntiVenom"),
     ("antivenom/massiveremasted", "Untitled2_AntiVenomMassive_%s", "Reeot_AntiVenomMassive"),
     ("2099", "model_SMFuturBody_%s", "Reeot_SM2099Body"),
+    ("ock", "Untitled_MonsterOck_%s", "Reeot_MonsterOck"),
 ]
 MAPS = [("Diffuse", "D", b"DXT1"), ("Normal", "N", b"DXT5")]
 SOURCE_NAMES = {"Diffuse": ("Diffuse", "D"), "Normal": ("Normal", "N")}
