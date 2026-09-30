@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 
 #include <rex/cvar.h>
@@ -24,11 +25,11 @@ using clock = std::chrono::steady_clock;
 
 constexpr size_t kZOrder = 25;
 
-REXCVAR_DEFINE_DOUBLE(eot_wheel_camera_turn, 150.0, "EdgeOfTime/Input",
+REXCVAR_DEFINE_DOUBLE(eot_wheel_camera_turn, 60.0, "EdgeOfTime/Input",
                       "Away from a menu, a notch of the wheel turns the camera by this many "
-                      "counts of sideways mouse motion -- so it follows the mouse sensitivity "
-                      "slider, and at the default that is about fifteen degrees a notch. Zero "
-                      "leaves the wheel alone outside menus.");
+                      "counts of sideways mouse motion at sensitivity 1 -- about six degrees, "
+                      "and the same six whatever the sensitivity slider is set to. Raise it for "
+                      "a coarser nudge; zero leaves the wheel alone outside menus.");
 
 constexpr auto kMashFresh = std::chrono::milliseconds(200);
 
@@ -211,9 +212,11 @@ void NoteMashPrompt() {
 void ApplyWheel(RawPad &pad) {
   if (!WheelInMenu()) {
     const int32_t waiting = g_wheel.exchange(0, std::memory_order_acq_rel);
-    const double counts = REXCVAR_GET(eot_wheel_camera_turn);
-    if (waiting && counts > 0.0)
-      MouseAddTurn(static_cast<float>(-waiting * counts));
+    const double counts = waiting ? REXCVAR_GET(eot_wheel_camera_turn) : 0.0;
+    if (counts > 0.0) {
+      const double sens = std::atof(rex::cvar::GetFlagByName("mnk_sensitivity").c_str());
+      MouseAddTurn(static_cast<float>(-waiting * counts / (sens > 0.05 ? sens : 1.0)));
+    }
     g_pulse_dir = 0;
     g_pulse_left = g_gap_left = 0;
     return;
