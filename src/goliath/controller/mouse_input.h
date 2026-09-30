@@ -19,6 +19,8 @@ void MouseGrabForDebug(bool on);
 
 void MouseTakeForDebug(float *dx, float *dy, int *wheel);
 
+void MouseAddTurn(float counts);
+
 }
 
 extern "C" {
