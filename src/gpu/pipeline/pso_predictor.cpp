@@ -400,6 +400,8 @@ u32 EnqueueSlots(const std::vector<Slot> &slots, PsoLane lane, u32 *no_template)
           rc.state.depthBias = PolygonOffsetUnits(b.offset);
           rc.state.slopeScaledDepthBias = b.slope;
           rc.state.targetScale = shadow_scale;
+          if (rc.state.rtCount == 0 && IsDepthFormat(rc.state.dsFormat))
+            rc.state.dsFormat = ShadowDepthFormat();
           enqueue(rc);
         }
         break;

@@ -144,4 +144,19 @@ u64 UploadRingBytesThisFrame() {
   return ring().frame_bytes[s.recording_slot()];
 }
 
+u64 UploadRingCapacityBytes(u32 *chunks) {
+  std::lock_guard lock(g_ring_mutex);
+  u64 bytes = 0;
+  u32 n = 0;
+  for (const auto &slot : ring().chunks) {
+    for (const Chunk &c : slot) {
+      bytes += c.capacity;
+      n++;
+    }
+  }
+  if (chunks)
+    *chunks = n;
+  return bytes;
+}
+
 }

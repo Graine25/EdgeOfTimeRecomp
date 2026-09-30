@@ -423,6 +423,13 @@ void Shutdown(VideoState &s) {
   st.psoFormat = plume::RenderFormat::UNKNOWN;
 }
 
+void ForEachImage(const std::function<void(const HostTexture &)> &fn) {
+  for (const View &v : state().views)
+    for (const HostTexture &h : v.history)
+      if (h.valid())
+        fn(h);
+}
+
 void BeforeSceneConsumerDraw(VideoState &s, GuestTexture *const bound[16], const float *camera_vp,
                              u64 consumer_hash, bool skip) {
   State &state_ = state();

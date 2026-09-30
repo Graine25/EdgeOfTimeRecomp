@@ -538,6 +538,22 @@ bool PsoCacheHoldPackage(u32 id) {
   return true;
 }
 
+void PipelineCacheCounts(u32 *alive, u32 *used) {
+  auto &c = cache();
+  u32 a = 0, u = 0;
+  {
+    std::shared_lock lock(c.mutex);
+    for (const auto &[key, e] : c.map) {
+      if (!e.pipeline)
+        continue;
+      a++;
+      u += e.used ? 1 : 0;
+    }
+  }
+  *alive = a;
+  *used = u;
+}
+
 void PsoCacheFlushIfDirty(bool force) {
   auto &s = state();
   PsoCaptureFlush(force, s.guest_frames);

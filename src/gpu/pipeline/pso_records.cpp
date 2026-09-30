@@ -24,6 +24,7 @@
 #endif
 
 #include "core/logging.h"
+#include "gpu/format.h"
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
 
@@ -355,10 +356,14 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
       !ParseBool(field(cDepthWrite), &s.depthWrite) || !ParseEnum(field(cDepthFunc), &s.depthFunc) ||
       !ParseBool(field(cStencilEnable), &s.stencilEnable))
     return false;
-  if (s.depthBias || s.slopeScaledDepthBias != 0.0f)
-    s.targetScale = s.targetScale == 0.0f ? FollowTargetScale(s) : s.targetScale;
-  else
+  const bool follows = s.targetScale == 0.0f;
+  if (s.depthBias || s.slopeScaledDepthBias != 0.0f) {
+    s.targetScale = follows ? FollowTargetScale(s) : s.targetScale;
+    if (follows && s.rtCount == 0 && s.sampleCount <= 1 && !s.stencilEnable && IsDepthFormat(s.dsFormat))
+      s.dsFormat = ShadowDepthFormat();
+  } else {
     s.targetScale = 1.0f;
+  }
   i64 m0, m1, m2;
   if (!ParseI64(field(cStencilReadMask), &m0) || !ParseI64(field(cStencilWriteMask), &m1) ||
       !ParseI64(field(cStencilRef), &m2))

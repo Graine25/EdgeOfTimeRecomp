@@ -391,6 +391,10 @@ Target *CurrentFor(VideoState &s, const GuestSurface &depth, u32 width, u32 heig
   if (!width || !height)
     return nullptr;
   Ring &r = RingFor(s, depth.uid);
+  if (r.t[r.current].needsClear && r.t[r.current].frameWritten == s.guest_frames) {
+    r.current ^= 1u;
+    r.t[r.current].needsClear = true;
+  }
   Target &t = r.t[r.current];
   const bool recreate = !t.image.valid() || t.width != width || t.height != height ||
                         t.samples != std::max(1u, samples);
@@ -427,7 +431,6 @@ void OnDepthCleared(VideoState &, const GuestSurface &depth) {
   Ring *r = FindRing(depth.uid);
   if (!r)
     return;
-  r->current ^= 1u;
   r->t[r->current].needsClear = true;
   replay().clears++;
 }
@@ -438,7 +441,7 @@ VelocityHandle HandleFor(const GuestSurface &depth, u64 frame) {
   if (!r)
     return h;
   const Target &t = r->t[r->current];
-  if (t.frameWritten != frame || !t.image.valid())
+  if (t.frameWritten != frame || !t.image.valid() || t.needsClear)
     return h;
   h.depthUid = t.depthUid;
   h.slot = t.slot;
@@ -514,6 +517,27 @@ void Shutdown(VideoState &s) {
     if (chunk.buffer)
       chunk.buffer->unmap();
   c.chunks.clear();
+}
+
+void ForEachImage(const std::function<void(const HostTexture &)> &fn) {
+  for (const Ring &ring : replay().rings) {
+    for (const Target &t : ring.t) {
+      if (t.image.valid())
+        fn(t.image);
+      if (t.resolved.valid())
+        fn(t.resolved);
+    }
+  }
+}
+
+u64 HistoryArenaBytes(u32 *chunks) {
+  const CaptureState &c = capture();
+  u64 bytes = 0;
+  for (const ArenaChunk &chunk : c.chunks)
+    bytes += chunk.buffer ? chunk.capacity : 0;
+  if (chunks)
+    *chunks = static_cast<u32>(c.chunks.size());
+  return bytes;
 }
 
 }

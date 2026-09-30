@@ -50,6 +50,8 @@ struct HostTexture {
   bool needsClear = false;
   std::vector<std::unique_ptr<plume::RenderTextureView>> mipViews;
   std::vector<std::unique_ptr<plume::RenderFramebuffer>> mipFramebuffers;
+  std::unique_ptr<plume::RenderTextureView> depthView;
+  bool transientPool = false;
 
   bool valid() const { return texture != nullptr; }
 };
@@ -90,6 +92,7 @@ struct GuestTexture {
   bool uploadFailed = false;
   bool synthMips = false;
   bool resolveOwned = false;
+  bool resolveProvisional = false;
   bool storeSwapRB = false;
   u64 contentSerial = 0;
   GuestSurface *borrower = nullptr;
@@ -177,6 +180,9 @@ struct GuestSurface {
   u64 perfClears = 0;
   u64 perfResolves = 0;
   u64 perfTransfers = 0;
+  u64 hostDraws = 0;
+  u64 singleDraws = 0;
+  u64 createdFrame = 0;
 };
 
 struct VertexInput {
