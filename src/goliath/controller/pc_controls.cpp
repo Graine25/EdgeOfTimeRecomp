@@ -22,6 +22,7 @@ REXCVAR_DEFINE_STRING(eot_key_hyper_sense, "Shift", EOT_KEYS,
                       "Hyper-Sense / Accelerated Decoy (LT)");
 REXCVAR_DEFINE_STRING(eot_key_left_stick_click, "Z", EOT_KEYS, "Left stick click (L3); Time Stop with R3");
 REXCVAR_DEFINE_STRING(eot_key_right_stick_click, "X", EOT_KEYS, "Right stick click (R3): center camera; Time Stop with L3");
+REXCVAR_DEFINE_STRING(eot_key_time_paradox, "", EOT_KEYS, "Time Stop, on one key (L3 + R3)");
 REXCVAR_DEFINE_STRING(eot_key_spider_sense, "R", EOT_KEYS, "Spider-Sense (D-pad up)");
 REXCVAR_DEFINE_STRING(eot_key_upgrades, "Tab", EOT_KEYS, "Upgrades (Back)");
 REXCVAR_DEFINE_STRING(eot_key_pause, "Escape", EOT_KEYS, "Pause (Start)");

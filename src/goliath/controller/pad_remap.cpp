@@ -37,6 +37,7 @@ REXCVAR_DEFINE_STRING(eot_pad_left_stick_click, "LS", EOT_PAD, "Stick to a wall 
 REXCVAR_DEFINE_STRING(eot_pad_right_stick_click, "RS", EOT_PAD, "Center the camera (right stick click)");
 REXCVAR_DEFINE_STRING(eot_pad_pause, "Start", EOT_PAD, "Pause Menu");
 REXCVAR_DEFINE_STRING(eot_pad_upgrades, "Back", EOT_PAD, "Upgrades Menu");
+REXCVAR_DEFINE_STRING(eot_pad_time_paradox, "", EOT_PAD, "Time Stop (both stick clicks)");
 REXCVAR_DEFINE_STRING(eot_pad_sticks, "normal", EOT_PAD, "Sticks: normal or swapped");
 
 namespace eot::controller {
@@ -84,6 +85,8 @@ bool PressedIn(const RawPad &pad, PadInput input) {
     return pad.left_trigger > kTriggerPressed;
   case PadInput::RT:
     return pad.right_trigger > kTriggerPressed;
+  case PadInput::LSRS:
+    return (pad.buttons & PadInputBit(PadInput::LSRS)) == PadInputBit(PadInput::LSRS);
   case PadInput::None:
     return false;
   default:
