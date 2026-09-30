@@ -360,9 +360,6 @@ constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
                                   {"REEOT_VAL_2160P", "2160p"},   {"REEOT_VAL_DISPLAY", "display"}};
-constexpr Choice kDisplayScale[] = {{"REEOT_VAL_50_PERCENT", "50"},   {"REEOT_VAL_66_PERCENT", "66"},
-                                    {"REEOT_VAL_75_PERCENT", "75"},   {"REEOT_VAL_100_PERCENT", "100"},
-                                    {"REEOT_VAL_150_PERCENT", "150"}, {"REEOT_VAL_200_PERCENT", "200"}};
 constexpr Choice kFullscreenMode[] = {{"REEOT_VAL_BORDERLESS", "borderless"},
                                       {"REEOT_VAL_EXCLUSIVE", "exclusive"}};
 constexpr Choice kPipScale[] = {{"REEOT_VAL_50_PERCENT", "50"}, {"REEOT_VAL_66_PERCENT", "66"},
@@ -385,13 +382,6 @@ constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
                               {"REEOT_VAL_PLAYSTATION", "playstation"},
                               {"REEOT_VAL_SWITCH", "switch"},
                               {"REEOT_VAL_KEYBOARD", "keyboard"}};
-
-bool RenderScaleApplies() {
-  return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "native";
-}
-bool DisplayScaleApplies() {
-  return rex::cvar::Query<bool>("fullscreen") && rex::cvar::GetFlagByName("eot_resolution") == "display";
-}
 
 bool FullscreenOn() { return rex::cvar::Query<bool>("fullscreen"); }
 
@@ -418,14 +408,12 @@ constexpr Setting kVideoSettings[] = {
      .choices = kOnOff},
     {.label = "REEOT_OPT_RESOLUTION", .description = "REEOT_DESC_RESOLUTION", .cvar = "eot_resolution",
      .choices = kResolution, .restart = true, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
-    {.label = "REEOT_OPT_DISPLAY_SCALE", .description = "REEOT_DESC_DISPLAY_SCALE", .cvar = "eot_display_scale",
-     .choices = kDisplayScale, .numeric = true, .restart = true, .enabled = DisplayScaleApplies},
     {.label = "REEOT_OPT_FULLSCREEN_MODE", .description = "REEOT_DESC_FULLSCREEN_MODE",
      .cvar = "eot_fullscreen_mode", .choices = kFullscreenMode, .restart = true, .enabled = FullscreenOn},
     {.label = "REEOT_OPT_PIP_SCALE", .description = "REEOT_DESC_PIP_SCALE", .cvar = "eot_pip_scale",
      .choices = kPipScale, .numeric = true, .restart = true},
     {.label = "REEOT_OPT_RENDER_SCALE", .description = "REEOT_DESC_RENDER_SCALE", .cvar = "eot_render_scale",
-     .slider = {0.5, 2.0, 0.25, Format::kPercent}, .numeric = true, .restart = true, .enabled = RenderScaleApplies},
+     .slider = {0.5, 2.0, 0.25, Format::kPercent}, .numeric = true, .restart = true},
     {.label = "REEOT_OPT_ASPECT", .description = "REEOT_DESC_ASPECT", .cvar = "eot_aspect_ratio",
      .choices = kAspect, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
     {.label = "REEOT_OPT_FPS_LIMIT", .description = "REEOT_DESC_FPS_LIMIT", .cvar = "eot_fps_limit",
@@ -548,11 +536,12 @@ constexpr BindRow kBindRows[] = {
     EOT_BIND_STICK("REEOT_BIND_LOOK_LEFT", "REEOT_DESC_BIND_CAMERA", true, 2),
     EOT_BIND_STICK("REEOT_BIND_LOOK_RIGHT", "REEOT_DESC_BIND_CAMERA", true, 3),
     {"REEOT_BIND_CENTER", "REEOT_DESC_BIND_CENTER", BindKind::kAction, 10},
+    {"REEOT_BIND_TIME_PARADOX", "REEOT_DESC_BIND_TIME_PARADOX", BindKind::kAction, 13},
     {"REEOT_BIND_PAUSE", "REEOT_DESC_BIND_PAUSE", BindKind::kAction, 11},
     {"REEOT_BIND_UPGRADES", "REEOT_DESC_BIND_UPGRADES", BindKind::kAction, 12},
 };
 constexpr uint32_t kBindRowCount = sizeof(kBindRows) / sizeof(kBindRows[0]);
-static_assert(eot::controller::kPadActionCount == 13, "the rows above index kPadActions");
+static_assert(eot::controller::kPadActionCount == 14, "the rows above index kPadActions");
 
 constexpr uint32_t kColumnKey = 0;
 constexpr uint32_t kColumnPad = 1;
@@ -1594,6 +1583,8 @@ uint8_t KeySlotOf(const eot::controller::PadAction &action) {
     return 0x0C;
   if (action.native == PadInput::RS)
     return 0x0D;
+  if (action.native == PadInput::LSRS)
+    return eot::controller::kTimeParadoxCapSlot;
   return eot::controller::PadInputSlot(action.native);
 }
 
@@ -1649,6 +1640,13 @@ void ShowPadCell(const PPCContext &ctx, uint8_t *base, uint32_t window, const Bi
     SetStringHandle(ctx, base, window,
                     StringHandle(ctx, base, PadGlyphString(right ? eot::controller::kRightStickPressedSlot
                                                                  : eot::controller::kLeftStickPressedSlot)));
+    return;
+  }
+  if (input == PadInput::LSRS) {
+    const bool follows = binds::Api().pad_glyph &&
+                         binds::Api().pad_glyph(eot::controller::kLeftStickPressedSlot) != 0;
+    SetStringHandle(ctx, base, window,
+                    StringHandle(ctx, base, follows ? "REEOT_GM_BOTHSTICKS" : "REEOT_GP_BOTHSTICKS"));
     return;
   }
   const uint8_t slot = PadInputSlot(input);

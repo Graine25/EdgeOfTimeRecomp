@@ -23,6 +23,7 @@ enum class PadInput : uint8_t {
   Down,
   Left,
   Right,
+  LSRS,
   Count
 };
 
@@ -50,6 +51,7 @@ inline constexpr PadInputInfo kPadInputs[] = {
     {PadInput::Down, "Down", 0x0002, 0xFF},
     {PadInput::Left, "Left", 0x0004, 0xFF},
     {PadInput::Right, "Right", 0x0008, 0xFF},
+    {PadInput::LSRS, "LS+RS", 0x00C0, 0xFF},
 };
 static_assert(sizeof(kPadInputs) / sizeof(kPadInputs[0]) == static_cast<size_t>(PadInput::Count));
 
@@ -105,6 +107,7 @@ inline constexpr PadAction kPadActions[] = {
     {"right_stick_click", "eot_key_right_stick_click", "eot_pad_right_stick_click", PadInput::RS},
     {"pause", "eot_key_pause", "eot_pad_pause", PadInput::Start},
     {"upgrades", "eot_key_upgrades", "eot_pad_upgrades", PadInput::Back},
+    {"time_paradox", "eot_key_time_paradox", "eot_pad_time_paradox", PadInput::LSRS},
 };
 inline constexpr uint32_t kPadActionCount = sizeof(kPadActions) / sizeof(kPadActions[0]);
 
@@ -122,5 +125,6 @@ inline constexpr uint8_t kMoveKeyCapSlots[4] = {0x14, 0x15, 0x16, 0x17};
 inline constexpr uint8_t kLookKeyCapSlots[4] = {0x18, 0x19, 0x1A, 0x1C};
 inline constexpr uint8_t kLeftClickCapSlot = 0x0C;
 inline constexpr uint8_t kRightClickCapSlot = 0x0D;
+inline constexpr uint8_t kTimeParadoxCapSlot = 0x0E;
 
 }
