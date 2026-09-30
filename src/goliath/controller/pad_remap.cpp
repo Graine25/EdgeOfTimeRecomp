@@ -47,6 +47,7 @@ REXCVAR_DEFINE_STRING(eot_pad_left_stick_click, "LS", EOT_PAD, "Stick to wall bu
 REXCVAR_DEFINE_STRING(eot_pad_right_stick_click, "RS", EOT_PAD, "Center camera button");
 REXCVAR_DEFINE_STRING(eot_pad_pause, "Start", EOT_PAD, "Pause menu button");
 REXCVAR_DEFINE_STRING(eot_pad_upgrades, "Back", EOT_PAD, "Upgrades menu button");
+REXCVAR_DEFINE_STRING(eot_pad_time_paradox, "", EOT_PAD, "Time Stop button");
 REXCVAR_DEFINE_STRING(eot_pad_sticks, "normal", EOT_PAD, "Swap the sticks");
 
 namespace eot::controller {
@@ -94,6 +95,8 @@ bool PressedIn(const RawPad &pad, PadInput input) {
     return pad.left_trigger > kTriggerPressed;
   case PadInput::RT:
     return pad.right_trigger > kTriggerPressed;
+  case PadInput::LSRS:
+    return (pad.buttons & PadInputBit(PadInput::LSRS)) == PadInputBit(PadInput::LSRS);
   case PadInput::None:
     return false;
   default:
@@ -552,6 +555,7 @@ REXCVAR_DEFINE_STRING(eot_key_web_swing, "RMB", EOT_KEYS, "Web swing key (RT)");
 REXCVAR_DEFINE_STRING(eot_key_hyper_sense, "Shift", EOT_KEYS, "Hyper-Sense key (LT)");
 REXCVAR_DEFINE_STRING(eot_key_left_stick_click, "Z", EOT_KEYS, "Left stick click key");
 REXCVAR_DEFINE_STRING(eot_key_right_stick_click, "X", EOT_KEYS, "Right stick click key");
+REXCVAR_DEFINE_STRING(eot_key_time_paradox, "", EOT_KEYS, "Time Stop key");
 REXCVAR_DEFINE_STRING(eot_key_spider_sense, "R", EOT_KEYS, "Spider-Sense key (D-pad up)");
 REXCVAR_DEFINE_STRING(eot_key_upgrades, "Tab", EOT_KEYS, "Upgrades key (Back)");
 REXCVAR_DEFINE_STRING(eot_key_pause, "Escape", EOT_KEYS, "Pause key (Start)");
