@@ -72,6 +72,9 @@ struct Font {
 };
 constexpr Font kFonts[] = {{"TempusGothic", eot::ui::NameCrc("TempusGothic")}, {"SansaCon", eot::ui::NameCrc("SansaCon")}};
 
+constexpr uint8_t kMenuBackCapSlot = 0x0F;
+constexpr uint8_t kMenuOptCapSlot = 0x13;
+
 struct KeySlot {
   uint8_t slot;
   const char *cvar;
@@ -90,6 +93,8 @@ constexpr KeySlot kKeySlots[] = {
     {kLeftClickCapSlot, "eot_key_left_stick_click", nullptr, 0x00, false},
     {kRightClickCapSlot, "eot_key_right_stick_click", nullptr, 0x00, false},
     {kTimeParadoxCapSlot, "eot_key_time_paradox", nullptr, 0x00, false},
+    {kMenuBackCapSlot, nullptr, "Escape", 0x00, false},
+    {kMenuOptCapSlot, nullptr, "Delete", 0x00, false},
     {kMoveKeyCapSlots[0], kMoveKeyCvars[0], nullptr, 0x00, false},
     {kMoveKeyCapSlots[1], kMoveKeyCvars[1], nullptr, 0x00, false},
     {kMoveKeyCapSlots[2], kMoveKeyCvars[2], nullptr, 0x00, false},
@@ -239,26 +244,11 @@ size_t RemapHash() {
   return (h ^ (SticksSwapped() ? 1u : 0u)) * 1099511628211ull;
 }
 
-const char *MenuKeyFor(uint8_t slot) {
-  switch (slot) {
-  case 0x01:
-    return "Escape";
-  case 0x03:
-    return "Delete";
-  default:
-    return nullptr;
-  }
-}
-
 std::vector<eot::text::IconCell> KeyboardCells() {
   std::vector<eot::text::IconCell> cells;
-  const bool menu = MenuKeysActive();
   g_have[kKeyboardPage] = 0;
   for (const KeySlot &k : kKeySlots) {
     const Box *box = k.cluster ? Cap(k.cluster) : nullptr;
-    if (!box && menu && k.retail)
-      if (const char *key = MenuKeyFor(k.slot))
-        box = Cap(key);
     if (!box && k.cvar) {
       const std::string key = BoundKey(k.cvar);
       box = key.empty() ? nullptr : Cap(key);
@@ -313,15 +303,21 @@ bool InstallInto(const PPCContext &ctx, uint8_t *base, const Font &font, const s
   return ok;
 }
 
-constexpr const char *kStickClickTag = "TIMEPARADOX";
-struct ClickCap {
-  uint8_t stick;
+struct TagSwap {
+  const char *tag;
+  uint8_t retail;
   uint8_t cap;
+  bool menu_layer;
 };
-constexpr ClickCap kStickClickCaps[] = {
-    {0x07, kLeftClickCapSlot},
-    {0x06, kRightClickCapSlot},
+constexpr TagSwap kTagSwaps[] = {
+    {"TIMEPARADOX", 0x07, kLeftClickCapSlot, false},
+    {"TIMEPARADOX", 0x06, kRightClickCapSlot, false},
+    {"MENUBACK", 0x01, kMenuBackCapSlot, true},
+    {"MENUCANCEL", 0x01, kMenuBackCapSlot, true},
+    {"MENUOPT1", 0x03, kMenuOptCapSlot, true},
+    {"NEXTHINT", 0x03, kMenuOptCapSlot, true},
 };
+constexpr size_t kTagSwapCount = sizeof(kTagSwaps) / sizeof(kTagSwaps[0]);
 
 bool TagIs(uint32_t index, const char *name) {
   for (uint32_t k = 0; k < kTagChars; ++k) {
@@ -337,9 +333,14 @@ bool TagIs(uint32_t index, const char *name) {
 
 void ApplyPage(uint32_t page) {
   const uint32_t count = eot::mem::load<uint32_t>(kTagCount);
+  const bool menu_layer = MenuKeysActive();
   for (uint32_t i = 0; i < count && i < kMaxTags; ++i) {
     const uint32_t text = kTagText + i * kTagStride;
-    const bool clicks = TagIs(i, kStickClickTag);
+    const TagSwap *swaps[kTagSwapCount];
+    size_t swap_count = 0;
+    for (const TagSwap &swap : kTagSwaps)
+      if (TagIs(i, swap.tag))
+        swaps[swap_count++] = &swap;
     for (uint32_t k = 0; k < kTagChars; ++k) {
       const uint16_t c = eot::mem::load<uint16_t>(text + k * 2);
       if (!c)
@@ -348,15 +349,14 @@ void ApplyPage(uint32_t page) {
       if (high != kRetailPage && (high < kFirstPage || high > kKeyboardPage))
         continue;
       uint32_t slot = c & 0xFF;
-      if (clicks)
-        for (const ClickCap &cap : kStickClickCaps)
-          if (slot == cap.cap)
-            slot = cap.stick;
+      for (size_t n = 0; n < swap_count; ++n)
+        if (slot == swaps[n]->cap)
+          slot = swaps[n]->retail;
       uint32_t want = slot;
-      if (clicks && page == kKeyboardPage)
-        for (const ClickCap &cap : kStickClickCaps)
-          if (slot == cap.stick)
-            want = cap.cap;
+      if (page == kKeyboardPage)
+        for (size_t n = 0; n < swap_count; ++n)
+          if (slot == swaps[n]->retail && (!swaps[n]->menu_layer || menu_layer))
+            want = swaps[n]->cap;
       const uint32_t to =
           (page != kRetailPage && want < kSlotCount && (g_have[page] & (1ull << want))) ? page : kRetailPage;
       eot::mem::store<uint16_t>(text + k * 2,
@@ -518,11 +518,10 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
 
   if (const bool menu = MenuKeysActive(); menu != g_menu_keys) {
     g_menu_keys = menu;
-    const std::vector<eot::text::IconCell> keys = KeyboardCells();
-    for (const Font &font : kFonts)
-      InstallInto(ctx, base, font, keys, true);
-    if (g_applied_page == kKeyboardPage)
+    if (g_applied_page == kKeyboardPage) {
+      ApplyPage(kKeyboardPage);
       RecomposePrompts(ctx, base);
+    }
   }
 
   if (++g_ticks % kPollTicks == 0 || g_binds_dirty.exchange(false, std::memory_order_acq_rel)) {
