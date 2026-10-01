@@ -117,6 +117,10 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotIcons.manifest"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/glyphs/icons.txt"
             "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/Reeot_Icons.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPrompt_PlayStation_D.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPromptY_PlayStation_D.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPrompt_Switch_D.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPrompt_Keyboard_D.dds"
     COMMENT "Authoring ReeotIcons.pkz from tools/pkz/ReeotIcons.manifest"
     VERBATIM)
 set(REEOT_SUITS_DDS "")
@@ -287,6 +291,7 @@ set(REEOT_SOURCES
     src/goliath/body_pulse_materials.cpp
     src/goliath/web_color.cpp
     src/goliath/title_matte.cpp
+    src/goliath/mash_prompt.cpp
     src/goliath/root_motion.cpp
     src/goliath/text/glyph_pages.cpp
     src/goliath/text/translation.cpp

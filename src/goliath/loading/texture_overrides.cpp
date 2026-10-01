@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include <rex/cvar.h>
 
@@ -11,6 +12,7 @@
 #include "goliath/controller/button_glyphs.h"
 #include "goliath/loading/heap_census.h"
 #include "goliath/loading/resources.h"
+#include "goliath/mash_prompt.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
 #include "platform/language.h"
@@ -41,9 +43,11 @@ struct Override {
   const char *glyphs;
   const char *language;
   const char *cvar;
+  const char *set;
   uint32_t retailCrc;
   uint32_t replacementCrc;
   uint32_t fontCrc;
+  uint32_t wideModel;
 };
 
 constexpr Override Make(const char *retail, const char *replacement, const char *font, const char *glyphs = nullptr,
@@ -51,8 +55,19 @@ constexpr Override Make(const char *retail, const char *replacement, const char 
   return {retail, replacement,
           font,   glyphs,
           language, cvar,
-          eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
-          font ? eot::ui::NameCrc(font) : 0u};
+          nullptr, eot::ui::NameCrc(retail),
+          eot::ui::NameCrc(replacement), font ? eot::ui::NameCrc(font) : 0u,
+          0u};
+}
+
+constexpr Override ForSet(const char *retail, const char *replacement, const char *set,
+                          const char *wideModel = nullptr) {
+  return {retail,  replacement,
+          nullptr, nullptr,
+          nullptr, nullptr,
+          set,     eot::ui::NameCrc(retail),
+          eot::ui::NameCrc(replacement), 0u,
+          wideModel ? eot::ui::NameCrc(wideModel) : 0u};
 }
 
 constexpr Override kOverrides[] = {
@@ -80,6 +95,11 @@ constexpr Override kOverrides[] = {
     Make("SM99_Spiderman_S", "Reeot_SM2099Body_S", nullptr),
     Make("SMA_MonsterOck_D", "Reeot_MonsterOck_D", nullptr),
     Make("SMA_MonsterOck_N", "Reeot_MonsterOck_N", nullptr),
+    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_PlayStation_D", "playstation"),
+    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Switch_D", "switch"),
+    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", "SMN_PromptWebPullButton"),
+    ForSet("SMN_PromptWebPullButtonY_D", "Reeot_MashPromptY_PlayStation_D", "playstation"),
+    ForSet("SMN_PromptWebPullButtonY_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", "SMN_PromptWebPullButtonY"),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");
@@ -92,8 +112,16 @@ constexpr uint32_t FontMask() {
   return mask;
 }
 constexpr uint32_t kFontMask = FontMask();
+constexpr uint32_t PromptMask() {
+  uint32_t mask = 0;
+  for (uint32_t i = 0; i < kOverrideCount; ++i)
+    if (kOverrides[i].set)
+      mask |= 1u << i;
+  return mask;
+}
+constexpr uint32_t kPromptMask = PromptMask();
 constexpr uint32_t kAllMask = kOverrideCount >= 32 ? ~0u : (1u << kOverrideCount) - 1;
-constexpr uint32_t kSuitMask = kAllMask & ~kFontMask;
+constexpr uint32_t kSuitMask = kAllMask & ~kFontMask & ~kPromptMask;
 
 uint32_t WantedMask() {
   const std::string tag = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));
@@ -242,6 +270,27 @@ void TrackSuits(const PPCContext &ctx, uint8_t *base) {
   }
 }
 
+void TrackPromptArt(const PPCContext &ctx, uint8_t *base) {
+  const uint32_t mask = g_wanted & kPromptMask;
+  if (!mask)
+    return;
+  const std::string_view set = eot::controller::ActiveGlyphSet();
+  for (uint32_t i = 0; i < kOverrideCount; ++i) {
+    if ((mask & (1u << i)) && set != kOverrides[i].set && ReleaseSuit(ctx, base, i))
+      EOT_INFO("[tex] {} let go: the prompts draw the {} set", kOverrides[i].replacement, set);
+  }
+  uint32_t wide[2] = {0, 0};
+  uint32_t n = 0;
+  for (uint32_t i = 0; i < kOverrideCount; ++i) {
+    if (!(mask & (1u << i)) || set != kOverrides[i].set)
+      continue;
+    TrackSuit(ctx, base, i);
+    if (g_swapped[i] && kOverrides[i].wideModel && n < 2)
+      wide[n++] = kOverrides[i].wideModel;
+  }
+  eot::goliath::SetWidePromptModels(wide[0], wide[1]);
+}
+
 void RevertSuits(const PPCContext &ctx, uint8_t *base) {
   uint32_t done = 0;
   for (uint32_t i = 0; i < kOverrideCount; ++i) {
@@ -364,6 +413,7 @@ REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   if (g_pending_chosen && (++track_tick & 3) == 0) {
     std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
     TrackSuits(ctx, base);
+    TrackPromptArt(ctx, base);
   }
   if (g_pending_chosen && g_pending) {
     std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
