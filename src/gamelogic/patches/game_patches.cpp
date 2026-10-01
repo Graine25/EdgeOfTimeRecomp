@@ -7,7 +7,6 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gamelogic/ui/hud_api.h"
-#include "goliath/ui/menu_handles.h"
 
 REXCVAR_DEFINE_BOOL(eot_sd_suits, false, "EdgeOfTime/Config", "Unlock Shattered Dimensions suits");
 
@@ -36,6 +35,7 @@ constexpr uint32_t kPageAlreadyHandle = 1360;
 constexpr uint32_t kPageResult = 1364;
 constexpr uint32_t kConfigTitles = 32;
 constexpr uint32_t kVipTitleNameCrc = 0xD67C58C4;
+constexpr uint32_t kSuitUnlockedNameCrc = 0x97C2F465;
 
 void ForceFlag(const char *where) {
   if (!REXCVAR_GET(eot_sd_suits) || eot::mem::load<uint8_t>(kSdSaveSeen) != 0)
@@ -114,7 +114,10 @@ REX_HOOK_RAW(eot_HUDDLCCode_Validate) {
   eot::mem::store<uint8_t>(kSdSaveSeen, 1);
   eot::mem::store<uint16_t>(kBonusFlags, eot::mem::load<uint16_t>(kBonusFlags) | kBonusSdWelcome);
   eot::mem::store<uint8_t>(self + kPageResult, eot::mem::load<uint8_t>(self + kPageResult) | 0x40);
-  AnswerWithPopup(ctx, base, self, eot::ui::kHandleSdCodeAccepted);
+  const uint32_t unlocked = eot::ui::hud::FindString(ctx, base, kSuitUnlockedNameCrc);
+  if (!unlocked)
+    EOT_WARN("[sd] the game's 'new Alternate Suit' string is not loaded; the answer has no body");
+  AnswerWithPopup(ctx, base, self, unlocked);
   EOT_INFO("[sd] VIP code accepted: Shattered Dimensions bonus suits unlocked");
 }
 
