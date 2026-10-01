@@ -41,9 +41,8 @@ constexpr const char *kDataFolder = "Data";
 constexpr const char *kMarketplaceXuid = "0000000000000000";
 constexpr const char *kHeadersDir = "Headers";
 constexpr const char *kContentPrefix = "Mod_";
-constexpr uint32_t kFirstDlcPackageId = 0xBB9;
-constexpr uint32_t kLastDlcPackageId = 0xBBA;
-constexpr uint32_t kDlcPackageIdBase = 0xBB8;
+constexpr uint32_t kFirstModelPackageId = 0xBBA;
+constexpr uint32_t kLastModelPackageId = 0xE10;
 constexpr uint32_t kPortPackageIds[] = {eot::ui::kReeotPackageId, eot::ui::kReeotMenuPackageId,
                                         eot::ui::kReeotAchievementsPackageId, eot::ui::kReeotIconsPackageId,
                                         eot::ui::kReeotSuitsPackageId};
@@ -239,30 +238,32 @@ void SaveState() {
   out << text;
 }
 
-std::string ModelFileName(const fs::path &path, std::string &why) {
+uint32_t ModelPackageId(const fs::path &path, std::string &why) {
   unsigned char head[32];
   if (!ReadHead(path, head, sizeof(head))) {
     why = "could not be read";
-    return {};
+    return 0;
   }
   const std::string ext = Lower(Utf8(path.extension()));
   if (ReadBigEndian32(head) == 1 && ReadBigEndian32(head + 4) == 0x00010001) {
     const uint32_t id = ReadBigEndian32(head + 0x18);
-    if (id < kFirstDlcPackageId || id > kLastDlcPackageId) {
-      why = std::format("a package with id {:#x}, which is not a DLC slot (0xBB9 or 0xBBA)", id);
-      return {};
+    if (id < kFirstModelPackageId || id > kLastModelPackageId) {
+      why = std::format("a package with id {:#x}; a costume package takes one from {:#x} to {:#x}", id,
+                        kFirstModelPackageId, kLastModelPackageId);
+      return 0;
     }
-    return std::format("_DLC{:03}.pak", id - kDlcPackageIdBase);
+    if (ext != ".pak") {
+      why = "a raw package not named .pak, which the game's DLC scan does not look for";
+      return 0;
+    }
+    return id;
   }
   if (std::memcmp(head, "\xBA\xBE\xB1\xB0", 4) == 0 || ext == ".pkz") {
-    const std::string stem = Lower(Utf8(path.stem()));
-    if (stem == "_dlc001" || stem == "_dlc002")
-      return "_DLC" + stem.substr(4) + ".pkz";
-    why = "a compressed package not named _DLC001 or _DLC002, so its slot is not known";
-    return {};
+    why = "a compressed package: the game's DLC scan reads the id out of a raw .pak only";
+    return 0;
   }
-  why = "not a costume package (a raw DLC package or a _DLC00N.pkz)";
-  return {};
+  why = "not a costume package (a raw .pak with a package id at 0x18)";
+  return 0;
 }
 
 fs::path GameDataFile(const std::string &name) {
@@ -276,13 +277,13 @@ fs::path GameDataFile(const std::string &name) {
 
 bool ManifestForFile(const fs::path &path, Manifest &out, std::string &why) {
   std::string model_why;
-  const std::string model = ModelFileName(path, model_why);
+  const bool model = ModelPackageId(path, model_why) != 0;
   Manifest m;
   m.name = Utf8(path.stem());
   m.creator = "unknown";
-  if (!model.empty()) {
+  if (model) {
     m.type = ModType::kModel;
-    m.file = model;
+    m.file = Utf8(path.filename());
   } else if (!GameDataFile(Utf8(path.filename())).empty()) {
     m.type = ModType::kReplacement;
     m.file = Utf8(path.filename());
@@ -441,27 +442,29 @@ void WithdrawContent(const std::string &folder) {
   EOT_INFO("[mods] content {} withdrawn", folder);
 }
 
-void ApplyModel(Mod &mod, bool &one_published) {
+void ApplyModel(Mod &mod, std::map<uint32_t, std::string> &published_ids) {
   const std::string folder = ContentFolderName(mod);
   const fs::path published = ContentDir() / PathFromUtf8(folder) / PathFromUtf8(mod.manifest.file);
   const fs::path header = HeadersDir() / PathFromUtf8(folder + ".header");
   std::error_code ec;
   std::string why;
-  if (ModelFileName(ModFile(mod), why).empty()) {
+  const uint32_t id = ModelPackageId(ModFile(mod), why);
+  if (!id) {
     mod.status = std::format("{} is {}", mod.manifest.file, why);
     WithdrawContent(folder);
     return;
   }
-  if (!mod.enabled || one_published) {
+  const auto taken = published_ids.find(id);
+  if (!mod.enabled || taken != published_ids.end()) {
     if (mod.enabled)
-      mod.status = "waiting: another costume package is published (one at a time)";
+      mod.status = std::format("waiting: package id {:#x} is {}'s", id, taken->second);
     WithdrawContent(folder);
     return;
   }
-  one_published = true;
+  published_ids[id] = mod.manifest.name;
   std::string error;
   if (!fs::is_regular_file(published, ec) || !SameBytes(ModFile(mod), published) || !fs::is_regular_file(header, ec)) {
-    if (!CopyFile(ModFile(mod), published, error) || !WriteContentHeader(header, mod.manifest.name, folder)) {
+    if (!CopyFile(ModFile(mod), published, error) || !WriteContentHeader(header, folder, folder)) {
       mod.status = error.empty() ? "the content header could not be written" : error;
       EOT_WARN("[mods] {}: {}", mod.manifest.name, mod.status);
       WithdrawContent(folder);
@@ -478,7 +481,7 @@ void ApplyAll() {
   for (Mod &mod : g_mods)
     order.push_back(&mod);
   std::stable_partition(order.begin(), order.end(), [](const Mod *m) { return !m->enabled; });
-  bool one_model = false;
+  std::map<uint32_t, std::string> model_ids;
   std::error_code ec;
   for (Mod *mod : order) {
     if (!fs::is_regular_file(ModFile(*mod), ec))
@@ -491,7 +494,7 @@ void ApplyAll() {
       ApplyReplacement(*mod);
       break;
     case ModType::kModel:
-      ApplyModel(*mod, one_model);
+      ApplyModel(*mod, model_ids);
       break;
     }
   }

@@ -109,9 +109,13 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
   const uint32_t id = package ? eot::mem::load<uint32_t>(package + 176) : 0;
   const uint32_t record = id < 4096 ? eot::mem::load<uint32_t>(kPackageMgr + kMgrRecords + id * 4) : 0;
   __imp__eot_PKPackage_Mount(ctx, base);
-  EOT_DEBUG("[pkg] mount id {} '{}' -> flags {:#x} openFlags {:#x}", id, GuestString(record),
-           package ? eot::mem::load<uint32_t>(package + 160) : 0u,
-           package ? eot::mem::load<uint32_t>(package + 164) : 0u);
+  const std::string name = GuestString(record);
+  const uint32_t mount_flags = package ? eot::mem::load<uint32_t>(package + 160) : 0u;
+  const uint32_t open_flags = package ? eot::mem::load<uint32_t>(package + 164) : 0u;
+  if (name.rfind("GDLC", 0) == 0)
+    EOT_INFO("[dlc] mount id {:#x} '{}' -> flags {:#x} openFlags {:#x}", id, name, mount_flags, open_flags);
+  else
+    EOT_DEBUG("[pkg] mount id {} '{}' -> flags {:#x} openFlags {:#x}", id, name, mount_flags, open_flags);
   if (!IsPortOrModPackage(id)) {
     eot::loading::TextureOverridesPackageMounted(ctx, base);
     return;

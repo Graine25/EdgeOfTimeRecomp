@@ -52,7 +52,10 @@ REX_HOOK_RAW(eot_GLAPIPackage_Load) {
   if (id == 0 || id >= kMaxPackages)
     return;
   const std::string name = PackageName(id);
-  EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, name);
+  if (name.rfind("GDLC", 0) == 0)
+    EOT_INFO("[dlc] GLAPIPackage::Load({:#x} '{}')", id, name);
+  else
+    EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, name);
   eot::gpu::PsoCacheOnPackageLoad(id, IsLevelPackage(name));
 }
 

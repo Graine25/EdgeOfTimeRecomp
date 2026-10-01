@@ -8,6 +8,7 @@
 #include "core/memory_helpers.h"
 #include "goliath/debug/freecam.h"
 #include "goliath/debug/scene_pause.h"
+#include "goliath/loading/dlc_trace.h"
 #include "goliath/title_matte.h"
 #include "gpu/settings.h"
 
@@ -32,6 +33,7 @@ REX_HOOK_RAW(eot_GEEngineMgrBC_UpdateFrameTime) {
   eot::debug::ScenePauseTick();
   eot::debug::FreecamTick();
   eot::goliath::TitleMatteTick(ctx, base);
+  eot::loading::DlcTraceTick();
 
   if (!UnlockWanted() || eot::mem::load<uint8_t>(kFixedFrameTimeFlag) != 0) {
     __imp__eot_GEEngineMgrBC_UpdateFrameTime(ctx, base);
