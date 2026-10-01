@@ -28,6 +28,15 @@
 #if !defined(_WIN32)
 #include <dlfcn.h>
 #include <sched.h>
+#endif
+#if defined(__APPLE__)
+#include <mach/mach_time.h>
+#include <mach/thread_act.h>
+#include <mach/thread_policy.h>
+#include <pthread.h>
+#include <sys/sysctl.h>
+#endif
+#if !defined(_WIN32)
 
 #include <fstream>
 #endif
@@ -41,6 +50,9 @@
 #include "gpu/format.h"
 #include "gpu/settings.h"
 #include "platform/display.h"
+#if defined(__APPLE__)
+#include "platform/moltenvk.h"
+#endif
 
 #if defined(EOT_D3D12)
 #include "shaders/blit_ps.hlsl.dxil.h"
@@ -434,6 +446,11 @@ u32 PhysicalCoreCount() {
     u32 n = 0;
 #if defined(_WIN32) || defined(__linux__)
     n = static_cast<u32>(EnumeratePhysicalCores().size());
+#elif defined(__APPLE__)
+    int cores = 0;
+    size_t len = sizeof(cores);
+    if (::sysctlbyname("hw.physicalcpu", &cores, &len, nullptr, 0) == 0 && cores > 0)
+      n = static_cast<u32>(cores);
 #endif
     if (n == 0) {
       const u32 hw = std::max(1u, std::thread::hardware_concurrency());
@@ -443,6 +460,8 @@ u32 PhysicalCoreCount() {
   }();
   return count;
 }
+
+thread_local bool g_thread_sleeps_precisely = false;
 
 bool PinThreadToPhysicalCore(u32 core, const char *what) {
 #if defined(_WIN32)
@@ -469,12 +488,36 @@ bool PinThreadToPhysicalCore(u32 core, const char *what) {
   EOT_INFO("[gpu] {} pinned to physical core {} ({} logical CPUs of {} cores)", what, core, cores[core].size(),
            cores.size());
   return true;
+#elif defined(__APPLE__)
+  (void)core;
+  mach_timebase_info_data_t tb{};
+  mach_timebase_info(&tb);
+  const f64 ticks_per_ns = static_cast<f64>(tb.denom) / static_cast<f64>(tb.numer);
+  auto ticks = [&](f64 ms) { return static_cast<u32>(ms * 1e6 * ticks_per_ns); };
+  thread_time_constraint_policy_data_t policy{};
+  policy.period = ticks(1000.0 / 60.0);
+  policy.computation = ticks(5.0);
+  policy.constraint = ticks(12.0);
+  policy.preemptible = 1;
+  const kern_return_t kr =
+      thread_policy_set(pthread_mach_thread_np(pthread_self()), THREAD_TIME_CONSTRAINT_POLICY,
+                        reinterpret_cast<thread_policy_t>(&policy), THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+  if (kr != KERN_SUCCESS) {
+    EOT_WARN("[gpu] {}: the realtime scheduling class was refused ({}); its sleeps will run late", what,
+             static_cast<int>(kr));
+    return false;
+  }
+  g_thread_sleeps_precisely = true;
+  EOT_INFO("[gpu] {} takes the realtime scheduling class (5 ms of every 16.7, pre-emptible)", what);
+  return true;
 #else
   (void)core;
   (void)what;
   return false;
 #endif
 }
+
+bool ThreadSleepsPrecisely() { return g_thread_sleeps_precisely; }
 
 f64 PerfMsPerTickSlow() {
   static const f64 ms_per_tick = [] {
@@ -1042,6 +1085,9 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
     EOT_ERROR("No SDL window exists yet");
     return false;
   }
+#elif defined(__APPLE__)
+  if (!eot::platform::PrepareMoltenVK() || !eot::platform::GetMetalRenderWindow(render_window))
+    return false;
 #else
   EOT_ERROR("Native window handles are not wired up for this platform");
   return false;
@@ -1088,7 +1134,7 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
     SetDisplayHeight(display.height);
     if (display.refresh_hz)
       s.display_refresh_hz = display.refresh_hz;
-    EOT_INFO("[gpu] display {}x{} at {} Hz, {}: a window renders at {}p", display.width, display.height,
+    EOT_INFO("[gpu] display {}x{} at {} Hz, {} (the display suggests {}p)", display.width, display.height,
              display.refresh_hz, Settings::Fullscreen() ? "fullscreen" : "windowed",
              eot::platform::AutoRenderHeight(display));
     if (Settings::Fullscreen() && Settings::FullscreenMode() == "exclusive") {
@@ -1108,8 +1154,11 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
       rex::cvar::SetFlagByName("resolution", "");
     }
   }
+  s.present_wait = s.device->getCapabilities().presentWait;
+  if (!s.present_wait)
+    EOT_INFO("[gpu] no present wait on this driver; the frame's fence paces the presents");
   plume::RenderSwapChainDesc desc(render_window, plume::RenderFormat::B8G8R8A8_UNORM, kNumFrames + 1,
-                                  true, kMaxFrameLatency);
+                                  s.present_wait, kMaxFrameLatency);
   s.swap_chain = s.queue->createSwapChain(desc);
   if (s.swap_chain) {
     s.swap_chain->setVsyncEnabled(Settings::Vsync());

@@ -4,7 +4,6 @@
 
 #include <rex/types.h>
 #include <cstring>
-#include <immintrin.h>
 #include <plume_render_interface.h>
 
 #include "gpu/d3d.h"

@@ -82,3 +82,5 @@ __pycache__/
 # Linux playtest packages (scripts/package-appimage.sh)
 /dist/
 /reillymodtest
+/extracted
+/rips

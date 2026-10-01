@@ -20,6 +20,9 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <crt_externs.h>
+#endif
 
 #include "platform/user_dirs.h"
 #endif
@@ -80,6 +83,14 @@ bool SpawnProcess(const std::filesystem::path &exe) {
 #else
   std::vector<std::string> args;
   args.push_back(exe.string());
+#if defined(__APPLE__)
+  {
+    const int argc = *_NSGetArgc();
+    char **argv = *_NSGetArgv();
+    for (int i = 1; i < argc && argv && argv[i]; ++i)
+      args.emplace_back(argv[i]);
+  }
+#else
   {
     std::ifstream cmdline("/proc/self/cmdline", std::ios::binary);
     std::string all((std::istreambuf_iterator<char>(cmdline)), std::istreambuf_iterator<char>());
@@ -96,6 +107,7 @@ bool SpawnProcess(const std::filesystem::path &exe) {
       pos = end + 1;
     }
   }
+#endif
   std::vector<char *> argv;
   argv.reserve(args.size() + 1);
   for (auto &a : args)
@@ -121,6 +133,25 @@ bool SpawnProcess(const std::filesystem::path &exe) {
 }
 
 std::filesystem::path ProgramDir() { return rex::filesystem::GetExecutableFolder(); }
+
+std::filesystem::path DataDir() {
+  const std::filesystem::path exe_dir = rex::filesystem::GetExecutableFolder();
+  if (InAppBundle())
+    return exe_dir.parent_path() / "Resources";
+  return exe_dir;
+}
+
+bool InAppBundle() {
+#if defined(__APPLE__)
+  const std::filesystem::path exe_dir = rex::filesystem::GetExecutableFolder();
+  if (exe_dir.filename() != "MacOS")
+    return false;
+  const std::filesystem::path contents = exe_dir.parent_path();
+  return contents.filename() == "Contents" && contents.parent_path().extension() == ".app";
+#else
+  return false;
+#endif
+}
 
 bool AcquireInstanceLock() {
 #if defined(_WIN32)

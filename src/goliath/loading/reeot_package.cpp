@@ -130,7 +130,6 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
     eot::mem::store<uint32_t>(package + 160, flags | 0x8);
     EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", GuestString(record), flags, flags | 0x8);
   }
-  eot::text::PackageMounted(id, package);
   eot::text::NoteGlyphPackage(package);
   eot::loading::ApplyTextureOverrides(ctx, base);
 }

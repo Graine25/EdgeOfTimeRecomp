@@ -705,6 +705,10 @@ void SleepUntil(std::chrono::steady_clock::time_point when) {
     if (SetWaitableTimerEx(timer, &due, 0, nullptr, nullptr, nullptr, 0))
       WaitForSingleObject(timer, INFINITE);
   }
+#elif defined(__APPLE__)
+  const auto tail = ThreadSleepsPrecisely() ? kSpinTail : std::chrono::microseconds(4000);
+  if (when - now > tail)
+    std::this_thread::sleep_until(when - tail);
 #else
   if (when - now > kSpinTail)
     std::this_thread::sleep_until(when - kSpinTail);
@@ -783,15 +787,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
       front = nullptr;
   }
   PreloadAnnouncedTextures(s, PsoCacheInLoadingScreen() ? 8.0 : 1.0);
-  const bool want_vsync = Settings::Vsync();
-  const bool vsync_changed = s.swap_chain->isVsyncEnabled() != want_vsync;
-  s.swap_chain->setVsyncEnabled(want_vsync);
-#if !defined(EOT_D3D12)
-  if (vsync_changed)
-    s.resize_requested.store(true, std::memory_order_release);
-#else
-  (void)vsync_changed;
-#endif
+  s.swap_chain->setVsyncEnabled(Settings::Vsync());
   if (!HandleResize(s)) {
     if (!s.ready)
       return;
@@ -808,7 +804,8 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
   bool acquired = false;
   {
     PerfScope perf_scope(s.perf.acquire_ms);
-    s.swap_chain->wait();
+    if (s.present_wait)
+      s.swap_chain->wait();
     acquired = s.swap_chain->acquireTexture(s.acquire_semaphores[cur].get(), &image) &&
                image < s.swap_framebuffers.size();
   }
