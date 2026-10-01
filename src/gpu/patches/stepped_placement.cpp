@@ -159,11 +159,13 @@ uint64_t g_placements = 0, g_drawn_between = 0;
 
 REX_HOOK_RAW(eot_GOGameObj_SetLocalMatrix) {
   const uint32_t object = ctx.r3.u32;
+  const bool rotation = (ctx.r5.u32 & 0xFF) != 0;
+  const bool position = (ctx.r6.u32 & 0xFF) != 0;
   __imp__eot_GOGameObj_SetLocalMatrix(ctx, base);
   if (!object)
     return;
   std::lock_guard<std::mutex> lock(g_mutex);
-  if (!g_in_update.load(std::memory_order_acquire)) {
+  if (!g_in_update.load(std::memory_order_acquire) || !rotation || !position) {
     if (Entry *e = Find(object))
       *e = Entry{};
     return;
