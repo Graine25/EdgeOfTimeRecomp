@@ -184,7 +184,12 @@ void ApplyAspectPolicy(uint32_t wnd) {
     if (wide_on_macwide)
       NoteWideWindowRect(crc, wnd);
   };
-  const bool hug = policy == Policy::HugLeft || policy == Policy::HugRight;
+  bool hug = policy == Policy::HugLeft || policy == Policy::HugRight;
+  if (hug && !self_laid_out) {
+    const Entry *parent_entry = LookUp(eot::mem::load<uint32_t>(parent + kWndCrc));
+    if (parent_entry && PolicyForCrc(parent_entry) == policy)
+      hug = false;
+  }
   const bool width_only = policy == Policy::LockWidth && !self_laid_out;
   const bool hide = policy == Policy::Hide && !self_laid_out;
   Census(crc, entry, parent, self_laid_out, ReadGuestF32(wnd + kWndComputedX),
