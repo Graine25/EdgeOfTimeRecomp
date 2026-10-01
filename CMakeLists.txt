@@ -283,6 +283,7 @@ set(REEOT_SOURCES
     src/goliath/loading/texture_overrides.cpp
     src/goliath/loading/heap_census.cpp
     src/goliath/loading/texture_residency.cpp
+    src/goliath/loading/dlc_trace.cpp
     src/goliath/body_pulse_materials.cpp
     src/goliath/web_color.cpp
     src/goliath/title_matte.cpp
