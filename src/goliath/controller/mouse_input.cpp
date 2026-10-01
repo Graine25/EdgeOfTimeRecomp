@@ -299,6 +299,7 @@ std::atomic<uint32_t> g_press_x{0};
 std::atomic<int32_t> g_wheel{0};
 std::atomic<int64_t> g_mash_ns{0};
 std::atomic<uint16_t> g_mash_buttons{0};
+std::atomic<int64_t> g_finish_ns{0};
 
 struct Pulse {
   uint32_t taken = 0;
@@ -398,6 +399,12 @@ bool MashFresh() {
                         std::chrono::duration_cast<clock::duration>(kMashFresh).count();
 }
 
+bool FinishOnOffer() {
+  const int64_t at = g_finish_ns.load(std::memory_order_acquire);
+  return at != 0 && clock::now().time_since_epoch().count() - at <=
+                        std::chrono::duration_cast<clock::duration>(kMashFresh).count();
+}
+
 class MenuKeys final : public rex::ui::WindowInputListener {
 public:
   void Attach(rex::ui::Window *window) {
@@ -474,6 +481,18 @@ void AttachMenuKeys(rex::ui::Window *window) { g_listener.Attach(window); }
 
 bool MenuKeysActive() { return InMenu(); }
 
+void NoteFinishPrompt(bool on) {
+  const int64_t was = g_finish_ns.exchange(on ? clock::now().time_since_epoch().count() : 0,
+                                           std::memory_order_acq_rel);
+  if (on && !was) {
+    static bool told = false;
+    if (!told) {
+      told = true;
+      EOT_INFO("[input] a finisher is in reach: the space bar answers it as B");
+    }
+  }
+}
+
 void NoteMashPrompt(uint16_t buttons) {
   const uint16_t was = g_mash_buttons.exchange(buttons, std::memory_order_acq_rel);
   g_mash_ns.store(clock::now().time_since_epoch().count(), std::memory_order_release);
@@ -532,7 +551,7 @@ void ApplyMenuKeys(RawPad &pad) {
 
   const bool space = KeyboardInHand() && g_space.load(std::memory_order_acquire);
   if (space && !g_space_down) {
-    g_space_acts = !InMenu() && ContextualActionOnOffer();
+    g_space_acts = !InMenu() && (ContextualActionOnOffer() || FinishOnOffer());
     if (g_space_acts) {
       RefreshKeyButtons();
       static bool told = false;

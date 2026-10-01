@@ -1668,6 +1668,7 @@ out_directory_path = "generated/gamelogic"
 0x882F8FE8 = { name = "eot_BaseHeroSM_EnterAerialAttackOutro", size = 0x160 }
 0x882F9148 = { size = 0x114 }
 0x882F9290 = { size = 0x74 }
+0x88300EA0 = { name = "eot_BaseHeroSM_HandleCombatMessages", size = 0x1318 }
 0x883043F8 = { name = "eot_BaseHeroSM_EnterCrawlMove", size = 0x104 }
 0x88304500 = { name = "eot_BaseHeroSM_UpdateCrawlMove", size = 0x1C0 }
 0x883046C0 = { name = "eot_BaseHeroSM_ExitCrawlMove", size = 0x90 }
