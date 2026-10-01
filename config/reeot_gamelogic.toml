@@ -879,6 +879,7 @@ out_directory_path = "generated/gamelogic"
 0x881BBA98 = { size = 0xAC }
 0x881BBB48 = { size = 0x78 }
 0x881BBBC0 = { size = 0x54 }
+0x881BC230 = { name = "eot_ButtonMash_Update", size = 0x1C8 }
 0x881BCB08 = { name = "eot_BaseTentacle_EnterHidden", size = 0xB0 }
 0x881BCBB8 = { name = "eot_BaseTentacle_ExitHidden", size = 0x88 }
 0x881BCC40 = { name = "eot_BaseTentacle_EnterAnticipation", size = 0xE8 }
