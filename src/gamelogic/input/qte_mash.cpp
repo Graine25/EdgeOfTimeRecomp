@@ -6,10 +6,13 @@
 #include "gamelogic/ui/binds_client.h"
 
 REX_EXTERN(__imp__eot_ButtonMash_Update); // (helper r3, dt f1): a frame of a mash
+REX_EXTERN(__imp__eot_BaseHeroSM_HandleCombatMessages); // (hero r3, message r4, payload r5) -> handled
 
 namespace {
 
 constexpr uint32_t kSignedInUser = 0x883CA2C0;
+constexpr uint32_t kFinishInReach = 0x8726681A;
+constexpr uint32_t kHeroFinishFlags = 14476;
 constexpr uint32_t kLogicInputs = 80;
 constexpr uint32_t kRecordSize = 48;
 constexpr uint32_t kMaxSources = 4;
@@ -49,4 +52,14 @@ REX_HOOK_RAW(eot_ButtonMash_Update) {
     return;
   if (const auto note = eot::ui::binds::Api().mash_prompt)
     note(buttons);
+}
+
+REX_HOOK_RAW(eot_BaseHeroSM_HandleCombatMessages) {
+  const uint32_t hero = ctx.r3.u32;
+  const uint32_t message = ctx.r4.u32;
+  __imp__eot_BaseHeroSM_HandleCombatMessages(ctx, base);
+  if (message != kFinishInReach || !hero)
+    return;
+  if (const auto note = eot::ui::binds::Api().finish_prompt)
+    note((eot::mem::load<uint8_t>(hero + kHeroFinishFlags) & 1) ? 1 : 0);
 }
