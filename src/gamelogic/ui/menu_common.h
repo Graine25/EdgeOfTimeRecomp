@@ -165,6 +165,7 @@ struct Host {
   void (*bar_object)(int32_t) = nullptr;
   void (*bar_zone)(int32_t) = nullptr;
   void (*mash_prompt)(int32_t) = nullptr;
+  void (*finish_prompt)(int32_t) = nullptr;
 
   bool Bound() const { return capture_begin && capture_poll && capture_end && changed; }
 };
@@ -182,6 +183,7 @@ inline const Host &Api() {
     h.bar_object = reinterpret_cast<decltype(h.bar_object)>(HostEntryPoint("eot_prompts_bar_object"));
     h.bar_zone = reinterpret_cast<decltype(h.bar_zone)>(HostEntryPoint("eot_prompts_bar_zone"));
     h.mash_prompt = reinterpret_cast<decltype(h.mash_prompt)>(HostEntryPoint("eot_kbm_mash_prompt"));
+    h.finish_prompt = reinterpret_cast<decltype(h.finish_prompt)>(HostEntryPoint("eot_kbm_finish_prompt"));
     return h;
   }();
   return host;

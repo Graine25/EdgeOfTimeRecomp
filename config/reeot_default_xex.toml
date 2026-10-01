@@ -2741,6 +2741,7 @@ out_directory_path = "generated/default_xex"
 0x820E1E60 = { name = "eot_3dObj_AnimateSkeleton" }
 0x821D9E70 = { name = "eot_PhysicsWorld_Update" }
 0x821CFF18 = { name = "eot_PhysicsWorld_Interpolate" }
+0x820F1AC8 = { name = "eot_GOGameObj_SetLocalMatrix" }
 
 0x82120C98 = { name = "eot_RenderCommand_DrawMovie" }
 0x8211DE60 = { name = "eot_Movie_DrawFrame" }
