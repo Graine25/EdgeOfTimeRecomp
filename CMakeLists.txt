@@ -285,6 +285,7 @@ set(REEOT_SOURCES
     src/goliath/loading/texture_residency.cpp
     src/goliath/body_pulse_materials.cpp
     src/goliath/web_color.cpp
+    src/goliath/title_matte.cpp
     src/goliath/text/glyph_pages.cpp
     src/goliath/text/translation.cpp
     src/gpu/taa.cpp
