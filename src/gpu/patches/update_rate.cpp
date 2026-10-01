@@ -13,11 +13,13 @@
 #include <rex/hook.h>
 #include <algorithm>
 #include <bit>
+#include <cmath>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/ui/name_crc.h"
 #include "goliath/debug/freecam.h"
+#include "goliath/ui/aspect_policy.h"
 #include "gpu/settings.h"
 
 REX_EXTERN(__imp__eot_UpdateGate_Tick);
@@ -259,6 +261,7 @@ bool UnlockWanted() {
 REX_HOOK_RAW(eot_GEEngineMgrBC_UpdateFrameTime) {
   eot::debug::ScenePauseTick();
   eot::debug::FreecamTick();
+  eot::goliath::TitleMatteTick(ctx, base);
 
   if (!UnlockWanted() || eot::mem::load<uint8_t>(kFixedFrameTimeFlag) != 0) {
     __imp__eot_GEEngineMgrBC_UpdateFrameTime(ctx, base);
@@ -279,24 +282,15 @@ REX_HOOK_RAW(eot_GEEngineMgrBC_UpdateFrameTime) {
   ctx.f1.f64 = delta;
 }
 
-REX_EXTERN(__imp__eot_PhysicsWorld_Update);
 REX_EXTERN(__imp__eot_PhysicsWorld_Interpolate);
 
 namespace {
 
 constexpr uint32_t kPhysicsWorld = 0x824A11B8;
 constexpr uint32_t kWorldObjectList = kPhysicsWorld;
-constexpr uint32_t kWorldStepSeconds = kPhysicsWorld + 1780;
 constexpr uint32_t kWorldStepsThisFrame = kPhysicsWorld + 1788;
-constexpr uint32_t kWorldAccumulator = kPhysicsWorld + 1800;
-constexpr uint32_t kTimeScale = 0x824E56D0;
 
-constexpr float kRetailStep = 1.0f / 60.0f;
-constexpr float kStepShrink = 1.0f - 1.0f / 1048576.0f;
-
-bool g_frame_stepped = false;
-
-uint64_t g_frames = 0, g_frame_stepped_frames = 0, g_zero_step_frames = 0;
+uint64_t g_frames = 0, g_steps = 0, g_zero_step_frames = 0;
 double g_alpha_sum = 0.0;
 
 void PhysicsLogSummary() {
@@ -307,45 +301,82 @@ void PhysicsLogSummary() {
     return;
   last = now;
   if (g_frames)
-    EOT_INFO("[physics] last 30 s: {} frames, {} stepped as one frame ({:.0f}%), {} with no step, "
-             "mean alpha {:.3f}, {} objects",
-             g_frames, g_frame_stepped_frames,
-             100.0 * static_cast<double>(g_frame_stepped_frames) / static_cast<double>(g_frames),
-             g_zero_step_frames, g_alpha_sum / static_cast<double>(g_frames),
+    EOT_INFO("[physics] last 30 s: {} frames, {} fixed steps, {} frames with no step ({:.0f}%), mean alpha "
+             "{:.3f}, {} bodies",
+             g_frames, g_steps, g_zero_step_frames,
+             100.0 * static_cast<double>(g_zero_step_frames) / static_cast<double>(g_frames),
+             g_alpha_sum / static_cast<double>(g_frames),
              eot::mem::load<uint32_t>(eot::mem::load<uint32_t>(kWorldObjectList) + 4));
-  g_frames = g_frame_stepped_frames = g_zero_step_frames = 0;
+  g_frames = g_steps = g_zero_step_frames = 0;
   g_alpha_sum = 0.0;
 }
 
 }
 
-REX_HOOK_RAW(eot_PhysicsWorld_Update) {
-  const float scale = eot::mem::load<float>(kTimeScale);
-  const float delta = static_cast<float>(ctx.f1.f64);
-  float step = kRetailStep;
-  g_frame_stepped = false;
-  if (scale > 0.0f && delta > 0.0f) {
-    const float frame = delta / scale;
-    if (frame < kRetailStep) {
-      step = frame * kStepShrink;
-      g_frame_stepped = true;
-    }
-  }
-  eot::mem::store<uint32_t>(kWorldStepSeconds, std::bit_cast<uint32_t>(step));
-  __imp__eot_PhysicsWorld_Update(ctx, base);
-  if (g_frame_stepped)
-    eot::mem::store<uint32_t>(kWorldAccumulator, 0);
+REX_HOOK_RAW(eot_PhysicsWorld_Interpolate) {
+  const uint32_t steps = eot::mem::load<uint32_t>(kWorldStepsThisFrame);
+  ++g_frames;
+  g_steps += steps;
+  if (steps == 0)
+    ++g_zero_step_frames;
+  g_alpha_sum += ctx.f1.f64;
+  __imp__eot_PhysicsWorld_Interpolate(ctx, base);
   PhysicsLogSummary();
 }
 
-REX_HOOK_RAW(eot_PhysicsWorld_Interpolate) {
-  ++g_frames;
-  if (g_frame_stepped)
-    ++g_frame_stepped_frames;
-  if (eot::mem::load<uint32_t>(kWorldStepsThisFrame) == 0)
-    ++g_zero_step_frames;
-  if (g_frame_stepped)
-    ctx.f1.f64 = 0.0;
-  g_alpha_sum += ctx.f1.f64;
-  __imp__eot_PhysicsWorld_Interpolate(ctx, base);
+namespace {
+
+constexpr uint32_t kMovePos = 48;
+constexpr uint32_t kMoveRot = 60;
+constexpr uint32_t kMoveScale = 76;
+constexpr uint32_t kFlags = 80;
+constexpr uint32_t kFlagAccumulated = 0x40;
+
+float LoadF(uint32_t at) { return std::bit_cast<float>(eot::mem::load<uint32_t>(at)); }
+void StoreF(uint32_t at, float v) { eot::mem::store<uint32_t>(at, std::bit_cast<uint32_t>(v)); }
+
+struct Quat {
+  float x, y, z, w;
+};
+
+Quat Load(uint32_t at) { return {LoadF(at), LoadF(at + 4), LoadF(at + 8), LoadF(at + 12)}; }
+
+Quat ScaleAngle(Quat q, float scale) {
+  if (q.w < 0.0f)
+    q = {-q.x, -q.y, -q.z, -q.w};
+  const float v = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z);
+  if (!(v > 1e-12f))
+    return {0.0f, 0.0f, 0.0f, 1.0f};
+  const float half = std::atan2(v, q.w) * scale;
+  const float s = std::sin(half) / v;
+  return {q.x * s, q.y * s, q.z * s, std::cos(half)};
+}
+
+Quat Multiply(const Quat &a, const Quat &b) {
+  return {a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y, a.w * b.y + a.y * b.w + a.z * b.x - a.x * b.z,
+          a.w * b.z + a.z * b.w + a.x * b.y - a.y * b.x, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z};
+}
+
+}
+
+REX_HOOK_RAW(eot_ANAnimTree_AccumulateMove) {
+  const uint32_t tree = ctx.r3.u32;
+  const uint32_t position = ctx.r4.u32;
+  const uint32_t rotation = ctx.r5.u32;
+  const float scale = LoadF(tree + kMoveScale);
+  eot::mem::store<uint32_t>(tree + kFlags, eot::mem::load<uint32_t>(tree + kFlags) | kFlagAccumulated);
+
+  Quat sum = Multiply(Load(tree + kMoveRot), ScaleAngle(Load(rotation), scale));
+  const float len = std::sqrt(sum.x * sum.x + sum.y * sum.y + sum.z * sum.z + sum.w * sum.w);
+  if (len > 1e-12f)
+    sum = {sum.x / len, sum.y / len, sum.z / len, sum.w / len};
+  else
+    sum = {0.0f, 0.0f, 0.0f, 1.0f};
+  StoreF(tree + kMoveRot, sum.x);
+  StoreF(tree + kMoveRot + 4, sum.y);
+  StoreF(tree + kMoveRot + 8, sum.z);
+  StoreF(tree + kMoveRot + 12, sum.w);
+
+  for (uint32_t k = 0; k < 3; ++k)
+    StoreF(tree + kMovePos + 4 * k, LoadF(tree + kMovePos + 4 * k) + LoadF(position + 4 * k) * scale);
 }
