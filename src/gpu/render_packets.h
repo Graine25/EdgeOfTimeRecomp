@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstring>
-#include <immintrin.h>
 
 #include <rex/types.h>
 

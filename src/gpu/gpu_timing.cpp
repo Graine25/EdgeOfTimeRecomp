@@ -16,6 +16,7 @@
 
 #include "core/logging.h"
 #include "gpu/adapter_sensors.h"
+#include "gpu/backend.h"
 #include "gpu/device.h"
 #include "gpu/settings.h"
 
@@ -23,7 +24,7 @@ namespace eot::gpu {
 
 namespace {
 
-constexpr u32 kQueryCount = 8192;
+constexpr u32 kQueryCount = g_mvk ? 4096 : 8192;
 
 struct SlotTiming {
   std::unique_ptr<plume::RenderQueryPool> pool;

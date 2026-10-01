@@ -3,11 +3,6 @@
 #include <atomic>
 #include <functional>
 #include <chrono>
-#if defined(_MSC_VER)
-#include <intrin.h>
-#else
-#include <x86intrin.h>
-#endif
 #include <map>
 #include <memory>
 #include <mutex>
@@ -19,6 +14,7 @@
 
 #include <plume_render_interface.h>
 
+#include "core/cpu.h"
 #include "gpu/resources.h"
 
 namespace rex::ui {
@@ -115,10 +111,11 @@ struct PerfCounters {
 
 constexpr u32 kFrameClockRing = 8192;
 
-inline u64 PerfNow() { return __rdtsc(); }
+inline u64 PerfNow() { return eot::cpu::Timestamp(); }
 inline f64 g_perf_ms_per_tick = 0.0;
 f64 PerfMsPerTickSlow();
 bool PinThreadToPhysicalCore(u32 core, const char *what);
+bool ThreadSleepsPrecisely();
 u32 PhysicalCoreCount();
 inline f64 PerfMsPerTick() {
   const f64 v = g_perf_ms_per_tick;
@@ -200,6 +197,7 @@ struct VideoState {
   u32 recording_slot() const { return frame.load(std::memory_order_relaxed); }
 
   std::unique_ptr<plume::RenderSwapChain> swap_chain;
+  bool present_wait = false;
   std::vector<std::unique_ptr<plume::RenderFramebuffer>> swap_framebuffers;
 
   std::unique_ptr<plume::RenderPipelineLayout> pipeline_layout;

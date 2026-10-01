@@ -775,12 +775,12 @@ u64 SampleGuestBytes(u32 va, u32 bytes) { return SampleHostBytes(mem::at<u8>(va)
 void PrefetchSampleProbes(const u8 *p, u64 bytes) {
   if (!p || bytes < 4)
     return;
-  _mm_prefetch(reinterpret_cast<const char *>(p), _MM_HINT_T0);
-  _mm_prefetch(reinterpret_cast<const char *>(p) + 15, _MM_HINT_T0);
+  eot::cpu::Prefetch(p);
+  eot::cpu::Prefetch(p + 15);
   if (bytes >= 16) {
     const u64 span = (bytes - 16) & ~3ull;
-    _mm_prefetch(reinterpret_cast<const char *>(p) + span, _MM_HINT_T0);
-    _mm_prefetch(reinterpret_cast<const char *>(p) + span + 15, _MM_HINT_T0);
+    eot::cpu::Prefetch(p + span);
+    eot::cpu::Prefetch(p + span + 15);
   }
 }
 
