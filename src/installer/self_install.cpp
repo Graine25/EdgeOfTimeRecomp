@@ -19,6 +19,7 @@
 #include "embedded_package.h"
 #include "goliath/ui/menu_handles.h"
 #include "installer/program_files.h"
+#include "platform/process.h"
 
 namespace eot::installer {
 
@@ -26,10 +27,11 @@ namespace fs = std::filesystem;
 
 std::vector<std::string> MissingProgramFiles() {
   const fs::path here = rex::filesystem::GetExecutableFolder();
+  const fs::path data = platform::DataDir();
   std::vector<std::string> missing;
   std::error_code ec;
   for (const char *rel : kProgramFiles)
-    if (!fs::exists(here / rel, ec))
+    if (!fs::exists(here / rel, ec) && !fs::exists(data / rel, ec))
       missing.push_back(rel);
   return missing;
 }

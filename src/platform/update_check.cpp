@@ -92,6 +92,10 @@ std::vector<std::string> ProgramFiles(const fs::path &dir) {
 #if defined(_WIN32)
     files = {"reeot.exe",      "rexruntimerd.dll", "reeot_GameLogic.dll",
              "dxcompiler.dll", "dxil.dll",         "gamecontrollerdb.txt"};
+#elif defined(__APPLE__)
+    files = {"reeot", "librexruntime.dylib", "libreeot_GameLogic.dylib", "gamecontrollerdb.txt", "build_stamp.txt",
+             "reeot_icon.png", "vulkan/lib/libvulkan.1.dylib", "vulkan/lib/libMoltenVK.dylib",
+             "vulkan/share/vulkan/icd.d/MoltenVK_icd.json"};
 #else
     files = {"reeot", "librexruntime.so", "libreeot_GameLogic.so", "gamecontrollerdb.txt", "build_stamp.txt",
              "reeot_icon.png"};

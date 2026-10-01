@@ -21,7 +21,11 @@ constexpr const char *kExecutableFileName = "reeot";
 
 std::filesystem::path ProgramDir();
 
+std::filesystem::path DataDir();
+
 std::filesystem::path LaunchPath();
+
+bool InAppBundle();
 
 bool InSteamGameMode();
 

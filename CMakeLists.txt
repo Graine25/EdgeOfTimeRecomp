@@ -323,8 +323,14 @@ if(NOT REEOT_D3D12)
     list(APPEND REEOT_SOURCES thirdparty/XenosRecomp/thirdparty/smol-v/source/smolv.cpp)
 endif()
 
-if(WIN32)
+if(APPLE AND NOT REEOT_D3D12)
+    list(APPEND REEOT_SOURCES src/platform/moltenvk.cpp)
+endif()
+
+if(WIN32 OR APPLE)
     list(APPEND REEOT_SOURCES src/core/sleep.cpp)
+endif()
+if(WIN32)
     enable_language(RC)
     set(REEOT_ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/res/reeot.ico")
     configure_file(res/reeot.rc.in "${REEOT_GEN_DIR}/reeot.rc" @ONLY)
@@ -378,6 +384,12 @@ set(reeot_program_files
     "gamecontrollerdb.txt")
 if(NOT WIN32)
     list(APPEND reeot_program_files "build_stamp.txt" "reeot_icon.png")
+endif()
+if(APPLE AND NOT REEOT_D3D12)
+    list(APPEND reeot_program_files
+        "vulkan/lib/libvulkan.1.dylib"
+        "vulkan/lib/libMoltenVK.dylib"
+        "vulkan/share/vulkan/icd.d/MoltenVK_icd.json")
 endif()
 if(TARGET reeot_GameLogic)
     list(APPEND reeot_program_files "$<TARGET_FILE_NAME:reeot_GameLogic>")
@@ -438,6 +450,7 @@ target_compile_definitions(reeot PRIVATE
     NOMINMAX
     WIN32_LEAN_AND_MEAN
     $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>
+    $<$<AND:$<BOOL:${APPLE}>,$<NOT:$<BOOL:${REEOT_D3D12}>>>:EOT_MVK>
     $<$<OR:$<BOOL:${REEOT_PROFILING}>,$<NOT:$<CONFIG:Release>>>:EOT_PROFILING>)
 
 target_include_directories(reeot PRIVATE "${REXSDK_DIR}/thirdparty/imgui")
@@ -472,6 +485,15 @@ if(REEOT_D3D12)
             "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/dxc-bin/bin/x64/dxcompiler.dll"
             $<TARGET_FILE_DIR:reeot>
         VERBATIM)
+elseif(APPLE)
+    target_link_libraries(reeot PRIVATE
+        "-framework Cocoa"
+        "-framework QuartzCore"
+        "-framework Metal"
+        "-framework Foundation"
+        "-framework IOKit"
+        "-framework IOSurface"
+        "-framework CoreGraphics")
 else()
     if(REXSDK_DIR AND NOT Vulkan_INCLUDE_DIR
        AND EXISTS "${REXSDK_DIR}/thirdparty/vulkan-headers/include/vulkan/vulkan.h")

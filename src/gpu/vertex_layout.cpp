@@ -9,6 +9,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
+#include "gpu/backend.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/format.h"
@@ -231,10 +232,17 @@ const InputLayout *BuildInputLayout(u64 vs_hash, const std::vector<VertexInput> 
         t.format = plume::RenderFormat::R8G8B8A8_UINT;
     }
     if (in.usage == static_cast<u32>(DeclUsage::TexCoord) && t.integer && t.sixteenBit) {
-      t.format = t.byteSize == 4 ? plume::RenderFormat::R16G16_UINT
-                                 : plume::RenderFormat::R16G16B16A16_UINT;
-      layout->sintTexcoords |= 1u << in.usageIndex;
+      if (g_mvk) {
+        t.format = t.byteSize == 4 ? plume::RenderFormat::R16G16_SINT
+                                   : plume::RenderFormat::R16G16B16A16_SINT;
+      } else {
+        t.format = t.byteSize == 4 ? plume::RenderFormat::R16G16_UINT
+                                   : plume::RenderFormat::R16G16B16A16_UINT;
+        layout->sintTexcoords |= 1u << in.usageIndex;
+      }
     }
+    if (g_mvk && (t.packedDec3 || t.packed111110))
+      t.format = plume::RenderFormat::R32_FLOAT;
     if (t.sixteenBit)
       SetSwapBit(*layout, in.usage, in.usageIndex);
     if (t.packedDec3) {
