@@ -13,7 +13,6 @@ LEVELS = 5
 STATES = [("", "00"), ("damage1", "03"), ("damage1.5", "05"), ("damage2", "07")]
 LUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sma_specular_lut.png")
 LUT_BINS = 32
-LENS_SPECULAR = 201.0
 FLESH_SPECULAR = 104.0
 EXTRACT = r"D:\EOT_Extract\extracted"
 EAR_U = (0.80, 1.0)
@@ -86,18 +85,39 @@ def retail_maps(extract, state):
             np.asarray(Image.open(path % "S").convert("RGB")))
 
 
-def specular_from_diffuse(diffuse):
-    lut = np.asarray(Image.open(LUT)).astype(np.float32).ravel()
-    q = (diffuse.astype(np.int32) * LUT_BINS) // 256
-    spec = lut[(q[..., 0] * LUT_BINS + q[..., 1]) * LUT_BINS + q[..., 2]]
+def classes(diffuse):
     d = diffuse.astype(np.int32)
     r, g, b = d[..., 0], d[..., 1], d[..., 2]
     sat = d.max(-1) - d.min(-1)
     lum = (r * 3 + g * 6 + b) // 10
     lens = (sat < 45) & (lum > 95)
-    flesh = (r > 120) & (r - b > 25) & (r - b < 110) & (g > 70) & (b > 60) & (abs(g - b) < 40) & ~lens
+    return {
+        "lum": lum,
+        "lens": lens,
+        "interior": lens & (lum > 150),
+        "web": (sat < 40) & (lum < 45),
+        "flesh": (r > 120) & (r - b > 25) & (r - b < 110) & (g > 70) & (b > 60) & (abs(g - b) < 40) & ~lens,
+    }
+
+
+def retail_levels(diffuse, specular):
+    c = classes(diffuse)
+    s = specular[..., 0].astype(np.float32)
+    return {"web": float(s[c["web"]].mean()), "interior": float(s[c["interior"]].mean())}
+
+
+def specular_from_diffuse(diffuse, levels):
+    lut = np.asarray(Image.open(LUT)).astype(np.float32).ravel()
+    q = (diffuse.astype(np.int32) * LUT_BINS) // 256
+    spec = lut[(q[..., 0] * LUT_BINS + q[..., 1]) * LUT_BINS + q[..., 2]]
+    c = classes(diffuse)
+    lum, lens, interior, web, flesh = c["lum"], c["lens"], c["interior"], c["web"], c["flesh"]
+    if web.any():
+        spec[web] *= levels["web"] / spec[web].mean()
     if lens.any():
-        spec[lens] = lum[lens] * (LENS_SPECULAR / lum[lens].mean())
+        spec[lens] = lum[lens].astype(np.float32)
+        if interior.any():
+            spec[lens] *= levels["interior"] / spec[interior].mean()
     if flesh.sum() > 1000:
         spec[flesh] *= FLESH_SPECULAR / spec[flesh].mean()
     return np.clip(np.round(spec), 0, 255).astype(np.uint8)
@@ -114,9 +134,11 @@ def main(src, out, preview=None, extract=EXTRACT):
     for sub, state in STATES:
         folder = os.path.join(src, sub)
         diffuse = load(folder, "Diffuse", "RGB").copy()
-        specular = np.repeat(specular_from_diffuse(diffuse)[..., None], 3, axis=2)
-        nm = console_normal(load(folder, "Normal", "RGB")).copy()
         rd, rn, rs = retail_maps(extract, state)
+        levels = retail_levels(rd, rs)
+        specular = np.repeat(specular_from_diffuse(diffuse, levels)[..., None], 3, axis=2)
+        print(f"state {state}: retail's webbing {levels['web']:.0f}, lens interior {levels['interior']:.0f}")
+        nm = console_normal(load(folder, "Normal", "RGB")).copy()
         island = ear_island(rd)
         carry_ear(diffuse, rd, island, Image.LANCZOS)
         carry_ear(specular, rs, island, Image.LANCZOS)
