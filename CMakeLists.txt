@@ -332,7 +332,6 @@ if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/debug/antivenom_trace.cpp
-        src/gamelogic/patches/rocket_launch_clearance.cpp
         src/gamelogic/patches/sd_bonus_suits.cpp
         src/gamelogic/patches/section_lights.cpp
         src/gamelogic/patches/sm2099_body_pulse.cpp
