@@ -8,6 +8,9 @@
 [submodule "thirdparty/PKZLib"]
 	path = thirdparty/PKZLib
 	url = https://github.com/goliathret/PKZLib.git
+[submodule "thirdparty/VDFLib"]
+	path = thirdparty/VDFLib
+	url = https://github.com/Graine25/VDFLib.git
 [submodule "res"]
 	path = res
 	url = https://github.com/Graine25/reeot-res.git

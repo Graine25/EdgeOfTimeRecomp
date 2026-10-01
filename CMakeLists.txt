@@ -6,6 +6,9 @@
 
 cmake_minimum_required(VERSION 3.25)
 project(reeot VERSION 0.6 LANGUAGES C CXX)
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
 if(NOT DEFINED PROJECT_VERSION_PATCH OR PROJECT_VERSION_PATCH STREQUAL "")
     set(PROJECT_VERSION_PATCH 0)
 endif()
@@ -375,7 +378,13 @@ if(REEOT_BUILD_INSTALLER)
     target_sources(reeot PRIVATE
         src/installer/disc_install.cpp
         src/installer/installer_music.cpp
-        src/installer/installer_wizard.cpp)
+        src/installer/installer_wizard.cpp
+        src/installer/steam_shortcut.cpp)
+    target_link_libraries(reeot PRIVATE vdflib::vdflib)
+    if(APPLE)
+        target_sources(reeot PRIVATE src/installer/installer_music_mac.mm)
+        target_link_libraries(reeot PRIVATE "-framework AVFoundation")
+    endif()
 endif()
 
 set(reeot_program_files

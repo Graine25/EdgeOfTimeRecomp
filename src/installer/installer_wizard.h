@@ -110,6 +110,8 @@ private:
   WizardChoices choices_;
   bool create_shortcut_ = false;
   bool unattended_ = false;
+  bool add_to_steam_ = false;
+  std::string steam_status_;
 
   InstallProgress progress_;
   std::thread install_thread_;

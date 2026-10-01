@@ -16,6 +16,7 @@
 #include "core/logging.h"
 #include "embedded.h"
 #include "installer/self_install.h"
+#include "installer/steam_shortcut.h"
 #include "platform/file_dialog.h"
 #include "platform/process.h"
 #include "ui/theme.h"
@@ -45,6 +46,9 @@ constexpr const char *kRepairNotice =
     "Existing install found. Continue keeps it as it is and adds any packages listed; Repair takes the disc "
     "image and the title update again and copies back only what is missing.";
 constexpr const char *kSpaceHint = "(~6 GB required)";
+constexpr const char *kSteamHint =
+    "Adds the game to the Steam library as a non-Steam game, with its artwork, for the first Steam user "
+    "on this computer. Close Steam first; it shows the game once it starts again.";
 
 constexpr const char *kSuggestedVsync = "false";
 
@@ -722,6 +726,18 @@ void InstallerWizard::DrawSettings() {
   if (ImGui::Checkbox("Create a desktop shortcut", &create_shortcut_))
     choices_.create_shortcut = create_shortcut_;
 #endif
+
+  ImGui::Spacing();
+  if (repair_) {
+    if (ImGui::Button("Add to Steam"))
+      steam_status_ = AddToSteam(install_dir_);
+  } else {
+    ImGui::Checkbox("Add to Steam", &add_to_steam_);
+  }
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", kSteamHint);
+  if (!steam_status_.empty())
+    ImGui::TextWrapped("%s", steam_status_.c_str());
 }
 
 void InstallerWizard::DrawFooter() {
@@ -801,6 +817,8 @@ void InstallerWizard::DrawInstalling() {
     } else {
       done_success_ = true;
       done_message_ = repair_ ? "Repair complete." : "Install complete.";
+      if (add_to_steam_)
+        done_message_ += "\n\n" + AddToSteam(install_dir_);
       page_ = Page::Done;
     }
   }

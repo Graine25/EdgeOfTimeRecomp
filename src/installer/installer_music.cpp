@@ -13,6 +13,9 @@
 
 #include "core/logging.h"
 #include "embedded.h"
+#if defined(__APPLE__)
+#include "installer/installer_music_mac.h"
+#endif
 
 namespace eot::installer {
 
@@ -68,6 +71,21 @@ bool Music::Start() {
   }
   EOT_INFO("[install] music playing from {}", file_.string());
   return true;
+#elif defined(__APPLE__)
+  if (playing_)
+    return true;
+  constexpr auto kClip = eot::Embedded("installer/installer.mp3");
+  std::string error;
+  player_ = mac::StartPlayer(kClip.data, kClip.size, error);
+  if (!player_) {
+    EOT_WARN("[install] music: AVFoundation would not play the clip: {}", error);
+    return false;
+  }
+  playing_ = true;
+  level_ = 0.0f;
+  last_permille_ = 0;
+  EOT_INFO("[install] music playing");
+  return true;
 #else
   return false;
 #endif
@@ -86,6 +104,11 @@ void Music::SetVolume(int permille) {
     return;
   last_permille_ = permille;
   Mci(std::wstring(L"setaudio ") + kAlias + L" volume to " + std::to_wstring(permille));
+#elif defined(__APPLE__)
+  if (!playing_ || permille == last_permille_)
+    return;
+  last_permille_ = permille;
+  mac::SetPlayerVolume(player_, static_cast<float>(permille) / 1000.0f);
 #else
   (void)permille;
 #endif
@@ -99,6 +122,13 @@ void Music::Stop() {
   Mci(std::wstring(L"close ") + kAlias);
   std::error_code ec;
   std::filesystem::remove(file_, ec);
+  EOT_INFO("[install] music stopped");
+#elif defined(__APPLE__)
+  if (!playing_)
+    return;
+  playing_ = false;
+  mac::StopPlayer(player_);
+  player_ = nullptr;
   EOT_INFO("[install] music stopped");
 #endif
 }

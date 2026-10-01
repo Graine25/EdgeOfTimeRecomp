@@ -23,6 +23,7 @@ private:
   void SetVolume(int permille);
 
   std::filesystem::path file_;
+  void *player_ = nullptr;
   bool playing_ = false;
   float level_ = 0.0f;
   int last_permille_ = -1;
