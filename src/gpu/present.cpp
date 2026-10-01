@@ -791,15 +791,7 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
       front = nullptr;
   }
   PreloadAnnouncedTextures(s, PsoCacheInLoadingScreen() ? 8.0 : 1.0);
-  const bool want_vsync = Settings::Vsync();
-  const bool vsync_changed = s.swap_chain->isVsyncEnabled() != want_vsync;
-  s.swap_chain->setVsyncEnabled(want_vsync);
-#if !defined(EOT_D3D12)
-  if (vsync_changed)
-    s.resize_requested.store(true, std::memory_order_release);
-#else
-  (void)vsync_changed;
-#endif
+  s.swap_chain->setVsyncEnabled(Settings::Vsync());
   if (!HandleResize(s)) {
     if (!s.ready)
       return;
