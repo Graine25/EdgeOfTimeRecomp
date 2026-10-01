@@ -21,3 +21,7 @@ add_subdirectory(XenosRecomp EXCLUDE_FROM_ALL)
 set(PKZLIB_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(PKZLIB_BUILD_TOOLS ON CACHE BOOL "" FORCE)
 add_subdirectory(PKZLib EXCLUDE_FROM_ALL)
+
+if(REEOT_BUILD_INSTALLER)
+    add_subdirectory(VDFLib EXCLUDE_FROM_ALL)
+endif()
