@@ -78,3 +78,9 @@ namespace eot::loading {
 void HeapCensusTick(const PPCContext &ctx, uint8_t *base);
 
 }
+
+namespace eot::loading {
+
+void DlcTraceTick();
+
+}

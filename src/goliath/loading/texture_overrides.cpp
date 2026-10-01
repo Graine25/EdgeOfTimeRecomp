@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include <rex/cvar.h>
 #include <rex/hook.h>
@@ -10,10 +11,13 @@
 #include <chrono>
 #include <rex/system/kernel_state.h>
 #include <rex/system/xmemory.h>
+#include <format>
+#include <vector>
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/button_glyphs.h"
+#include "goliath/mash_prompt.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
 #include "platform/user_dirs.h"
@@ -40,9 +44,11 @@ struct Override {
   const char *glyphs;
   const char *language;
   const char *cvar;
+  const char *set;
   uint32_t retailCrc;
   uint32_t replacementCrc;
   uint32_t fontCrc;
+  uint32_t wideModel;
 };
 
 constexpr Override Make(const char *retail, const char *replacement, const char *font, const char *glyphs = nullptr,
@@ -50,8 +56,19 @@ constexpr Override Make(const char *retail, const char *replacement, const char 
   return {retail, replacement,
           font,   glyphs,
           language, cvar,
-          eot::ui::NameCrc(retail), eot::ui::NameCrc(replacement),
-          font ? eot::ui::NameCrc(font) : 0u};
+          nullptr, eot::ui::NameCrc(retail),
+          eot::ui::NameCrc(replacement), font ? eot::ui::NameCrc(font) : 0u,
+          0u};
+}
+
+constexpr Override ForSet(const char *retail, const char *replacement, const char *set,
+                          const char *wideModel = nullptr) {
+  return {retail,  replacement,
+          nullptr, nullptr,
+          nullptr, nullptr,
+          set,     eot::ui::NameCrc(retail),
+          eot::ui::NameCrc(replacement), 0u,
+          wideModel ? eot::ui::NameCrc(wideModel) : 0u};
 }
 
 constexpr Override kOverrides[] = {
@@ -79,6 +96,11 @@ constexpr Override kOverrides[] = {
     Make("SM99_Spiderman_S", "Reeot_SM2099Body_S", nullptr),
     Make("SMA_MonsterOck_D", "Reeot_MonsterOck_D", nullptr),
     Make("SMA_MonsterOck_N", "Reeot_MonsterOck_N", nullptr),
+    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_PlayStation_D", "playstation"),
+    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Switch_D", "switch"),
+    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", "SMN_PromptWebPullButton"),
+    ForSet("SMN_PromptWebPullButtonY_D", "Reeot_MashPromptY_PlayStation_D", "playstation"),
+    ForSet("SMN_PromptWebPullButtonY_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", "SMN_PromptWebPullButtonY"),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");
@@ -91,8 +113,16 @@ constexpr uint32_t FontMask() {
   return mask;
 }
 constexpr uint32_t kFontMask = FontMask();
+constexpr uint32_t PromptMask() {
+  uint32_t mask = 0;
+  for (uint32_t i = 0; i < kOverrideCount; ++i)
+    if (kOverrides[i].set)
+      mask |= 1u << i;
+  return mask;
+}
+constexpr uint32_t kPromptMask = PromptMask();
 constexpr uint32_t kAllMask = kOverrideCount >= 32 ? ~0u : (1u << kOverrideCount) - 1;
-constexpr uint32_t kSuitMask = kAllMask & ~kFontMask;
+constexpr uint32_t kSuitMask = kAllMask & ~kFontMask & ~kPromptMask;
 
 uint32_t WantedMask() {
   const std::string tag = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));
@@ -241,6 +271,27 @@ void TrackSuits(const PPCContext &ctx, uint8_t *base) {
   }
 }
 
+void TrackPromptArt(const PPCContext &ctx, uint8_t *base) {
+  const uint32_t mask = g_wanted & kPromptMask;
+  if (!mask)
+    return;
+  const std::string_view set = eot::controller::ActiveGlyphSet();
+  for (uint32_t i = 0; i < kOverrideCount; ++i) {
+    if ((mask & (1u << i)) && set != kOverrides[i].set && ReleaseSuit(ctx, base, i))
+      EOT_INFO("[tex] {} let go: the prompts draw the {} set", kOverrides[i].replacement, set);
+  }
+  uint32_t wide[2] = {0, 0};
+  uint32_t n = 0;
+  for (uint32_t i = 0; i < kOverrideCount; ++i) {
+    if (!(mask & (1u << i)) || set != kOverrides[i].set)
+      continue;
+    TrackSuit(ctx, base, i);
+    if (g_swapped[i] && kOverrides[i].wideModel && n < 2)
+      wide[n++] = kOverrides[i].wideModel;
+  }
+  eot::goliath::SetWidePromptModels(wide[0], wide[1]);
+}
+
 void RevertSuits(const PPCContext &ctx, uint8_t *base) {
   uint32_t done = 0;
   for (uint32_t i = 0; i < kOverrideCount; ++i) {
@@ -363,6 +414,7 @@ REX_HOOK_RAW(eot_PKPackageMgrBC_Update) {
   if (g_pending_chosen && (++track_tick & 3) == 0) {
     std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
     TrackSuits(ctx, base);
+    TrackPromptArt(ctx, base);
   }
   if (g_pending_chosen && g_pending) {
     std::lock_guard<std::recursive_mutex> lock(g_apply_mutex);
@@ -507,6 +559,110 @@ void HeapCensusTick(const PPCContext &ctx, uint8_t *base) {
   EOT_INFO("[mem] heap 0: {} MB in use, {} MB free in {} blocks (largest {} KB); {} MB of physical memory "
            "outside it",
            census.in_use >> 20, census.free >> 20, census.blocks, census.largest >> 10, FreePhysicalBytes() >> 20);
+}
+
+}
+
+REX_EXTERN(__imp__eot_XContentCreate);
+
+namespace {
+
+constexpr uint32_t kGdlcCount = 0x8249BCE0;
+constexpr uint32_t kGdlcObjects = 0x8249BCE8;
+constexpr uint32_t kGdlcMaxObjects = 16;
+constexpr uint32_t kObjEntries = 0;
+constexpr uint32_t kObjEntryCount = 256;
+constexpr uint32_t kObjFlags = 2352;
+constexpr uint32_t kObjSlot = 2364;
+constexpr uint32_t kObjFileName = 2400;
+constexpr uint32_t kObjOpened = 2448;
+constexpr uint32_t kEntryId = 0;               // u32 read at file offset 0x18
+constexpr uint32_t kEntryPath = 4;
+constexpr uint32_t kXContentFileName = 0x108;
+
+constexpr uint32_t kCostumeTable = 0x883DD878;
+constexpr uint32_t kCostumeCount = 0x883DDC38;
+constexpr uint32_t kCostumeStride = 32;
+constexpr uint32_t kCostumeHud = 28;
+constexpr uint32_t kCostumeCapacity = 30;
+
+std::string GuestString(uint32_t va, uint32_t max) {
+  std::string s;
+  for (uint32_t i = 0; va && i < max; ++i) {
+    const char c = static_cast<char>(eot::mem::load<uint8_t>(va + i));
+    if (!c)
+      break;
+    s.push_back(c);
+  }
+  return s;
+}
+
+std::string DescribeItem(uint32_t index) {
+  const uint32_t obj = eot::mem::load<uint32_t>(kGdlcObjects + index * 4);
+  if (!obj || !eot::mem::readable(obj, kObjOpened + 2))
+    return {};
+  const uint32_t flags = eot::mem::load<uint32_t>(obj + kObjFlags);
+  const uint32_t count = eot::mem::load<uint32_t>(obj + kObjEntryCount);
+  std::string line = std::format("item {} '{}' GDLC{}: flags {:#x} opened {} paks {}", index,
+                                 GuestString(obj + kObjFileName, 42), eot::mem::load<uint32_t>(obj + kObjSlot),
+                                 flags, eot::mem::load<uint8_t>(obj + kObjOpened), count);
+  for (uint32_t i = 0; i < count && i < 64; ++i) {
+    const uint32_t entry = eot::mem::load<uint32_t>(obj + kObjEntries + i * 4);
+    if (!entry)
+      continue;
+    line += std::format("{} id {:#x} '{}'", i ? "," : ":", eot::mem::load<uint32_t>(entry + kEntryId),
+                        GuestString(entry + kEntryPath, 256));
+  }
+  return line;
+}
+
+std::vector<std::string> g_items;
+std::string g_costumes;
+bool g_gamelogic_mapped = false;
+
+}
+
+REX_HOOK_RAW(eot_XContentCreate) {
+  const std::string root = GuestString(ctx.r4.u32, 32);
+  const std::string file = ctx.r5.u32 ? GuestString(ctx.r5.u32 + kXContentFileName, 42) : std::string();
+  __imp__eot_XContentCreate(ctx, base);
+  EOT_INFO("[dlc] XContentCreate('{}', '{}') -> {:#x}", root, file, ctx.r3.u32);
+}
+
+namespace eot::loading {
+
+void DlcTraceTick() {
+  const uint32_t count = eot::mem::load<uint32_t>(kGdlcCount);
+  if (count <= kGdlcMaxObjects) {
+    if (g_items.size() < count)
+      g_items.resize(count);
+    for (uint32_t i = 0; i < count; ++i) {
+      std::string line = DescribeItem(i);
+      if (line != g_items[i]) {
+        if (!line.empty())
+          EOT_INFO("[dlc] {}", line);
+        g_items[i] = std::move(line);
+      }
+    }
+  }
+
+  if (!g_gamelogic_mapped) {
+    if (!eot::mem::readable(kCostumeTable, kCostumeStride * kCostumeCapacity) ||
+        !eot::mem::readable(kCostumeCount, 4))
+      return;
+    g_gamelogic_mapped = true;
+  }
+  const uint32_t costumes = eot::mem::load<uint32_t>(kCostumeCount);
+  std::string line;
+  for (uint32_t i = 0; i < costumes && i < kCostumeCapacity; ++i) {
+    const uint32_t row = kCostumeTable + i * kCostumeStride;
+    line += std::format("{}{}{}", i ? " " : "", eot::mem::load<uint32_t>(row),
+                        eot::mem::load<uint32_t>(row + kCostumeHud) ? "" : "(no gallery row)");
+  }
+  if (line != g_costumes) {
+    EOT_INFO("[dlc] costume table: {} entries{}{}", costumes, line.empty() ? "" : ": ids ", line);
+    g_costumes = std::move(line);
+  }
 }
 
 }

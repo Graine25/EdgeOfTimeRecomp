@@ -17,10 +17,12 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <rex/kernel/xam/module.h>
 #include <rex/ui/virtual_key.h>
 
 #include "core/logging.h"
 #include "gpu/settings.h"
+#include "core/memory_helpers.h"
 #include "goliath/controller/button_glyphs.h"
 #include "goliath/controller/pad_remap.h"
 
@@ -277,6 +279,10 @@ REXCVAR_DEFINE_DOUBLE(eot_wheel_camera_turn, 60.0, "EdgeOfTime/Input", "Scroll w
 
 constexpr auto kMashFresh = std::chrono::milliseconds(200);
 
+constexpr uint32_t kActionSlots = 0x883C92F8;
+constexpr uint32_t kActionSlotBusy = 0x883C930C;
+constexpr uint32_t kActionSlotCount = 5;
+
 constexpr uint32_t kPressHold = 1;
 constexpr uint32_t kPressGap = 2;
 constexpr uint32_t kWheelHold = 3;
@@ -292,6 +298,7 @@ std::atomic<uint32_t> g_press_b{0};
 std::atomic<uint32_t> g_press_x{0};
 std::atomic<int32_t> g_wheel{0};
 std::atomic<int64_t> g_mash_ns{0};
+std::atomic<uint16_t> g_mash_buttons{0};
 
 struct Pulse {
   uint32_t taken = 0;
@@ -325,6 +332,7 @@ Pulse g_pulse_a, g_pulse_b, g_pulse_x;
 std::atomic<uint16_t> g_from_left_button{0};
 std::atomic<uint16_t> g_from_escape{0};
 std::atomic<uint16_t> g_from_delete{0};
+std::atomic<uint16_t> g_from_space{0};
 clock::time_point g_keys_read{};
 constexpr auto kKeysInterval = std::chrono::milliseconds(500);
 
@@ -358,6 +366,7 @@ void RefreshKeyButtons() {
   g_from_escape.store(ButtonsFor("Escape"), std::memory_order_relaxed);
   g_from_delete.store(static_cast<uint16_t>(ButtonsFor("Delete") | ButtonsFor("Backspace")),
                       std::memory_order_relaxed);
+  g_from_space.store(ButtonsFor("Space"), std::memory_order_relaxed);
 }
 
 bool KeyboardInHand() { return ActivePad() == PadBrand::Keyboard; }
@@ -365,6 +374,23 @@ bool KeyboardInHand() { return ActivePad() == PadBrand::Keyboard; }
 bool InMenu() { return KeyboardInHand() && BarShowsPrompts(); }
 
 bool WheelInMenu() { return BarShowsPrompts(); }
+
+bool ContextualActionOnOffer() {
+  static bool mapped = false;
+  if (!mapped) {
+    if (!eot::mem::readable(kActionSlots, 4 * kActionSlotCount) ||
+        !eot::mem::readable(kActionSlotBusy, kActionSlotCount))
+      return false;
+    mapped = true;
+  }
+  for (uint32_t slot = 0; slot < kActionSlotCount; ++slot)
+    if (eot::mem::load<uint32_t>(kActionSlots + 4 * slot) != 0xFFFFFFFFu)
+      return eot::mem::load<uint8_t>(kActionSlotBusy + slot) == 0;
+  return false;
+}
+
+bool g_space_down = false;
+bool g_space_acts = false;
 
 bool MashFresh() {
   const int64_t at = g_mash_ns.load(std::memory_order_acquire);
@@ -448,9 +474,11 @@ void AttachMenuKeys(rex::ui::Window *window) { g_listener.Attach(window); }
 
 bool MenuKeysActive() { return InMenu(); }
 
-void NoteMashPrompt() {
-  if (!g_mash_ns.exchange(clock::now().time_since_epoch().count(), std::memory_order_acq_rel))
-    EOT_INFO("[input] the door QTE asks for a button: the jump key answers it too");
+void NoteMashPrompt(uint16_t buttons) {
+  const uint16_t was = g_mash_buttons.exchange(buttons, std::memory_order_acq_rel);
+  g_mash_ns.store(clock::now().time_since_epoch().count(), std::memory_order_release);
+  if (buttons != was)
+    EOT_INFO("[input] a mash QTE counts pad buttons {:#06x}: the space bar presses them too", buttons);
 }
 
 void ApplyWheel(RawPad &pad) {
@@ -487,8 +515,40 @@ void ApplyWheel(RawPad &pad) {
 }
 
 void ApplyMenuKeys(RawPad &pad) {
+  if (rex::kernel::xam::xeXamIsUIActive()) {
+    g_pulse_a.Drop(g_press_a);
+    g_pulse_b.Drop(g_press_b);
+    g_pulse_x.Drop(g_press_x);
+    g_wheel.store(0, std::memory_order_release);
+    g_pulse_dir = 0;
+    g_pulse_left = g_gap_left = 0;
+    g_space_acts = false;
+    g_space_down = g_space.load(std::memory_order_acquire);
+    return;
+  }
+
   if (KeyboardInHand() && MashFresh() && g_space.load(std::memory_order_acquire))
+    pad.buttons |= g_mash_buttons.load(std::memory_order_acquire);
+
+  const bool space = KeyboardInHand() && g_space.load(std::memory_order_acquire);
+  if (space && !g_space_down) {
+    g_space_acts = !InMenu() && ContextualActionOnOffer();
+    if (g_space_acts) {
+      RefreshKeyButtons();
+      static bool told = false;
+      if (!told) {
+        told = true;
+        EOT_INFO("[input] a contextual action is on offer: the space bar answers it as B");
+      }
+    }
+  }
+  if (!space)
+    g_space_acts = false;
+  g_space_down = space;
+  if (g_space_acts) {
+    pad.buttons = static_cast<uint16_t>(pad.buttons & ~g_from_space.load(std::memory_order_relaxed));
     pad.buttons |= PadInputBit(PadInput::B);
+  }
 
   ApplyWheel(pad);
 
