@@ -7,6 +7,7 @@
 #include <string>
 
 #include <rex/cvar.h>
+#include <rex/kernel/xam/module.h>
 #include <rex/ui/ui_event.h>
 #include <rex/ui/virtual_key.h>
 #include <rex/ui/window.h>
@@ -53,6 +54,7 @@ std::atomic<uint32_t> g_press_b{0};
 std::atomic<uint32_t> g_press_x{0};
 std::atomic<int32_t> g_wheel{0};
 std::atomic<int64_t> g_mash_ns{0};
+std::atomic<uint16_t> g_mash_buttons{0};
 
 struct Pulse {
   uint32_t taken = 0;
@@ -228,9 +230,11 @@ void AttachMenuKeys(rex::ui::Window *window) { g_listener.Attach(window); }
 
 bool MenuKeysActive() { return InMenu(); }
 
-void NoteMashPrompt() {
-  if (!g_mash_ns.exchange(clock::now().time_since_epoch().count(), std::memory_order_acq_rel))
-    EOT_INFO("[input] the door QTE asks for a button: the jump key answers it too");
+void NoteMashPrompt(uint16_t buttons) {
+  const uint16_t was = g_mash_buttons.exchange(buttons, std::memory_order_acq_rel);
+  g_mash_ns.store(clock::now().time_since_epoch().count(), std::memory_order_release);
+  if (buttons != was)
+    EOT_INFO("[input] a mash QTE counts pad buttons {:#06x}: the space bar presses them too", buttons);
 }
 
 void ApplyWheel(RawPad &pad) {
@@ -267,8 +271,20 @@ void ApplyWheel(RawPad &pad) {
 }
 
 void ApplyMenuKeys(RawPad &pad) {
+  if (rex::kernel::xam::xeXamInputBlocked()) {
+    g_pulse_a.Drop(g_press_a);
+    g_pulse_b.Drop(g_press_b);
+    g_pulse_x.Drop(g_press_x);
+    g_wheel.store(0, std::memory_order_release);
+    g_pulse_dir = 0;
+    g_pulse_left = g_gap_left = 0;
+    g_space_acts = false;
+    g_space_down = g_space.load(std::memory_order_acquire);
+    return;
+  }
+
   if (KeyboardInHand() && MashFresh() && g_space.load(std::memory_order_acquire))
-    pad.buttons |= PadInputBit(PadInput::B);
+    pad.buttons |= g_mash_buttons.load(std::memory_order_acquire);
 
   const bool space = KeyboardInHand() && g_space.load(std::memory_order_acquire);
   if (space && !g_space_down) {

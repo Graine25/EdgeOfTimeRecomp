@@ -17,7 +17,7 @@ struct Host {
   int32_t (*pad_glyph)(int32_t) = nullptr;
   void (*bar_object)(int32_t) = nullptr;
   void (*bar_zone)(int32_t) = nullptr;
-  void (*mash_prompt)() = nullptr;
+  void (*mash_prompt)(int32_t) = nullptr;
 
   bool Bound() const { return capture_begin && capture_poll && capture_end && changed; }
 };

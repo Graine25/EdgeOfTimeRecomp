@@ -1,6 +1,20 @@
 #include "ui/theme.h"
 
+#include "embedded.h"
+
 namespace eot::ui {
+
+namespace {
+ImFont *g_dialog_font = nullptr;
+}
+
+void Theme::LoadFonts(ImFontAtlas *atlas) {
+  ImFontConfig cfg;
+  cfg.FontDataOwnedByAtlas = false;
+  constexpr auto kFont = eot::Embedded("installer/HelveticaNeueRoman.otf");
+  g_dialog_font = atlas->AddFontFromMemoryTTF(const_cast<uint8_t *>(kFont.data), static_cast<int>(kFont.size),
+                                              18.0f, &cfg);
+}
 
 void Theme::Apply(ImGuiStyle &style, rex::ui::Style &overlays) {
   style.WindowRounding = 0.0f;
@@ -78,6 +92,19 @@ void Theme::Apply(ImGuiStyle &style, rex::ui::Style &overlays) {
   overlays.toast.text = White(1.00f);
   overlays.toast.title = White(1.00f);
   overlays.achievements.header_text = White(0.90f);
+
+  auto &dialog = overlays.system_dialog;
+  dialog.font = g_dialog_font;
+  dialog.dim = ImVec4(0.0f, 0.0f, 0.0f, 0.62f);
+  dialog.panel = ImVec4(kAccentDeep.x, kAccentDeep.y, kAccentDeep.z, 0.97f);
+  dialog.accent = kAccentSelected;
+  dialog.title = White(1.00f);
+  dialog.text = White(0.88f);
+  dialog.muted = White(0.46f);
+  dialog.field = White(0.07f);
+  dialog.field_border = White(0.24f);
+  dialog.button = kAccent;
+  dialog.button_hovered = kAccentHovered;
 }
 
 }
