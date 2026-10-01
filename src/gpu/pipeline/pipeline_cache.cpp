@@ -736,6 +736,8 @@ void SetWorkerPriority(bool loading) {
   sched_param param{};
   param.sched_priority = 0;
   ::pthread_setschedparam(::pthread_self(), loading ? SCHED_OTHER : SCHED_IDLE, &param);
+#elif defined(__APPLE__)
+  ::pthread_set_qos_class_self_np(loading ? QOS_CLASS_USER_INITIATED : QOS_CLASS_UTILITY, 0);
 #else
   (void)loading;
 #endif

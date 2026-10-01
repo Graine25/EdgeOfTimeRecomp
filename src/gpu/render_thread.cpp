@@ -13,7 +13,6 @@
 #else
 #include <pthread.h>
 #endif
-#include <immintrin.h>
 
 #include "core/logging.h"
 #include "core/profiling.h"
@@ -77,11 +76,11 @@ void PublishExecuted(Queue &q, u64 seq) {
 void Prefetch(const RenderCommand &c) {
   const auto *base = reinterpret_cast<const char *>(&c);
   for (u32 off = 0; off < offsetof(RenderCommand, draw) + offsetof(DrawPacket, window); off += 64)
-    _mm_prefetch(base + off, _MM_HINT_T0);
+    eot::cpu::Prefetch(base + off);
   const auto *image = reinterpret_cast<const char *>(c.draw.window.image);
   for (const DeviceWindow::Block &b : DeviceWindow::kBlocks)
     for (u32 off = 0; off < b.size; off += 64)
-      _mm_prefetch(image + b.base + off, _MM_HINT_T0);
+      eot::cpu::Prefetch(image + b.base + off);
 }
 
 void Execute(VideoState &s, Queue &q, RenderCommand &c) {
@@ -114,7 +113,7 @@ u64 WaitForWork(Queue &q, u64 head) {
     const u64 t = q.tail.load(std::memory_order_acquire);
     if (t != head || q.stop.load(std::memory_order_relaxed))
       return t;
-    _mm_pause();
+    eot::cpu::Relax();
   }
   std::unique_lock lock(q.cv_mutex);
   q.consumer_sleeping.store(true, std::memory_order_seq_cst);
@@ -159,6 +158,8 @@ void PublishHead(Queue &q, u64 head) {
 void WorkerMain() {
 #if defined(_WIN32)
   SetThreadDescription(GetCurrentThread(), L"reeot render");
+#elif defined(__APPLE__)
+  pthread_setname_np("reeot render");
 #else
   pthread_setname_np(pthread_self(), "reeot render");
 #endif
@@ -194,7 +195,7 @@ void WorkerMain() {
         }
         if (q.stop.load(std::memory_order_relaxed))
           break;
-        _mm_pause();
+        eot::cpu::Relax();
       }
     }
     EOT_CPU_ZONE("render batch");

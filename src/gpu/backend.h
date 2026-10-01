@@ -18,6 +18,13 @@ inline constexpr plume::RenderShaderFormat kHostShaderFormat =
 #define EOT_BLOB_SYMBOL(name) g_##name##_spirv
 #endif
 
+#if defined(EOT_MVK)
+inline constexpr bool g_mvk = true;
+static_assert(g_vulkan);
+#else
+inline constexpr bool g_mvk = false;
+#endif
+
 #define EOT_SHADER_BLOB(name) EOT_BLOB_SYMBOL(name), sizeof(EOT_BLOB_SYMBOL(name))
 
 #if defined(EOT_D3D12)

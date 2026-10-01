@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <bit>
-#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <format>
 #include <span>
 #include <string>
@@ -79,9 +79,8 @@ constexpr uint32_t kInvertYDefault = 0x883CA0F4;
 }
 
 double Number(std::string_view text) {
-  double value = 0.0;
-  std::from_chars(text.data(), text.data() + text.size(), value);
-  return value;
+  const std::string tmp(text);
+  return std::strtod(tmp.c_str(), nullptr);
 }
 
 bool Truthy(std::string_view text) { return text == "true" || text == "1"; }

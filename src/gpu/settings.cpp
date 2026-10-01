@@ -29,7 +29,12 @@ REXCVAR_DEFINE_INT32(eot_diag, 1, "EdgeOfTime/Debug", "Renderer log verbosity")
 REXCVAR_DEFINE_BOOL(eot_vsync, true, "EdgeOfTime/Video", "Sync frames to display");
 REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug", "Start Tracy at boot");
 REXCVAR_DEFINE_BOOL(eot_async_pipelines, true, "EdgeOfTime/Graphics", "Compile pipelines in background");
-REXCVAR_DEFINE_INT32(eot_pso_hold_max_ms, 8000, "EdgeOfTime/Graphics", "Max loading screen hold (ms)")
+#if defined(EOT_MVK)
+constexpr i32 kPsoHoldDefaultMs = 60000;
+#else
+constexpr i32 kPsoHoldDefaultMs = 8000;
+#endif
+REXCVAR_DEFINE_INT32(eot_pso_hold_max_ms, kPsoHoldDefaultMs, "EdgeOfTime/Graphics", "Max loading screen hold (ms)")
     .range(0, 600000);
 REXCVAR_DEFINE_BOOL(eot_dynamic_depth_bias, true, "EdgeOfTime/Graphics", "Per-draw depth bias")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);

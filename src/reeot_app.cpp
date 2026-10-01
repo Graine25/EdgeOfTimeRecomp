@@ -177,14 +177,23 @@ void ApplyReeotCvarDefaults() {
   SetCvarDefault("mnk_mouse", "true");
   for (const char *bind : kSdkButtonBinds)
     SetCvarDefault(bind, "");
-  SetCvarDefault("hid_mappings_file",
-                 (rex::filesystem::GetExecutableFolder() / "gamecontrollerdb.txt").generic_string());
+  SetCvarDefault("hid_mappings_file", (eot::platform::DataDir() / "gamecontrollerdb.txt").generic_string());
   SetCvarDefault("log_flush_interval", "1");
   SetCvarDefault("license_mask", "1");
 #if defined(__linux__)
   if (const char *appimage = std::getenv("APPIMAGE"); appimage && *appimage) {
     if (const fs::path state = eot::platform::StateHome(); !state.empty()) {
       const fs::path logs = state / "reeot" / "logs";
+      std::error_code ec;
+      fs::create_directories(logs, ec);
+      if (!ec)
+        SetCvarDefault("log_file", (logs / "reeot.log").generic_string());
+    }
+  }
+#elif defined(__APPLE__)
+  if (eot::platform::InAppBundle()) {
+    if (const fs::path home = eot::platform::HomeDir(); !home.empty()) {
+      const fs::path logs = home / "Library" / "Logs" / "reeot";
       std::error_code ec;
       fs::create_directories(logs, ec);
       if (!ec)

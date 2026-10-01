@@ -1,0 +1,5 @@
+# Shell scripts run by bash, which does not accept CRLF, whatever the checkout does to the rest.
+*.sh text eol=lf
+# Apple property lists: codesign's AMFI parser rejects CRLF.
+*.entitlements text eol=lf
+*.plist text eol=lf
