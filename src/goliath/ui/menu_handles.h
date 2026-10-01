@@ -7,7 +7,6 @@ namespace eot::ui {
 inline constexpr uint32_t kReeotPackageId = 0x7EE;
 inline constexpr uint32_t kReeotMenuPackageId = 0x7ED;
 inline constexpr uint32_t kReeotAchievementsPackageId = 0x7EC;
-inline constexpr uint32_t kReeotRussianPackageId = 0x7EB;
 inline constexpr uint32_t kReeotIconsPackageId = 0x7EA;
 inline constexpr uint32_t kReeotSuitsPackageId = 0x7E9;
 inline constexpr const char *kReeotPackageName = "L:/custom/ReeotUI.pak";
