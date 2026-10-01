@@ -47,7 +47,7 @@ struct Override {
   uint32_t retailCrc;
   uint32_t replacementCrc;
   uint32_t fontCrc;
-  uint32_t wideModel;
+  bool wide;
 };
 
 constexpr Override Make(const char *retail, const char *replacement, const char *font, const char *glyphs = nullptr,
@@ -57,17 +57,16 @@ constexpr Override Make(const char *retail, const char *replacement, const char 
           language, cvar,
           nullptr, eot::ui::NameCrc(retail),
           eot::ui::NameCrc(replacement), font ? eot::ui::NameCrc(font) : 0u,
-          0u};
+          false};
 }
 
-constexpr Override ForSet(const char *retail, const char *replacement, const char *set,
-                          const char *wideModel = nullptr) {
+constexpr Override ForSet(const char *retail, const char *replacement, const char *set, bool wide = false) {
   return {retail,  replacement,
           nullptr, nullptr,
           nullptr, nullptr,
           set,     eot::ui::NameCrc(retail),
           eot::ui::NameCrc(replacement), 0u,
-          wideModel ? eot::ui::NameCrc(wideModel) : 0u};
+          wide};
 }
 
 constexpr Override kOverrides[] = {
@@ -97,9 +96,9 @@ constexpr Override kOverrides[] = {
     Make("SMA_MonsterOck_N", "Reeot_MonsterOck_N", nullptr),
     ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_PlayStation_D", "playstation"),
     ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Switch_D", "switch"),
-    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", "SMN_PromptWebPullButton"),
+    ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", true),
     ForSet("SMN_PromptWebPullButtonY_D", "Reeot_MashPromptY_PlayStation_D", "playstation"),
-    ForSet("SMN_PromptWebPullButtonY_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", "SMN_PromptWebPullButtonY"),
+    ForSet("SMN_PromptWebPullButtonY_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", true),
 };
 constexpr uint32_t kOverrideCount = sizeof(kOverrides) / sizeof(kOverrides[0]);
 static_assert(kOverrideCount <= 32, "the pending masks are 32 bits wide");
@@ -285,10 +284,10 @@ void TrackPromptArt(const PPCContext &ctx, uint8_t *base) {
     if (!(mask & (1u << i)) || set != kOverrides[i].set)
       continue;
     TrackSuit(ctx, base, i);
-    if (g_swapped[i] && kOverrides[i].wideModel && n < 2)
-      wide[n++] = kOverrides[i].wideModel;
+    if (g_swapped[i] && kOverrides[i].wide && n < 2)
+      wide[n++] = kOverrides[i].retailCrc;
   }
-  eot::goliath::SetWidePromptModels(wide[0], wide[1]);
+  eot::goliath::SetWidePromptSheets(wide[0], wide[1]);
 }
 
 void RevertSuits(const PPCContext &ctx, uint8_t *base) {

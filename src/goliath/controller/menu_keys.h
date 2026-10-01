@@ -16,4 +16,6 @@ void ApplyMenuKeys(RawPad &pad);
 
 void NoteMashPrompt(uint16_t buttons);
 
+void NoteFinishPrompt(bool on);
+
 }
