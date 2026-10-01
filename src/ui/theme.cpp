@@ -1,6 +1,15 @@
 #include "ui/theme.h"
 
+#include "embedded.h"
+
 namespace eot::ui {
+
+void Theme::LoadFonts(ImFontAtlas *atlas) {
+  ImFontConfig cfg;
+  cfg.FontDataOwnedByAtlas = false;
+  constexpr auto kFont = eot::Embedded("installer/HelveticaNeueRoman.otf");
+  atlas->AddFontFromMemoryTTF(const_cast<uint8_t *>(kFont.data), static_cast<int>(kFont.size), 18.0f, &cfg);
+}
 
 void Theme::Apply(ImGuiStyle &style, rex::ui::Style &overlays) {
   style.WindowRounding = 0.0f;

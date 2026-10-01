@@ -693,9 +693,8 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
 void ReeotApp::OnConfigureFonts(ImFontAtlas *atlas) {
 #ifdef REEOT_BUILD_INSTALLER
   eot::installer::InitInstallerFonts(atlas);
-#else
-  (void)atlas;
 #endif
+  eot::ui::Theme::LoadFonts(atlas);
 }
 
 void ReeotApp::OnConfigureStyle(ImGuiStyle &imgui_style, rex::ui::Style &ui_style) {

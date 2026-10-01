@@ -17,6 +17,7 @@
 #include "goliath/controller/mouse_input.h"
 #include "core/memory_helpers.h"
 #include "gpu/patches/aspect_ratio.h"
+#include "goliath/mash_prompt.h"
 
 REXCVAR_DEFINE_STRING(eot_ui_aspect, "lock", "EdgeOfTime/Config", "HUD layout on ultrawide")
     .allowed({"lock", "stretch"});
@@ -697,5 +698,6 @@ REX_HOOK_RAW(eot_GRRender3dObj_AppendSubmeshDrawRecord) {
   const uint32_t record = ctx.r7.u32;
   if (object != 0 && record != 0 && object == g_card.load(std::memory_order_relaxed))
     Stretch(record + kRecordWorld, g_stretch.load(std::memory_order_relaxed));
+  eot::goliath::MashPromptDrawRecord(object, record);
   __imp__eot_GRRender3dObj_AppendSubmeshDrawRecord(ctx, base);
 }

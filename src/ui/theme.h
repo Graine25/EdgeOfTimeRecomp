@@ -24,6 +24,7 @@ struct Theme {
 
   static constexpr ImVec4 White(float alpha) { return {1.00f, 1.00f, 1.00f, alpha}; }
 
+  static void LoadFonts(ImFontAtlas *atlas);
   static void Apply(ImGuiStyle &style, rex::ui::Style &overlays);
 };
 

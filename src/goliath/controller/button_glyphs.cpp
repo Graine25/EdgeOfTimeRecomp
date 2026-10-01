@@ -587,6 +587,17 @@ void NoteButtonHelperZone(uint32_t zone) {
     g_helper_zones.fetch_or(1u << zone, std::memory_order_acq_rel);
 }
 
+std::string_view ActiveGlyphSet() {
+  if (!g_installed)
+    return "xbox";
+  if (g_applied_page == kKeyboardPage)
+    return "keyboard";
+  for (const Set &s : g_sets)
+    if (s.page == g_applied_page)
+      return s.name;
+  return "xbox";
+}
+
 bool KeyCapInstalled(uint8_t slot) {
   return g_installed && slot < kSlotCount && (g_have[kKeyboardPage] & (1ull << slot)) != 0;
 }

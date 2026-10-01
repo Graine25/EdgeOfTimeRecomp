@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #include <rex/hook.h>
 
@@ -14,5 +15,6 @@ void GlyphBindsChanged();
 void NoteButtonHelper(uint32_t object);
 void NoteButtonHelperZone(uint32_t zone);
 bool BarShowsPrompts();
+std::string_view ActiveGlyphSet();
 
 }
