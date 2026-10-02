@@ -70,6 +70,7 @@ struct Loading {
   std::atomic<u32> currentPackage{0};
   std::atomic<u32> levelPackage{0};
   std::unordered_set<u16> resident;
+  std::unordered_set<u16> loaded;
   std::vector<u32> casterRows;
   std::vector<PsoShadowValue> shadowValues;
   u64 screenSinceFrame = 0;
@@ -586,6 +587,7 @@ void PsoCacheOnPackageLoad(u32 id, bool level) {
   bool new_offsets = false;
   {
     std::lock_guard lock(l.mutex);
+    l.loaded.insert(static_cast<u16>(id));
     std::vector<u16> stack{static_cast<u16>(id)};
     while (!stack.empty()) {
       const u16 p = stack.back();
@@ -694,6 +696,40 @@ void PsoCacheOnPackageLoad(u32 id, bool level) {
               captured, derived, crossed, shadow.size(), new_offsets ? ", the room's" : "", ahead,
               prefetch.size(), screen ? " (loading screen)" : "");
   });
+}
+
+void PsoCacheOnPackageUnload(u32 id) {
+  auto &l = loading();
+  if (id == 0 || id >= 0x1000)
+    return;
+  const PsoSet &set = CompiledInSet();
+  std::lock_guard lock(l.mutex);
+  if (!l.loaded.erase(static_cast<u16>(id)))
+    return;
+  l.holds.erase(id);
+  std::unordered_set<u16> resident;
+  std::vector<u16> stack(l.loaded.begin(), l.loaded.end());
+  while (!stack.empty()) {
+    const u16 p = stack.back();
+    stack.pop_back();
+    if (!resident.insert(p).second)
+      continue;
+    if (auto it = set.packages.find(p); it != set.packages.end())
+      stack.insert(stack.end(), it->second.parents.begin(), it->second.parents.end());
+  }
+  std::vector<u32> casters;
+  for (const u32 index : set.boot)
+    if (set.rows[index].bias == PsoBias::Shadow)
+      casters.push_back(index);
+  for (const u16 p : resident)
+    if (auto it = set.packages.find(p); it != set.packages.end())
+      for (const u32 index : it->second.rows)
+        if (set.rows[index].bias == PsoBias::Shadow)
+          casters.push_back(index);
+  EOT_DEBUG("[pso] package {:#x} unloaded: {} package(s) resident (was {}), {} caster row(s)", id,
+            resident.size(), l.resident.size(), casters.size());
+  l.resident = std::move(resident);
+  l.casterRows = std::move(casters);
 }
 
 void PsoCacheNoteShaderKey(u64 key, u64 hash, bool pixel) {

@@ -11,6 +11,8 @@ REX_EXTERN(__imp__eot_GLAPIEngine_SetIsInBlockingLoadingScreen);
 REX_EXTERN(__imp__eot_GLAPIPackage_Load);
 REX_EXTERN(__imp__eot_GLAPIPackage_IsLoaded);
 REX_EXTERN(__imp__eot_GLAPIPackage_IsLoading);
+REX_EXTERN(__imp__eot_GLAPIPackage_Unload);
+REX_EXTERN(__imp__eot_GLAPIPackage_ForceUnload);
 
 namespace {
 
@@ -57,6 +59,20 @@ REX_HOOK_RAW(eot_GLAPIPackage_Load) {
   else
     EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, name);
   eot::gpu::PsoCacheOnPackageLoad(id, IsLevelPackage(name));
+}
+
+REX_HOOK_RAW(eot_GLAPIPackage_Unload) {
+  const uint32_t id = ctx.r3.u32;
+  __imp__eot_GLAPIPackage_Unload(ctx, base);
+  if (id < kMaxPackages)
+    eot::gpu::PsoCacheOnPackageUnload(id);
+}
+
+REX_HOOK_RAW(eot_GLAPIPackage_ForceUnload) {
+  const uint32_t id = ctx.r3.u32;
+  __imp__eot_GLAPIPackage_ForceUnload(ctx, base);
+  if (id < kMaxPackages)
+    eot::gpu::PsoCacheOnPackageUnload(id);
 }
 
 REX_HOOK_RAW(eot_GLAPIPackage_IsLoaded) {
