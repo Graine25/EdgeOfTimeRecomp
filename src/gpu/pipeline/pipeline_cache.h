@@ -17,6 +17,7 @@ struct PipelineState {
   const plume::RenderShader *vs;
   const plume::RenderShader *ps;
   const InputLayout *layout;
+  u32 drawnSpec;
   u64 vsHash;
   u64 psHash;
   u64 layoutKey;

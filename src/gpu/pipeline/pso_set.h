@@ -25,6 +25,7 @@ struct PsoSetRow {
   u16 core = 0, decl = 0, strides = 0;
   PsoBias bias = PsoBias::None;
   bool derived = false;
+  u8 msaa = 0;
   f32 m = 0.0f;
   u32 literal = 0;
 };
@@ -39,6 +40,7 @@ struct PsoSetPackage {
 
 struct PsoSet {
   std::vector<PipelineState> cores;
+  std::vector<i32> velocityOf;
   std::vector<std::vector<u8>> decls;
   std::vector<std::array<u32, 16>> strides;
   std::vector<PsoShadowValue> literals;
@@ -51,6 +53,6 @@ struct PsoSet {
 const PsoSet &CompiledInSet();
 
 bool PsoSetRecord(const PsoSet &set, const PsoSetRow &row, const PsoShadowValue *shadow,
-                  PsoRecord *out);
+                  PsoRecord *out, i32 core = -1);
 
 }

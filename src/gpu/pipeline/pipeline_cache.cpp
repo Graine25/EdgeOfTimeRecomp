@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <rex/cvar.h>
 #include <xxhash.h>
 
 #include "core/logging.h"
@@ -137,6 +138,9 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
   r.state.vs = nullptr;
   r.state.ps = nullptr;
   r.state.layout = nullptr;
+  r.state.spec = st.drawnSpec;
+  if (state().host_msaa_samples > 1)
+    r.msaa = st.sampleCount > 1 ? kPsoMsaaMulti : kPsoMsaaSingle;
   r.state.sampleCount = 1;
   r.declCount = static_cast<u32>(l.declRaw.size() / sizeof(DeclElement));
   std::memcpy(r.declRaw, l.declRaw.data(), l.declRaw.size());
@@ -152,15 +156,17 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
 }
 
 u32 QueueRecord(const PsoRecord &r, PsoSource source, PsoLane lane, const TokenPtr &token,
-                bool twin) {
+                u8 msaa) {
   u32 n = 0;
-  const u32 msaa = state().host_msaa_samples;
-  if (twin && msaa > 1 && r.state.sampleCount == 1) {
+  const u32 samples = state().host_msaa_samples;
+  const bool multi = samples > 1 && r.state.sampleCount == 1;
+  if (multi && (msaa == 0 || (msaa & kPsoMsaaMulti))) {
     PsoRecord t = r;
-    t.state.sampleCount = msaa;
+    t.state.sampleCount = samples;
     n += PsoPrecacheEnqueue(t, source, lane, token) ? 1 : 0;
   }
-  n += PsoPrecacheEnqueue(r, source, lane, token) ? 1 : 0;
+  if (!multi || msaa == 0 || (msaa & kPsoMsaaSingle))
+    n += PsoPrecacheEnqueue(r, source, lane, token) ? 1 : 0;
   return n;
 }
 
@@ -173,15 +179,19 @@ u32 QueueSetRow(const PsoSet &set, u32 index, PsoLane lane, const TokenPtr &toke
     u32 n = 0;
     for (const PsoShadowValue &v : shadow)
       if (PsoSetRecord(set, row, &v, &r))
-        n += QueueRecord(r, source, lane, token, false);
+        n += QueueRecord(r, source, lane, token, kPsoMsaaSingle);
     return n;
   }
-  return PsoSetRecord(set, row, nullptr, &r) ? QueueRecord(r, source, lane, token, true) : 0;
+  u32 n = PsoSetRecord(set, row, nullptr, &r) ? QueueRecord(r, source, lane, token, row.msaa) : 0;
+  const i32 velocity = set.velocityOf[row.core];
+  if (velocity >= 0 && Settings::MotionVectors() && PsoSetRecord(set, row, nullptr, &r, velocity))
+    n += QueueRecord(r, source, lane, token, row.msaa);
+  return n;
 }
 
 void RouteLocal(const PsoRecord &r, size_t *queued, size_t *per_package) {
   if (r.packageCount == 0) {
-    *queued += QueueRecord(r, PsoSource::LocalCsv, PsoLane::Recorded, nullptr, true);
+    *queued += QueueRecord(r, PsoSource::LocalCsv, PsoLane::Recorded, nullptr, r.msaa);
     return;
   }
   auto &l = loading();
@@ -201,11 +211,11 @@ u64 HashPipelineState(const PipelineState &state) {
 }
 
 void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask) {
+  st.drawnSpec = st.spec & spec_mask;
 #if defined(EOT_D3D12)
-  (void)spec_mask;
   st.spec = 0;
 #else
-  st.spec &= spec_mask;
+  st.spec = st.drawnSpec;
 #endif
   if (st.sampleCount == 0)
     st.sampleCount = 1;
@@ -600,7 +610,7 @@ void PsoCacheOnPackageLoad(u32 id, bool level) {
           if (!set.rows[index].derived && set.rows[index].bias != PsoBias::Shadow)
             captured += QueueSetRow(set, index, PsoLane::Recorded, token, shadow);
     for (const PsoRecord &r : local)
-      captured += QueueRecord(r, PsoSource::LocalCsv, PsoLane::Recorded, token, true);
+      captured += QueueRecord(r, PsoSource::LocalCsv, PsoLane::Recorded, token, r.msaa);
     for (const u16 p : fresh)
       if (const PsoSetPackage *pk = package(p)) {
         const bool room = pk->level;
@@ -669,6 +679,45 @@ void PsoCacheNoteShadowBias(float offset, float slope) {
               v.depthBias, v.slope, casters.size(), queued);
   });
 }
+
+struct MotionVectorsWatch {
+  MotionVectorsWatch() {
+    rex::cvar::RegisterChangeCallback("eot_motion_vectors", [](std::string_view, std::string_view value) {
+      if (value != "true" && value != "1")
+        return;
+      PostSetJob([] {
+        if (!Settings::MotionVectors())
+          return;
+        auto &l = loading();
+        std::vector<u16> resident;
+        {
+          std::lock_guard lock(l.mutex);
+          resident.assign(l.resident.begin(), l.resident.end());
+        }
+        const PsoSet &set = CompiledInSet();
+        std::vector<u32> rows(set.boot);
+        for (const u16 p : resident)
+          if (auto it = set.packages.find(p); it != set.packages.end())
+            rows.insert(rows.end(), it->second.rows.begin(), it->second.rows.end());
+        u32 queued = 0;
+        PsoRecord r;
+        for (const u32 index : rows) {
+          const PsoSetRow &row = set.rows[index];
+          const i32 velocity = set.velocityOf[row.core];
+          if (velocity < 0 || row.bias == PsoBias::Shadow ||
+              !PsoSetRecord(set, row, nullptr, &r, velocity))
+            continue;
+          queued += QueueRecord(r, row.derived ? PsoSource::Derived : PsoSource::CompiledIn,
+                                row.derived ? PsoLane::Background : PsoLane::Recorded, nullptr,
+                                row.msaa);
+        }
+        EOT_INFO("[pso] motion vectors on: {} motion-vector pipelines queued for {} resident "
+                 "package(s)",
+                 queued, resident.size());
+      });
+    });
+  }
+} g_motion_vectors_watch;
 
 bool PsoCacheHoldPackage(u32 id) {
   auto &l = loading();

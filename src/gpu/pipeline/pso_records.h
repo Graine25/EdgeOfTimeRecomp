@@ -11,7 +11,7 @@
 
 namespace eot::gpu {
 
-constexpr u32 kPsoCsvVersion = 4;
+constexpr u32 kPsoCsvVersion = 5;
 
 constexpr const char *kPsoDir = "pso";
 constexpr u32 kPsoHoldMaxMs = 8000;
@@ -24,13 +24,17 @@ struct PsoRecord {
   PipelineState state;
   u32 declCount = 0;
   u8 declRaw[32 * sizeof(DeclElement)] = {};
+  u8 msaa = 0;
   u64 frame = 0;
   u16 packages[kMaxRecordPackages] = {};
   u32 packageCount = 0;
 };
 
+constexpr u8 kPsoMsaaSingle = 1;
+constexpr u8 kPsoMsaaMulti = 2;
+
 struct PsoCsvLayout {
-  static constexpr u32 kColumns = 35;
+  static constexpr u32 kColumns = 36;
   i8 index[kColumns];
   u32 fieldCount = 0;
   u32 version = kPsoCsvVersion;

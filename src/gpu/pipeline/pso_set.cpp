@@ -78,6 +78,14 @@ PsoSet Parse() {
       PsoRecord r;
       ok = have_layout && f.size() == 3 && PsoRecordFromCsv(layout, f[2], &r);
       set.cores.push_back(ok ? r.state : PipelineState{});
+    } else if (kind == "vcore") {
+      u32 plain, vel;
+      ok = f.size() == 3 && Num(f[1], &plain) && Num(f[2], &vel) && plain < set.cores.size() &&
+           vel < set.cores.size();
+      if (ok) {
+        set.velocityOf.resize(set.cores.size(), -1);
+        set.velocityOf[plain] = static_cast<i32>(vel);
+      }
     } else if (kind == "decl") {
       std::vector<u8> bytes;
       ok = f.size() == 3 && Hex(f[2], &bytes) && bytes.size() % sizeof(DeclElement) == 0 &&
@@ -105,10 +113,12 @@ PsoSet Parse() {
         set.packages[static_cast<u16>(id)].shadow.push_back(v);
     } else if (kind == "row") {
       PsoSetRow row;
-      u32 decl = 0, core = 0, bias = 0;
-      ok = f.size() == 13 && Num(f[2], &row.vsHash, 16) && Num(f[3], &row.psHash, 16) &&
+      u32 decl = 0, core = 0, bias = 0, msaa = 0;
+      ok = f.size() == 14 && Num(f[2], &row.vsHash, 16) && Num(f[3], &row.psHash, 16) &&
            Num(f[4], &decl) && Num(f[6], &core) && Num(f[7], &bias) && bias <= 3 &&
-           Num(f[12], &row.spec, 16) && decl < set.decls.size() && core < set.cores.size();
+           Num(f[12], &row.spec, 16) && Num(f[13], &msaa) && msaa <= 3 &&
+           decl < set.decls.size() && core < set.cores.size();
+      row.msaa = static_cast<u8>(msaa);
       if (ok) {
         row.decl = static_cast<u16>(decl);
         row.core = static_cast<u16>(core);
@@ -151,6 +161,7 @@ PsoSet Parse() {
     if (!ok)
       ++set.bad;
   }
+  set.velocityOf.resize(set.cores.size(), -1);
   for (auto &[id, pk] : set.packages)
     for (const u16 parent : pk.parents) {
       auto it = set.packages.find(parent);
@@ -172,9 +183,10 @@ const PsoSet &CompiledInSet() {
 }
 
 bool PsoSetRecord(const PsoSet &set, const PsoSetRow &row, const PsoShadowValue *shadow,
-                  PsoRecord *out) {
+                  PsoRecord *out, i32 core) {
   PsoRecord r{};
-  r.state = set.cores[row.core];
+  r.state = set.cores[core >= 0 ? static_cast<u32>(core) : row.core];
+  r.msaa = row.msaa;
   PipelineState &s = r.state;
   s.vsHash = row.vsHash;
   s.psHash = row.psHash;

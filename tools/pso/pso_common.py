@@ -4,16 +4,16 @@ import re
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 COLUMNS = [
     "vsHash", "psHash", "spec", "layoutKey", "declRaw", "strides", "topology", "rtFormats",
     "rtCount", "dsFormat", "sampleCount", "cull", "frontFace", "depthBias",
     "slopeScaledDepthBias", "targetScale", "depthClip", "depthEnable", "depthWrite", "depthFunc",
     "stencilEnable", "stencilReadMask", "stencilWriteMask", "stencilRef", "stencilFront",
-    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "velocity", "frame",
-    "session", "package",
+    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "velocity", "msaa",
+    "frame", "session", "package",
 ]
-DIAGNOSTIC_COLUMNS = {"layoutKey", "frame", "session", "package"}
+DIAGNOSTIC_COLUMNS = {"layoutKey", "frame", "session", "package", "msaa"}
 BIAS_COLUMNS = ("depthBias", "slopeScaledDepthBias", "targetScale")
 VERSION_RE = re.compile(r"^#\s*eot-pso\s+v(\d+)\s*$")
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -66,6 +66,16 @@ def upgrade_v3(columns, rows):
     return columns, rows
 
 
+def upgrade_v4(columns, rows):
+    if "msaa" not in columns:
+        i = columns.index("frame")
+        columns = columns[:i] + ["msaa"] + columns[i:]
+    for r in rows:
+        if not r.get("msaa"):
+            r["msaa"] = "0"
+    return columns, rows
+
+
 def read_rows(path):
     text = Path(path).read_text(encoding="utf-8", errors="replace")
     body = []
@@ -82,6 +92,7 @@ def read_rows(path):
         columns, rows = upgrade_v1(columns, rows)
         columns, rows = upgrade_v2(columns, rows)
         columns, rows = upgrade_v3(columns, rows)
+        columns, rows = upgrade_v4(columns, rows)
     return columns, rows
 
 

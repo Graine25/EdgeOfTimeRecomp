@@ -37,7 +37,7 @@ enum Col : u32 {
   cDsFormat, cSampleCount, cCull, cFrontFace, cDepthBias, cSlopeScaledDepthBias, cTargetScale,
   cDepthClip, cDepthEnable, cDepthWrite, cDepthFunc, cStencilEnable, cStencilReadMask,
   cStencilWriteMask, cStencilRef, cStencilFront, cStencilBack, cBlend0, cBlend1, cBlend2, cBlend3,
-  cAlphaToCoverage, cVelocity, cFrame, cSession, cPackage, cCount
+  cAlphaToCoverage, cVelocity, cMsaa, cFrame, cSession, cPackage, cCount
 };
 static_assert(cCount == PsoCsvLayout::kColumns);
 
@@ -46,8 +46,8 @@ constexpr const char *kColumnNames[cCount] = {
     "rtCount", "dsFormat", "sampleCount", "cull", "frontFace", "depthBias",
     "slopeScaledDepthBias", "targetScale", "depthClip", "depthEnable", "depthWrite", "depthFunc",
     "stencilEnable", "stencilReadMask", "stencilWriteMask", "stencilRef", "stencilFront",
-    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "velocity", "frame",
-    "session", "package"};
+    "stencilBack", "blend0", "blend1", "blend2", "blend3", "alphaToCoverage", "velocity", "msaa",
+    "frame", "session", "package"};
 
 const char kHexDigits[] = "0123456789abcdef";
 
@@ -251,7 +251,7 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
     packages += std::format("{}{:x}", i ? "|" : "", r.packages[i]);
   return std::format(
       "{:016x},{:016x},{:x},{:016x},{},{},{},{},{},{},{},{},{},{},{:.9g},{:.9g},{},{},{},{},{},{},"
-      "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+      "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
       s.vsHash, s.psHash, s.spec, s.layoutKey, decl, strides, ei(s.topology), rts, s.rtCount,
       ei(s.dsFormat), s.sampleCount, ei(s.cull), ei(s.frontFace), s.depthBias,
       s.slopeScaledDepthBias,
@@ -260,8 +260,8 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session) {
       s.stencilEnable ? 1 : 0, static_cast<unsigned>(s.stencilReadMask),
       static_cast<unsigned>(s.stencilWriteMask), static_cast<unsigned>(s.stencilRef),
       Stencil(s.stencilFront), Stencil(s.stencilBack), Blend(s.blend[0]), Blend(s.blend[1]),
-      Blend(s.blend[2]), Blend(s.blend[3]), s.alphaToCoverage ? 1 : 0, s.velocity ? 1 : 0, r.frame,
-      session, packages);
+      Blend(s.blend[2]), Blend(s.blend[3]), s.alphaToCoverage ? 1 : 0, s.velocity ? 1 : 0, r.msaa,
+      r.frame, session, packages);
 }
 
 bool PsoCsvParseHeader(std::string_view line, PsoCsvLayout *out) {
@@ -283,7 +283,8 @@ bool PsoCsvParseHeader(std::string_view line, PsoCsvLayout *out) {
   out->version = out->index[cTargetScale] < 0    ? 1
                  : out->index[cPackage] < 0      ? 2
                  : out->index[cVelocity] < 0     ? 3
-                                                 : 4;
+                 : out->index[cMsaa] < 0         ? 4
+                                                 : 5;
   return true;
 }
 
@@ -379,6 +380,8 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
   s.velocity = false;
   if (layout.index[cVelocity] >= 0 && !ParseBool(field(cVelocity), &s.velocity))
     return false;
+  if (layout.index[cMsaa] >= 0 && ParseU64(field(cMsaa), &u) && u <= 3)
+    r.msaa = static_cast<u8>(u);
   ParseU64(field(cFrame), &r.frame);
   const std::string_view pk = field(cPackage);
   if (!pk.empty()) {
