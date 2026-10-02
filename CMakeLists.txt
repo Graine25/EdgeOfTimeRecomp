@@ -373,6 +373,9 @@ target_include_directories(reeot PRIVATE
     $<$<NOT:$<BOOL:${REEOT_D3D12}>>:${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/thirdparty/smol-v/source>
     "${REXGLUE_ENTRYPOINT_INCLUDE_DIR}")
 
+if(APPLE)
+    target_sources(reeot PRIVATE src/platform/thermal_mac.mm)
+endif()
 if(REEOT_BUILD_INSTALLER)
     target_sources(reeot PRIVATE
         src/installer/disc_install.cpp

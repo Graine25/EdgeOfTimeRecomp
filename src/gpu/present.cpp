@@ -42,6 +42,9 @@
 #include "gpu/textures.h"
 #include "gpu/velocity.h"
 #include "gpu/trace.h"
+#include "platform/thermal.h"
+
+#include <SDL3/SDL.h>
 
 namespace eot::gpu {
 
@@ -621,6 +624,24 @@ void LogPerfLocked(VideoState &s) {
   }
   if (every <= 0 || static_cast<i32>(p.frames) < every)
     return;
+  static int last_thermal = -2;
+  if (const int thermal = platform::ThermalState(); thermal != last_thermal) {
+    if (thermal >= 0)
+      EOT_INFO("[thermal] {} -> {}", platform::ThermalStateName(last_thermal), platform::ThermalStateName(thermal));
+    last_thermal = thermal;
+  }
+  static SDL_WindowFlags last_window = ~SDL_WindowFlags{0};
+  int window_count = 0;
+  if (SDL_Window **windows = SDL_GetWindows(&window_count)) {
+    constexpr SDL_WindowFlags kWatched = SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_OCCLUDED | SDL_WINDOW_MINIMIZED;
+    const SDL_WindowFlags now = window_count > 0 ? SDL_GetWindowFlags(windows[0]) & kWatched : 0;
+    SDL_free(windows);
+    if (now != last_window) {
+      EOT_INFO("[window] {}{}{}", (now & SDL_WINDOW_INPUT_FOCUS) ? "focused" : "not focused",
+               (now & SDL_WINDOW_OCCLUDED) ? ", occluded" : "", (now & SDL_WINDOW_MINIMIZED) ? ", minimized" : "");
+      last_window = now;
+    }
+  }
   const f64 n = static_cast<f64>(p.frames);
   EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall (p50 {:.2f} p95 {:.2f} p99 {:.2f} max {:.2f}) | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
            "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} refresh, {} twin, {:.1f} alias deferred, {:.2f} alias copied; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
