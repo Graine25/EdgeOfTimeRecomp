@@ -18,9 +18,6 @@ BIAS_COLUMNS = ("depthBias", "slopeScaledDepthBias", "targetScale")
 VERSION_RE = re.compile(r"^#\s*eot-pso\s+v(\d+)\s*$")
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SHADER_CACHE = REPO_ROOT / "generated" / "shader_cache.cpp"
-DEFAULT_TABLE = REPO_ROOT / "config" / "pso" / "eot_pipelines.csv"
-DEFAULT_INC = REPO_ROOT / "src" / "gpu" / "pipeline" / "cache" / "eot_pipelines.inc"
-DEFAULT_TEMPLATES = REPO_ROOT / "src" / "gpu" / "pipeline" / "cache" / "eot_pso_templates.inc"
 
 BLEND_ONE, BLEND_ZERO, BLEND_OP_ADD = 2, 1, 1
 COMPARE_ALWAYS = 8
@@ -28,19 +25,10 @@ DISABLED_BLEND_PREFIX = f"0|{BLEND_ONE}|{BLEND_ZERO}|{BLEND_OP_ADD}|{BLEND_ONE}|
 DISABLED_STENCIL_FACE = f"0|0|0|{COMPARE_ALWAYS}"
 
 CAPTURE_PREFIXES = ("pso_drawn_", "pso_misses_")
-SIDE_FILE_PREFIXES = ("pso_pairs_", "pso_predicted_", "pso_used_", "pso_templates_", "shader_canon")
 
 
 def is_capture(path):
     return path.name.startswith(CAPTURE_PREFIXES)
-
-
-def is_pairs(path):
-    return path.name.startswith("pso_pairs_")
-
-
-def is_template_usage(path):
-    return path.name.startswith("pso_templates_")
 
 
 def upgrade_v1(columns, rows):
@@ -171,11 +159,6 @@ def row_line(row, columns=None):
     return out.getvalue()
 
 
-def merge_packages(a, b):
-    ids = set(x for x in (a or "").split("|") if x) | set(x for x in (b or "").split("|") if x)
-    return "|".join(sorted(ids, key=lambda x: int(x, 16)))
-
-
 def collect_inputs(inputs):
     files = []
     for raw in inputs:
@@ -190,11 +173,3 @@ def collect_inputs(inputs):
         else:
             sys.stderr.write(f"warning: skipping missing path {p}\n")
     return files
-
-
-def write_inc(path, first_line, header, rows):
-    lines = [first_line, f'"{header}",']
-    for line in rows:
-        line = line.replace("\\", "\\\\").replace('"', '\\"')
-        lines.append(f'"{line}",')
-    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

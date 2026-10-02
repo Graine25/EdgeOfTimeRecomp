@@ -1,7 +1,6 @@
 #include "gpu/pipeline/pso_precache.h"
 
 #include <algorithm>
-#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -64,8 +63,6 @@ Pool &pool() {
   static Pool p;
   return p;
 }
-
-thread_local TokenPtr t_loadToken;
 
 void SetWorkerPriority(bool loading) {
 #if defined(_WIN32)
@@ -251,25 +248,6 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane, To
   return true;
 }
 
-void PsoPrecacheBeginLoad() { t_loadToken = std::make_shared<CompileToken>(); }
-
-TokenPtr PsoPrecacheCurrentToken() { return t_loadToken; }
-
-bool PsoPrecacheWaitLoad(u32 max_ms) {
-  TokenPtr token = t_loadToken;
-  if (!token || token->Pending() == 0)
-    return true;
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(max_ms);
-  while (token->Pending() != 0) {
-    if (std::chrono::steady_clock::now() >= deadline)
-      return false;
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-  }
-  return true;
-}
-
-void PsoPrecacheEndLoad() { t_loadToken.reset(); }
-
 bool PsoPrecacheKnown(u64 key, PsoSource *source) {
   auto &p = pool();
   std::lock_guard lock(p.dedupMutex);
@@ -291,7 +269,7 @@ PsoPrecacheStats PsoPrecacheGetStats() {
   st.failed = p.failed.load();
   std::lock_guard lock(p.mutex);
   st.recordedPending = static_cast<u32>(p.lanes[0].size());
-  st.priorityPending = static_cast<u32>(p.lanes[1].size());
+  st.derivedPending = static_cast<u32>(p.lanes[1].size());
   st.backgroundPending = static_cast<u32>(p.lanes[2].size());
   st.threads = static_cast<u32>(p.threads.size());
   return st;

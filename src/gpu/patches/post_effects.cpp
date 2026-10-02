@@ -10,7 +10,7 @@
 
 #include "core/logging.h"
 #include "core/memory_helpers.h"
-#include "gpu/pipeline/pso_predictor.h"
+#include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/settings.h"
 
 REX_EXTERN(__imp__eot_RenderComposition_ExecuteChain);
@@ -135,7 +135,7 @@ REX_HOOK_RAW(eot_PAK_SelectLanguage) {
 REX_HOOK_RAW(eot_GLAPICamera_ShadowMapSetParams) {
   const uint32_t params = ctx.r5.u32;
   if (params) {
-    eot::gpu::PredictorNoteShadowBias(
+    eot::gpu::PsoCacheNoteShadowBias(
         std::bit_cast<float>(eot::mem::load<uint32_t>(params + 4)),
         std::bit_cast<float>(eot::mem::load<uint32_t>(params + 8)));
     if (g_shadow_logs.load(std::memory_order_relaxed) < 6) {

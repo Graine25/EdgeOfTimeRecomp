@@ -48,7 +48,7 @@ struct PipelineState {
 };
 constexpr size_t kPipelineKeyOffset = offsetof(PipelineState, vsHash);
 
-enum class PsoSource : u8 { Draw = 0, CompiledIn = 1, LocalCsv = 2, Predicted = 3 };
+enum class PsoSource : u8 { Draw = 0, CompiledIn = 1, LocalCsv = 2, Derived = 3 };
 
 void ZeroPipelineState(PipelineState &state);
 u64 HashPipelineState(const PipelineState &state);
@@ -63,8 +63,7 @@ void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask
 
 plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &state,
                                            bool worker = false,
-                                           PsoSource source = PsoSource::Draw,
-                                           u16 template_index = 0xFFFF);
+                                           PsoSource source = PsoSource::Draw);
 
 void PsoCachePrecache();
 
@@ -75,7 +74,7 @@ void PsoCacheSetLoadingScreen(bool on);
 bool PsoCacheInLoadingScreen();
 
 void PsoCacheOnPackageLoad(u32 id, bool level);
-bool PsoCacheLevelKnown();
+void PsoCacheNoteShadowBias(float offset, float slope);
 bool PsoCacheHoldPackage(u32 id);
 bool PsoCacheWaitsAllowed();
 

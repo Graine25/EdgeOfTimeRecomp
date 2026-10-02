@@ -27,7 +27,7 @@ private:
 };
 using TokenPtr = std::shared_ptr<CompileToken>;
 
-enum class PsoLane : u8 { Recorded = 0, Predicted = 1, Background = 2 };
+enum class PsoLane : u8 { Recorded = 0, Derived = 1, Background = 2 };
 
 void PsoPrecacheStart();
 void PsoPrecacheStop();
@@ -38,16 +38,11 @@ TokenPtr PsoPrecacheScreenToken();
 bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane,
                         TokenPtr token = nullptr);
 
-void PsoPrecacheBeginLoad();
-TokenPtr PsoPrecacheCurrentToken();
-bool PsoPrecacheWaitLoad(u32 max_ms);
-void PsoPrecacheEndLoad();
-
 bool PsoPrecacheKnown(u64 key, PsoSource *source);
 
 struct PsoPrecacheStats {
   u32 queued = 0, built = 0, existing = 0, skipped = 0, failed = 0;
-  u32 recordedPending = 0, priorityPending = 0, backgroundPending = 0, threads = 0;
+  u32 recordedPending = 0, derivedPending = 0, backgroundPending = 0, threads = 0;
 };
 PsoPrecacheStats PsoPrecacheGetStats();
 

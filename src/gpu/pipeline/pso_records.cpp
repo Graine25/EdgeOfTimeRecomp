@@ -166,13 +166,6 @@ u32 VersionComment(std::string_view line) {
   return ParseU64(line.substr(11), &v) ? static_cast<u32>(v) : 0;
 }
 
-const char *const kCompiledInRows[] = {
-#include "gpu/pipeline/cache/eot_pipelines.inc"
-    nullptr};
-const char *const kCompiledInTemplateRows[] = {
-#include "gpu/pipeline/cache/eot_pso_templates.inc"
-    nullptr};
-
 struct Capture {
   std::mutex mutex;
   std::string dir, tag, path;
@@ -219,6 +212,17 @@ std::string SessionTagImpl() {
   return tag.empty() ? "session" : tag;
 }
 
+}
+
+void PsoApplyTargetScale(PipelineState &s) {
+  const bool follows = s.targetScale == 0.0f;
+  if (s.depthBias || s.slopeScaledDepthBias != 0.0f) {
+    s.targetScale = follows ? FollowTargetScale(s) : s.targetScale;
+    if (follows && s.rtCount == 0 && s.sampleCount <= 1 && !s.stencilEnable && IsDepthFormat(s.dsFormat))
+      s.dsFormat = ShadowDepthFormat();
+  } else {
+    s.targetScale = 1.0f;
+  }
 }
 
 std::string PsoCsvHeader() {
@@ -356,14 +360,6 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
       !ParseBool(field(cDepthWrite), &s.depthWrite) || !ParseEnum(field(cDepthFunc), &s.depthFunc) ||
       !ParseBool(field(cStencilEnable), &s.stencilEnable))
     return false;
-  const bool follows = s.targetScale == 0.0f;
-  if (s.depthBias || s.slopeScaledDepthBias != 0.0f) {
-    s.targetScale = follows ? FollowTargetScale(s) : s.targetScale;
-    if (follows && s.rtCount == 0 && s.sampleCount <= 1 && !s.stencilEnable && IsDepthFormat(s.dsFormat))
-      s.dsFormat = ShadowDepthFormat();
-  } else {
-    s.targetScale = 1.0f;
-  }
   i64 m0, m1, m2;
   if (!ParseI64(field(cStencilReadMask), &m0) || !ParseI64(field(cStencilWriteMask), &m1) ||
       !ParseI64(field(cStencilRef), &m2))
@@ -379,6 +375,7 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
       return false;
   if (!ParseBool(field(cAlphaToCoverage), &s.alphaToCoverage))
     return false;
+  PsoApplyTargetScale(s);
   s.velocity = false;
   if (layout.index[cVelocity] >= 0 && !ParseBool(field(cVelocity), &s.velocity))
     return false;
@@ -405,32 +402,6 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
   return true;
 }
 
-const std::vector<PsoRecord> &CompiledInPipelines() {
-  static const std::vector<PsoRecord> rows = [] {
-    std::vector<PsoRecord> v;
-    PsoCsvLayout layout{};
-    bool have_layout = false;
-    u32 bad = 0;
-    for (const char *const *p = kCompiledInRows; *p; ++p) {
-      if (!have_layout) {
-        have_layout = PsoCsvParseHeader(*p, &layout);
-        continue;
-      }
-      PsoRecord r;
-      if (PsoRecordFromCsv(layout, *p, &r))
-        v.push_back(r);
-      else if (**p != '#')
-        ++bad;
-    }
-    if (bad || !have_layout)
-      EOT_WARN("[pso] {} compiled-in rows did not parse (schema v{}); regenerate "
-               "cache/eot_pipelines.inc with tools/pso/pso_merge.py",
-               bad, kPsoCsvVersion);
-    return v;
-  }();
-  return rows;
-}
-
 std::string PsoSessionStamp() {
   static const std::string stamp = SessionStampImpl();
   return stamp;
@@ -439,55 +410,6 @@ std::string PsoSessionStamp() {
 std::string PsoSessionTag() {
   static const std::string tag = SessionTagImpl();
   return tag;
-}
-
-const std::vector<PsoTemplate> &CompiledInTemplates() {
-  static const std::vector<PsoTemplate> rows = [] {
-    std::vector<PsoTemplate> v;
-    PsoCsvLayout layout{};
-    bool have_layout = false;
-    u32 bad = 0;
-    auto after_prefix = [](std::string_view line, std::string_view fields[4]) -> std::string_view {
-      size_t start = 0;
-      for (u32 k = 0; k < 4; ++k) {
-        const size_t comma = line.find(',', start);
-        if (comma == std::string_view::npos)
-          return {};
-        fields[k] = line.substr(start, comma - start);
-        start = comma + 1;
-      }
-      return line.substr(start);
-    };
-    for (const char *const *p = kCompiledInTemplateRows; *p; ++p) {
-      std::string_view line(*p);
-      if (line.empty() || line[0] == '#')
-        continue;
-      std::string_view prefix[4];
-      const std::string_view rest = after_prefix(line, prefix);
-      if (!have_layout) {
-        have_layout = prefix[0] == "technique" && PsoCsvParseHeader(rest, &layout);
-        if (!have_layout)
-          ++bad;
-        continue;
-      }
-      u64 tech = 0, pass = 0, cls = 0, kind = 0;
-      PsoRecord r;
-      if (rest.empty() || !ParseU64(prefix[0], &tech) || !ParseU64(prefix[1], &pass) ||
-          !ParseU64(prefix[2], &cls, 16) || !ParseU64(prefix[3], &kind) ||
-          !PsoRecordFromCsv(layout, rest, &r) || tech > 255 || pass > 255 || kind > 2) {
-        ++bad;
-        continue;
-      }
-      v.push_back(PsoTemplate{static_cast<u8>(tech), static_cast<u8>(pass),
-                              static_cast<PsoBiasKind>(kind), static_cast<u32>(cls), r.state});
-    }
-    if (bad)
-      EOT_WARN("[pso] {} compiled-in template rows did not parse; regenerate "
-               "cache/eot_pso_templates.inc with tools/pso/pso_gen_templates.py",
-               bad);
-    return v;
-  }();
-  return rows;
 }
 
 size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {

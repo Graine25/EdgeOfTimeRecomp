@@ -1,0 +1,284 @@
+id,name,parent_ids,parent_names,shipped_on_disc
+1,Main,,,1
+2,Common,1,Main,1
+3,FrontScreen,101,01A_SMA_010_PortalRoom_FlashBack,1
+4,Legal,1,Main,1
+5,BaseGameplay,2,Common,1
+6,BaseHero,8,BaseEnemies,1
+8,BaseEnemies,5,BaseGameplay,1
+10,Base2099,6 8,BaseHero BaseEnemies,1
+11,BaseAmazing,6 8,BaseHero BaseEnemies,1
+20,CombatArenas,8 6,BaseEnemies BaseHero,1
+50,Gallery,5 999,BaseGameplay WebOfSkills,1
+66,EnemyCrasherFutureExtraData,8,BaseEnemies,1
+68,EnemyCleanerPresentExtraData,8,BaseEnemies,1
+69,EnemyInfantExtraData,8,BaseEnemies,1
+70,EnemyHatchlingExtraData,8,BaseEnemies,1
+71,EnemyGunnerPresentExtraData,8,BaseEnemies,1
+74,EnemyGunnerFutureExtraData,8,BaseEnemies,1
+75,EnemyCrasherPresentExtraData,8,BaseEnemies,1
+76,XX_SMX_XXX_PortalRoom_T,5,BaseGameplay,1
+77,XX_SMX_XXX_PortalRoom99_T,5,BaseGameplay,1
+78,EnemyZombieExtraData,8,BaseEnemies,1
+79,EnemyStunnerPresentExtraData,8,BaseEnemies,1
+80,EnemyStunnerFutureExtraData,8,BaseEnemies,1
+81,EnemyRangerExtraData,8,BaseEnemies,1
+82,EnemyMotherPresentExtraData,8,BaseEnemies,1
+83,EnemyMotherFutureExtraData,8,BaseEnemies,1
+84,EnemyLaserBotPresentExtraData,8,BaseEnemies,1
+85,EnemyLaserBotFutureExtraData,8,BaseEnemies,1
+87,BossCEO,10 8,Base2099 BaseEnemies,1
+88,BossAntiVenom,8 6,BaseEnemies BaseHero,1
+89,BossMonsterOck,8 11,BaseEnemies BaseAmazing,1
+90,Act01,6 8,BaseHero BaseEnemies,1
+91,Act02,6 8,BaseHero BaseEnemies,1
+92,Act03,6 8,BaseHero BaseEnemies,1
+93,EnemyCleanerFutureExtraData,8,BaseEnemies,1
+94,EnemyBlockerPresentExtraData,8,BaseEnemies,1
+95,EnemyBlockerFutureExtraData,8,BaseEnemies,1
+96,EnemyBlackCatExtraData,8,BaseEnemies,1
+97,EnemyBlackCatAcolyteExtraData,8,BaseEnemies,1
+98,EnemyBasherExtraData,8,BaseEnemies,1
+99,EnemyAndroidExtraData,8,BaseEnemies,1
+100,01_SMA_Main,90 11,Act01 BaseAmazing,1
+101,01A_SMA_010_PortalRoom_FlashBack,88 100 76,BossAntiVenom 01_SMA_Main XX_SMX_XXX_PortalRoom_T,1
+102,01A_SMA_PortalRoom_Pip,5,BaseGameplay,1
+200,02_SM99_Main,2102 90 10,TVAmazing Act01 Base2099,1
+201,02A_SM99_010_AlchemaxIntro99_T,200,02_SM99_Main,1
+202,02A_SM99_020_WalkerCorridor99,200,02_SM99_Main,1
+203,02B_SM99_030_GeneratorBase99,200,02_SM99_Main,1
+204,02B_SM99_040_GeneratorTop99,200,02_SM99_Main,1
+205,02C_SM99_050_PortalRoom99,200 77,02_SM99_Main XX_SMX_XXX_PortalRoom99_T,1
+206,02D_SM99_060_PortalAccess99_T,200,02_SM99_Main,1
+207,02D_SM99_070_ElevatorRide_T,200,02_SM99_Main,1
+300,03_SMA_Main,2101 90 11,TV2099 Act01 BaseAmazing,1
+301,03A_SMA_010_Hallway,300,03_SMA_Main,1
+302,03A_SMA_020_Shaft_T,370,03X_SMA_XX1_Shaft_T,1
+303,03B_SMA_030_Security,300,03_SMA_Main,1
+304,03B_SMA_040_Shaft_T,370,03X_SMA_XX1_Shaft_T,1
+305,03C_SMA_050_Lobby,300,03_SMA_Main,1
+306,03C_SMA_060_OfficeCorridors_T,300,03_SMA_Main,1
+307,03C_SMA_070_PrototypeRoom_T,300,03_SMA_Main,1
+330,03A_SMA_005_Office_T,300 2500,03_SMA_Main XX_SMX_XXX_PetersOffice,1
+340,03B_SMA_030_PIP_Timer,5,BaseGameplay,1
+370,03X_SMA_XX1_Shaft_T,300,03_SMA_Main,1
+400,04_SM99_Main,2102 90 10,TVAmazing Act01 Base2099,1
+401,04A_SM99_010_RobotHangarA99,400,04_SM99_Main,1
+402,04A_SM99_020_RobotHangarB99,400,04_SM99_Main,1
+403,04A_SM99_030_HangarToElevator99_T,400,04_SM99_Main,1
+404,04B_SM99_040_ElevatorFreefallA99,400,04_SM99_Main,1
+405,04B_SM99_050_ElevatorFreefallB99,400,04_SM99_Main,1
+406,04B_SM99_060_ElevatorFreefallC99,400,04_SM99_Main,1
+407,04B_SM99_070_FreefallToCrawl99_T,400,04_SM99_Main,1
+408,04C_SM99_080_ElevatorCrawlA99_T,400,04_SM99_Main,1
+409,04C_SM99_090_ElevatorCrawlB99_T,400,04_SM99_Main,1
+440,04A_SM99_025_RobotHangarC99,400,04_SM99_Main,1
+500,05_SMA_Main,2101 90 11,TV2099 Act01 BaseAmazing,1
+501,05A_SMA_010_GenLabCorridor_T,500,05_SMA_Main,1
+502,05A_SMA_020_GenLab,500,05_SMA_Main,1
+503,05A_SMA_030_Skyway1st,591,05X_SMA_XX1_Skyway,1
+504,05A_SMA_040_ExplodingCorridor,500,05_SMA_Main,1
+505,05A_SMA_050_Skyway2nd,591,05X_SMA_XX1_Skyway,1
+506,05A_SMA_060_GenLabPortalAccess_T,500,05_SMA_Main,1
+507,05B_SMA_XX2_PortalRoom,88 500 76,BossAntiVenom 05_SMA_Main XX_SMX_XXX_PortalRoom_T,1
+508,05B_SMA_075_PortalRoomBack,507,05B_SMA_XX2_PortalRoom,1
+509,05B_SMA_070_PortalRoom,507,05B_SMA_XX2_PortalRoom,1
+510,05B_SM99_PortalRoom_PiP,507 5,05B_SMA_XX2_PortalRoom BaseGameplay,1
+540,05A_SMA_040_PiPRadioactivity,5,BaseGameplay,1
+591,05X_SMA_XX1_Skyway,500,05_SMA_Main,1
+600,06_SM99_Main,2102 90 10,TVAmazing Act01 Base2099,1
+601,06A_SM99_005_Hallway99_T,600,06_SM99_Main,1
+602,06A_SM99_010_GenLab99_T,600,06_SM99_Main,1
+603,06A_SM99_015_FillingRoom99_T,600,06_SM99_Main,1
+604,06A_SM99_020_TankRooms99,650,06X_SM99_XX1_TankRooms99,1
+605,06A_SM99_025_Maintenance99_T,651,06X_SM99_XX2_Maintenance99_T,1
+609,06A_SM99_030_PortalAccess99_T,600,06_SM99_Main,1
+610,06B_SM99_040_PortalRoom99_T,600 77,06_SM99_Main XX_SMX_XXX_PortalRoom99_T,1
+611,06C_SM99_050_PortalRoom_T,88 600 76,BossAntiVenom 06_SM99_Main XX_SMX_XXX_PortalRoom_T,1
+650,06X_SM99_XX1_TankRooms99,600,06_SM99_Main,1
+651,06X_SM99_XX2_Maintenance99_T,600,06_SM99_Main,1
+652,06X_SM99_XX3_Corridors99_T,600,06_SM99_Main,1
+653,06B_SMA_EggRoom_PiP,5,BaseGameplay,1
+700,07_SMA_Main,2101 91 11,TV2099 Act02 BaseAmazing,1
+701,07A_SMA_010_EggRegenRoom99_T,791,07X_SMA_XX2_EggRegenRoom99_T,1
+702,07A_SMA_020_PortalRoom99_T,790,07X_SMA_XX1_PortalRoom99_T,1
+703,07A_SMA_030_EggRegenRoom99_T,791,07X_SMA_XX2_EggRegenRoom99_T,1
+704,07A_SMA_040_Corridors99,794,07X_SMA_XX4_Corridors99_T,1
+705,07A_SMA_050_CorridorsToJungle99_T,792,07X_SMA_XX3_CorridorsToJungle99_T,1
+706,07B_SMA_060_HydroponicJungle99,700,07_SMA_Main,1
+707,07C_SMA_070_Sewers99,700,07_SMA_Main,1
+708,07C_SMA_080_Corridors99_T,794,07X_SMA_XX4_Corridors99_T,1
+709,07C_SMA_090_EggRegenRoom99_T,700,07_SMA_Main,1
+710,07C_SMA_100_PortalRoom99_T,790,07X_SMA_XX1_PortalRoom99_T,1
+720,07C_SMA_065_CorridorsToJungle99_T,792,07X_SMA_XX3_CorridorsToJungle99_T,1
+790,07X_SMA_XX1_PortalRoom99_T,700 77,07_SMA_Main XX_SMX_XXX_PortalRoom99_T,1
+791,07X_SMA_XX2_EggRegenRoom99_T,700,07_SMA_Main,1
+792,07X_SMA_XX3_CorridorsToJungle99_T,700,07_SMA_Main,1
+794,07X_SMA_XX4_Corridors99_T,700,07_SMA_Main,1
+800,08_SM99_Main,10 91 2102,Base2099 Act02 TVAmazing,1
+801,08A_SM99_010_PortalRoom_T,800 76,08_SM99_Main XX_SMX_XXX_PortalRoom_T,1
+802,08B_SM99_020_FreefallA_T,800,08_SM99_Main,1
+803,08B_SM99_030_MechanicalRoomA,800,08_SM99_Main,1
+804,08B_SM99_040_FreefallB_T,800,08_SM99_Main,1
+805,08B_SM99_050_MechanicalRoomB,800,08_SM99_Main,1
+806,08B_SM99_060_FreefallC_T,800,08_SM99_Main,1
+807,08C_SM99_070_Archives,800,08_SM99_Main,1
+808,08C_SM99_080_TerminalRoom_T,800,08_SM99_Main,1
+830,08B_SM99_065_AlchemaxMainFrame_T,800,08_SM99_Main,1
+870,08B_SM99_070_PIPTimerIntro,5,BaseGameplay,1
+900,09_SMA_Main,2101 91 11,TV2099 Act02 BaseAmazing,1
+901,09A_SMA_010_Landing99_T,900,09_SMA_Main,1
+902,09A_SMA_020_PowerRoom99,900,09_SMA_Main,1
+903,09B_SMA_030_GuardRoom99_T,900,09_SMA_Main,1
+904,09B_SMA_040_ArchiveEntrance99,900,09_SMA_Main,1
+905,09B_SMA_050_Archives99_T,900,09_SMA_Main,1
+999,WebOfSkills,2,Common,1
+1000,10_SM99_Main,2102 91 10,TVAmazing Act02 Base2099,1
+1001,10A_SM99_010_TerminalRoom_T,1000,10_SM99_Main,1
+1002,10A_SM99_020_Archives,1000 1074,10_SM99_Main 10A_SM99_020_PiPMJUpdates,1
+1003,10A_SM99_030_TentacleMaze,1000 1074,10_SM99_Main 10A_SM99_020_PiPMJUpdates,1
+1004,10B_SM99_040_FallA,1000 1074,10_SM99_Main 10A_SM99_020_PiPMJUpdates,1
+1005,10B_SM99_050_FallB,1000 1074,10_SM99_Main 10A_SM99_020_PiPMJUpdates,1
+1006,10B_SM99_060_FallC,1000 1074,10_SM99_Main 10A_SM99_020_PiPMJUpdates,1
+1007,10C_SM99_070_CorridorClimax,1000,10_SM99_Main,1
+1074,10A_SM99_020_PiPMJUpdates,5,BaseGameplay,1
+1100,11_SMA_Main,2101 11,TV2099 BaseAmazing,1
+1101,11A_SMA_010_Archives99_T,91 1100,Act02 11_SMA_Main,1
+1102,11B_SMA_020_Corridors99_T,92 1100,Act03 11_SMA_Main,1
+1103,11C_SMA_030_HydroponicJungle99,92 1100,Act03 11_SMA_Main,1
+1104,11C_SMA_040_Sewers99_T,92 1100,Act03 11_SMA_Main,1
+1105,11C_SMA_050_Corridors99_T,92 1100,Act03 11_SMA_Main,1
+1106,11C_SMA_060_EggRegenRoom99_T,92 1100,Act03 11_SMA_Main,1
+1107,11C_SMA_070_PortalRoom99_T,92 1100 77,Act03 11_SMA_Main XX_SMX_XXX_PortalRoom99_T,1
+1108,11C_SMA_035_CorridorToSewers99_T,92 1100,Act03 11_SMA_Main,1
+1109,11B_SMA_025_SewersTunnel99_T,92 1100,Act03 11_SMA_Main,1
+1130,11B_SMA_015_CostumeRoom99,92 1100,Act03 11_SMA_Main,1
+1131,11B_SMA_022_Warehouse99,92 1100,Act03 11_SMA_Main,1
+1200,12_SM99_Main,2102 92 10,TVAmazing Act03 Base2099,1
+1201,12A_SM99_010_VentAccess99_T,1200,12_SM99_Main,1
+1202,12A_SM99_020_DNALabFirst99,1290,12X_SM99_XX1_DNALab99,1
+1203,12A_SM99_030_GammaWing99,1200,12_SM99_Main,1
+1204,12B_SM99_040_DNALabSecond99,1290,12X_SM99_XX1_DNALab99,1
+1205,12B_SM99_050_CyberneticWing99,1200,12_SM99_Main,1
+1206,12C_SM99_060_DNALabThird99,1290,12X_SM99_XX1_DNALab99,1
+1207,12C_SM99_070_SymbioticWing99,1200,12_SM99_Main,1
+1208,12C_SM99_080_DNALabFourth99,1290,12X_SM99_XX1_DNALab99,1
+1209,12C_SM99_090_SamplingStation99_T,1200,12_SM99_Main,1
+1290,12X_SM99_XX1_DNALab99,1200,12_SM99_Main,1
+1291,12A_SM99_005_PortalRoom99,1200 77,12_SM99_Main XX_SMX_XXX_PortalRoom99_T,1
+1300,13_SMA_Main,2101 92 11,TV2099 Act03 BaseAmazing,1
+1301,13A_SMA_010_OfficeClosingDoor_T,1300,13_SMA_Main,1
+1302,13A_SMA_020_GenLab,1300,13_SMA_Main,1
+1303,13A_SMA_030_Corridors_T,1300,13_SMA_Main,1
+1304,13A_SMA_040_Hydroponics,1300,13_SMA_Main,1
+1305,13A_SMA_050_Corridors_T,1300,13_SMA_Main,1
+1306,13A_SMA_060_GenLab,1300,13_SMA_Main,1
+1307,13B_SMA_070_GasChamber,1300 89,13_SMA_Main BossMonsterOck,1
+1320,13A_SMA_065_CrawlVent_T,1300,13_SMA_Main,1
+1400,14_SM99_Main,2102 92 10,TVAmazing Act03 Base2099,1
+1401,14A_SM99_010_TrapDoorRoomA99,1430,14X_SM99_XX1_TrapDoorRoom99,1
+1402,14A_SM99_020_DisposalChuteDownA99,1400,14_SM99_Main,1
+1403,14A_SM99_030_DisposalChuteDownB99,1400,14_SM99_Main,1
+1404,14B_SM99_040_AntiGravCenter99,1400,14_SM99_Main,1
+1405,14C_SM99_050_DisposalChuteUpA99,1400,14_SM99_Main,1
+1406,14C_SM99_060_DisposalChuteUpB99,1400,14_SM99_Main,1
+1407,14C_SM99_070_TrapDoorRoomB99,1400,14_SM99_Main,1
+1430,14X_SM99_XX1_TrapDoorRoom99,1400,14_SM99_Main,1
+1500,15_SMA_Main,2101 92 11,TV2099 Act03 BaseAmazing,1
+1501,15A_SMA_010_FailedExperimentLab,1500,15_SMA_Main,1
+1502,15A_SMA_020_LockedCorridor,1500,15_SMA_Main,1
+1503,15A_SMA_030_TeleportProtoRoomA,1530,15A_SMA_XX1_TeleportProtoRoom,1
+1504,15A_SMA_040_TeleportProtoRoomB99,1500,15_SMA_Main,1
+1505,15A_SMA_050_TeleportProtoRoomC,1530,15A_SMA_XX1_TeleportProtoRoom,1
+1506,15A_SMA_060_UnlockedCorridor,1500,15_SMA_Main,1
+1530,15A_SMA_XX1_TeleportProtoRoom,1500,15_SMA_Main,1
+1570,15A_SMA_010_PIP_Zombies,5,BaseGameplay,1
+1600,16_SM99_Main,2102 92 10,TVAmazing Act03 Base2099,1
+1601,16A_SM99_010_WindowsA99_T,1600,16_SM99_Main,1
+1602,16A_SM99_020_GalleryA99,1600,16_SM99_Main,1
+1603,16A_SM99_030_GalleryB99,1600,16_SM99_Main,1
+1604,16A_SM99_040_WindowsB99_T,1600,16_SM99_Main,1
+1605,16A_SM99_050_CEOLobby99,1600,16_SM99_Main,1
+1606,16A_SM99_060_CEOOffice99_T,1600,16_SM99_Main,1
+1608,16A_SM99_045_Bridge99_T,1600,16_SM99_Main,1
+1609,16X_SM99_XX1_Outdoor99,1600,16_SM99_Main,1
+1630,16A_SM99_042_Office99,1600,16_SM99_Main,1
+1700,17_Both_Main,2102 2101 92,TVAmazing TV2099 Act03,1
+1701,17A_SMA_010_PortalRoom_T,1700 89 11,17_Both_Main BossMonsterOck BaseAmazing,1
+1702,17A_SM99_020_PortalRoom_T,1700 87 10,17_Both_Main BossCEO Base2099,1
+1703,17A_SMA_030_PortalRoom_T,1700 89 11,17_Both_Main BossMonsterOck BaseAmazing,1
+1704,17A_SM99_040_PortalRoom_T,1700 87 10,17_Both_Main BossCEO Base2099,1
+1705,17A_SMA_050_PortalRoom_T,1700 89 11,17_Both_Main BossMonsterOck BaseAmazing,1
+1706,17A_SM99_060_PortalRoom_T,1700 87 10,17_Both_Main BossCEO Base2099,1
+2001,CH_SM99_010_PortalRoomFirstStage99,2007 2015,ENV_CH_010_PRFirstStage99 CH_SM99_Main,1
+2002,CH_SM99_020_PRoomSecondStage99,2008 2015,ENV_CH_020_PRSecondStage99 CH_SM99_Main,1
+2003,CH_SM99_030_PortalRoomThirdStage99,2009 2015,ENV_CH_030_PRThirdStage99 CH_SM99_Main,1
+2004,CH_SMA_010_PortalRoomFirstStage,2010 2016,ENV_CH_010_PRFirstStage CH_SMA_Main,1
+2005,CH_SMA_020_PRoomSecondStage,2011 2016,ENV_CH_020_PRSecondStage CH_SMA_Main,1
+2006,CH_SMA_030_PortalRoomThirdStage,2012 2016,ENV_CH_030_PRThirdStage CH_SMA_Main,1
+2007,ENV_CH_010_PRFirstStage99,20 10 2014,CombatArenas Base2099 NAV_CH_XXX_PortalRoom99,1
+2008,ENV_CH_020_PRSecondStage99,20 10 2014,CombatArenas Base2099 NAV_CH_XXX_PortalRoom99,1
+2009,ENV_CH_030_PRThirdStage99,20 10 2014,CombatArenas Base2099 NAV_CH_XXX_PortalRoom99,1
+2010,ENV_CH_010_PRFirstStage,20 11 2013,CombatArenas BaseAmazing NAV_CH_XXX_PortalRoom,1
+2011,ENV_CH_020_PRSecondStage,20 11 2013,CombatArenas BaseAmazing NAV_CH_XXX_PortalRoom,1
+2012,ENV_CH_030_PRThirdStage,20 11 2013,CombatArenas BaseAmazing NAV_CH_XXX_PortalRoom,1
+2013,NAV_CH_XXX_PortalRoom,,,1
+2014,NAV_CH_XXX_PortalRoom99,,,1
+2015,CH_SM99_Main,20,CombatArenas,1
+2016,CH_SMA_Main,20,CombatArenas,1
+2101,TV2099,5,BaseGameplay,1
+2102,TVAmazing,5,BaseGameplay,1
+2500,XX_SMX_XXX_PetersOffice,90 5,Act01 BaseGameplay,1
+3000,_OnlinePackage,,,0
+3001,_DLC001,,,0
+3002,_DLC002,,,0
+3601,_CutsceneTest,6 11,BaseHero BaseAmazing,0
+3602,_FreefallTest,4095 10,_Debug Base2099,0
+3606,_EnemyTest,3610,_EnemyTest_Base,0
+3608,_EnemyTest_2099,3610,_EnemyTest_Base,0
+3609,_EnemyTest_Amazing,3610,_EnemyTest_Base,0
+3610,_EnemyTest_Base,4095 10 8 5 6 11,_Debug Base2099 BaseEnemies BaseGameplay BaseHero BaseAmazing,0
+3688,_BossAntivenomTest,4095 10 8 5 6 11 88,_Debug Base2099 BaseEnemies BaseGameplay BaseHero BaseAmazing BossAntiVenom,0
+3689,_BossMonsterOckTest,4095 11 89,_Debug BaseAmazing BossMonsterOck,0
+3690,_BossMonsterOckChaseTest,89 4095 11,BossMonsterOck _Debug BaseAmazing,0
+3700,_BaseShowroom,2 4093,Common _SoftDebug,0
+3701,_DesignShowroom,3902,_DynamicShowroom,0
+3702,_DesignShowroomCombat,3701,_DesignShowroom,0
+3703,_DesignShowroomCrawl,3701,_DesignShowroom,0
+3704,_DesignShowroomSwingZip,3701,_DesignShowroom,0
+3705,_DesignShowroomFreefall,3701,_DesignShowroom,0
+3706,_DesignShowroomCamera,3701,_DesignShowroom,0
+3708,_DesignShowroomAIEvade,3701,_DesignShowroom,0
+3709,_DesignShowroomWebShot,3701,_DesignShowroom,0
+3710,_DesignShowroomPatrols,3701,_DesignShowroom,0
+3711,_DesignShowroomIngredients,3701,_DesignShowroom,0
+3712,_DesignShowroomGameDesign,3701,_DesignShowroom,0
+3713,_DesignShowroomTurrets,3701,_DesignShowroom,0
+3714,_DesignShowroomMLachance,3701 8 11 10,_DesignShowroom BaseEnemies BaseAmazing Base2099,0
+3715,_DesignShowroomLPlante,3701,_DesignShowroom,0
+3717,_DesignShowroomTriggerTraining,3701,_DesignShowroom,0
+3718,_DesignShowroomOBedard,3701,_DesignShowroom,0
+3719,_DesignShowroomJFClavette,3701,_DesignShowroom,0
+3720,_DesignShowroomPlayerEvade,3701,_DesignShowroom,0
+3721,_DesignShowroomSCote,3701,_DesignShowroom,0
+3722,_DesignShowroomRDubreuil,3701,_DesignShowroom,0
+3723,_DesignShowroomMMercier,3701,_DesignShowroom,0
+3724,_DesignShowroomSRacine,3701,_DesignShowroom,0
+3725,_DesignShowroomPCharland,3701,_DesignShowroom,0
+3730,_DesignShowroomAI,3701,_DesignShowroom,0
+3731,_DesignShowroomJumps,3701,_DesignShowroom,0
+3800,_EnvShowroom,3902,_DynamicShowroom,0
+3801,_EnvShowroomAmazing,3800,_EnvShowroom,0
+3802,_EnvShowroom2099,3800,_EnvShowroom,0
+3803,_ShowroomAmazing,3700,_BaseShowroom,0
+3804,_Showroom2099,3700,_BaseShowroom,0
+3805,_EnvShowroom2012,3800,_EnvShowroom,0
+3806,_EnvShowroom2012WoS,3800,_EnvShowroom,0
+3900,_FXLab,4095 8 11 10,_Debug BaseEnemies BaseAmazing Base2099,0
+3901,_AudioRefs,1 2 6 8 5 11 10,Main Common BaseHero BaseEnemies BaseGameplay BaseAmazing Base2099,0
+3902,_DynamicShowroom,4095 10 11,_Debug Base2099 BaseAmazing,0
+3903,_AudioLab,4095 6 8 5 11 10,_Debug BaseHero BaseEnemies BaseGameplay BaseAmazing Base2099,0
+4001,_LDRefs,8 11 10,BaseEnemies BaseAmazing Base2099,0
+4093,_SoftDebug,1,Main,0
+4094,_Editors,2 4095,Common _Debug,0
+4095,_Debug,4093,_SoftDebug,0

@@ -15,11 +15,9 @@ constexpr u32 kPsoCsvVersion = 4;
 
 constexpr const char *kPsoDir = "pso";
 constexpr u32 kPsoHoldMaxMs = 8000;
-constexpr u32 kPsoKnownPackageRows = 32;
 constexpr u32 kPsoMaxThreads = 8;
 constexpr u32 kPsoMinThreads = 1;
 
-constexpr u16 kNoTemplate = 0xFFFF;
 constexpr u32 kMaxRecordPackages = 8;
 
 struct PsoRecord {
@@ -27,7 +25,6 @@ struct PsoRecord {
   u32 declCount = 0;
   u8 declRaw[32 * sizeof(DeclElement)] = {};
   u64 frame = 0;
-  u16 templateIndex = kNoTemplate;
   u16 packages[kMaxRecordPackages] = {};
   u32 packageCount = 0;
 };
@@ -44,16 +41,7 @@ std::string PsoRecordToCsv(const PsoRecord &r, std::string_view session);
 bool PsoCsvParseHeader(std::string_view line, PsoCsvLayout *out);
 bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoRecord *out);
 
-const std::vector<PsoRecord> &CompiledInPipelines();
-
-enum class PsoBiasKind : u8 { None = 0, Material = 1, ShadowCamera = 2 };
-struct PsoTemplate {
-  u8 technique = 0, pass = 0;
-  PsoBiasKind biasKind = PsoBiasKind::None;
-  u32 materialClass = 0;
-  PipelineState state;
-};
-const std::vector<PsoTemplate> &CompiledInTemplates();
+void PsoApplyTargetScale(PipelineState &s);
 
 std::string PsoSessionStamp();
 std::string PsoSessionTag();
