@@ -64,7 +64,8 @@ void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask
 
 plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &state,
                                            bool worker = false,
-                                           PsoSource source = PsoSource::Draw);
+                                           PsoSource source = PsoSource::Draw,
+                                           bool *deferred = nullptr);
 
 void PsoCachePrecache();
 

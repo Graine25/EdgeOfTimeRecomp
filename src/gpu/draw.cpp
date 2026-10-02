@@ -2735,14 +2735,20 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     static PipelineState last_state{};
     static plume::RenderPipeline *last_pipeline = nullptr;
     pipeline = last_pipeline;
+    bool compiling = false;
     if (!pipeline || std::memcmp(reinterpret_cast<const u8 *>(&st) + kPipelineKeyOffset,
                                  reinterpret_cast<const u8 *>(&last_state) + kPipelineKeyOffset,
                                  sizeof(st) - kPipelineKeyOffset) != 0) {
-      pipeline = GetOrCreatePipeline(s, st);
+      pipeline = GetOrCreatePipeline(s, st, false, PsoSource::Draw, &compiling);
       if (pipeline) {
         last_state = st;
         last_pipeline = pipeline;
       }
+    }
+    if (!pipeline && compiling) {
+      s.perf.draws--;
+      s.perf.draws_skipped++;
+      return;
     }
     if (!pipeline) {
       Dropped("pipeline creation failed", 0x6008);

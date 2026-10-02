@@ -41,11 +41,14 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane,
 
 bool PsoPrecacheKnown(u64 key, PsoSource *source);
 
+bool PsoPrecacheBuildNow(const PipelineState &st, u64 key);
+
 void PsoPrecacheForget(const std::vector<u64> &keys);
 
 struct PsoPrecacheStats {
   u32 queued = 0, built = 0, existing = 0, skipped = 0, failed = 0;
   u32 recordedPending = 0, derivedPending = 0, backgroundPending = 0, threads = 0;
+  u32 urgentPending = 0, urgentBuilt = 0;
 };
 PsoPrecacheStats PsoPrecacheGetStats();
 

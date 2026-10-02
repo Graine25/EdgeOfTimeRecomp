@@ -48,6 +48,7 @@ struct Cache {
   u32 failures = 0;
   bool capture = false;
   u32 gapBuilds = 0, raceBuilds = 0;
+  std::atomic<u32> deferredDraws{0};
   u64 lastSummaryFrame = 0;
 };
 
@@ -340,7 +341,7 @@ void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask
 }
 
 plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &st, bool worker,
-                                           PsoSource source) {
+                                           PsoSource source, bool *deferred) {
   auto &c = cache();
   const u64 key = HashPipelineState(st);
   struct HotPipeline {
@@ -372,6 +373,17 @@ plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &s
         *hot_entry = {key, pipeline};
       return pipeline;
     }
+  }
+  if (deferred && Settings::AsyncPipelines()) {
+    PsoSource known;
+    const bool race = PsoPrecacheKnown(key, &known);
+    if (PsoPrecacheBuildNow(st, key)) {
+      std::unique_lock lock(c.mutex);
+      (race ? c.raceBuilds : c.gapBuilds)++;
+    }
+    c.deferredDraws.fetch_add(1, std::memory_order_relaxed);
+    *deferred = true;
+    return nullptr;
   }
   std::unique_ptr<PerfScope> perf_scope;
   if (!worker) {
@@ -973,7 +985,7 @@ bool PsoCacheHoldPackage(u32 id) {
   const TokenPtr screen = PsoPrecacheScreenToken();
   const u32 own = h.token ? h.token->Pending() : 0;
   const u32 pending = own + (screen ? screen->Pending() : 0);
-  if (pending == 0 || ms >= kPsoHoldMaxMs) {
+  if (pending == 0 || ms >= Settings::PsoHoldMaxMs()) {
     if (h.held) {
       l.holdMs += ms;
       EOT_INFO("[pso] package {:#x} released after {:.0f} ms{}", id, ms,
@@ -1033,6 +1045,7 @@ void PsoCacheFlushIfDirty(bool force) {
     races = c.raceBuilds;
     c.gapBuilds = c.raceBuilds = 0;
   }
+  const u32 waited = c.deferredDraws.exchange(0, std::memory_order_relaxed);
   const PsoPrecacheStats ps = PsoPrecacheGetStats();
   if (total == 0 && ps.queued == 0)
     return;
@@ -1057,13 +1070,14 @@ void PsoCacheFlushIfDirty(bool force) {
     evicted = l.evicted;
   }
   EOT_INFO("[pso] {} pipelines: draw {} | captured {} ({} used) | local {} ({} used) | derived {} "
-           "({} used) | render-thread builds since last: {} gaps, {} races | pool: {} queued, {} "
-           "built, {} existing, {} skipped, {} failed, pending captured {} derived {} prefetch {} | "
+           "({} used) | draw-time misses since last: {} gaps, {} races, {} draws waited | pool: {} "
+           "queued, {} built, {} built for draws ({} pending), {} existing, {} skipped, {} failed, pending captured {} derived {} prefetch {} | "
            "set: {} packages resident, {} captured + {} derived queued, {} prefetched, {} for live "
            "shader variants, {} casters x {} shadow offsets, {} unused released | loading: {} "
            "screens, {} package sets, {} holds {:.0f} ms | {} drawn captured",
            total, by_source[0], by_source[1], used_by_source[1], by_source[2], used_by_source[2],
-           by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built, ps.existing,
+           by_source[3], used_by_source[3], gaps, races, waited, ps.queued, ps.built, ps.urgentBuilt,
+           ps.urgentPending, ps.existing,
            ps.skipped, ps.failed, ps.recordedPending, ps.derivedPending, ps.backgroundPending,
            resident, q_captured, q_derived, prefetched, q_variants, casters, offsets, evicted,
            screens, sets_queued, holds, hold_ms, drawn);

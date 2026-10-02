@@ -5,7 +5,9 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+#include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #if defined(_WIN32)
@@ -38,9 +40,16 @@ struct WorkItem {
   TokenPtr screenToken;
 };
 
+struct UrgentItem {
+  u64 key = 0;
+  PipelineState st;
+};
+
 struct Pool {
   std::mutex mutex;
   std::condition_variable cv;
+  std::deque<UrgentItem> urgent;
+  std::unordered_set<u64> urgentKeys;
   std::deque<WorkItem> lanes[3];
   std::vector<std::thread> threads;
   bool started = false, stop = false;
@@ -56,7 +65,7 @@ struct Pool {
   std::mutex dedupMutex;
   std::unordered_map<u64, Known> queuedOrDone;
 
-  std::atomic<u32> queued{0}, built{0}, existing{0}, skipped{0}, failed{0};
+  std::atomic<u32> queued{0}, built{0}, existing{0}, skipped{0}, failed{0}, urgentBuilt{0};
 };
 
 Pool &pool() {
@@ -78,7 +87,7 @@ void SetWorkerPriority(bool loading) {
   param.sched_priority = 0;
   ::pthread_setschedparam(::pthread_self(), loading ? SCHED_OTHER : SCHED_IDLE, &param);
 #elif defined(__APPLE__)
-  ::pthread_set_qos_class_self_np(loading ? QOS_CLASS_USER_INITIATED : QOS_CLASS_UTILITY, 0);
+  ::pthread_set_qos_class_self_np(loading ? QOS_CLASS_USER_INITIATED : QOS_CLASS_BACKGROUND, 0);
 #else
   (void)loading;
 #endif
@@ -113,25 +122,39 @@ void WorkerLoop() {
   SetWorkerPriority(priority_loading);
   for (;;) {
     WorkItem item;
+    std::optional<UrgentItem> urgent;
     {
       std::unique_lock lock(p.mutex);
-      p.cv.wait(lock, [&] {
-        return p.stop || !p.lanes[0].empty() || !p.lanes[1].empty() || !p.lanes[2].empty();
-      });
-      if (p.stop && p.lanes[0].empty() && p.lanes[1].empty() && p.lanes[2].empty())
+      const auto idle = [&] {
+        return p.urgent.empty() && p.lanes[0].empty() && p.lanes[1].empty() && p.lanes[2].empty();
+      };
+      p.cv.wait(lock, [&] { return p.stop || !idle(); });
+      if (p.stop && idle())
         return;
-      for (auto &lane : p.lanes) {
-        if (!lane.empty()) {
-          item = std::move(lane.front());
-          lane.pop_front();
-          break;
+      if (!p.urgent.empty()) {
+        urgent = std::move(p.urgent.front());
+        p.urgent.pop_front();
+      } else {
+        for (auto &lane : p.lanes) {
+          if (!lane.empty()) {
+            item = std::move(lane.front());
+            lane.pop_front();
+            break;
+          }
         }
       }
     }
-    const bool loading = p.loading.load(std::memory_order_relaxed);
+    const bool loading = urgent || p.loading.load(std::memory_order_relaxed);
     if (loading != priority_loading) {
       priority_loading = loading;
       SetWorkerPriority(loading);
+    }
+    if (urgent) {
+      GetOrCreatePipeline(state(), urgent->st, true, PsoSource::Draw);
+      p.urgentBuilt++;
+      std::lock_guard lock(p.mutex);
+      p.urgentKeys.erase(urgent->key);
+      continue;
     }
     {
       std::lock_guard lock(p.dedupMutex);
@@ -175,6 +198,8 @@ void PsoPrecacheStop() {
     if (!p.started)
       return;
     p.stop = true;
+    p.urgent.clear();
+    p.urgentKeys.clear();
     for (auto &q : p.lanes) {
       for (auto &item : q) {
         if (item.token)
@@ -258,6 +283,19 @@ void PsoPrecacheForget(const std::vector<u64> &keys) {
   }
 }
 
+bool PsoPrecacheBuildNow(const PipelineState &st, u64 key) {
+  auto &p = pool();
+  PsoPrecacheStart();
+  {
+    std::lock_guard lock(p.mutex);
+    if (p.stop || !p.urgentKeys.insert(key).second)
+      return false;
+    p.urgent.push_back(UrgentItem{key, st});
+  }
+  p.cv.notify_one();
+  return true;
+}
+
 bool PsoPrecacheKnown(u64 key, PsoSource *source) {
   auto &p = pool();
   std::lock_guard lock(p.dedupMutex);
@@ -277,7 +315,9 @@ PsoPrecacheStats PsoPrecacheGetStats() {
   st.existing = p.existing.load();
   st.skipped = p.skipped.load();
   st.failed = p.failed.load();
+  st.urgentBuilt = p.urgentBuilt.load();
   std::lock_guard lock(p.mutex);
+  st.urgentPending = static_cast<u32>(p.urgent.size());
   st.recordedPending = static_cast<u32>(p.lanes[0].size());
   st.derivedPending = static_cast<u32>(p.lanes[1].size());
   st.backgroundPending = static_cast<u32>(p.lanes[2].size());

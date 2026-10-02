@@ -44,6 +44,8 @@ struct Settings {
   static std::string EffectiveAspectRatio();
   static bool Fullscreen();
   static i32 HitchMs();
+  static bool AsyncPipelines();
+  static i32 PsoHoldMaxMs();
   static bool Profiler();
   static i32 PerfFrames();
   static i32 VramReportSeconds();

@@ -40,6 +40,20 @@ REXCVAR_DEFINE_BOOL(eot_profiler, false, "EdgeOfTime/Debug",
                     "Start the Tracy profiler at boot so a viewer can attach. Zones are compiled "
                     "into every non-Release build (a Release one only with -DREEOT_PROFILING=ON) "
                     "and cost nothing until then.");
+REXCVAR_DEFINE_BOOL(eot_async_pipelines, true, "EdgeOfTime/Graphics",
+                    "A pipeline that was not built ahead of its first draw is compiled on the "
+                    "worker threads and its draws are skipped until it is ready, instead of the "
+                    "frame waiting for it. Off compiles it on the render thread.");
+#if defined(EOT_MVK)
+constexpr i32 kPsoHoldDefaultMs = 60000;
+#else
+constexpr i32 kPsoHoldDefaultMs = 8000;
+#endif
+REXCVAR_DEFINE_INT32(eot_pso_hold_max_ms, kPsoHoldDefaultMs, "EdgeOfTime/Graphics",
+                     "Longest a loading screen is held for the pipelines of the package it is "
+                     "loading. Metal compiles a pipeline it has not seen in tens of milliseconds, "
+                     "so on macOS the screen waits for the whole set.")
+    .range(0, 600000);
 REXCVAR_DEFINE_INT32(eot_hitch_ms, 40, "EdgeOfTime/Debug",
                      "Log a [hitch] line with that frame's own CPU split for any presented "
                      "frame longer than this many milliseconds (0 = off).")
@@ -279,6 +293,8 @@ i32 Settings::PipScalePercent() { return REXCVAR_GET(eot_pip_scale); }
 i32 Settings::FpsLimit() { return REXCVAR_GET(eot_fps_limit); }
 std::string Settings::AspectRatio() { return std::string(REXCVAR_GET(eot_aspect_ratio)); }
 i32 Settings::HitchMs() { return REXCVAR_GET(eot_hitch_ms); }
+bool Settings::AsyncPipelines() { return REXCVAR_GET(eot_async_pipelines); }
+i32 Settings::PsoHoldMaxMs() { return REXCVAR_GET(eot_pso_hold_max_ms); }
 bool Settings::Profiler() { return REXCVAR_GET(eot_profiler); }
 i32 Settings::PerfFrames() { return REXCVAR_GET(eot_perf_frames); }
 i32 Settings::VramReportSeconds() { return REXCVAR_GET(eot_vram_report_seconds); }
