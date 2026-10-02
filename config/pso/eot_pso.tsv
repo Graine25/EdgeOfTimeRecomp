@@ -16,9 +16,8 @@
 #          source c captured (frame: first drawn; tags: the packages it was
 #          drawn under; spec: the specialization bits it was drawn with),
 #          d derived from the pak (likeliest first)
-# 8634 captured pipelines (323 files): 7865 captured rows; 58778 derived from 214 paks; 117 cores, 114 declarations
+# 8634 captured pipelines (323 files): 7865 captured rows; 58778 derived from 230 paks; 117 cores, 114 declarations
 # held-out levels: 2211/2456 drawn material pipelines predicted (90.0%), 19728 derived for those paks
-# paks not read (not in the pak folder): 01_SMA_Main 12B_SM99_040_DNALabSecond99 12C_SM99_060_DNALabThird99 Act02 Act03 CombatArenas EnemyAndroidExtraData EnemyBasherExtraData EnemyBlockerFutureExtraData EnemyCleanerFutureExtraData EnemyCrasherFutureExtraData EnemyGunnerFutureExtraData EnemyLaserBotFutureExtraData EnemyMotherPresentExtraData EnemyRangerExtraData EnemyStunnerFutureExtraData
 header	vsHash,psHash,spec,layoutKey,declRaw,strides,topology,rtFormats,rtCount,dsFormat,sampleCount,cull,frontFace,depthBias,slopeScaledDepthBias,targetScale,depthClip,depthEnable,depthWrite,depthFunc,stencilEnable,stencilReadMask,stencilWriteMask,stencilRef,stencilFront,stencilBack,blend0,blend1,blend2,blend3,alphaToCoverage,velocity,frame,session,package
 core	0	0000000000000000,0000000000000000,0,0000000000000000,,0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0,4,11|0|0|0,1,33,1,1,2,0,0,1,0,0,0,8,0,0,0,0,0|0|0|8,0|0|0|8,1|5|6|1|5|6|1|7,0|0|0|0|0|0|0|0,0|0|0|0|0|0|0|0,0|0|0|0|0|0|0|0,0,0,0,core,
 core	1	0000000000000000,0000000000000000,0,0000000000000000,,0|0|0|0|0|0|0|0|0|0|0|0|0|0|0|0,4,11|0|0|0,1,33,1,1,2,0,0,1,1,0,0,8,0,0,0,0,0|0|0|8,0|0|0|8,1|5|6|1|5|6|1|7,0|0|0|0|0|0|0|0,0|0|0|0|0|0|0|0,0|0|0|0|0|0|0|0,0,0,0,core,
