@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <memory>
+#include <vector>
 
 #include <rex/types.h>
 
@@ -39,6 +40,8 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane,
                         TokenPtr token = nullptr);
 
 bool PsoPrecacheKnown(u64 key, PsoSource *source);
+
+void PsoPrecacheForget(const std::vector<u64> &keys);
 
 struct PsoPrecacheStats {
   u32 queued = 0, built = 0, existing = 0, skipped = 0, failed = 0;

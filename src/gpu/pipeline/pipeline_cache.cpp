@@ -75,7 +75,7 @@ struct Loading {
   std::vector<PsoShadowValue> shadowValues;
   u64 screenSinceFrame = 0;
   u32 screens = 0, holdsCount = 0, setsQueued = 0, drawnCaptured = 0, prefetched = 0;
-  u32 queuedCaptured = 0, queuedDerived = 0, queuedVariants = 0;
+  u32 queuedCaptured = 0, queuedDerived = 0, queuedVariants = 0, evicted = 0;
   f64 holdMs = 0;
 };
 
@@ -156,18 +156,42 @@ void CaptureLocked(VideoState &s, const PipelineState &st) {
   PsoCaptureAdd(r);
 }
 
+struct Owners {
+  std::mutex mutex;
+  std::unordered_map<u64, std::vector<u16>> byKey;
+};
+
+Owners &owners() {
+  static Owners o;
+  return o;
+}
+
+void AddOwners(u64 key, const std::vector<u16> &packages) {
+  auto &o = owners();
+  std::lock_guard lock(o.mutex);
+  auto &v = o.byKey[key];
+  for (const u16 p : packages)
+    if (std::find(v.begin(), v.end(), p) == v.end())
+      v.push_back(p);
+}
+
 u32 QueueRecord(const PsoRecord &r, PsoSource source, PsoLane lane, const TokenPtr &token,
-                u8 msaa) {
+                u8 msaa, const std::vector<u16> *packages = nullptr) {
   u32 n = 0;
   const u32 samples = state().host_msaa_samples;
   const bool multi = samples > 1 && r.state.sampleCount == 1;
   if (multi && (msaa == 0 || (msaa & kPsoMsaaMulti))) {
     PsoRecord t = r;
     t.state.sampleCount = samples;
+    if (packages)
+      AddOwners(HashPipelineState(t.state), *packages);
     n += PsoPrecacheEnqueue(t, source, lane, token) ? 1 : 0;
   }
-  if (!multi || msaa == 0 || (msaa & kPsoMsaaSingle))
+  if (!multi || msaa == 0 || (msaa & kPsoMsaaSingle)) {
+    if (packages)
+      AddOwners(HashPipelineState(r.state), *packages);
     n += PsoPrecacheEnqueue(r, source, lane, token) ? 1 : 0;
+  }
   return n;
 }
 
@@ -217,7 +241,7 @@ u32 QueueSetRow(const PsoSet &set, u32 index, PsoLane lane, const TokenPtr &toke
     u32 n = 0;
     for (const PsoShadowValue &v : shadow)
       if (SetRecord(set, row, &v, &r))
-        n += QueueRecord(r, source, lane, token, kPsoMsaaSingle);
+        n += QueueRecord(r, source, lane, token, kPsoMsaaSingle, &set.rowOwners[index]);
     return n;
   }
   u32 specs[2];
@@ -226,10 +250,10 @@ u32 QueueSetRow(const PsoSet &set, u32 index, PsoLane lane, const TokenPtr &toke
   u32 n = 0;
   for (u32 i = 0; i < variants; ++i) {
     if (SetRecord(set, row, nullptr, &r, -1, specs[i]))
-      n += QueueRecord(r, source, lane, token, row.msaa);
+      n += QueueRecord(r, source, lane, token, row.msaa, &set.rowOwners[index]);
     if (velocity >= 0 && Settings::MotionVectors() &&
         SetRecord(set, row, nullptr, &r, velocity, specs[i]))
-      n += QueueRecord(r, source, lane, token, row.msaa);
+      n += QueueRecord(r, source, lane, token, row.msaa, &set.rowOwners[index]);
   }
   return n;
 }
@@ -698,6 +722,53 @@ void PsoCacheOnPackageLoad(u32 id, bool level) {
   });
 }
 
+static void EvictUnusedPipelines(u32 unloaded, const std::unordered_set<u16> &resident) {
+  std::vector<u64> keys;
+  {
+    auto &o = owners();
+    std::lock_guard lock(o.mutex);
+    for (const auto &[key, packages] : o.byKey) {
+      bool held = packages.empty();
+      for (const u16 p : packages)
+        held |= p == 0 || resident.count(p) != 0;
+      if (!held)
+        keys.push_back(key);
+    }
+  }
+  std::vector<std::unique_ptr<plume::RenderPipeline>> released;
+  std::vector<u64> forgotten;
+  {
+    auto &c = cache();
+    std::unique_lock lock(c.mutex);
+    for (const u64 key : keys) {
+      auto it = c.map.find(key);
+      if (it == c.map.end() || it->second.used || !it->second.pipeline ||
+          it->second.source == PsoSource::Draw)
+        continue;
+      released.push_back(std::move(it->second.pipeline));
+      c.map.erase(it);
+      forgotten.push_back(key);
+    }
+  }
+  if (!forgotten.empty()) {
+    PsoPrecacheForget(forgotten);
+    auto &o = owners();
+    std::lock_guard lock(o.mutex);
+    for (const u64 key : forgotten)
+      o.byKey.erase(key);
+  }
+  const size_t n = released.size();
+  released.clear();
+  auto &l = loading();
+  {
+    std::lock_guard lock(l.mutex);
+    l.evicted += static_cast<u32>(n);
+  }
+  EOT_DEBUG("[pso] package {:#x} unloaded: {} unused pipeline(s) of packages no longer resident "
+            "released ({} candidate keys)",
+            unloaded, n, keys.size());
+}
+
 void PsoCacheOnPackageUnload(u32 id) {
   auto &l = loading();
   if (id == 0 || id >= 0x1000)
@@ -728,8 +799,9 @@ void PsoCacheOnPackageUnload(u32 id) {
           casters.push_back(index);
   EOT_DEBUG("[pso] package {:#x} unloaded: {} package(s) resident (was {}), {} caster row(s)", id,
             resident.size(), l.resident.size(), casters.size());
-  l.resident = std::move(resident);
+  l.resident = resident;
   l.casterRows = std::move(casters);
+  PostSetJob([id, resident = std::move(resident)] { EvictUnusedPipelines(id, resident); });
 }
 
 void PsoCacheNoteShaderKey(u64 key, u64 hash, bool pixel) {
@@ -841,7 +913,7 @@ struct MotionVectorsWatch {
             continue;
           queued += QueueRecord(r, row.derived ? PsoSource::Derived : PsoSource::CompiledIn,
                                 row.derived ? PsoLane::Background : PsoLane::Recorded, nullptr,
-                                row.msaa);
+                                row.msaa, &set.rowOwners[index]);
         }
         EOT_INFO("[pso] motion vectors on: {} motion-vector pipelines queued for {} resident "
                  "package(s)",
@@ -927,7 +999,7 @@ void PsoCacheFlushIfDirty(bool force) {
   if (total == 0 && ps.queued == 0)
     return;
   u32 screens, holds, sets_queued, drawn, resident, casters, offsets, prefetched, q_captured,
-      q_derived, q_variants;
+      q_derived, q_variants, evicted;
   f64 hold_ms;
   {
     auto &l = loading();
@@ -944,18 +1016,19 @@ void PsoCacheFlushIfDirty(bool force) {
     q_captured = l.queuedCaptured;
     q_derived = l.queuedDerived;
     q_variants = l.queuedVariants;
+    evicted = l.evicted;
   }
   EOT_INFO("[pso] {} pipelines: draw {} | captured {} ({} used) | local {} ({} used) | derived {} "
            "({} used) | render-thread builds since last: {} gaps, {} races | pool: {} queued, {} "
            "built, {} existing, {} skipped, {} failed, pending captured {} derived {} prefetch {} | "
            "set: {} packages resident, {} captured + {} derived queued, {} prefetched, {} for live "
-           "shader variants, {} casters x {} shadow offsets | loading: {} screens, {} package sets, "
-           "{} holds {:.0f} ms | {} drawn captured",
+           "shader variants, {} casters x {} shadow offsets, {} unused released | loading: {} "
+           "screens, {} package sets, {} holds {:.0f} ms | {} drawn captured",
            total, by_source[0], by_source[1], used_by_source[1], by_source[2], used_by_source[2],
            by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built, ps.existing,
            ps.skipped, ps.failed, ps.recordedPending, ps.derivedPending, ps.backgroundPending,
-           resident, q_captured, q_derived, prefetched, q_variants, casters, offsets, screens,
-           sets_queued, holds, hold_ms, drawn);
+           resident, q_captured, q_derived, prefetched, q_variants, casters, offsets, evicted,
+           screens, sets_queued, holds, hold_ms, drawn);
 }
 
 }

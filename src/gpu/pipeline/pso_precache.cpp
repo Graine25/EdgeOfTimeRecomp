@@ -248,6 +248,16 @@ bool PsoPrecacheEnqueue(const PsoRecord &rec, PsoSource source, PsoLane lane, To
   return true;
 }
 
+void PsoPrecacheForget(const std::vector<u64> &keys) {
+  auto &p = pool();
+  std::lock_guard lock(p.dedupMutex);
+  for (const u64 key : keys) {
+    auto it = p.queuedOrDone.find(key);
+    if (it != p.queuedOrDone.end() && it->second.taken)
+      p.queuedOrDone.erase(it);
+  }
+}
+
 bool PsoPrecacheKnown(u64 key, PsoSource *source) {
   auto &p = pool();
   std::lock_guard lock(p.dedupMutex);
