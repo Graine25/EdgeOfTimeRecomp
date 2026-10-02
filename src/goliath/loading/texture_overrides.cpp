@@ -155,6 +155,10 @@ uint32_t g_requested = 0;
 uint32_t g_waiting_data = 0;
 uint32_t g_swapped[kOverrideCount] = {};
 uint32_t g_held[kOverrideCount] = {};
+// The render thread still executes last frame's commands when the game stops wanting a texture,
+// so a swapped suit is let go only once the retail has gone unwanted on several checks in a row.
+constexpr uint32_t kReleaseAfterChecks = 4;
+uint32_t g_unwanted[kOverrideCount] = {};
 constexpr uint32_t kDataReferences = 36;
 uint32_t g_ticks = 0;
 constexpr uint32_t kMaxTicks = 6000;
@@ -234,11 +238,17 @@ void TrackSuit(const PPCContext &ctx, uint8_t *base, uint32_t i) {
   const bool wanted =
       retail && (eot::mem::load<uint16_t>(retail + kDataReferences) != 0 || ResourceResident(retail));
   if (!wanted) {
+    if ((g_swapped[i] || g_held[i]) && ++g_unwanted[i] < kReleaseAfterChecks) {
+      ReleaseResource(ctx, base, retail);
+      return;
+    }
+    g_unwanted[i] = 0;
     if (ReleaseSuit(ctx, base, i))
       EOT_INFO("[tex] {} let go with {}", o.replacement, o.retail);
     ReleaseResource(ctx, base, retail);
     return;
   }
+  g_unwanted[i] = 0;
   if (!g_held[i]) {
     const uint32_t replacementHandle = FindResourceFromCrc(ctx, base, kTypeTexture, o.replacementCrc);
     if (replacementHandle) {

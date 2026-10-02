@@ -9,6 +9,9 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <CoreFoundation/CoreFoundation.h>
+#include <pthread.h>
 #endif
 
 namespace eot::platform {
@@ -37,6 +40,28 @@ void ShowInfoModal(std::string_view title, std::string_view body) {
 
 #else
 
+#if defined(__APPLE__)
+// AppKit windows may only be raised on the main thread, and a crash can arrive on any thread:
+// off it, the alert goes through CFUserNotification, which blocks the calling thread instead.
+bool ShowOffMainThread(std::string_view title, std::string_view body, CFOptionFlags level) {
+  if (pthread_main_np())
+    return false;
+  const auto cf = [](std::string_view s) {
+    return CFStringCreateWithBytes(nullptr, reinterpret_cast<const UInt8 *>(s.data()),
+                                   static_cast<CFIndex>(s.size()), kCFStringEncodingUTF8, false);
+  };
+  CFStringRef t = cf(title);
+  CFStringRef b = cf(body);
+  CFOptionFlags response = 0;
+  CFUserNotificationDisplayAlert(0, level, nullptr, nullptr, nullptr, t, b, nullptr, nullptr, nullptr, &response);
+  if (t)
+    CFRelease(t);
+  if (b)
+    CFRelease(b);
+  return true;
+}
+#endif
+
 bool PrepareMessageBox() {
   const bool owned = !SDL_WasInit(SDL_INIT_VIDEO);
   if (owned && !SDL_InitSubSystem(SDL_INIT_VIDEO)) {
@@ -49,6 +74,10 @@ bool PrepareMessageBox() {
 }
 
 void ShowModal(std::string_view title, std::string_view body, bool warning) {
+#if defined(__APPLE__)
+  if (ShowOffMainThread(title, body, warning ? kCFUserNotificationCautionAlertLevel : kCFUserNotificationStopAlertLevel))
+    return;
+#endif
   const bool owned = PrepareMessageBox();
   const std::string t(title);
   const std::string b(body);
@@ -59,6 +88,10 @@ void ShowModal(std::string_view title, std::string_view body, bool warning) {
 }
 
 void ShowInfoModal(std::string_view title, std::string_view body) {
+#if defined(__APPLE__)
+  if (ShowOffMainThread(title, body, kCFUserNotificationNoteAlertLevel))
+    return;
+#endif
   const bool owned = PrepareMessageBox();
   const std::string t(title);
   const std::string b(body);
