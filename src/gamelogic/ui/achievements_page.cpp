@@ -24,7 +24,7 @@ namespace {
 namespace hud = eot::ui::hud;
 
 constexpr uint32_t kSheetColumns = 8;
-constexpr uint32_t kSheetRows = 7;
+constexpr uint32_t kSheetRows = 6;
 constexpr uint32_t kSecretImageId = 48;
 
 constexpr uint32_t kTitleFits = 22;

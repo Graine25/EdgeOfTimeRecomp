@@ -14,7 +14,6 @@
 
 #include "core/logging.h"
 #include "core/quit_client.h"
-#include <rex/system/achievements.h>
 
 #include "gamelogic/ui/binds_client.h"
 #include "gamelogic/ui/button_prompts.h"
@@ -22,7 +21,6 @@
 #include "gamelogic/ui/menu_common.h"
 #include "gamelogic/ui/mods_client.h"
 #include "goliath/controller/pad_actions.h"
-#include "goliath/ui/achievement_feed.h"
 #include "goliath/ui/name_crc.h"
 
 REX_EXTERN(__imp__eot_HUDOptionsScreen_BuildBar);         // (this r3)
@@ -51,10 +49,6 @@ REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input",
                       "Which controller's buttons the prompts draw: auto follows the device that last "
                       "produced input (the pad's own art, or the bound keys on a keyboard).")
     .allowed({"auto", "xbox", "playstation", "switch", "keyboard"});
-REXCVAR_DEFINE_BOOL(eot_spatial_audio, true, "EdgeOfTime/Audio",
-                    "Sounds fade with distance from the camera, as the console mixes them "
-                    "(goliath/audio/positional_audio.cpp). Off plays every cue flat, as the "
-                    "other ports of this game do.");
 
 namespace {
 
@@ -194,6 +188,12 @@ struct Slider {
   Format format = Format::kPlain;
 };
 
+enum class Opens : uint8_t {
+  kNothing,
+  kBinds,
+  kBrightness,
+};
+
 struct Setting {
   const char *label;
   const char *description;
@@ -206,27 +206,28 @@ struct Setting {
   bool (*enabled)() = nullptr;
   const char *disabled_text = nullptr;
   std::span<const Choice> (*choices_of)() = nullptr;
-  bool button = false;
+  Opens opens = Opens::kNothing;
 
-  bool IsSlider() const { return !button && choices.empty() && !choices_of; }
+  bool IsButton() const { return opens != Opens::kNothing; }
+  bool IsSlider() const { return !IsButton() && choices.empty() && !choices_of; }
 };
 
 std::span<const Choice> Choices(const Setting &s) { return s.choices_of ? s.choices_of() : s.choices; }
 
 std::string Value(const Setting &s) {
-  if (s.button)
+  if (s.IsButton())
     return {};
   return s.accessor ? s.accessor->get() : rex::cvar::GetFlagByName(s.cvar);
 }
 
 bool SetValue(const Setting &s, std::string_view value) {
-  if (s.button)
+  if (s.IsButton())
     return false;
   return s.accessor ? s.accessor->set(value) : rex::cvar::SetFlagByName(s.cvar, value);
 }
 
 void ResetValue(const Setting &s) {
-  if (s.button)
+  if (s.IsButton())
     return;
   if (!s.accessor) {
     rex::cvar::ResetToDefault(s.cvar);
@@ -359,10 +360,7 @@ constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
                                   {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
                                   {"REEOT_VAL_2160P", "2160p"},   {"REEOT_VAL_DISPLAY", "display"}};
-constexpr Choice kFullscreenMode[] = {{"REEOT_VAL_BORDERLESS", "borderless"},
-                                      {"REEOT_VAL_EXCLUSIVE", "exclusive"}};
-constexpr Choice kPipScale[] = {{"REEOT_VAL_50_PERCENT", "50"}, {"REEOT_VAL_66_PERCENT", "66"},
-                                {"REEOT_VAL_100_PERCENT", "100"}};
+constexpr Choice kFullscreenMode[] = {{nullptr, "borderless", "1"}, {nullptr, "exclusive", "2"}};
 constexpr Choice kAspect[] = {{"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"}, {"REEOT_VAL_16_9", "16:9"},
                               {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};
 constexpr Choice kPreset[] = {{"REEOT_VAL_LOW", "low"}, {"REEOT_VAL_MEDIUM", "medium"}, {"REEOT_VAL_HIGH", "high"},
@@ -388,15 +386,13 @@ bool KeyboardMouseOn() { return rex::cvar::Query<bool>("mnk_mode"); }
 bool MouseLookOn() { return KeyboardMouseOn() && FullscreenOn(); }
 
 constexpr Setting kAudioSettings[] = {
-    {.label = "REEOT_OPT_SFX_VOLUME", .description = "REEOT_DESC_SFX_VOLUME", .accessor = &kFxVolume,
+    {.label = "REEOT_OPT_SFX_VOLUME", .description = nullptr, .accessor = &kFxVolume,
      .slider = {0.0, 1.0, 0.05, Format::kPercent}},
-    {.label = "REEOT_OPT_VOICE_VOLUME", .description = "REEOT_DESC_VOICE_VOLUME", .accessor = &kVoiceVolume,
+    {.label = "REEOT_OPT_VOICE_VOLUME", .description = nullptr, .accessor = &kVoiceVolume,
      .slider = {0.0, 1.0, 0.05, Format::kPercent}},
-    {.label = "REEOT_OPT_MUSIC_VOLUME", .description = "REEOT_DESC_MUSIC_VOLUME", .accessor = &kMusicVolume,
+    {.label = "REEOT_OPT_MUSIC_VOLUME", .description = nullptr, .accessor = &kMusicVolume,
      .slider = {0.0, 1.0, 0.05, Format::kPercent}},
     {.label = "REEOT_OPT_SUBTITLES", .description = "REEOT_DESC_SUBTITLES", .accessor = &kSubtitles,
-     .choices = kOnOff},
-    {.label = "REEOT_OPT_SPATIAL_AUDIO", .description = "REEOT_DESC_SPATIAL_AUDIO", .cvar = "eot_spatial_audio",
      .choices = kOnOff},
     {.label = "REEOT_OPT_LANGUAGE", .description = "REEOT_DESC_LANGUAGE", .cvar = "eot_language",
      .restart = true, .choices_of = LanguageChoices},
@@ -409,19 +405,14 @@ constexpr Setting kVideoSettings[] = {
      .choices = kResolution, .restart = true, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
     {.label = "REEOT_OPT_FULLSCREEN_MODE", .description = "REEOT_DESC_FULLSCREEN_MODE",
      .cvar = "eot_fullscreen_mode", .choices = kFullscreenMode, .restart = true, .enabled = FullscreenOn},
-    {.label = "REEOT_OPT_PIP_SCALE", .description = "REEOT_DESC_PIP_SCALE", .cvar = "eot_pip_scale",
-     .choices = kPipScale, .numeric = true, .restart = true},
     {.label = "REEOT_OPT_RENDER_SCALE", .description = "REEOT_DESC_RENDER_SCALE", .cvar = "eot_render_scale",
      .slider = {0.5, 2.0, 0.25, Format::kPercent}, .numeric = true, .restart = true},
     {.label = "REEOT_OPT_ASPECT", .description = "REEOT_DESC_ASPECT", .cvar = "eot_aspect_ratio",
-     .choices = kAspect, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
+     .choices = kAspect, .restart = true, .enabled = FullscreenOn, .disabled_text = "REEOT_VAL_STRETCH"},
     {.label = "REEOT_OPT_FPS_LIMIT", .description = "REEOT_DESC_FPS_LIMIT", .cvar = "eot_fps_limit",
      .slider = {30.0, 240.0, 10.0, Format::kFrameRate}, .numeric = true},
     {.label = "REEOT_OPT_VSYNC", .description = "REEOT_DESC_VSYNC", .cvar = "eot_vsync", .choices = kOnOff},
-    {.label = "REEOT_OPT_FPS_OVERLAY", .description = "REEOT_DESC_FPS_OVERLAY", .cvar = "show_fps_overlay",
-     .choices = kOnOff},
-    {.label = "REEOT_OPT_BRIGHTNESS", .description = "REEOT_DESC_BRIGHTNESS", .cvar = "eot_brightness",
-     .slider = {-0.25, 0.25, 0.01, Format::kSignedPercent}, .numeric = true},
+    {.label = "REEOT_OPT_BRIGHTNESS", .description = "REEOT_DESC_BRIGHTNESS", .opens = Opens::kBrightness},
     {.label = "REEOT_OPT_CONTRAST", .description = "REEOT_DESC_CONTRAST", .cvar = "eot_contrast",
      .slider = {0.5, 1.5, 0.02, Format::kPercent}, .numeric = true},
     {.label = "REEOT_OPT_SATURATION", .description = "REEOT_DESC_SATURATION", .cvar = "eot_saturation",
@@ -443,8 +434,6 @@ constexpr Setting kGraphicsSettings[] = {
      .choices = kAnisotropy, .numeric = true},
     {.label = "REEOT_OPT_SHADOW_SIZE", .description = "REEOT_DESC_SHADOW_SIZE", .cvar = "eot_shadow_map_size",
      .choices = kShadowSize, .numeric = true, .restart = true},
-    {.label = "REEOT_OPT_SHADOW_DISTANCE", .description = "REEOT_DESC_SHADOW_DISTANCE",
-     .cvar = "eot_shadow_distance_scale", .slider = {0.5, 3.0, 0.25, Format::kPercent}, .numeric = true},
     {.label = "REEOT_OPT_UPSCALE", .description = "REEOT_DESC_UPSCALE", .cvar = "eot_upscale", .choices = kUpscale},
     {.label = "REEOT_OPT_FOV", .description = "REEOT_DESC_FOV", .cvar = "eot_fov_scale",
      .slider = {0.7, 1.5, 0.05, Format::kPercent}, .numeric = true, .restart = true},
@@ -464,8 +453,6 @@ constexpr Setting kGameSettings[] = {
      .choices = kNormalInverted},
     {.label = "REEOT_OPT_CAMERA_X", .description = "REEOT_DESC_CAMERA_X", .accessor = &kInvertX,
      .choices = kNormalInverted},
-    {.label = "REEOT_OPT_DEBUG_MODE", .description = "REEOT_DESC_DEBUG_MODE", .cvar = "eot_debug_mode",
-     .choices = kOnOff, .restart = true},
     {.label = "REEOT_OPT_ACHIEVEMENT_TOASTS", .description = "REEOT_DESC_ACHIEVEMENT_TOASTS",
      .cvar = "eot_achievement_notifications", .choices = kOnOff},
     {.label = "REEOT_OPT_SUITS_REMASTER", .description = "REEOT_DESC_SUITS_REMASTER",
@@ -481,7 +468,7 @@ constexpr Setting kControlsSettings[] = {
      .enabled = MouseLookOn},
     {.label = "REEOT_OPT_BACKGROUND_INPUT", .description = "REEOT_DESC_BACKGROUND_INPUT",
      .cvar = "eot_background_input", .choices = kOnOff},
-    {.label = "REEOT_OPT_CONFIGURE_BUTTONS", .description = "REEOT_DESC_CONFIGURE_BUTTONS", .button = true},
+    {.label = "REEOT_OPT_CONFIGURE_BUTTONS", .description = "REEOT_DESC_CONFIGURE_BUTTONS", .opens = Opens::kBinds},
 };
 
 constexpr Page kAudioPage = {"REEOT_AUDIO_TITLE", "Audio", kAudioSettings, &kWide};
@@ -554,7 +541,8 @@ Capture g_capture;
 bool g_bind_fixed_note = false;
 uint32_t g_bind_redraw_in = 0;
 constexpr uint32_t kBindRedrawFrames = 4;
-const Page *g_pending_page = nullptr;
+Opens g_pending_opens = Opens::kNothing;
+uint32_t g_options_screen = 0;
 std::vector<eot_mod_info> g_mods;
 std::string g_remove_armed;
 int32_t g_import_state = EOT_MODS_IDLE;
@@ -605,6 +593,9 @@ constexpr uint32_t kDifficultyIndex = 4;
 constexpr uint32_t kControlsIndex = 5;
 constexpr uint32_t kModsIndex = 6;
 constexpr uint32_t kScreenCursorOff = 84;
+constexpr uint32_t kRetailBrightnessIndex = 1;
+constexpr uint32_t kEventSize = 16;
+uint32_t g_event = 0;
 
 bool ModsOnBar() { return rex::cvar::Query<bool>("eot_debug_mode"); }
 uint32_t LastBarIndex() { return ModsOnBar() ? kModsIndex : kControlsIndex; }
@@ -934,7 +925,7 @@ int NearestChoice(const Setting &s) {
 }
 
 void ShowChoiceValue(const PPCContext &ctx, uint8_t *base, uint32_t control, const Setting &s) {
-  if (s.button) {
+  if (s.IsButton()) {
     SetLine(ctx, base, eot::mem::load<uint32_t>(control + ctl::kChoiceValue), "");
     return;
   }
@@ -1134,7 +1125,9 @@ void ShowInfo(const PPCContext &ctx, uint8_t *base, const Setting &s) {
   const uint32_t label = StringHandle(ctx, base, s.label);
   FitInfoTitle(ctx, base, StringLength(ctx, base, label));
   SetStringHandle(ctx, base, w.info_title, label);
-  SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, s.description));
+  hud::Activate(ctx, base, w.info_text, s.description != nullptr);
+  if (s.description)
+    SetStringHandle(ctx, base, w.info_text, StringHandle(ctx, base, s.description));
   hud::Activate(ctx, base, w.info_value, s.IsSlider());
   if (s.IsSlider()) {
     char now[32];
@@ -1365,19 +1358,9 @@ void FillConfig(uint32_t c, uint32_t window, uint32_t title, bool blackout) {
   eot::mem::store<uint32_t>(c + cfg::kResult, cfg::kResultNone);
 }
 
-void NotePageOpened(const Page &page) {
-  const uint32_t id = &page == &kVideoPage      ? eot::ui::kAchGraine25
-                      : &page == &kGraphicsPage ? eot::ui::kAchSerJar03
-                      : &page == &kControlsPage ? eot::ui::kAchMaff
-                                                : 0;
-  if (id && rex::system::UnlockAchievement(id))
-    EOT_INFO("[ach] the {} page hands over the port's achievement {:#x}", page.label, id);
-}
-
 void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   CallScope scope(ctx, base);
   g_page = &page;
-  NotePageOpened(page);
   RefreshLanguageChoices();
   if (page.table) {
     g_mods_message.clear();
@@ -1523,7 +1506,7 @@ void MoveCursor(const PPCContext &ctx, uint8_t *base, int step) {
 
 void ChangeValue(const PPCContext &ctx, uint8_t *base, int step) {
   const Setting &s = g_page->settings[g_cursor];
-  if (s.button)
+  if (s.IsButton())
     return;
   if (!Enabled(s)) {
     PlayCue(ctx, base, kCueDenied);
@@ -1962,10 +1945,36 @@ void eot_OptionsBar_NavRightBound6(PPCRegister &r29, PPCCRRegister &cr6, PPCXERR
   cr6.compare<uint32_t>(r29.u32, LastBarIndex(), xer);
 }
 
+void OpenRetailBrightness(const PPCContext &ctx, uint8_t *base) {
+  const uint32_t screen = g_options_screen;
+  if (!screen) {
+    EOT_WARN("[menu] no Options screen seen yet; the Brightness screen does not open");
+    return;
+  }
+  if (!g_event)
+    g_event = AllocGuest(ctx, base, kEventSize);
+  if (!g_event)
+    return;
+  for (uint32_t off = 0; off < kEventSize; off += 4)
+    eot::mem::store<uint32_t>(g_event + off, 0);
+  eot::mem::store<uint32_t>(g_event + kEvtType, kEvtSelect);
+  eot::mem::store<uint8_t>(g_event + kEvtConsumed, 1);
+  const uint32_t cursor = eot::mem::load<uint32_t>(screen + kScreenCursorOff);
+  eot::mem::store<uint32_t>(screen + kScreenCursorOff, kRetailBrightnessIndex);
+  PPCContext call = ctx;
+  call.r3.u32 = screen;
+  call.r4.u32 = g_event;
+  __imp__eot_HUDOptionsScreen_HandleInputEvent(call, base);
+  eot::mem::store<uint32_t>(screen + kScreenCursorOff, cursor);
+  EOT_INFO("[menu] the game's Brightness screen opened from the Video page");
+}
+
 REX_HOOK_RAW(eot_HUDOptionsScreen_HandleInputEvent) {
   const uint32_t self = ctx.r3.u32;
   const uint32_t event = ctx.r4.u32;
   const uint32_t type = event ? eot::mem::load<uint32_t>(event + kEvtType) : 0;
+  if (self)
+    g_options_screen = self;
   if (g_popup_open || g_restart_asked) {
     ConsumeEvent(event);
     return;
@@ -2084,8 +2093,8 @@ REX_HOOK_RAW(eot_GameOptionsPopup_OnUpdate) {
     return;
   }
   if (Pressed(ctx, base, kInputAccept)) {
-    if (g_cursor < g_page->settings.size() && g_page->settings[g_cursor].button)
-      g_pending_page = &g_binds_page;
+    if (g_cursor < g_page->settings.size())
+      g_pending_opens = g_page->settings[g_cursor].opens;
     Close(ctx, base, true);
     ctx.r3.u32 = 1;
   } else if (Pressed(ctx, base, kInputBack)) {
@@ -2115,10 +2124,14 @@ REX_HOOK_RAW(eot_WindowComponent_Teardown) {
       binds::Api().capture_end();
     g_capture = Capture{};
     EOT_INFO("[menu] {} page closed (id {:#x})", g_page ? g_page->label : "?", g_popup_id);
-    if (const Page *next = g_pending_page) {
-      g_pending_page = nullptr;
-      OpenPage(ctx, base, *next);
-    }
+    const Opens next = g_pending_opens;
+    g_pending_opens = Opens::kNothing;
+    if (next != Opens::kNothing && g_restart_asked)
+      EOT_INFO("[menu] a restart is being asked; the button's page does not open");
+    else if (next == Opens::kBinds)
+      OpenPage(ctx, base, g_binds_page);
+    else if (next == Opens::kBrightness)
+      OpenRetailBrightness(ctx, base);
   } else if (config && config == g_restart_config && g_restart_asked) {
     g_restart_asked = false;
     EOT_INFO("[menu] restart {}", answer == cfg::kYesNoYes ? "accepted" : "declined");

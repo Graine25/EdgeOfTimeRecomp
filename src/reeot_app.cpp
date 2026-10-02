@@ -13,6 +13,7 @@
 #include <imgui_internal.h>
 #include <rex/cvar.h>
 #include <rex/filesystem.h>
+#include <rex/input/input_system.h>
 #include <rex/perf/counter.h>
 #include <rex/runtime.h>
 #include <rex/ui/keybinds.h>
@@ -89,7 +90,7 @@ namespace {
 std::filesystem::path g_config_path;
 
 void ApplyBackgroundInput(bool on) {
-  SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, on ? "1" : "0");
+  rex::input::SetControllerBackgroundInput(on);
   EOT_INFO("[input] controller input in the background: {}", on ? "on" : "off");
 }
 
@@ -724,7 +725,7 @@ void ReeotApp::OnPreLaunchModule() {
     return;
   }
   InstallOverlayHook();
-  eot::ui::RegisterPortAchievements();
+  eot::ui::StartAchievementFeed();
   app_context().CallInUIThreadDeferred([] { eot::platform::RaiseMainWindow(); });
   eot::gpu::GuestShadersInit();
   eot::gpu::PsoCachePrecache();

@@ -30,7 +30,7 @@ TakeFn Take() {
 }
 
 constexpr uint32_t kSheetColumns = 8;
-constexpr uint32_t kSheetRows = 7;
+constexpr uint32_t kSheetRows = 6;
 
 constexpr float kRestX = 0.6406f;
 constexpr float kHiddenX = 1.02f;

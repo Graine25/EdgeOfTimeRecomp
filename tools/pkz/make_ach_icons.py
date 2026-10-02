@@ -6,9 +6,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 COLUMNS = 8
-ROWS = 7
-TITLE_ROWS = 6
-PORT_ICONS = 3
+ROWS = 6
 THUMBNAIL_CELL = 64
 PANEL_CELL = 256
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
@@ -79,28 +77,14 @@ def secret_plate(size):
     return plate
 
 
-def port_square(size):
-    square = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    top, bottom = (168, 85, 247), (76, 29, 149)
-    for y in range(size):
-        for x in range(size):
-            t = (x + y) / (2 * (size - 1))
-            square.putpixel((x, y), tuple(round(top[i] + (bottom[i] - top[i]) * t) for i in range(3)) + (255,))
-    return square
-
-
 def build_sheet(icons, cell, net):
     sheet = Image.new("RGBA", (COLUMNS * cell, ROWS * cell), (0, 0, 0, 0))
     for slot, path in enumerate(icons):
         image = Image.open(path)
         image = image.convert("RGBA") if image.width == cell else upscale(net, image, cell)
         sheet.paste(image, ((slot % COLUMNS) * cell, (slot // COLUMNS) * cell))
-    last = COLUMNS * TITLE_ROWS - 1
+    last = COLUMNS * ROWS - 1
     sheet.paste(secret_plate(cell), ((last % COLUMNS) * cell, (last // COLUMNS) * cell))
-    square = port_square(cell)
-    for i in range(PORT_ICONS):
-        slot = COLUMNS * TITLE_ROWS + i
-        sheet.paste(square, ((slot % COLUMNS) * cell, (slot // COLUMNS) * cell))
     return sheet
 
 
@@ -110,7 +94,7 @@ def main():
     icons_dir, out_dir = sys.argv[1], sys.argv[2]
 
     icons = []
-    for image_id in range(1, COLUMNS * TITLE_ROWS):
+    for image_id in range(1, COLUMNS * ROWS):
         path = os.path.join(icons_dir, f"{image_id}.png")
         if not os.path.exists(path):
             break
@@ -126,8 +110,7 @@ def main():
     build_sheet(icons, PANEL_CELL, load_model()).save(panel, format="DDS", pixel_format="DXT5")
     for path, cell in ((thumbnails, THUMBNAIL_CELL), (panel, PANEL_CELL)):
         print(f"  {os.path.basename(path):22} {COLUMNS * cell}x{ROWS * cell}"
-              f"  {len(icons)} icons + the secret plate at cell {COLUMNS * TITLE_ROWS}"
-              f" + {PORT_ICONS} of the port's own"
+              f"  {len(icons)} icons + the secret plate at cell {COLUMNS * ROWS}"
               f"  {os.path.getsize(path) / 1024.0:.0f} KiB")
 
 

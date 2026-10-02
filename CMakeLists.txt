@@ -271,7 +271,6 @@ set(REEOT_SOURCES
     src/goliath/controller/pc_controls.cpp
     src/goliath/controller/pad_identity.cpp
     src/goliath/controller/pad_remap.cpp
-    src/goliath/audio/positional_audio.cpp
     src/goliath/controller/bind_capture.cpp
     src/goliath/ui/achievement_feed.cpp
     src/goliath/controller/button_glyphs.cpp

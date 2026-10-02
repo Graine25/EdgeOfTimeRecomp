@@ -10,11 +10,7 @@ struct AchievementEvent;
 
 namespace eot::ui {
 
-inline constexpr uint32_t kAchGraine25 = 0x10001;
-inline constexpr uint32_t kAchSerJar03 = 0x10002;
-inline constexpr uint32_t kAchMaff = 0x10003;
-
-void RegisterPortAchievements();
+void StartAchievementFeed();
 
 void QueueAchievementToast(const rex::system::AchievementEvent &event);
 
