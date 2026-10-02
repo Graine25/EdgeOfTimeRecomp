@@ -445,7 +445,14 @@ std::vector<std::vector<int>> EnumeratePhysicalCores() {
 u32 PhysicalCoreCount() {
   static const u32 count = [] {
     u32 n = 0;
-#if defined(_WIN32) || defined(__linux__)
+#if defined(_WIN32)
+    DWORD_PTR process = 0, system = 0;
+    const bool limited = GetProcessAffinityMask(GetCurrentProcess(), &process, &system) &&
+                         process != 0 && process != system;
+    for (const PhysicalCore &c : EnumeratePhysicalCores())
+      if (!limited || (c.group == 0 && (c.mask & process) != 0))
+        ++n;
+#elif defined(__linux__)
     n = static_cast<u32>(EnumeratePhysicalCores().size());
 #elif defined(__APPLE__)
     int cores = 0;
@@ -467,7 +474,7 @@ thread_local bool g_thread_sleeps_precisely = false;
 bool PinThreadToPhysicalCore(u32 core, const char *what) {
 #if defined(_WIN32)
   const std::vector<PhysicalCore> cores = EnumeratePhysicalCores();
-  if (cores.size() < 8)
+  if (PhysicalCoreCount() < 8)
     return false;
   if (core >= cores.size() || cores[core].group != 0 || !cores[core].mask)
     return false;
