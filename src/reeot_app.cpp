@@ -4,8 +4,12 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <functional>
+#include <map>
 #include <optional>
+#include <set>
+#include <sstream>
 #include <string>
 #include <string_view>
 
@@ -75,8 +79,63 @@ namespace {
 std::filesystem::path g_config_path;
 
 void ApplyBackgroundInput(bool on) {
-  SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, on ? "1" : "0");
   EOT_INFO("[input] controller input in the background: {}", on ? "on" : "off");
+}
+
+// Every SDL in the process reads this hint from the environment; the input system's active
+// check decides whether the pad counts in the background.
+struct BackgroundControllerEvents {
+  BackgroundControllerEvents() {
+#if defined(_WIN32)
+    _putenv_s("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
+#else
+    setenv("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1", 0);
+#endif
+  }
+} g_background_controller_events;
+
+// Command-line and environment values stay out of the profile.
+void SaveProfileConfig(const std::filesystem::path &path) {
+  std::map<std::string, std::string> file_lines;
+  if (std::ifstream in(path); in) {
+    std::string line;
+    while (std::getline(in, line)) {
+      const size_t eq = line.find(" = ");
+      if (eq != std::string::npos && !line.empty() && line.front() != '#')
+        file_lines[line.substr(0, eq)] = line;
+    }
+  }
+  std::set<std::string> launch_only;
+  for (const auto &entry : rex::cvar::GetRegistry())
+    if (entry.source == rex::cvar::Source::kCommandLine || entry.source == rex::cvar::Source::kEnvironment)
+      launch_only.insert(entry.name);
+
+  std::string out;
+  std::istringstream serialized(rex::cvar::SerializeToTOML());
+  for (std::string line; std::getline(serialized, line);) {
+    const size_t eq = line.find(" = ");
+    if (eq != std::string::npos && launch_only.contains(line.substr(0, eq)))
+      continue;
+    out += line + "\n";
+  }
+  for (const std::string &name : launch_only)
+    if (const auto it = file_lines.find(name); it != file_lines.end())
+      out += it->second + "\n";
+
+  std::error_code ec;
+  std::filesystem::create_directories(path.parent_path(), ec);
+  const std::filesystem::path temp = path.string() + ".tmp";
+  {
+    std::ofstream file(temp, std::ios::binary | std::ios::trunc);
+    if (!file) {
+      EOT_WARN("[settings] cannot write {}", temp.string());
+      return;
+    }
+    file << out;
+  }
+  std::filesystem::rename(temp, path, ec);
+  if (ec)
+    EOT_WARN("[settings] cannot replace {}: {}", path.string(), ec.message());
 }
 
 // The SDK opens this module by its bare name, which dlopen does not look for beside the
@@ -114,7 +173,7 @@ REXCVAR_DEFINE_COMMAND(
         EOT_WARN("[settings] no profile config to save to");
         return;
       }
-      rex::cvar::SaveConfig(g_config_path);
+      SaveProfileConfig(g_config_path);
       EOT_INFO("[settings] saved to {}", g_config_path.string());
     },
     "EdgeOfTime/Config", "Save settings to profile");
@@ -289,6 +348,13 @@ void ReeotApp::OnConfigurePaths(rex::PathConfig &paths) {
 }
 
 void ReeotApp::OnLoadXexImage(std::string &xex_image) {
+  if (auto *input = static_cast<rex::input::InputSystem *>(runtime()->input_system())) {
+    input->SetActiveCallback([this]() {
+      if (window() && !window()->HasFocus() && !REXCVAR_GET(eot_background_input))
+        return false;
+      return !imgui_drawer() || !imgui_drawer()->GetIO().WantCaptureMouse;
+    });
+  }
   fs::path game;
   if (auto named = NamedGameFolder())
     game = *named;
@@ -578,7 +644,7 @@ void ReeotApp::FinishInstaller(rex::PathConfig defaults, std::function<void(rex:
       rex::cvar::LoadConfig(paths.config_path);
     for (const auto &pick : choices.settings)
       rex::cvar::SetFlagByName(pick.cvar, pick.value);
-    rex::cvar::SaveConfig(paths.config_path);
+    SaveProfileConfig(paths.config_path);
     EOT_INFO("[install] {} settings written to {}", choices.settings.size(), paths.config_path.string());
   }
   eot::installer::AdoptLegacyUserData(profile_root_);
@@ -743,7 +809,7 @@ void ReeotApp::OnPreLaunchModule() {
     return;
   }
   InstallOverlayHook();
-  eot::ui::RegisterPortAchievements();
+  eot::ui::StartAchievementFeed();
   app_context().CallInUIThreadDeferred([] { eot::platform::RaiseMainWindow(); });
   eot::gpu::GuestShadersInit();
   eot::gpu::PsoCachePrecache();

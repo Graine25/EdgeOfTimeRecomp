@@ -7,8 +7,6 @@
 
 #include <rex/cvar.h>
 #include <rex/system/achievement_manager.h>
-#include <rex/system/achievements.h>
-#include <rex/system/kernel_state.h>
 
 #include "core/logging.h"
 
@@ -28,38 +26,16 @@ std::mutex g_mutex;
 std::deque<Pending> g_queue;
 constexpr size_t kMaxWaiting = 8;
 
-constexpr uint32_t kShowWhileLocked = 0x8;
-
-constexpr uint32_t kFirstPortImageId = 49;
-
-rex::system::AchievementInfo Port(uint32_t id, const char *label, const char *description) {
-  rex::system::AchievementInfo info;
-  info.id = id;
-  info.label = label;
-  info.description = description;
-  info.unachieved_description = description;
-  info.gamerscore = 23;
-  info.flags = kShowWhileLocked;
-  info.image_id = kFirstPortImageId + (id - kAchGraine25);
-  return info;
-}
+constexpr uint32_t kPreviewGamerscore = 10;
+constexpr uint32_t kPreviewImageId = 1;
 
 }
 
-void RegisterPortAchievements() {
-  const rex::system::AchievementInfo ours[] = {
-      Port(kAchGraine25, "Graine25", "Open the Video settings."),
-      Port(kAchSerJar03, "SerJar03", "Open the Graphics settings."),
-      Port(kAchMaff, "Maff", "Open the Controls settings."),
-  };
-  uint32_t done = 0;
-  for (const rex::system::AchievementInfo &info : ours)
-    done += rex::system::RegisterAchievement(info) ? 1 : 0;
-  EOT_INFO("[ach] {} of the port's own achievements registered (23 G each)", done);
+void StartAchievementFeed() {
   const std::string preview = REXCVAR_GET(eot_ach_toast_test);
   if (!preview.empty()) {
     std::lock_guard<std::mutex> lock(g_mutex);
-    g_queue.push_back({preview, 23, kFirstPortImageId});
+    g_queue.push_back({preview, kPreviewGamerscore, kPreviewImageId});
     EOT_INFO("[ach] eot_ach_toast_test: the banner will show \"{}\" once", preview);
   }
 }
