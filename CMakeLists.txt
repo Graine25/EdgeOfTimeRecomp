@@ -294,6 +294,7 @@ if(WIN32)
 else()
     add_executable(reeot ${REEOT_SOURCES})
 endif()
+set_target_properties(reeot PROPERTIES OUTPUT_NAME EdgeOfTimeRecomp)
 
 rexglue_setup_target(reeot)
 
@@ -459,6 +460,7 @@ elseif(APPLE)
         "-framework QuartzCore"
         "-framework Metal"
         "-framework Foundation"
+        "-framework CoreFoundation"
         "-framework IOKit"
         "-framework IOSurface"
         "-framework CoreGraphics")
