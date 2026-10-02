@@ -15,6 +15,7 @@
  * @license   BSD 3-Clause License
  *            See LICENSE file in the project root for full license text.
  */
+#include <atomic>
 #include <mutex>
 
 #include <rex/hook.h>
@@ -22,6 +23,7 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gpu/device.h"
+#include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/shaders/guest_shaders.h"
 #include "gpu/textures.h"
 #include "gpu/draw.h"
@@ -35,6 +37,36 @@ REX_EXTERN(__imp__XGRegisterPixelShader);
 REX_EXTERN(__imp__D3DDevice_CreateVertexShader);
 REX_EXTERN(__imp__D3DDevice_CreatePixelShader);
 REX_EXTERN(__imp__D3D_UnlockResource);
+REX_EXTERN(__imp__eot_ShaderStream_LoadVertexShaderCached);
+REX_EXTERN(__imp__eot_ShaderStream_LoadPixelShaderCached);
+
+namespace {
+void NoteStreamShader(u32 node, u32 object_field, bool pixel) {
+  if (!node)
+    return;
+  const u64 key = (static_cast<u64>(mem::load<u32>(node + 24)) << 32) | mem::load<u32>(node + 28);
+  const u32 object = mem::load<u32>(node + object_field);
+  auto &s = state();
+  GuestShader *g = object ? FindGuestShader(s, object) : nullptr;
+  if (!g && object)
+    g = RegisterGuestShader(s, object, pixel);
+  if (g)
+    PsoCacheNoteShaderKey(key, g->hash, pixel);
+  static std::atomic<u32> logged{0};
+  if (g && logged.fetch_add(1, std::memory_order_relaxed) < 16)
+    EOT_DEBUG("[shaders] stream {} key {:016x} -> {:016x}", pixel ? "ps" : "vs", key, g->hash);
+}
+}
+
+REX_HOOK_RAW(eot_ShaderStream_LoadVertexShaderCached) {
+  __imp__eot_ShaderStream_LoadVertexShaderCached(ctx, base);
+  NoteStreamShader(ctx.r3.u32, 0x24, false);
+}
+
+REX_HOOK_RAW(eot_ShaderStream_LoadPixelShaderCached) {
+  __imp__eot_ShaderStream_LoadPixelShaderCached(ctx, base);
+  NoteStreamShader(ctx.r3.u32, 0x20, true);
+}
 
 extern "C" REX_FUNC(XGRegisterVertexShader) {
   FlushPendingUpDraw();

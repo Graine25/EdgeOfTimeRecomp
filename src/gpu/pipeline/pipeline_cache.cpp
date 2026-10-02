@@ -74,7 +74,7 @@ struct Loading {
   std::vector<PsoShadowValue> shadowValues;
   u64 screenSinceFrame = 0;
   u32 screens = 0, holdsCount = 0, setsQueued = 0, drawnCaptured = 0, prefetched = 0;
-  u32 queuedCaptured = 0, queuedDerived = 0;
+  u32 queuedCaptured = 0, queuedDerived = 0, queuedVariants = 0;
   f64 holdMs = 0;
 };
 
@@ -170,6 +170,31 @@ u32 QueueRecord(const PsoRecord &r, PsoSource source, PsoLane lane, const TokenP
   return n;
 }
 
+struct LiveKeys {
+  std::mutex mutex;
+  std::vector<u64> hash;
+};
+
+LiveKeys &liveKeys() {
+  static LiveKeys k;
+  return k;
+}
+
+u64 LiveVariant(i32 key, u64 own) {
+  if (key < 0)
+    return own;
+  auto &live = liveKeys();
+  std::lock_guard lock(live.mutex);
+  const u64 h = static_cast<size_t>(key) < live.hash.size() ? live.hash[key] : 0;
+  return h ? h : own;
+}
+
+bool SetRecord(const PsoSet &set, const PsoSetRow &row, const PsoShadowValue *shadow, PsoRecord *out,
+               i32 core = -1) {
+  const PsoHashPair hashes{LiveVariant(row.vk, row.vsHash), LiveVariant(row.pk, row.psHash)};
+  return PsoSetRecord(set, row, shadow, out, core, &hashes);
+}
+
 u32 QueueSetRow(const PsoSet &set, u32 index, PsoLane lane, const TokenPtr &token,
                 const std::vector<PsoShadowValue> &shadow) {
   const PsoSetRow &row = set.rows[index];
@@ -178,13 +203,13 @@ u32 QueueSetRow(const PsoSet &set, u32 index, PsoLane lane, const TokenPtr &toke
   if (row.bias == PsoBias::Shadow) {
     u32 n = 0;
     for (const PsoShadowValue &v : shadow)
-      if (PsoSetRecord(set, row, &v, &r))
+      if (SetRecord(set, row, &v, &r))
         n += QueueRecord(r, source, lane, token, kPsoMsaaSingle);
     return n;
   }
-  u32 n = PsoSetRecord(set, row, nullptr, &r) ? QueueRecord(r, source, lane, token, row.msaa) : 0;
+  u32 n = SetRecord(set, row, nullptr, &r) ? QueueRecord(r, source, lane, token, row.msaa) : 0;
   const i32 velocity = set.velocityOf[row.core];
-  if (velocity >= 0 && Settings::MotionVectors() && PsoSetRecord(set, row, nullptr, &r, velocity))
+  if (velocity >= 0 && Settings::MotionVectors() && SetRecord(set, row, nullptr, &r, velocity))
     n += QueueRecord(r, source, lane, token, row.msaa);
   return n;
 }
@@ -652,6 +677,58 @@ void PsoCacheOnPackageLoad(u32 id, bool level) {
   });
 }
 
+void PsoCacheNoteShaderKey(u64 key, u64 hash, bool pixel) {
+  const PsoSet &set = CompiledInSet();
+  const auto &map = pixel ? set.psKeyIndex : set.vsKeyIndex;
+  auto it = map.find(key);
+  if (!hash || it == map.end())
+    return;
+  std::vector<std::pair<u32, u64>> changed;
+  {
+    auto &live = liveKeys();
+    std::lock_guard lock(live.mutex);
+    live.hash.resize(set.keys.size(), 0);
+    if (live.hash[it->second] == hash)
+      return;
+    changed.emplace_back(it->second, live.hash[it->second]);
+    live.hash[it->second] = hash;
+  }
+  PostSetJob([hash, pixel, changed = std::move(changed)] {
+    const PsoSet &set = CompiledInSet();
+    auto &l = loading();
+    std::unordered_set<u16> resident;
+    std::vector<PsoShadowValue> shadow;
+    {
+      std::lock_guard lock(l.mutex);
+      resident = l.resident;
+      shadow = l.shadowValues;
+    }
+    u32 queued = 0, rows = 0;
+    for (const auto &[k, before] : changed) {
+      for (const u32 index : set.keyRows[k]) {
+        const PsoSetRow &row = set.rows[index];
+        const u64 own = pixel ? row.psHash : row.vsHash;
+        if ((before ? before : own) == hash)
+          continue;
+        bool live_row = false;
+        for (const u16 owner : set.rowOwners[index])
+          live_row |= owner == 0 || resident.count(owner) != 0;
+        if (!live_row)
+          continue;
+        ++rows;
+        queued += QueueSetRow(set, index, row.derived ? PsoLane::Derived : PsoLane::Recorded, nullptr,
+                              shadow);
+      }
+    }
+    if (queued)
+      EOT_DEBUG("[pso] {} {:016x} is now its key's live variant: {} resident row(s) re-queued, {} "
+                "pipelines",
+                pixel ? "ps" : "vs", hash, rows, queued);
+    std::lock_guard lock(l.mutex);
+    l.queuedVariants += queued;
+  });
+}
+
 void PsoCacheNoteShadowBias(float offset, float slope) {
   if (!std::isfinite(offset) || !std::isfinite(slope) || (offset == 0.0f && slope == 0.0f))
     return;
@@ -705,7 +782,7 @@ struct MotionVectorsWatch {
           const PsoSetRow &row = set.rows[index];
           const i32 velocity = set.velocityOf[row.core];
           if (velocity < 0 || row.bias == PsoBias::Shadow ||
-              !PsoSetRecord(set, row, nullptr, &r, velocity))
+              !SetRecord(set, row, nullptr, &r, velocity))
             continue;
           queued += QueueRecord(r, row.derived ? PsoSource::Derived : PsoSource::CompiledIn,
                                 row.derived ? PsoLane::Background : PsoLane::Recorded, nullptr,
@@ -795,7 +872,7 @@ void PsoCacheFlushIfDirty(bool force) {
   if (total == 0 && ps.queued == 0)
     return;
   u32 screens, holds, sets_queued, drawn, resident, casters, offsets, prefetched, q_captured,
-      q_derived;
+      q_derived, q_variants;
   f64 hold_ms;
   {
     auto &l = loading();
@@ -811,18 +888,19 @@ void PsoCacheFlushIfDirty(bool force) {
     prefetched = l.prefetched;
     q_captured = l.queuedCaptured;
     q_derived = l.queuedDerived;
+    q_variants = l.queuedVariants;
   }
   EOT_INFO("[pso] {} pipelines: draw {} | captured {} ({} used) | local {} ({} used) | derived {} "
            "({} used) | render-thread builds since last: {} gaps, {} races | pool: {} queued, {} "
            "built, {} existing, {} skipped, {} failed, pending captured {} derived {} prefetch {} | "
-           "set: {} packages resident, {} captured + {} derived queued, {} prefetched, {} casters x "
-           "{} shadow offsets | loading: {} screens, {} package sets, {} holds {:.0f} ms | {} drawn "
-           "captured",
+           "set: {} packages resident, {} captured + {} derived queued, {} prefetched, {} for live "
+           "shader variants, {} casters x {} shadow offsets | loading: {} screens, {} package sets, "
+           "{} holds {:.0f} ms | {} drawn captured",
            total, by_source[0], by_source[1], used_by_source[1], by_source[2], used_by_source[2],
            by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built, ps.existing,
            ps.skipped, ps.failed, ps.recordedPending, ps.derivedPending, ps.backgroundPending,
-           resident, q_captured, q_derived, prefetched, casters, offsets, screens, sets_queued,
-           holds, hold_ms, drawn);
+           resident, q_captured, q_derived, prefetched, q_variants, casters, offsets, screens,
+           sets_queued, holds, hold_ms, drawn);
 }
 
 }

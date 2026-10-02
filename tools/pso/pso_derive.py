@@ -14,7 +14,7 @@ from pso_common import (COLUMNS, DEFAULT_SHADER_CACHE, REPO_ROOT, canonicalize, 
                         collect_inputs, identity, is_capture, load_shader_masks, read_rows,
                         row_line)
 from pso_paks import (DEFAULT_PAKS, TECHNIQUES, ancestors, load_directory,  # noqa: E402
-                      load_index)
+                      load_index, load_paks)
 
 FORMAT = """\
 # eot-pso-set v2: the pipelines the renderer builds ahead of the draws that
@@ -23,13 +23,15 @@ FORMAT = """\
 #   core   <id> <pipeline row (header columns): the state; shaders,
 #          declaration, strides and polygon offset empty>
 #   vcore  <core> <core>    the state's motion-vector form (eot_motion_vectors)
+#   vkey   <v|p> <key> <hashes>   a shader cache key with several containers:
+#          the game keeps the first one loaded, the renderer builds with it
 #   decl   <id> <declaration elements, hex>
 #   pkg    <id> <name> <parent ids> <level 0/1>
 #   shadow <pkg> <depthBias> <slope>        a level's shadow-camera offset
 #   cap    <pipeline row>   the merged captures the set was made from
 #          (the generator reads them back; not compiled in)
 #   row    <pkg> <vs> <ps> <decl> <strides> <core> <bias> <m> <source>
-#          <frame> <tags> <spec> <msaa>
+#          <frame> <tags> <spec> <msaa> <vkey> <pkey>
 #          pkg: the packages whose load queues the row (|-joined), 0 = the boot;
 #          bias 0 none, 1 the material's (m: offset m*1e-5, slope m*2),
 #          2 the level's shadow cameras, 3 literal (m = "depthBias/slope");
@@ -37,7 +39,9 @@ FORMAT = """\
 #          drawn under; spec: the specialization bits it was drawn with),
 #          d derived from the pak (likeliest first); msaa: how draws used it
 #          under eot_msaa (bit 0 single-sample, bit 1 multisampled, 0 not
-#          known: both are built)
+#          known: both are built); vkey/pkey: the vkey records of its
+#          shaders' cache keys (empty: one container), whose live variant
+#          the renderer builds it with
 """
 
 DEFAULT_OUT = REPO_ROOT / "config" / "pso" / "eot_pso.tsv"
@@ -59,6 +63,10 @@ DECL_TYPE_SIZE = {36: 4, 37: 8, 57: 12, 38: 16, 6: 4, 10: 2, 2: 1, 25: 4, 26: 8,
                   30: 2, 33: 4, 34: 8, 7: 4, 16: 4, 17: 4}
 SETS_FOR_MESH = {0: (0,), 1: (1,), 2: (0, 2), 3: (1, 3), 4: (0,)}
 
+
+VARIANT_MODE = "chain"
+
+GLOBAL_SHADOW = {(24, "2")}
 
 BOOT_PACKAGES = ("Main", "Common", "Legal", "FrontScreen", "01A_SMA_PortalRoom_Pip")
 
@@ -274,8 +282,10 @@ def feature_set(d):
 
 
 class Model:
-    def __init__(self, index, inc_threshold=0.05, core_share=0.04):
+    def __init__(self, index, keys, inc_threshold=0.05, core_share=0.04):
         self.index = index
+        self.keys = keys
+        self.row_keys = {}
         self.inc_threshold = inc_threshold
         self.core_share = core_share
         self._mf = {}
@@ -291,6 +301,7 @@ class Model:
         return self.mfeat(pak, mi) | feature_set(slot_features(m.slots[si]))
 
     def fit(self, rows):
+        self.keys.learn(rows)
         core_samples = []
         drawn = defaultdict(set)
         for row in rows:
@@ -344,6 +355,8 @@ class Model:
             for si, s in enumerate(m.slots):
                 if s.set not in uses:
                     continue
+                pairs = [(v, q) for v in self.keys.variants(pak, "vs", s.vs_key, s.vs)
+                         for q in self.keys.variants(pak, "ps", s.ps_key, s.ps)]
                 f = self.features(pak, mi, si)
                 p_inc = self.inclusion_p(f)
                 if p_inc < self.inc_threshold:
@@ -356,18 +369,112 @@ class Model:
                     mm = bias_m if bias == BIAS_MATERIAL else 0.0
                     for stride in uses[s.set]:
                         st = stride or packed_strides(s.decl).get(0, 0)
-                        if st:
-                            k = (s.vs, s.ps, s.decl, st, core, bias, round(mm, 6))
+                        if not st:
+                            continue
+                        for vs, ps in pairs:
+                            k = (vs, ps, s.decl, st, core, bias, round(mm, 6))
                             out[k] = max(out.get(k, 0.0), p_inc * share)
+                            self.row_keys.setdefault((pak, k), (s.vs_key, s.ps_key))
         return out
 
 
-def label(rows, index, directory):
+class ShaderKeys:
+    def __init__(self, index, directory):
+        self.hash_keys = defaultdict(set)
+        self.key_hashes = defaultdict(set)
+        self.first = defaultdict(dict)
+        self.drawn = defaultdict(Counter)
+        self.mode = VARIANT_MODE
+        for pak, mats in index.items():
+            first = self.first[pak]
+            for m in mats:
+                for sl in m.slots:
+                    self.hash_keys[("vs", sl.vs)].add(sl.vs_key)
+                    self.key_hashes[("vs", sl.vs_key)].add(sl.vs)
+                    first.setdefault(("vs", sl.vs_key), sl.vs)
+                    if sl.ps_key:
+                        self.hash_keys[("ps", sl.ps)].add(sl.ps_key)
+                        self.key_hashes[("ps", sl.ps_key)].add(sl.ps)
+                        first.setdefault(("ps", sl.ps_key), sl.ps)
+        names = {pid: v[0] for pid, v in directory.items()}
+        ids = {v[0]: pid for pid, v in directory.items()}
+        depth = {}
+
+        def d(pid, seen=()):
+            if pid not in depth:
+                parents = [q for q in directory.get(pid, ("", []))[1] if q not in seen]
+                depth[pid] = 1 + max((d(q, seen + (pid,)) for q in parents), default=-1)
+            return depth[pid]
+        self.order = {}
+        self.previous = {}
+        for pak in index:
+            pid = ids.get(pak)
+            chain = ancestors(directory, pid) if pid is not None else []
+            chain = sorted((q for q in chain if q != pid), key=lambda q: (d(q), q))
+            self.order[pak] = [names[q] for q in chain if names[q] in index] + [pak]
+            parents = set(directory.get(pid, ("", []))[1]) if pid is not None else set()
+            sib = [q for q, (n, ps) in directory.items()
+                   if q < (pid or 0) and set(ps) & parents and is_level(n) and n in index]
+            self.previous[pak] = [names[q] for q in sorted(sib, reverse=True)]
+        self.memo = {}
+
+    def keys(self, kind, h):
+        return self.hash_keys.get((kind, h), set())
+
+    def learn(self, rows):
+        self.drawn.clear()
+        self.memo = {}
+        for row in rows:
+            if not row.hits:
+                continue
+            vs, ps = int(row.r["vsHash"], 16), int(row.r["psHash"], 16)
+            for k in self.keys("vs", vs):
+                self.drawn[("vs", k)][vs] += 1
+            for k in self.keys("ps", ps):
+                self.drawn[("ps", k)][ps] += 1
+
+    def variants(self, pak, kind, key, own):
+        if not key:
+            return (own,)
+        k = (pak, kind, key, self.mode)
+        if k not in self.memo:
+            chain = self.provider(pak, kind, key, own)
+            drawn = self.drawn.get((kind, key))
+            if self.mode == "all":
+                out = tuple(sorted(self.key_hashes[(kind, key)]))
+            elif self.mode.startswith("chain+prev"):
+                out = [chain]
+                if not any((kind, key) in self.first[a] for a in self.order[pak][:-1]):
+                    prev = next((self.first[a][(kind, key)] for a in self.previous[pak]
+                                 if (kind, key) in self.first[a]), None)
+                    if prev is not None and prev not in out:
+                        out.append(prev)
+                if self.mode == "chain+prev+drawn" and drawn:
+                    best = max(sorted(drawn), key=lambda h: drawn[h])
+                    if best not in out:
+                        out.append(best)
+                out = tuple(out)
+            elif self.mode == "chain" or not drawn:
+                out = (chain,)
+            else:
+                best = max(sorted(drawn), key=lambda h: drawn[h])
+                out = (best,) if self.mode == "drawn" or best == chain else (best, chain)
+            self.memo[k] = out
+        return self.memo[k]
+
+    def provider(self, pak, kind, key, own):
+        if not key:
+            return own
+        return next((self.first[a][(kind, key)] for a in self.order[pak]
+                     if (kind, key) in self.first[a]), own)
+
+
+def label(rows, index, directory, keys):
     by_key = defaultdict(list)
     for pak, mats in index.items():
         for mi, m in enumerate(mats):
-            for si, s in enumerate(m.slots):
-                by_key[(s.vs, s.ps, s.decl)].append((pak, mi, si))
+            for si, sl in enumerate(m.slots):
+                by_key[(sl.vs_key, sl.ps_key, sl.decl)].append((pak, mi, si))
     names = {pid: v[0] for pid, v in directory.items()}
     for row in rows:
         r = row.r
@@ -378,7 +485,11 @@ def label(rows, index, directory):
         row.bias = (BIAS_SHADOW if caster else BIAS_LITERAL) if biased else BIAS_NONE
         if r.get("velocity", "0") != "0":
             continue
-        hits = by_key.get((int(r["vsHash"], 16), int(r["psHash"], 16), r["declRaw"]))
+        vs, ps = int(r["vsHash"], 16), int(r["psHash"], 16)
+        hits = []
+        for kv in keys.keys("vs", vs):
+            for kp in (keys.keys("ps", ps) if ps else {0}):
+                hits.extend(by_key.get((kv, kp, r["declRaw"]), ()))
         if not hits:
             continue
         resident = set()
@@ -405,16 +516,21 @@ def row_key(row):
             int(r["strides"].split("|")[0]), row.core, row.bias)
 
 
-def evaluate(rows, index, directory, folds=5, **kw):
+def evaluate(rows, index, directory, keys, folds=5, **kw):
     names = {pid: v[0] for pid, v in directory.items()}
     levels = sorted({p for row in rows if row.hits for p in row.packages
                      if p in names and is_level(names[p])})
-    found = total = predicted = 0
+    found = found_live = total = predicted = 0
     per = []
+
+    def keyed(vs, ps, rest, vk=None, pk=None):
+        vks = {vk} if vk else (keys.keys("vs", vs) or {("h", vs)})
+        pks = {pk} if pk is not None else (keys.keys("ps", ps) if ps else {0}) or {("h", ps)}
+        return {(a, b) + rest for a in vks for b in pks}
     for k in range(folds):
         held = set(levels[k::folds])
         train = [r for r in rows if not (r.packages & held)]
-        model = Model(index, **kw).fit(train)
+        model = Model(index, keys, **kw).fit(train)
         for p in held:
             pak = names[p]
             if pak not in index:
@@ -424,13 +540,25 @@ def evaluate(rows, index, directory, folds=5, **kw):
             if not own:
                 continue
             pred = model.derive(pak)
-            keys = {(a, b, c, d, e, f) for a, b, c, d, e, f, _ in pred}
-            hit = sum(1 for r in own if row_key(r) in keys)
+            pred_keys = {(a, b, c, d, e, f) for a, b, c, d, e, f, _ in pred}
+            hit = sum(1 for r in own if row_key(r) in pred_keys)
+            live = set()
+            for a, b, c, d, e, f, g in pred:
+                vk, pk = model.row_keys.get((pak, (a, b, c, d, e, f, g)), (0, 0))
+                live |= keyed(a, b, (c, d, e, f), vk or None, pk)
+            found_live += sum(1 for r in own if keyed(*row_key(r)[:2], row_key(r)[2:]) & live)
             found += hit
             total += len(own)
             predicted += len(pred)
             per.append((pak, hit, len(own), len(pred)))
-    return found, total, predicted, per
+    return found, total, predicted, per, found_live
+
+
+def captured_keys_of(row, index, kid):
+    vk = {index[p][mi].slots[si].vs_key for p, mi, si in row.hits}
+    pk = {index[p][mi].slots[si].ps_key for p, mi, si in row.hits}
+    return (kid("v", vk.pop()) if len(vk) == 1 else "",
+            kid("p", pk.pop()) if len(pk) == 1 else "")
 
 
 def velocity_forms(cores, core_id):
@@ -477,11 +605,15 @@ def check_set(path):
             decls += 1
         elif f[0] == "core":
             cores += 1
+        elif f[0] == "vkey":
+            if len(f) != 4 or f[1] not in ("v", "p") or not num(f[2], 16) or \
+                    not all(num(h, 16) for h in f[3].split("|")):
+                why = "vkey"
         elif f[0] == "vcore":
             if len(f) != 3 or not (num(f[1]) and num(f[2])) or max(int(f[1]), int(f[2])) >= cores:
                 why = "vcore"
         elif f[0] == "row":
-            if len(f) != 14:
+            if len(f) != 16 or not all(x == "" or num(x) for x in f[14:16]):
                 why = f"{len(f)} fields"
             elif not (num(f[2], 16) and num(f[3], 16) and num(f[12], 16) and num(f[13])):
                 why = "number"
@@ -503,7 +635,7 @@ def check_set(path):
     print(f"[derive] checked {path}: every line parses")
 
 
-def write_set(path, inc, cores, decls, vcores, packages, shadows, out_rows, summary, evidence):
+def write_set(path, inc, cores, decls, vcores, vkeys, packages, shadows, out_rows, summary, evidence):
     lines = FORMAT.splitlines()
     lines += [f"# {s}" for s in summary]
     lines.append("header\t" + ",".join(COLUMNS))
@@ -519,6 +651,8 @@ def write_set(path, inc, cores, decls, vcores, packages, shadows, out_rows, summ
         lines.append(f"core\t{i}\t" + ",".join(full))
     for plain, vel in vcores:
         lines.append(f"vcore\t{plain}\t{vel}")
+    for kind, key, hashes in vkeys:
+        lines.append(f"vkey\t{kind}\t{key:x}\t" + "|".join(f"{h:016x}" for h in hashes))
     for i, d in enumerate(decls):
         lines.append(f"decl\t{i}\t{d}")
     for pid, (name, parents, level) in sorted(packages.items()):
@@ -554,26 +688,28 @@ def main():
                     help="a captured non-material row drawn in this many levels goes to the boot set")
     args = ap.parse_args()
 
-    index = load_index(args.paks)
+    index, initializers = load_paks(args.paks)
     directory = load_directory()
     names = {pid: v[0] for pid, v in directory.items()}
     pak_ids = {v[0]: pid for pid, v in directory.items()}
     masks = load_shader_masks(DEFAULT_SHADER_CACHE)
     rows, nfiles = load_captures([*DEFAULT_CAPTURES, *args.captures], masks, args.out)
-    label(rows, index, directory)
+    keys = ShaderKeys(index, directory)
+    label(rows, index, directory, keys)
     material = [r for r in rows if r.hits]
     print(f"[derive] {nfiles} capture files -> {len(rows)} distinct pipelines; "
           f"{len(material)} labelled to a material record, {len(rows) - len(material)} other")
     kw = {"inc_threshold": args.inc_threshold, "core_share": args.core_share}
-    found, total, predicted, per = evaluate(rows, index, directory, args.folds, **kw)
+    found, total, predicted, per, found_live = evaluate(rows, index, directory, keys, args.folds, **kw)
     print(f"[derive] held-out levels: {found}/{total} drawn material pipelines predicted "
-          f"({100.0 * found / max(total, 1):.1f}%), {predicted} derived for those paks")
+          f"({100.0 * found / max(total, 1):.1f}%), {found_live} ({100.0 * found_live / max(total, 1):.1f}%) "
+          f"with the live shader variants, {predicted} derived for those paks")
     for pak, hit, n, p in sorted(per, key=lambda x: x[1] / max(x[2], 1))[:12]:
         print(f"           {pak[:36]:<36} {hit:>4}/{n:<4} of {p} derived")
     if args.eval_only:
         return
 
-    model = Model(index, **kw).fit(rows)
+    model = Model(index, keys, **kw).fit(rows)
     summary = []
     cores, core_id = [], {}
     decls, decl_id = [], {}
@@ -589,6 +725,14 @@ def main():
             decl_id[decl] = len(decls)
             decls.append(decl)
         return decl_id[decl]
+
+    vkeys = sorted((("v" if kind == "vs" else "p"), key, sorted(h))
+                   for (kind, key), h in keys.key_hashes.items() if key and len(h) > 1)
+    vkey_id = {(kind, key): i for i, (kind, key, _) in enumerate(vkeys)}
+
+    def kid(kind, key):
+        i = vkey_id.get((kind, key))
+        return "" if i is None else str(i)
 
     out_rows = []
     seen = set()
@@ -628,8 +772,19 @@ def main():
             captured_keys.add((pid,) + key[:-1])
         out_rows.append(["|".join(f"{p:x}" for p in sorted(owners)), r["vsHash"], r["psHash"],
                          str(did(r["declRaw"])), stride, str(cid(row.core)), str(row.bias), m, "c",
-                         str(row.frame), tags, r.get("spec") or "0", str(msaa_use[row.core])])
+                         str(row.frame), tags, r.get("spec") or "0", str(msaa_use[row.core]),
+                         *captured_keys_of(row, index, kid)])
     captured = len(out_rows)
+    from_paks = 0
+    for pid, (name, _) in directory.items():
+        if not is_level(name) or name not in index:
+            continue
+        before = len(shadows[pid])
+        for a in ancestors(directory, pid):
+            for _, units, slope in initializers.get(names[a], []):
+                shadows[pid].add((units, slope))
+        shadows[pid] |= GLOBAL_SHADOW
+        from_paks += len(shadows[pid]) - before
     derived_per = {}
     for pak in sorted(index):
         pid = pak_ids.get(pak)
@@ -644,8 +799,10 @@ def main():
             if key in captured_keys or key in seen:
                 continue
             seen.add(key)
+            vk, pk = model.row_keys.get((pak, (vs, ps, decl, stride0, core, bias, mm)), (0, 0))
             out_rows.append([f"{pid:x}", f"{vs:016x}", f"{ps:016x}", str(did(decl)), stride,
-                             str(cid(core)), str(bias), m, "d", "0", "", "0", str(msaa_use.get(core, 0))])
+                             str(cid(core)), str(bias), m, "d", "0", "", "0", str(msaa_use.get(core, 0)),
+                             kid("v", vk), kid("p", pk)])
             n += 1
         derived_per[pak] = n
     missing = sorted(v[0] for pid, v in directory.items()
@@ -655,8 +812,11 @@ def main():
     summary.append(f"{len(rows)} captured pipelines ({nfiles} files): {captured} captured rows; "
                    f"{len(out_rows) - captured} derived from {len(index)} paks; {len(cores)} cores, "
                    f"{len(decls)} declarations")
+    summary.append(f"shadow offsets: {sum(len(v) for v in shadows.values())} over {len(shadows)} rooms "
+                   f"({from_paks} from the paks' ShadowMapInitializers and the global one)")
     summary.append(f"held-out levels: {found}/{total} drawn material pipelines predicted "
-                   f"({100.0 * found / max(total, 1):.1f}%), {predicted} derived for those paks")
+                   f"({100.0 * found / max(total, 1):.1f}%; {100.0 * found_live / max(total, 1):.1f}% with "
+                   f"the live shader variants), {predicted} derived for those paks")
     if missing:
         summary.append("paks not read (not in the pak folder): " + " ".join(missing))
     evidence = []
@@ -666,7 +826,9 @@ def main():
         evidence.append(row_line(r))
     summary.append(f"{len(vcores)} states with a motion-vector form; rows by msaa use: "
                    + ", ".join(f"{k} {v}" for k, v in sorted(Counter(r[12] for r in out_rows).items())))
-    write_set(args.out, args.inc, cores, decls, vcores, packages, shadows, out_rows, summary, evidence)
+    summary.append(f"{len(vkeys)} shader keys with several containers (vkey)")
+    write_set(args.out, args.inc, cores, decls, vcores, vkeys, packages, shadows, out_rows, summary,
+              evidence)
     check_set(args.out)
     for line in summary:
         print("[derive] " + line)

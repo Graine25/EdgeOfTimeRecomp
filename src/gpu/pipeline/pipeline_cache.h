@@ -75,6 +75,7 @@ void PsoCacheSetLoadingScreen(bool on);
 bool PsoCacheInLoadingScreen();
 
 void PsoCacheOnPackageLoad(u32 id, bool level);
+void PsoCacheNoteShaderKey(u64 key, u64 hash, bool pixel);
 void PsoCacheNoteShadowBias(float offset, float slope);
 bool PsoCacheHoldPackage(u32 id);
 bool PsoCacheWaitsAllowed();

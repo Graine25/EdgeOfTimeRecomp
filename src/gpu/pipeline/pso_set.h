@@ -26,6 +26,7 @@ struct PsoSetRow {
   PsoBias bias = PsoBias::None;
   bool derived = false;
   u8 msaa = 0;
+  i32 vk = -1, pk = -1;
   f32 m = 0.0f;
   u32 literal = 0;
 };
@@ -38,6 +39,16 @@ struct PsoSetPackage {
   std::vector<PsoShadowValue> shadow;
 };
 
+struct PsoSetKey {
+  bool pixel = false;
+  u64 key = 0;
+  std::vector<u64> hashes;
+};
+
+struct PsoHashPair {
+  u64 vs = 0, ps = 0;
+};
+
 struct PsoSet {
   std::vector<PipelineState> cores;
   std::vector<i32> velocityOf;
@@ -47,12 +58,16 @@ struct PsoSet {
   std::vector<PsoSetRow> rows;
   std::vector<u32> boot;
   std::unordered_map<u16, PsoSetPackage> packages;
+  std::vector<PsoSetKey> keys;
+  std::unordered_map<u64, u32> vsKeyIndex, psKeyIndex;
+  std::vector<std::vector<u32>> keyRows;
+  std::vector<std::vector<u16>> rowOwners;
   u32 captured = 0, derived = 0, bad = 0;
 };
 
 const PsoSet &CompiledInSet();
 
 bool PsoSetRecord(const PsoSet &set, const PsoSetRow &row, const PsoShadowValue *shadow,
-                  PsoRecord *out, i32 core = -1);
+                  PsoRecord *out, i32 core = -1, const PsoHashPair *hashes = nullptr);
 
 }

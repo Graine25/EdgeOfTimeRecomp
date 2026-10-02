@@ -86,6 +86,21 @@ PsoSet Parse() {
         set.velocityOf.resize(set.cores.size(), -1);
         set.velocityOf[plain] = static_cast<i32>(vel);
       }
+    } else if (kind == "vkey") {
+      PsoSetKey k;
+      ok = f.size() == 4 && (f[1] == "v" || f[1] == "p") && Num(f[2], &k.key, 16);
+      if (ok) {
+        k.pixel = f[1] == "p";
+        for (const auto h : Fields(f[3], '|')) {
+          u64 v;
+          if (Num(h, &v, 16))
+            k.hashes.push_back(v);
+        }
+        const u32 index = static_cast<u32>(set.keys.size());
+        (k.pixel ? set.psKeyIndex : set.vsKeyIndex)[k.key] = index;
+        set.keys.push_back(std::move(k));
+        set.keyRows.emplace_back();
+      }
     } else if (kind == "decl") {
       std::vector<u8> bytes;
       ok = f.size() == 3 && Hex(f[2], &bytes) && bytes.size() % sizeof(DeclElement) == 0 &&
@@ -113,12 +128,20 @@ PsoSet Parse() {
         set.packages[static_cast<u16>(id)].shadow.push_back(v);
     } else if (kind == "row") {
       PsoSetRow row;
-      u32 decl = 0, core = 0, bias = 0, msaa = 0;
-      ok = f.size() == 14 && Num(f[2], &row.vsHash, 16) && Num(f[3], &row.psHash, 16) &&
+      u32 decl = 0, core = 0, bias = 0, msaa = 0, vk = 0, pk = 0;
+      ok = f.size() == 16 && Num(f[2], &row.vsHash, 16) && Num(f[3], &row.psHash, 16) &&
            Num(f[4], &decl) && Num(f[6], &core) && Num(f[7], &bias) && bias <= 3 &&
            Num(f[12], &row.spec, 16) && Num(f[13], &msaa) && msaa <= 3 &&
            decl < set.decls.size() && core < set.cores.size();
       row.msaa = static_cast<u8>(msaa);
+      if (ok && !f[14].empty()) {
+        ok = Num(f[14], &vk) && vk < set.keys.size();
+        row.vk = static_cast<i32>(vk);
+      }
+      if (ok && !f[15].empty()) {
+        ok = Num(f[15], &pk) && pk < set.keys.size();
+        row.pk = static_cast<i32>(pk);
+      }
       if (ok) {
         row.decl = static_cast<u16>(decl);
         row.core = static_cast<u16>(core);
@@ -147,15 +170,21 @@ PsoSet Parse() {
         const u32 index = static_cast<u32>(set.rows.size());
         set.rows.push_back(row);
         (row.derived ? set.derived : set.captured)++;
+        auto &owners = set.rowOwners.emplace_back();
         for (const auto owner : Fields(f[1], '|')) {
           u32 id;
           if (!Num(owner, &id, 16) || id >= 0x1000)
             continue;
+          owners.push_back(static_cast<u16>(id));
           if (id == 0)
             set.boot.push_back(index);
           else
             set.packages[static_cast<u16>(id)].rows.push_back(index);
         }
+        if (row.vk >= 0)
+          set.keyRows[row.vk].push_back(index);
+        if (row.pk >= 0)
+          set.keyRows[row.pk].push_back(index);
       }
     }
     if (!ok)
@@ -183,13 +212,13 @@ const PsoSet &CompiledInSet() {
 }
 
 bool PsoSetRecord(const PsoSet &set, const PsoSetRow &row, const PsoShadowValue *shadow,
-                  PsoRecord *out, i32 core) {
+                  PsoRecord *out, i32 core, const PsoHashPair *hashes) {
   PsoRecord r{};
   r.state = set.cores[core >= 0 ? static_cast<u32>(core) : row.core];
   r.msaa = row.msaa;
   PipelineState &s = r.state;
-  s.vsHash = row.vsHash;
-  s.psHash = row.psHash;
+  s.vsHash = hashes ? hashes->vs : row.vsHash;
+  s.psHash = hashes ? hashes->ps : row.psHash;
   s.spec = row.spec;
   const auto &st = set.strides[row.strides];
   for (u32 i = 0; i < 16; ++i)
