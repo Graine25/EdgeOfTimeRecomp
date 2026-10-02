@@ -47,7 +47,10 @@ struct PsoSetKey {
 
 struct PsoHashPair {
   u64 vs = 0, ps = 0;
+  u32 spec = 0;
 };
+
+constexpr u32 kPsoSpecEither = 0xFF;
 
 struct PsoSet {
   std::vector<PipelineState> cores;

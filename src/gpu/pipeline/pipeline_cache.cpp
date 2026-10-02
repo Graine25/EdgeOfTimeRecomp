@@ -190,9 +190,21 @@ u64 LiveVariant(i32 key, u64 own) {
 }
 
 bool SetRecord(const PsoSet &set, const PsoSetRow &row, const PsoShadowValue *shadow, PsoRecord *out,
-               i32 core = -1) {
-  const PsoHashPair hashes{LiveVariant(row.vk, row.vsHash), LiveVariant(row.pk, row.psHash)};
+               i32 core = -1, u32 spec = 0) {
+  const PsoHashPair hashes{LiveVariant(row.vk, row.vsHash), LiveVariant(row.pk, row.psHash), spec};
   return PsoSetRecord(set, row, shadow, out, core, &hashes);
+}
+
+u32 RowSpecs(const PsoSetRow &row, u32 out[2]) {
+  out[0] = 0;
+#if defined(EOT_D3D12)
+  return 1;
+#else
+  if (row.spec != kPsoSpecEither)
+    return 1;
+  out[1] = kSpecAlphaTest;
+  return 2;
+#endif
 }
 
 u32 QueueSetRow(const PsoSet &set, u32 index, PsoLane lane, const TokenPtr &token,
@@ -207,10 +219,17 @@ u32 QueueSetRow(const PsoSet &set, u32 index, PsoLane lane, const TokenPtr &toke
         n += QueueRecord(r, source, lane, token, kPsoMsaaSingle);
     return n;
   }
-  u32 n = SetRecord(set, row, nullptr, &r) ? QueueRecord(r, source, lane, token, row.msaa) : 0;
+  u32 specs[2];
+  const u32 variants = RowSpecs(row, specs);
   const i32 velocity = set.velocityOf[row.core];
-  if (velocity >= 0 && Settings::MotionVectors() && SetRecord(set, row, nullptr, &r, velocity))
-    n += QueueRecord(r, source, lane, token, row.msaa);
+  u32 n = 0;
+  for (u32 i = 0; i < variants; ++i) {
+    if (SetRecord(set, row, nullptr, &r, -1, specs[i]))
+      n += QueueRecord(r, source, lane, token, row.msaa);
+    if (velocity >= 0 && Settings::MotionVectors() &&
+        SetRecord(set, row, nullptr, &r, velocity, specs[i]))
+      n += QueueRecord(r, source, lane, token, row.msaa);
+  }
   return n;
 }
 

@@ -219,7 +219,7 @@ bool PsoSetRecord(const PsoSet &set, const PsoSetRow &row, const PsoShadowValue 
   PipelineState &s = r.state;
   s.vsHash = hashes ? hashes->vs : row.vsHash;
   s.psHash = hashes ? hashes->ps : row.psHash;
-  s.spec = row.spec;
+  s.spec = row.spec == kPsoSpecEither ? (hashes ? hashes->spec : 0) : row.spec;
   const auto &st = set.strides[row.strides];
   for (u32 i = 0; i < 16; ++i)
     s.strides[i] = st[i];

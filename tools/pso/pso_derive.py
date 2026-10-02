@@ -36,7 +36,8 @@ FORMAT = """\
 #          bias 0 none, 1 the material's (m: offset m*1e-5, slope m*2),
 #          2 the level's shadow cameras, 3 literal (m = "depthBias/slope");
 #          source c captured (frame: first drawn; tags: the packages it was
-#          drawn under; spec: the specialization bits it was drawn with),
+#          drawn under; spec: the specialization bits it was drawn with; a
+#          derived row's is the alpha-test bit or ff, either),
 #          d derived from the pak (likeliest first); msaa: how draws used it
 #          under eot_msaa (bit 0 single-sample, bit 1 multisampled, 0 not
 #          known: both are built); vkey/pkey: the vkey records of its
@@ -55,6 +56,9 @@ DRAW_COLUMNS = {"vsHash", "psHash", "spec", "layoutKey", "declRaw", "strides", "
 CORE_COLUMNS = [c for c in COLUMNS if c not in DRAW_COLUMNS]
 
 BIAS_NONE, BIAS_MATERIAL, BIAS_SHADOW, BIAS_LITERAL = 0, 1, 2, 3
+SPEC_ALPHA_TEST = 0x2
+SPEC_EITHER = 0xFF
+ALPHA_SURE = 0.95
 MAX_HITS = 48
 MSAA_MIN_SESSIONS = 2
 FLAG_BIASED = 0x100
@@ -288,6 +292,7 @@ class Model:
         self.index = index
         self.keys = keys
         self.row_keys = {}
+        self.row_spec = {}
         self.inc_threshold = inc_threshold
         self.core_share = core_share
         self._mf = {}
@@ -314,6 +319,15 @@ class Model:
                 core_samples.append((self.features(pak, mi, si), (row.core, row.bias), w))
                 drawn[(pak, mi)].add(si)
         self.cores = Tree(min_leaf=6).fit(core_samples)
+        alpha_samples = []
+        for row in rows:
+            if not row.hits or row.r.get("spec", "0") in ("0", ""):
+                continue
+            alpha = bool(int(row.r["spec"], 16) & SPEC_ALPHA_TEST)
+            pak, mi, si = row.hits[0]
+            alpha_samples.append((self.features(pak, mi, si) | {f"core={hash(row.core) & 0xFFFFF}"},
+                                  alpha, 1.0))
+        self.alpha = Tree(min_leaf=6).fit(alpha_samples) if alpha_samples else None
         inc_samples = []
         for (pak, mi), sis in drawn.items():
             m = self.index[pak][mi]
@@ -329,6 +343,14 @@ class Model:
         c = self.inclusion.leaf(f)["counts"]
         n = sum(c.values())
         return c.get(True, 0) / n if n > 0 else 0.0
+
+    def spec_for(self, f, core):
+        if self.alpha is None:
+            return SPEC_EITHER
+        c = self.alpha.leaf(f | {f"core={hash(core) & 0xFFFFF}"})["counts"]
+        n = sum(c.values())
+        p = c.get(True, 0) / n if n else 0.5
+        return SPEC_ALPHA_TEST if p >= ALPHA_SURE else 0 if p <= 1 - ALPHA_SURE else SPEC_EITHER
 
     def included(self, f):
         return self.inclusion_p(f) >= self.inc_threshold
@@ -377,6 +399,9 @@ class Model:
                             k = (vs, ps, s.decl, st, core, bias, round(mm, 6))
                             out[k] = max(out.get(k, 0.0), p_inc * share)
                             self.row_keys.setdefault((pak, k), (s.vs_key, s.ps_key))
+                            sp = self.spec_for(f, core)
+                            was = self.row_spec.get((pak, k), sp)
+                            self.row_spec[(pak, k)] = sp if was == sp else SPEC_EITHER
         return out
 
 
@@ -803,9 +828,10 @@ def main():
                 continue
             seen.add(key)
             vk, pk = model.row_keys.get((pak, (vs, ps, decl, stride0, core, bias, mm)), (0, 0))
+            sp = model.row_spec.get((pak, (vs, ps, decl, stride0, core, bias, mm)), SPEC_EITHER)
             out_rows.append([f"{pid:x}", f"{vs:016x}", f"{ps:016x}", str(did(decl)), stride,
-                             str(cid(core)), str(bias), m, "d", "0", "", "0", str(msaa_use.get(core, 0)),
-                             kid("v", vk), kid("p", pk)])
+                             str(cid(core)), str(bias), m, "d", "0", "", f"{sp:x}",
+                             str(msaa_use.get(core, 0)), kid("v", vk), kid("p", pk)])
             n += 1
         derived_per[pak] = n
     missing = sorted(v[0] for pid, v in directory.items()
