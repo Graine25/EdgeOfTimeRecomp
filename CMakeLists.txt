@@ -339,6 +339,7 @@ if(WIN32)
 else()
     add_executable(reeot ${REEOT_SOURCES})
 endif()
+set_target_properties(reeot PROPERTIES OUTPUT_NAME EdgeOfTimeRecomp)
 
 rexglue_setup_target(reeot)
 

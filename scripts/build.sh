@@ -25,4 +25,4 @@ echo "[2/2] Building (the SDK, codegen, then reeot)..."
 cmake --build --preset "$PRESET" --parallel
 
 echo
-echo "Build complete: out/build/$PRESET/reeot"
+echo "Build complete: out/build/$PRESET/EdgeOfTimeRecomp"

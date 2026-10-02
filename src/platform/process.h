@@ -14,9 +14,9 @@
 namespace eot::platform {
 
 #if defined(_WIN32)
-constexpr const char *kExecutableFileName = "reeot.exe";
+constexpr const char *kExecutableFileName = "EdgeOfTimeRecomp.exe";
 #else
-constexpr const char *kExecutableFileName = "reeot";
+constexpr const char *kExecutableFileName = "EdgeOfTimeRecomp";
 #endif
 
 std::filesystem::path ProgramDir();

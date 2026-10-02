@@ -3,10 +3,10 @@ $ErrorActionPreference = 'Stop'
 $repo      = Split-Path -Parent $PSScriptRoot
 $build     = Join-Path $repo 'out\build\win-amd64-relwithdebinfo'
 $downloads = Join-Path $env:USERPROFILE 'Downloads'
-$dis       = Join-Path $downloads 'reeot-dis'
+$dis       = Join-Path $downloads 'EdgeOfTimeRecomp-dis'
 $list      = Join-Path $build 'program_files.txt'
 
-if (-not (Test-Path (Join-Path $build 'reeot.exe'))) {
+if (-not (Test-Path (Join-Path $build 'EdgeOfTimeRecomp.exe'))) {
     Write-Host "[FAILED] No build at $build." -ForegroundColor Red
     Write-Host "         Build first (scripts\build.bat), then run this."
     exit 1
@@ -23,7 +23,7 @@ if (Test-Path $info) {
     if ($text -match 'REEOT_VERSION_STRING\s+"([^"]+)"')  { $ver   = $Matches[1] }
     if ($text -match 'REEOT_BUILD_TIMESTAMP\s+"([^"]+)"') { $stamp = $Matches[1] }
 }
-Write-Host "reeot playtest package  v$ver  build $stamp"
+Write-Host "EdgeOfTimeRecomp playtest package  v$ver  build $stamp"
 Write-Host ""
 
 Write-Host "[1/4] Clearing old remnants..."
@@ -32,7 +32,7 @@ if (Test-Path $dis) {
 } else {
     New-Item -ItemType Directory -Path $dis | Out-Null
 }
-Get-ChildItem $downloads -Filter 'reeot-v*.zip' -ErrorAction SilentlyContinue | Remove-Item -Force
+Get-ChildItem $downloads -Filter 'EdgeOfTimeRecomp-v*.zip' -ErrorAction SilentlyContinue | Remove-Item -Force
 
 Write-Host "[2/4] Copying the latest build's program files..."
 $missing = @()
@@ -64,7 +64,7 @@ foreach ($name in $binaries) {
 }
 
 Write-Host "[4/4] Zipping..."
-$zip = Join-Path $downloads "reeot-v$ver-$stamp.zip"
+$zip = Join-Path $downloads "EdgeOfTimeRecomp-v$ver-$stamp.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path $dis -DestinationPath $zip -Force
 

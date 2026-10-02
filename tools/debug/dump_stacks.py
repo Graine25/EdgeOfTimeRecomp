@@ -138,7 +138,7 @@ def modules(hproc):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     show_all = "--all" in sys.argv
-    target = args[0] if args else "reeot.exe"
+    target = args[0] if args else "EdgeOfTimeRecomp.exe"
     depth = int(args[1]) if len(args) > 1 else 24
     pid = int(target) if target.isdigit() else find_pid(target)
     hproc = k32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
@@ -148,7 +148,7 @@ def main():
     exe_dir = None
     mods = modules(hproc)
     for base, name in mods:
-        if name.lower() == "reeot.exe":
+        if name.lower() == "edgeoftimerecomp.exe":
             buf = ctypes.create_unicode_buffer(520)
             psapi.GetModuleFileNameExW(hproc, base, buf, 520)
             exe_dir = os.path.dirname(buf.value)

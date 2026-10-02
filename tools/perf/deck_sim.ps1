@@ -63,8 +63,8 @@ public static class DeckSim {
 
 function Fail($what) { throw "$what failed: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
 
-if (Get-Process reeot -ErrorAction SilentlyContinue) { throw 'reeot is already running' }
-$exe = Join-Path $Build 'reeot.exe'
+if (Get-Process EdgeOfTimeRecomp -ErrorAction SilentlyContinue) { throw 'EdgeOfTimeRecomp is already running' }
+$exe = Join-Path $Build 'EdgeOfTimeRecomp.exe'
 $cmd = "`"$exe`" --profile=$Profile --eot_resolution=$Resolution --eot_quality_preset=$Preset " +
        "--eot_fps_limit=$FpsLimit --eot_vsync=false --eot_update_apply=false"
 
@@ -87,7 +87,7 @@ if (-not [DeckSim]::SetProcessAffinityMask($pi.hProcess, [UIntPtr]::new($Affinit
 [void][DeckSim]::ResumeThread($pi.hThread)
 $start = Get-Date
 $held = [DeckSim]::HoldAffinity($pi.hProcess, [UIntPtr]::new($Affinity), 4000)
-Write-Host ("reeot {0} started: working set <= {1} GB, CPUs {2:X} (mask restored {3}), {4} {5} {6} fps" -f
+Write-Host ("EdgeOfTimeRecomp {0} started: working set <= {1} GB, CPUs {2:X} (mask restored {3}), {4} {5} {6} fps" -f
             $pi.pid, $MemGB, $Affinity, $held, $Resolution, $Preset, $FpsLimit)
 
 $p = Get-Process -Id $pi.pid

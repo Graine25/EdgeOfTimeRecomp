@@ -8,8 +8,9 @@ SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 MAX_MACOS="${MAX_MACOS:-13.3}"
 DOWNLOADS="${HOME}/Downloads"
 BUNDLE_ID="${BUNDLE_ID:-com.graine25.reeot}"
+APP_NAME="EdgeOfTimeRecomp"
 
-if [ ! -x "${BUILD_DIR}/reeot" ]; then
+if [ ! -x "${BUILD_DIR}/${APP_NAME}" ]; then
     echo "[FAILED] No build at ${BUILD_DIR}. Build first (scripts/build.sh), then run this." >&2
     exit 1
 fi
@@ -24,9 +25,9 @@ fi
 
 version="$(grep -m1 'REEOT_VERSION_STRING' "${BUILD_DIR}/generated/core/build_info.h" | sed -n 's/.*"\([^"]*\)".*/\1/p')"
 stamp="$(sed -n '1p' "${BUILD_DIR}/build_stamp.txt" 2>/dev/null | tr -d '\r')"
-archs="$(lipo -archs "${BUILD_DIR}/reeot")"
+archs="$(lipo -archs "${BUILD_DIR}/${APP_NAME}")"
 arch_tag="$(echo "${archs}" | tr ' ' '-')"
-OUT_BASE="reeot-v${version:-unknown}${stamp:+-$stamp}-mac-${arch_tag}"
+OUT_BASE="${APP_NAME}-v${version:-unknown}${stamp:+-$stamp}-mac-${arch_tag}"
 ZIP_FILE="${OUT_BASE}.zip"
 DMG_FILE="${OUT_BASE}.dmg"
 
@@ -42,10 +43,10 @@ version_gt() {
     }'
 }
 
-STAGING="$(mktemp -d "${TMPDIR:-/tmp}/reeot-macos-package.XXXXXX")"
+STAGING="$(mktemp -d "${TMPDIR:-/tmp}/${APP_NAME}-macos-package.XXXXXX")"
 trap 'rm -rf "${STAGING}"' EXIT
 
-APP_BUNDLE="${STAGING}/reeot.app"
+APP_BUNDLE="${STAGING}/${APP_NAME}.app"
 CONTENTS="${APP_BUNDLE}/Contents"
 MACOS_DIR="${CONTENTS}/MacOS"
 RESOURCES_DIR="${CONTENTS}/Resources"
@@ -67,7 +68,7 @@ while IFS= read -r f; do
     chmod u+w "${dest}/${f}"
 done < "${BUILD_DIR}/program_files.txt"
 cp "${BUILD_DIR}/program_files.txt" "${RESOURCES_DIR}/"
-chmod 755 "${MACOS_DIR}/reeot"
+chmod 755 "${MACOS_DIR}/${APP_NAME}"
 
 macho_files=()
 while IFS= read -r -d '' candidate; do
@@ -143,7 +144,7 @@ if [ ${#violations[@]} -gt 0 ]; then
     exit 1
 fi
 
-ICONSET="${STAGING}/reeot.iconset"
+ICONSET="${STAGING}/${APP_NAME}.iconset"
 mkdir -p "${ICONSET}"
 make_icon() {
     sips -z "$1" "$1" res/icon/reeot_icon.png --out "${ICONSET}/$2" >/dev/null
@@ -158,9 +159,9 @@ make_icon 256 icon_256x256.png
 make_icon 512 icon_256x256@2x.png
 make_icon 512 icon_512x512.png
 make_icon 1024 icon_512x512@2x.png
-if ! iconutil -c icns "${ICONSET}" -o "${RESOURCES_DIR}/reeot.icns" 2>/dev/null; then
+if ! iconutil -c icns "${ICONSET}" -o "${RESOURCES_DIR}/${APP_NAME}.icns" 2>/dev/null; then
     echo "[WARN] iconutil rejected the iconset; using the PNG as the one icon"
-    sips -s format icns res/icon/reeot_icon.png --out "${RESOURCES_DIR}/reeot.icns" >/dev/null
+    sips -s format icns res/icon/reeot_icon.png --out "${RESOURCES_DIR}/${APP_NAME}.icns" >/dev/null
 fi
 
 cat > "${CONTENTS}/Info.plist" <<PLIST
@@ -171,17 +172,17 @@ cat > "${CONTENTS}/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>reeot</string>
+    <string>${APP_NAME}</string>
     <key>CFBundleExecutable</key>
-    <string>reeot</string>
+    <string>${APP_NAME}</string>
     <key>CFBundleIconFile</key>
-    <string>reeot.icns</string>
+    <string>${APP_NAME}.icns</string>
     <key>CFBundleIdentifier</key>
     <string>${BUNDLE_ID}</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>reeot</string>
+    <string>${APP_NAME}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -206,30 +207,30 @@ if [ "${SIGN_IDENTITY}" != - ]; then
     sign_args+=(--options runtime --timestamp)
 fi
 for binary in "${macho_files[@]}"; do
-    if [ "${binary}" != "${MACOS_DIR}/reeot" ]; then
+    if [ "${binary}" != "${MACOS_DIR}/${APP_NAME}" ]; then
         codesign "${sign_args[@]}" "${binary}"
     fi
 done
-codesign "${sign_args[@]}" --entitlements res/macos/reeot.entitlements "${MACOS_DIR}/reeot"
+codesign "${sign_args[@]}" --entitlements res/macos/reeot.entitlements "${MACOS_DIR}/${APP_NAME}"
 codesign "${sign_args[@]}" --entitlements res/macos/reeot.entitlements "${APP_BUNDLE}"
 codesign --verify --deep --strict "${APP_BUNDLE}"
 
 mkdir -p dist
-rm -f dist/reeot-*-mac-*.zip dist/reeot-*-mac-*.dmg
+rm -f dist/"${APP_NAME}"-*-mac-*.zip dist/"${APP_NAME}"-*-mac-*.dmg
 ditto -c -k --sequesterRsrc --keepParent "${APP_BUNDLE}" "dist/${ZIP_FILE}"
 
 DMG_STAGING="${STAGING}/dmg"
 mkdir -p "${DMG_STAGING}"
-mv "${APP_BUNDLE}" "${DMG_STAGING}/reeot.app"
+mv "${APP_BUNDLE}" "${DMG_STAGING}/${APP_NAME}.app"
 ln -s /Applications "${DMG_STAGING}/Applications"
-hdiutil create -quiet -ov -volname "reeot ${version:-}" -srcfolder "${DMG_STAGING}" \
+hdiutil create -quiet -ov -volname "${APP_NAME} ${version:-}" -srcfolder "${DMG_STAGING}" \
     -fs HFS+ -format UDZO -imagekey zlib-level=9 "dist/${DMG_FILE}"
 if [ "${SIGN_IDENTITY}" != - ]; then
     codesign --force --sign "${SIGN_IDENTITY}" --timestamp "dist/${DMG_FILE}"
 fi
 
 if [ -d "${DOWNLOADS}" ]; then
-    rm -f "${DOWNLOADS}"/reeot-*-mac-*.zip "${DOWNLOADS}"/reeot-*-mac-*.dmg
+    rm -f "${DOWNLOADS}"/"${APP_NAME}"-*-mac-*.zip "${DOWNLOADS}"/"${APP_NAME}"-*-mac-*.dmg
     cp "dist/${ZIP_FILE}" "dist/${DMG_FILE}" "${DOWNLOADS}/"
     echo "Packaged dist/${ZIP_FILE} ($(du -m "dist/${ZIP_FILE}" | cut -f1) MB; minimum macOS ${package_min_macos}), copied to ${DOWNLOADS}"
     echo "Packaged dist/${DMG_FILE} ($(du -m "dist/${DMG_FILE}" | cut -f1) MB), copied to ${DOWNLOADS}"

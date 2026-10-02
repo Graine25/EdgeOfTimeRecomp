@@ -3,11 +3,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PRESET="${1:-linux-amd64-relwithdebinfo}"
+APP_NAME="EdgeOfTimeRecomp"
 BUILD_DIR="out/build/${PRESET}"
 APPIMAGE_ARCH="${APPIMAGE_ARCH:-x86_64}"
 DOWNLOADS="${XDG_DOWNLOAD_DIR:-$HOME/Downloads}"
 
-if [ ! -x "${BUILD_DIR}/reeot" ]; then
+if [ ! -x "${BUILD_DIR}/${APP_NAME}" ]; then
     echo "[FAILED] No build at ${BUILD_DIR}. Build first (scripts/build.sh), then run this." >&2
     exit 1
 fi
@@ -18,10 +19,10 @@ fi
 
 version="$(grep -m1 'REEOT_VERSION_STRING' "${BUILD_DIR}/generated/core/build_info.h" | sed -n 's/.*"\([^"]*\)".*/\1/p')"
 stamp="$(sed -n '1p' "${BUILD_DIR}/build_stamp.txt" 2>/dev/null | tr -d '\r')"
-OUT_FILE="reeot-v${version:-unknown}${stamp:+-$stamp}-${APPIMAGE_ARCH}.AppImage"
+OUT_FILE="${APP_NAME}-v${version:-unknown}${stamp:+-$stamp}-${APPIMAGE_ARCH}.AppImage"
 
 host_glibc="$(ldd --version 2>/dev/null | sed -n '1p' | grep -oE '[0-9]+\.[0-9]+$' || true)"
-host_glibcxx="$(strings -n 8 "$(ldd "${BUILD_DIR}/reeot" | awk '/libstdc\+\+/ {print $3}')" 2>/dev/null \
+host_glibcxx="$(strings -n 8 "$(ldd "${BUILD_DIR}/${APP_NAME}" | awk '/libstdc\+\+/ {print $3}')" 2>/dev/null \
     | grep -oE '^GLIBCXX_3\.[0-9.]+$' | sort -V | tail -1 | sed 's/GLIBCXX_//')"
 MAX_GLIBC="${MAX_GLIBC:-${host_glibc:-2.38}}"
 MAX_GLIBCXX="${MAX_GLIBCXX:-${host_glibcxx:-3.4.32}}"
@@ -42,7 +43,7 @@ while IFS= read -r f; do
 done < "${BUILD_DIR}/program_files.txt"
 cp "${BUILD_DIR}/program_files.txt" "${APPDIR}/usr/bin/"
 
-for f in "${APPDIR}/usr/bin"/reeot "${APPDIR}/usr/bin"/*.so; do
+for f in "${APPDIR}/usr/bin/${APP_NAME}" "${APPDIR}/usr/bin"/*.so; do
     if ldd "${f}" | grep -q "not found"; then
         ldd "${f}" | grep "not found" >&2
         echo "[FAILED] unresolved runtime dependencies of $(basename "${f}")" >&2
@@ -83,21 +84,21 @@ done
 cat > "${APPDIR}/AppRun" <<'APPRUN'
 HERE="$(dirname "$(readlink -f "$0")")"
 export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$HERE/usr/bin/reeot" "$@"
+exec "$HERE/usr/bin/EdgeOfTimeRecomp" "$@"
 APPRUN
 chmod +x "${APPDIR}/AppRun"
 
-cat > "${APPDIR}/reeot.desktop" <<'DESKTOP'
+cat > "${APPDIR}/${APP_NAME}.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
-Name=reeot
+Name=EdgeOfTimeRecomp
 Comment=Spider-Man: Edge of Time, recompiled for PC
-Exec=reeot
-Icon=reeot
+Exec=EdgeOfTimeRecomp
+Icon=EdgeOfTimeRecomp
 Terminal=false
 Categories=Game;
 DESKTOP
-cp res/icon/reeot_icon.png "${APPDIR}/reeot.png"
+cp res/icon/reeot_icon.png "${APPDIR}/${APP_NAME}.png"
 cp res/icon/reeot_icon.png "${APPDIR}/.DirIcon"
 
 tool_dir="${XDG_CACHE_HOME:-$HOME/.cache}/reeot"
@@ -112,11 +113,11 @@ fi
 export APPIMAGE_EXTRACT_AND_RUN=1
 
 mkdir -p dist
-rm -f dist/reeot-*.AppImage
+rm -f dist/"${APP_NAME}"-*.AppImage
 ARCH="${APPIMAGE_ARCH}" "${tool}" "${APPDIR}" "dist/${OUT_FILE}"
 
 if [ -d "${DOWNLOADS}" ]; then
-    rm -f "${DOWNLOADS}"/reeot-*.AppImage
+    rm -f "${DOWNLOADS}"/"${APP_NAME}"-*.AppImage
     cp "dist/${OUT_FILE}" "${DOWNLOADS}/"
     echo "Packaged dist/${OUT_FILE} ($(du -m "dist/${OUT_FILE}" | cut -f1) MB), copied to ${DOWNLOADS}"
 else
