@@ -148,6 +148,6 @@ def main(paths):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(__doc__)
+        print("usage: vram_report.py <log> [<log> ...]")
         sys.exit(1)
     main(sys.argv[1:])

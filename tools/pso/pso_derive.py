@@ -702,7 +702,7 @@ def write_set(path, inc, cores, decls, vcores, vkeys, packages, shadows, out_row
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap = argparse.ArgumentParser(description="Derive the pipeline set from the paks and the captures.")
     ap.add_argument("captures", nargs="*", help="extra capture files or folders")
     ap.add_argument("--paks", default=str(DEFAULT_PAKS))
     ap.add_argument("-o", "--out", default=str(DEFAULT_OUT))

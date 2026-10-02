@@ -90,7 +90,7 @@ def build_sheet(icons, cell, net):
 
 def main():
     if len(sys.argv) != 3:
-        sys.exit(__doc__)
+        sys.exit("usage: make_ach_icons.py <icons dir> <out dir>")
     icons_dir, out_dir = sys.argv[1], sys.argv[2]
 
     icons = []

@@ -154,7 +154,7 @@ def main(src, out, preview=None, extract=EXTRACT):
 
 if __name__ == "__main__":
     if len(sys.argv) > 5:
-        sys.exit(__doc__)
+        sys.exit("usage: make_suit_textures.py [<remasted dir> [<suits dir> [<preview dir> [<retail extract>]]]]")
     src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "res", "textures", "remasted", "remasted")
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "res", "textures", "suits")
     main(src, out, sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None,

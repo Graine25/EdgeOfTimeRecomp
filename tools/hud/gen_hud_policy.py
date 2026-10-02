@@ -21,7 +21,7 @@ POLICY = {
 
 def main():
     if len(sys.argv) != 3:
-        print(__doc__, file=sys.stderr)
+        print("usage: gen_hud_policy.py <eot_hud_aspect.toml> <out.inc>", file=sys.stderr)
         return 2
     src, dst = sys.argv[1], sys.argv[2]
 

@@ -47,7 +47,7 @@ def is_info_frame(data, offset, length):
 
 def main():
     if len(sys.argv) not in (4, 5):
-        sys.exit(__doc__)
+        sys.exit("usage: clip_mp3.py <in.mp3> <out.mp3> <start seconds> [end seconds]")
     source, out, start = sys.argv[1], sys.argv[2], float(sys.argv[3])
     end = float(sys.argv[4]) if len(sys.argv) == 5 else None
     data = open(source, "rb").read()

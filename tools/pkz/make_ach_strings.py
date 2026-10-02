@@ -22,7 +22,7 @@ def parse(text):
 
 def main():
     if len(sys.argv) != 3:
-        sys.exit(__doc__)
+        sys.exit("usage: make_ach_strings.py <achievements.toml> <out.txt>")
     source, destination = sys.argv[1], sys.argv[2]
     entries = parse(open(source, encoding="utf-8").read())
     if not entries:

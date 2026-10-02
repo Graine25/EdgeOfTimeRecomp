@@ -59,7 +59,7 @@ def load_subset(path):
 
 def main():
     if len(sys.argv) != 4:
-        sys.exit(__doc__)
+        sys.exit("usage: make_strings.py <strings.toml> <out dir> <basename>")
     source, out_dir, basename = sys.argv[1:]
     tables = load(source)
     if "en" not in tables:
