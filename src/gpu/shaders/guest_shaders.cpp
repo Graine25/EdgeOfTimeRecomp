@@ -52,6 +52,89 @@ std::string GuestEntryPoint(const u8 *bytes, size_t size) {
 #endif
 }
 
+#if defined(EOT_MVK)
+void StrictMathForMetal(std::vector<u8> &spirv) {
+  constexpr u32 kOpExtension = 10;
+  constexpr u32 kOpEntryPoint = 15;
+  constexpr u32 kOpExecutionMode = 16;
+  constexpr u32 kOpCapability = 17;
+  constexpr u32 kOpDecorate = 71;
+  constexpr u32 kDecorationNoContraction = 42;
+  constexpr u32 kCapabilitySignedZeroInfNanPreserve = 4466;
+  constexpr u32 kExecutionModeSignedZeroInfNanPreserve = 4461;
+  constexpr u32 kSpirv14 = 0x00010400;
+  static constexpr char kExtension[] = "SPV_KHR_float_controls";
+
+  if (spirv.size() < 20 || spirv.size() % 4)
+    return;
+  std::vector<u32> in(spirv.size() / 4);
+  std::memcpy(in.data(), spirv.data(), spirv.size());
+  const auto is_no_contraction = [&](size_t i, u32 opcode, u32 length) {
+    return opcode == kOpDecorate && length == 3 && in[i + 2] == kDecorationNoContraction;
+  };
+
+  bool no_contraction = false;
+  bool has_capability = false;
+  std::vector<u32> entries;
+  for (size_t i = 5; i < in.size();) {
+    const u32 opcode = in[i] & 0xFFFFu;
+    const u32 length = in[i] >> 16;
+    if (length == 0 || i + length > in.size())
+      return;
+    if (is_no_contraction(i, opcode, length))
+      no_contraction = true;
+    else if (opcode == kOpCapability && in[i + 1] == kCapabilitySignedZeroInfNanPreserve)
+      has_capability = true;
+    else if (opcode == kOpEntryPoint && length >= 3)
+      entries.push_back(in[i + 2]);
+    else if (opcode == kOpExecutionMode && length >= 3 && in[i + 2] == kExecutionModeSignedZeroInfNanPreserve)
+      return;
+    i += length;
+  }
+  if (!no_contraction || entries.empty())
+    return;
+
+  std::vector<u32> out(in.begin(), in.begin() + 5);
+  out.reserve(in.size() + 16);
+  bool past_capabilities = false;
+  bool past_entries = false;
+  bool seen_entry = false;
+  for (size_t i = 5; i < in.size();) {
+    const u32 opcode = in[i] & 0xFFFFu;
+    const u32 length = in[i] >> 16;
+    if (!past_capabilities && opcode != kOpCapability) {
+      past_capabilities = true;
+      if (!has_capability) {
+        out.push_back((2u << 16) | kOpCapability);
+        out.push_back(kCapabilitySignedZeroInfNanPreserve);
+      }
+      if (in[1] < kSpirv14) {
+        u32 name[(sizeof(kExtension) + 3) / 4] = {};
+        std::memcpy(name, kExtension, sizeof(kExtension));
+        out.push_back((u32(1 + std::size(name)) << 16) | kOpExtension);
+        out.insert(out.end(), std::begin(name), std::end(name));
+      }
+    }
+    if (seen_entry && !past_entries && opcode != kOpEntryPoint) {
+      past_entries = true;
+      for (const u32 entry : entries) {
+        out.push_back((4u << 16) | kOpExecutionMode);
+        out.push_back(entry);
+        out.push_back(kExecutionModeSignedZeroInfNanPreserve);
+        out.push_back(32);
+      }
+    }
+    if (opcode == kOpEntryPoint)
+      seen_entry = true;
+    if (!is_no_contraction(i, opcode, length))
+      out.insert(out.end(), in.begin() + i, in.begin() + i + length);
+    i += length;
+  }
+  spirv.resize(out.size() * 4);
+  std::memcpy(spirv.data(), out.data(), spirv.size());
+}
+#endif
+
 struct CacheState {
   std::vector<u8> blob;
   std::unordered_map<u64, const ShaderCacheEntry *> by_hash;
@@ -437,6 +520,9 @@ plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask,
       EOT_ERROR("[shaders] SMOL-V decode failed for {:016x} ({} bytes)", hash, size);
       decoded.clear();
     }
+#if defined(EOT_MVK)
+    StrictMathForMetal(decoded);
+#endif
     bytes = decoded.data();
     size = static_cast<u32>(decoded.size());
   }

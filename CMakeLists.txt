@@ -249,7 +249,6 @@ set(REEOT_SOURCES
     src/gpu/patches/aspect_ratio.cpp
     src/gpu/patches/post_effects.cpp
     src/goliath/controller/pad_remap.cpp
-    src/goliath/audio/positional_audio.cpp
     src/goliath/controller/bind_capture.cpp
     src/goliath/ui/achievement_feed.cpp
     src/goliath/controller/button_glyphs.cpp
