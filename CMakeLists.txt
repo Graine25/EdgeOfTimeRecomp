@@ -499,6 +499,7 @@ elseif(APPLE)
         "-framework QuartzCore"
         "-framework Metal"
         "-framework Foundation"
+        "-framework CoreFoundation"
         "-framework IOKit"
         "-framework IOSurface"
         "-framework CoreGraphics")
