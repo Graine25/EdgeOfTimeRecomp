@@ -135,10 +135,12 @@ def read_set_captures(path):
     return out
 
 
-def load_captures(inputs, masks, previous=None):
+def load_captures(inputs, masks, previous=None, room_ids=None):
     files = [p for p in collect_inputs(inputs) if is_capture(p) or p.name.startswith("eot_pipelines")]
     rows = {}
     sources = [(str(f), read_rows(f)[1]) for f in files]
+    room_sessions = {src for src, rs in sources if room_ids is None or any(
+        int(t, 16) in room_ids for r in rs for t in (r.get("package") or "").split("|") if t)}
     if previous:
         sources.append(("set", read_set_captures(previous)))
     stale = set()
@@ -162,7 +164,7 @@ def load_captures(inputs, masks, previous=None):
             if src == "set":
                 m = re.match(r"msaa(\d+)$", r.get("session") or "")
                 row.msaa_prev = max(row.msaa_prev, int(m.group(1)) if m else 0)
-            elif int(r.get("msaa") or 0):
+            elif int(r.get("msaa") or 0) and src in room_sessions:
                 row.msaa_files.add(src)
     if stale:
         print(f"[derive] {len(stale)} shader pair(s) not in the shader cache: their rows are dropped",
@@ -693,7 +695,8 @@ def main():
     names = {pid: v[0] for pid, v in directory.items()}
     pak_ids = {v[0]: pid for pid, v in directory.items()}
     masks = load_shader_masks(DEFAULT_SHADER_CACHE)
-    rows, nfiles = load_captures([*DEFAULT_CAPTURES, *args.captures], masks, args.out)
+    rooms = {pid for pid, (name, _) in directory.items() if is_level(name) and name not in BOOT_PACKAGES}
+    rows, nfiles = load_captures([*DEFAULT_CAPTURES, *args.captures], masks, args.out, rooms)
     keys = ShaderKeys(index, directory)
     label(rows, index, directory, keys)
     material = [r for r in rows if r.hits]
