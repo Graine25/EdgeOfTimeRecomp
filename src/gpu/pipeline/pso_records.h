@@ -15,6 +15,7 @@ constexpr u32 kPsoCsvVersion = 5;
 
 constexpr const char *kPsoDir = "pso";
 constexpr u32 kPsoHoldMaxMs = 8000;
+constexpr u32 kPsoEvictAfterMs = 60000;
 constexpr u32 kPsoMaxThreads = 8;
 constexpr u32 kPsoMinThreads = 1;
 

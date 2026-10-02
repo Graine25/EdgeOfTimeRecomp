@@ -71,6 +71,8 @@ struct Loading {
   std::atomic<u32> levelPackage{0};
   std::unordered_set<u16> resident;
   std::unordered_set<u16> loaded;
+  std::unordered_map<u16, std::chrono::steady_clock::time_point> departed;
+  std::chrono::steady_clock::time_point lastEvictCheck{};
   std::vector<u32> casterRows;
   std::vector<PsoShadowValue> shadowValues;
   u64 screenSinceFrame = 0;
@@ -618,6 +620,7 @@ void PsoCacheOnPackageLoad(u32 id, bool level) {
       stack.pop_back();
       if (!l.resident.insert(p).second)
         continue;
+      l.departed.erase(p);
       fresh.push_back(p);
       if (const PsoSetPackage *pk = package(p))
         stack.insert(stack.end(), pk->parents.begin(), pk->parents.end());
@@ -722,7 +725,7 @@ void PsoCacheOnPackageLoad(u32 id, bool level) {
   });
 }
 
-static void EvictUnusedPipelines(u32 unloaded, const std::unordered_set<u16> &resident) {
+static void EvictUnusedPipelines(const std::vector<u16> &gone, const std::unordered_set<u16> &resident) {
   std::vector<u64> keys;
   {
     auto &o = owners();
@@ -764,9 +767,8 @@ static void EvictUnusedPipelines(u32 unloaded, const std::unordered_set<u16> &re
     std::lock_guard lock(l.mutex);
     l.evicted += static_cast<u32>(n);
   }
-  EOT_DEBUG("[pso] package {:#x} unloaded: {} unused pipeline(s) of packages no longer resident "
-            "released ({} candidate keys)",
-            unloaded, n, keys.size());
+  EOT_DEBUG("[pso] {} package(s) gone {} s: {} unused pipeline(s) released ({} candidate keys)",
+            gone.size(), kPsoEvictAfterMs / 1000, n, keys.size());
 }
 
 void PsoCacheOnPackageUnload(u32 id) {
@@ -799,9 +801,43 @@ void PsoCacheOnPackageUnload(u32 id) {
           casters.push_back(index);
   EOT_DEBUG("[pso] package {:#x} unloaded: {} package(s) resident (was {}), {} caster row(s)", id,
             resident.size(), l.resident.size(), casters.size());
-  l.resident = resident;
+  const auto now = std::chrono::steady_clock::now();
+  for (const u16 p : l.resident)
+    if (!resident.count(p))
+      l.departed.emplace(p, now);
+  l.resident = std::move(resident);
   l.casterRows = std::move(casters);
-  PostSetJob([id, resident = std::move(resident)] { EvictUnusedPipelines(id, resident); });
+}
+
+static void MaybeEvictDeparted() {
+  auto &l = loading();
+  const auto now = std::chrono::steady_clock::now();
+  std::unordered_set<u16> held;
+  std::vector<u16> gone;
+  {
+    std::lock_guard lock(l.mutex);
+    if (now - l.lastEvictCheck < std::chrono::seconds(10) || l.departed.empty())
+      return;
+    l.lastEvictCheck = now;
+    for (const auto &[p, when] : l.departed)
+      if (now - when >= std::chrono::milliseconds(kPsoEvictAfterMs))
+        gone.push_back(p);
+    if (gone.empty())
+      return;
+    for (const u16 p : gone)
+      l.departed.erase(p);
+    held = l.resident;
+    for (const auto &[p, when] : l.departed)
+      held.insert(p);
+  }
+  const PsoSet &set = CompiledInSet();
+  std::vector<u16> extra;
+  for (const u16 p : held)
+    if (auto it = set.packages.find(p); it != set.packages.end())
+      for (const u16 c : it->second.children)
+        extra.push_back(c);
+  held.insert(extra.begin(), extra.end());
+  PostSetJob([gone, held = std::move(held)] { EvictUnusedPipelines(gone, held); });
 }
 
 void PsoCacheNoteShaderKey(u64 key, u64 hash, bool pixel) {
@@ -975,6 +1011,8 @@ void PipelineCacheCounts(u32 *alive, u32 *used) {
 void PsoCacheFlushIfDirty(bool force) {
   auto &s = state();
   PsoCaptureFlush(force, s.guest_frames);
+  if (!force)
+    MaybeEvictDeparted();
   auto &c = cache();
   if (!force && s.guest_frames < c.lastSummaryFrame + 600)
     return;
