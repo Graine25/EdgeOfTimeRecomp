@@ -1,0 +1,204 @@
+name: Build
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REXGLUE_TAG: nightly-20261002-bd833a2a
+  REXGLUE_VERSION: 0.10.0.24-dev.gbd833a2
+
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win-amd64
+            runner: windows-latest
+            preset: win-amd64-relwithdebinfo
+          - platform: linux-amd64
+            runner: ubuntu-latest
+            preset: linux-amd64-relwithdebinfo
+          - platform: mac-arm64
+            runner: macos-26
+            preset: mac-arm64-relwithdebinfo
+    runs-on: ${{ matrix.runner }}
+    # Same image as the SDK's linux-amd64 nightly, so the glibc floor stays at 2.35.
+    container: ${{ matrix.platform == 'linux-amd64' && fromJSON('{"image":"ubuntu:22.04"}') || fromJSON('null') }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Bootstrap container (linux-amd64)
+        if: matrix.platform == 'linux-amd64'
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl wget gnupg git
+          git config --global --add safe.directory '*'
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Fetch the game kit
+        uses: actions/checkout@v7
+        with:
+          repository: Graine25/assets
+          token: ${{ secrets.ASSETS_TOKEN }}
+          path: kit
+          sparse-checkout: reeot
+          persist-credentials: false
+
+      - name: Verify the game kit
+        working-directory: kit/reeot
+        run: |
+          if command -v sha256sum >/dev/null; then sum=(sha256sum); else sum=(shasum -a 256); fi
+          tr -d '\r' < MANIFEST.sha256 | "${sum[@]}" --quiet -c -
+          cp -R assets/. ../../assets/
+
+      - name: Install toolchain (win-amd64)
+        if: matrix.platform == 'win-amd64'
+        run: choco install llvm cmake ninja -y
+
+      - name: Install toolchain (mac-arm64)
+        if: matrix.platform == 'mac-arm64'
+        run: brew install cmake ninja
+
+      - name: Install toolchain (linux-amd64)
+        if: matrix.platform == 'linux-amd64'
+        run: |
+          apt-get install -y --no-install-recommends software-properties-common lsb-release
+          wget -qO llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          ./llvm.sh 20
+          apt-get install -y clang-20 lld-20
+          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 200
+          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 200
+          update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-20 200
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | tee /etc/apt/trusted.gpg.d/lunarg.asc
+          wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list http://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          wget -qO- https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor -o /usr/share/keyrings/kitware.gpg
+          echo "deb [signed-by=/usr/share/keyrings/kitware.gpg] https://apt.kitware.com/ubuntu/ jammy main" > /etc/apt/sources.list.d/kitware.list
+          apt-get update
+          apt-get install -y cmake ninja-build build-essential g++-13 python3 file binutils \
+            libgtk-3-dev libx11-xcb-dev libxss-dev vulkan-sdk \
+            libwayland-dev libwayland-bin wayland-protocols libxkbcommon-dev libdecor-0-dev \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev
+
+      - name: Fetch the ReXGlue SDK
+        run: |
+          curl -fsSL -o rexglue-sdk.zip \
+            "https://github.com/rexglue/rexglue-sdk/releases/download/${REXGLUE_TAG}/rexglue-sdk-${REXGLUE_VERSION}-${{ matrix.platform }}.zip"
+          mkdir -p .sdk
+          cd .sdk
+          cmake -E tar xf ../rexglue-sdk.zip
+          echo "CMAKE_PREFIX_PATH=$GITHUB_WORKSPACE/.sdk/${{ matrix.platform }}" >> "$GITHUB_ENV"
+
+      - name: Set up sccache
+        uses: hendrikmuhs/ccache-action@v1.2.24
+        with:
+          variant: sccache
+          key: ${{ matrix.platform }}
+          max-size: 3G
+
+      # The recompiled shaders only change with XenosRecomp or the game's shader set.
+      - name: Key the shader cache
+        id: shaders
+        run: |
+          xenos=$(git rev-parse HEAD:thirdparty/XenosRecomp)
+          manifest=$(git -C kit rev-parse HEAD:reeot/MANIFEST.sha256)
+          echo "key=shader-cache-${{ matrix.platform }}-${xenos}-${manifest}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the shader cache
+        id: shader-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: generated/shader_cache.cpp
+          key: ${{ steps.shaders.outputs.key }}
+
+      - name: Configure
+        run: >
+          cmake --preset ${{ matrix.preset }}
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DREEOT_REFERENCE_PAKS="$GITHUB_WORKSPACE/kit/reeot/paks"
+          -DREEOT_SHADER_INPUT_DIR="$GITHUB_WORKSPACE/kit/reeot/shaders"
+
+      - name: Recompile the game's shaders
+        if: steps.shader-cache.outputs.cache-hit != 'true'
+        run: cmake --build --preset ${{ matrix.preset }} --target reeot_shader_cache --parallel
+
+      - name: Save the shader cache
+        if: steps.shader-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: generated/shader_cache.cpp
+          key: ${{ steps.shaders.outputs.key }}
+
+      # A fresh tree only picks up the recompiled sources on the configure after codegen.
+      - name: Generate the recompiled code
+        run: |
+          cmake --build --preset ${{ matrix.preset }} --target reeot_codegen
+          cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }} --parallel -- -k 0
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
+
+      - name: Package (win-amd64)
+        if: matrix.platform == 'win-amd64'
+        shell: pwsh
+        run: |
+          $downloads = Join-Path $env:USERPROFILE 'Downloads'
+          New-Item -ItemType Directory -Force $downloads, dist | Out-Null
+          ./scripts/package.ps1
+          Get-ChildItem $downloads -Filter 'EdgeOfTimeRecomp-v*.zip' |
+            ForEach-Object { Move-Item $_.FullName "dist/$($_.BaseName)-win-amd64.zip" }
+
+      - name: Package (linux-amd64)
+        if: matrix.platform == 'linux-amd64'
+        run: scripts/package-appimage.sh ${{ matrix.preset }}
+
+      - name: Package (mac-arm64)
+        if: matrix.platform == 'mac-arm64'
+        run: scripts/package-macos-app.sh ${{ matrix.preset }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: EdgeOfTimeRecomp-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true

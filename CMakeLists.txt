@@ -25,8 +25,8 @@ set(REEOT_SHADER_COMMON_H
     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/XenosRecomp/XenosRecomp/shader_common.h")
 cmake_path(GET REEOT_SHADER_COMMON_H PARENT_PATH REEOT_SHADER_COMMON_DIR)
 set(REEOT_SHADER_CACHE_CPP "${CMAKE_CURRENT_SOURCE_DIR}/generated/shader_cache.cpp")
-set(REEOT_SHADER_INPUT_DIR
-    "${CMAKE_CURRENT_SOURCE_DIR}/shader_notes/EOT_pak_extracted_shaders/unique")
+set(REEOT_SHADER_INPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders" CACHE PATH
+    "The game's shader containers, one per file, the shader cache is built from")
 
 include(generated/rexglue.cmake)
 # The macOS Vulkan staging in rexglue_setup_target() reads REXGLUE_ROOT.
@@ -201,13 +201,22 @@ add_custom_target(reeot_shader_cache_regen
     COMMENT "Recompiling EOT Xenos shaders into ${REEOT_SHADER_CACHE_CPP}"
     USES_TERMINAL VERBATIM)
 
-if(NOT EXISTS "${REEOT_SHADER_CACHE_CPP}")
-    message(WARNING
-        "${REEOT_SHADER_CACHE_CPP} is missing: build the reeot_shader_cache_regen "
-        "target first (it takes ~10 minutes), then reconfigure.")
-    add_library(reeot_shader_cache OBJECT src/gpu/shaders/shader_cache_empty.cpp)
-else()
+if(EXISTS "${REEOT_SHADER_CACHE_CPP}")
     add_library(reeot_shader_cache OBJECT "${REEOT_SHADER_CACHE_CPP}")
+elseif(IS_DIRECTORY "${REEOT_SHADER_INPUT_DIR}")
+    add_custom_command(
+        OUTPUT "${REEOT_SHADER_CACHE_CPP}"
+        COMMAND $<TARGET_FILE:XenosRecomp>
+                "${REEOT_SHADER_INPUT_DIR}" "${REEOT_SHADER_CACHE_CPP}" "${REEOT_SHADER_COMMON_H}"
+        DEPENDS XenosRecomp "${REEOT_SHADER_COMMON_H}"
+        COMMENT "Recompiling the game's shaders into ${REEOT_SHADER_CACHE_CPP}"
+        USES_TERMINAL VERBATIM)
+    add_library(reeot_shader_cache OBJECT "${REEOT_SHADER_CACHE_CPP}")
+else()
+    message(WARNING
+        "${REEOT_SHADER_CACHE_CPP} is missing and ${REEOT_SHADER_INPUT_DIR} holds no shaders: "
+        "the game will draw nothing.")
+    add_library(reeot_shader_cache OBJECT src/gpu/shaders/shader_cache_empty.cpp)
 endif()
 target_include_directories(reeot_shader_cache PRIVATE src/gpu/shaders)
 target_compile_options(reeot_shader_cache PRIVATE -O0 -w)
