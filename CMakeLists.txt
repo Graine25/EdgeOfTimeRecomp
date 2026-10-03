@@ -89,14 +89,32 @@ add_custom_command(
             ${REEOT_MENU_STRINGS}
     COMMENT "Authoring ReeotMenu.pkz from tools/pkz/ReeotMenu.manifest"
     VERBATIM)
+set(REEOT_XEX "${CMAKE_CURRENT_SOURCE_DIR}/assets/Default.xex")
+set(REEOT_ACH_DUMP "${REEOT_MENU_STRINGS_DIR}/achievements")
+add_custom_command(
+    OUTPUT "${REEOT_ACH_DUMP}/achievements.toml"
+    COMMAND $<TARGET_FILE:rex::rexglue> init --project-name reeot --xex-path "${REEOT_XEX}"
+            achievements "${REEOT_XEX}" "${REEOT_ACH_DUMP}"
+    DEPENDS "${REEOT_XEX}"
+    COMMENT "Extracting the achievements and their icons from Default.xex"
+    VERBATIM)
 set(REEOT_ACH_STRINGS "${REEOT_MENU_STRINGS_DIR}/reeot_ach_strings.txt")
 add_custom_command(
     OUTPUT "${REEOT_ACH_STRINGS}"
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_ach_strings.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/embed/metadata/achievements.toml" "${REEOT_ACH_STRINGS}"
+            "${REEOT_ACH_DUMP}/achievements.toml" "${REEOT_ACH_STRINGS}"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_ach_strings.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/embed/metadata/achievements.toml"
+            "${REEOT_ACH_DUMP}/achievements.toml"
     COMMENT "Writing the achievement strings from the rexglue dump"
+    VERBATIM)
+set(REEOT_ACH_ICONS "${REEOT_MENU_STRINGS_DIR}/achievement_icons_64.png")
+add_custom_command(
+    OUTPUT "${REEOT_ACH_ICONS}"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_ach_icons.py"
+            "${REEOT_ACH_DUMP}/icons" "${REEOT_ACH_ICONS}"
+    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/make_ach_icons.py"
+            "${REEOT_ACH_DUMP}/achievements.toml"
+    COMMENT "Building the achievement icon sheet from the rexglue dump"
     VERBATIM)
 set(REEOT_ACH_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotAchievements.pkz")
 add_custom_command(
@@ -107,7 +125,8 @@ add_custom_command(
     DEPENDS pkztool
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/pkz/ReeotAchievements.manifest"
             "${REEOT_ACH_STRINGS}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/achievement_icons_64.png"
+            "${REEOT_ACH_ICONS}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/Reeot_Ach_Toast.dds"
     COMMENT "Authoring ReeotAchievements.pkz from tools/pkz/ReeotAchievements.manifest"
     VERBATIM)
 set(REEOT_ICONS_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotIcons.pkz")

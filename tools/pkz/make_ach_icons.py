@@ -1,98 +1,154 @@
-import glob
+import math
 import os
+import struct
 import sys
-
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+import zlib
 
 COLUMNS = 8
 ROWS = 6
-THUMBNAIL_CELL = 64
-PANEL_CELL = 256
-MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+CELL = 64
+SUBSAMPLES = 4
+PLATE_FILL = (14, 16, 26, 236)
+PLATE_EDGE = (126, 136, 172, 255)
+GLYPH = (158, 168, 208, 255)
 
 
-def load_model():
-    import cv2
-
-    models = sorted(glob.glob(os.path.join(MODEL_DIR, "*.onnx")))
-    if not models:
-        print("  no model in tools/pkz/models; upscaling with Lanczos + unsharp")
-        return None
-    try:
-        net = cv2.dnn.readNetFromONNX(models[0])
-    except Exception as error:
-        print(f"  {os.path.basename(models[0])} would not load ({error}); falling back to Lanczos")
-        return None
-    print(f"  upscaling with {os.path.basename(models[0])}")
-    return net
-
-
-def run_model(net, rgb, size):
-    import cv2
-
-    while rgb.shape[0] < size:
-        net.setInput(cv2.dnn.blobFromImage(rgb, scalefactor=1.0 / 255.0, swapRB=False))
-        out = net.forward()[0].transpose(1, 2, 0)
-        grown = np.clip(out * 255.0, 0, 255).astype(np.uint8)
-        if grown.shape[0] <= rgb.shape[0]:
+def read_png(path):
+    data = open(path, "rb").read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError(f"{path}: not a PNG")
+    pos, idat, palette, alpha = 8, b"", None, None
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if kind == b"IHDR":
+            width, height, depth, colour, _, _, interlace = struct.unpack(">IIBBBBB", body)
+        elif kind == b"PLTE":
+            palette = [tuple(body[i:i + 3]) for i in range(0, len(body), 3)]
+        elif kind == b"tRNS":
+            alpha = body
+        elif kind == b"IDAT":
+            idat += body
+        elif kind == b"IEND":
             break
-        rgb = grown
-    if rgb.shape[0] != size:
-        rgb = cv2.resize(rgb, (size, size), interpolation=cv2.INTER_LANCZOS4)
-    return rgb
+    if depth != 8 or interlace:
+        raise ValueError(f"{path}: only 8-bit, non-interlaced PNGs are read")
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[colour]
+    raw = zlib.decompress(idat)
+    stride = width * channels
+    rows, previous, at = [], bytearray(stride), 0
+    for _ in range(height):
+        kind, line = raw[at], bytearray(raw[at + 1:at + 1 + stride])
+        at += 1 + stride
+        for i in range(stride):
+            left = line[i - channels] if i >= channels else 0
+            up = previous[i]
+            corner = previous[i - channels] if i >= channels else 0
+            if kind == 1:
+                line[i] = (line[i] + left) & 0xFF
+            elif kind == 2:
+                line[i] = (line[i] + up) & 0xFF
+            elif kind == 3:
+                line[i] = (line[i] + ((left + up) >> 1)) & 0xFF
+            elif kind == 4:
+                guess = left + up - corner
+                pa, pb, pc = abs(guess - left), abs(guess - up), abs(guess - corner)
+                line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 0xFF
+        rows.append(line)
+        previous = line
+    pixels = []
+    for line in rows:
+        for x in range(width):
+            p = line[x * channels:(x + 1) * channels]
+            if colour == 6:
+                pixels.append(tuple(p))
+            elif colour == 2:
+                pixels.append((p[0], p[1], p[2], 255))
+            elif colour == 4:
+                pixels.append((p[0], p[0], p[0], p[1]))
+            elif colour == 0:
+                pixels.append((p[0], p[0], p[0], 255))
+            else:
+                r, g, b = palette[p[0]]
+                pixels.append((r, g, b, alpha[p[0]] if alpha and p[0] < len(alpha) else 255))
+    return width, height, pixels
 
 
-def run_lanczos(rgb, size):
-    import cv2
+def write_png(path, width, height, pixels):
+    rows = b"".join(b"\x00" + bytes(c for p in pixels[y * width:(y + 1) * width] for c in p) for y in range(height))
 
-    big = cv2.resize(rgb, (size, size), interpolation=cv2.INTER_LANCZOS4)
-    blurred = cv2.GaussianBlur(big, (0, 0), sigmaX=size / float(THUMBNAIL_CELL))
-    return cv2.addWeighted(big, 1.55, blurred, -0.55, 0)
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
 
-
-def upscale(net, image, size):
-    import cv2
-
-    rgba = np.array(image.convert("RGBA"))
-    colour = run_model(net, rgba[:, :, :3], size) if net is not None else run_lanczos(rgba[:, :, :3], size)
-    alpha = cv2.resize(rgba[:, :, 3], (size, size), interpolation=cv2.INTER_LANCZOS4)
-    return Image.fromarray(np.dstack([colour, alpha]).astype(np.uint8), "RGBA")
+    with open(path, "wb") as out:
+        out.write(b"\x89PNG\r\n\x1a\n")
+        out.write(chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)))
+        out.write(chunk(b"IDAT", zlib.compress(rows, 9)))
+        out.write(chunk(b"IEND", b""))
 
 
-def secret_plate(size):
-    plate = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(plate)
-    inset = size // 10
-    draw.rounded_rectangle([inset, inset, size - inset, size - inset], radius=size // 9,
-                           fill=(14, 16, 26, 236), outline=(126, 136, 172, 255),
-                           width=max(1, size // 28))
-    try:
-        font = ImageFont.truetype("arialbd.ttf", int(size * 0.58))
-    except OSError:
-        font = ImageFont.load_default(int(size * 0.58))
-    box = draw.textbbox((0, 0), "?", font=font)
-    draw.text(((size - box[2] - box[0]) / 2, (size - box[3] - box[1]) / 2), "?",
-              fill=(158, 168, 208, 255), font=font)
-    return plate
+def resize(width, height, pixels, size):
+    if width == size and height == size:
+        return pixels
+    out = []
+    for y in range(size):
+        for x in range(size):
+            out.append(pixels[(y * height // size) * width + x * width // size])
+    return out
 
 
-def build_sheet(icons, cell, net):
-    sheet = Image.new("RGBA", (COLUMNS * cell, ROWS * cell), (0, 0, 0, 0))
-    for slot, path in enumerate(icons):
-        image = Image.open(path)
-        image = image.convert("RGBA") if image.width == cell else upscale(net, image, cell)
-        sheet.paste(image, ((slot % COLUMNS) * cell, (slot // COLUMNS) * cell))
-    last = COLUMNS * ROWS - 1
-    sheet.paste(secret_plate(cell), ((last % COLUMNS) * cell, (last // COLUMNS) * cell))
-    return sheet
+def rounded_box_distance(x, y, low, high, radius):
+    cx, cy = (low + high) / 2.0, (low + high) / 2.0
+    half = (high - low) / 2.0 - radius
+    qx, qy = abs(x - cx) - half, abs(y - cy) - half
+    return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - radius
+
+
+def in_glyph(x, y):
+    cx, cy, outer, thickness = 32.0, 24.0, 10.0, 5.0
+    inner = outer - thickness
+    distance = math.hypot(x - cx, y - cy)
+    angle = math.degrees(math.atan2(cy - y, x - cx))
+    if inner <= distance <= outer and (angle >= -90.0 or angle <= -160.0):
+        return True
+    middle = outer - thickness / 2.0
+    if abs(x - cx) <= thickness / 2.0 and cy + middle - 2.0 <= y <= cy + middle + 7.5:
+        return True
+    return math.hypot(x - cx, y - 45.5) <= 3.3
+
+
+def secret_plate():
+    inset, radius, edge = CELL // 10, CELL // 9, max(1, CELL // 28)
+    pixels = []
+    for y in range(CELL):
+        for x in range(CELL):
+            total = [0.0, 0.0, 0.0, 0.0]
+            for sy in range(SUBSAMPLES):
+                for sx in range(SUBSAMPLES):
+                    px, py = x + (sx + 0.5) / SUBSAMPLES, y + (sy + 0.5) / SUBSAMPLES
+                    distance = rounded_box_distance(px, py, inset, CELL - inset, radius)
+                    if distance > 0.0:
+                        continue
+                    colour = GLYPH if in_glyph(px, py) else PLATE_EDGE if distance > -edge else PLATE_FILL
+                    a = colour[3] / 255.0
+                    total[0] += colour[0] * a
+                    total[1] += colour[1] * a
+                    total[2] += colour[2] * a
+                    total[3] += a
+            count = SUBSAMPLES * SUBSAMPLES
+            a = total[3] / count
+            if a <= 0.0:
+                pixels.append((0, 0, 0, 0))
+                continue
+            pixels.append(tuple(round(total[i] / total[3]) for i in range(3)) + (round(a * 255),))
+    return pixels
 
 
 def main():
     if len(sys.argv) != 3:
-        sys.exit("usage: make_ach_icons.py <icons dir> <out dir>")
-    icons_dir, out_dir = sys.argv[1], sys.argv[2]
-
+        sys.exit("usage: make_ach_icons.py <icons dir> <out.png>")
+    icons_dir, destination = sys.argv[1], sys.argv[2]
     icons = []
     for image_id in range(1, COLUMNS * ROWS):
         path = os.path.join(icons_dir, f"{image_id}.png")
@@ -101,17 +157,21 @@ def main():
         icons.append(path)
     if not icons:
         sys.exit(f"no <image_id>.png icons in {icons_dir}")
+    width, height = COLUMNS * CELL, ROWS * CELL
+    sheet = [(0, 0, 0, 0)] * (width * height)
 
-    os.makedirs(out_dir, exist_ok=True)
-    thumbnails = os.path.join(out_dir, "achievement_icons_64.png")
-    panel = os.path.join(out_dir, "achievement_icons_4x.dds")
+    def paste(slot, pixels):
+        ox, oy = (slot % COLUMNS) * CELL, (slot // COLUMNS) * CELL
+        for y in range(CELL):
+            sheet[(oy + y) * width + ox:(oy + y) * width + ox + CELL] = pixels[y * CELL:(y + 1) * CELL]
 
-    build_sheet(icons, THUMBNAIL_CELL, None).save(thumbnails)
-    build_sheet(icons, PANEL_CELL, load_model()).save(panel, format="DDS", pixel_format="DXT5")
-    for path, cell in ((thumbnails, THUMBNAIL_CELL), (panel, PANEL_CELL)):
-        print(f"  {os.path.basename(path):22} {COLUMNS * cell}x{ROWS * cell}"
-              f"  {len(icons)} icons + the secret plate at cell {COLUMNS * ROWS}"
-              f"  {os.path.getsize(path) / 1024.0:.0f} KiB")
+    for slot, path in enumerate(icons):
+        w, h, pixels = read_png(path)
+        paste(slot, resize(w, h, pixels, CELL))
+    paste(COLUMNS * ROWS - 1, secret_plate())
+    os.makedirs(os.path.dirname(os.path.abspath(destination)), exist_ok=True)
+    write_png(destination, width, height, sheet)
+    print(f"{destination}: {width}x{height}, {len(icons)} icons and the secret plate")
 
 
 if __name__ == "__main__":

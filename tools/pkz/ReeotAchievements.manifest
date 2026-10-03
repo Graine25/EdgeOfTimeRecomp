@@ -1,7 +1,7 @@
 package 0x7EC ReeotAchievements
 languages 1 2 5 3 4
 strings generated/reeot_ach_strings.txt ReeotAchievements
-texture Reeot_Ach_Icons png ../../res/textures/achievement_icons_64.png
+texture Reeot_Ach_Icons png generated/achievement_icons_64.png
 texture Reeot_Ach_Row_Tex from WebOfSkills.pkz Menu_Upgrades_Slot_Selected_DA[Hi]
 texture Reeot_Ach_Details_Tex from WebOfSkills.pkz Menu_WOSDialogueBox_DA[Hi]
 texture Reeot_Ach_IconBox_Tex from WebOfSkills.pkz Menu_WOSBG_Video_DA[Hi]
