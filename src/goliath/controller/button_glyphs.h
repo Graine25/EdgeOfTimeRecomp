@@ -18,3 +18,11 @@ bool BarShowsPrompts();
 std::string_view ActiveGlyphSet();
 
 }
+
+namespace eot::goliath {
+
+void SetWidePromptSheets(uint32_t first, uint32_t second);
+
+void MashPromptDrawRecord(uint32_t object, uint32_t record);
+
+}

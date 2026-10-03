@@ -17,7 +17,7 @@
 #include "goliath/controller/mouse_input.h"
 #include "core/memory_helpers.h"
 #include "gpu/patches/aspect_ratio.h"
-#include "goliath/mash_prompt.h"
+#include "goliath/controller/button_glyphs.h"
 
 REXCVAR_DEFINE_STRING(eot_ui_aspect, "lock", "EdgeOfTime/Config", "HUD layout on ultrawide")
     .allowed({"lock", "stretch"});
