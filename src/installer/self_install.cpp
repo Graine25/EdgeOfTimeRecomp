@@ -106,10 +106,6 @@ void WritePortFiles(const fs::path &game) {
     if (fs::is_regular_file(stale, stale_ec) && fs::remove(stale, stale_ec))
       EOT_INFO("[install] removed the old {}", stale.string());
   }
-  constexpr std::string_view kMetadata = "metadata";
-  const fs::path metadata = game.parent_path() / std::string(kMetadata);
-  for (const EmbeddedAsset &asset : EmbeddedGroup(kMetadata))
-    WriteAsset(asset, metadata / std::string(asset.name.substr(kMetadata.size() + 1)), written);
   if (written)
     EOT_INFO("[install] {} port file(s) written for {}", written, game.string());
 }

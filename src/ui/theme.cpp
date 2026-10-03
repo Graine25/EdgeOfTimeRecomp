@@ -7,7 +7,7 @@ namespace eot::ui {
 void Theme::LoadFonts(ImFontAtlas *atlas) {
   ImFontConfig cfg;
   cfg.FontDataOwnedByAtlas = false;
-  constexpr auto kFont = eot::Embedded("installer/HelveticaNeueRoman.otf");
+  constexpr auto kFont = eot::Embedded("fonts/HelveticaNeueRoman.otf");
   atlas->AddFontFromMemoryTTF(const_cast<uint8_t *>(kFont.data), static_cast<int>(kFont.size), 18.0f, &cfg);
 }
 

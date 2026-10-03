@@ -218,7 +218,7 @@ void InitInstallerFonts(ImFontAtlas *atlas) {
   cfg.OversampleH = 2;
   cfg.OversampleV = 2;
   auto load = [&](float px) {
-    constexpr auto kFont = eot::Embedded("installer/HelveticaNeueRoman.otf");
+    constexpr auto kFont = eot::Embedded("fonts/HelveticaNeueRoman.otf");
     return atlas->AddFontFromMemoryTTF(const_cast<uint8_t *>(kFont.data), static_cast<int>(kFont.size), px,
                                        &cfg);
   };

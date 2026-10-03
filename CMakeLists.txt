@@ -67,8 +67,8 @@ add_custom_command(
             "${REEOT_PKZ_DATA}/strings/ui.txt"
             "${REEOT_PKZ_DATA}/strings/TempusGothic_cyrillic.txt"
             "${REEOT_PKZ_DATA}/strings/SansaCon_cyrillic.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/TempusGothic_texture_0.dds"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/SteelworksBook_texture_0.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/fonts/TempusGothic_texture_0.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/fonts/SteelworksBook_texture_0.dds"
     COMMENT "Authoring ReeotUI.pkz from pkzlib/ReeotUI.manifest"
     VERBATIM)
 set(REEOT_MENU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotMenu.pkz")
@@ -82,14 +82,31 @@ add_custom_command(
             "${REEOT_PKZ_DATA}/strings/menu.txt"
     COMMENT "Authoring ReeotMenu.pkz from pkzlib/ReeotMenu.manifest"
     VERBATIM)
+set(REEOT_XEX "${CMAKE_CURRENT_SOURCE_DIR}/assets/Default.xex")
+set(REEOT_ACH_DUMP "${REEOT_PKZ_DATA}/generated/achievements")
+add_custom_command(
+    OUTPUT "${REEOT_ACH_DUMP}/achievements.toml"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${REEOT_ACH_DUMP}"
+    COMMAND $<TARGET_FILE:rex::rexglue> init --project-name reeot --xex-path "${REEOT_XEX}"
+            achievements "${REEOT_XEX}" "${REEOT_ACH_DUMP}"
+    DEPENDS "${REEOT_XEX}"
+    COMMENT "Extracting the achievements and their icons from Default.xex"
+    VERBATIM)
 set(REEOT_ACH_STRINGS "${REEOT_PKZ_DATA}/generated/reeot_ach_strings.txt")
 add_custom_command(
     OUTPUT "${REEOT_ACH_STRINGS}"
-    COMMAND pkzprep achievements "${CMAKE_CURRENT_SOURCE_DIR}/res/embed/metadata/achievements.toml" REEOT_ACH_
+    COMMAND pkzprep achievements "${REEOT_ACH_DUMP}/achievements.toml" REEOT_ACH_
             "${REEOT_PKZ_DATA}/strings/achievements.txt" "${REEOT_ACH_STRINGS}"
-    DEPENDS pkzprep "${CMAKE_CURRENT_SOURCE_DIR}/res/embed/metadata/achievements.toml"
-            "${REEOT_PKZ_DATA}/strings/achievements.txt"
+    DEPENDS pkzprep "${REEOT_ACH_DUMP}/achievements.toml" "${REEOT_PKZ_DATA}/strings/achievements.txt"
     COMMENT "Writing the achievement strings from the rexglue dump"
+    VERBATIM)
+set(REEOT_ACH_ICONS "${REEOT_PKZ_DATA}/generated/achievement_icons_64.png")
+add_custom_command(
+    OUTPUT "${REEOT_ACH_ICONS}"
+    COMMAND pkzprep achicons "${REEOT_ACH_DUMP}/icons" "${REEOT_PKZ_DATA}/achievements/secret_plate.png"
+            "${REEOT_ACH_ICONS}"
+    DEPENDS pkzprep "${REEOT_ACH_DUMP}/achievements.toml" "${REEOT_PKZ_DATA}/achievements/secret_plate.png"
+    COMMENT "Building the achievement icon sheet from the rexglue dump"
     VERBATIM)
 set(REEOT_ACH_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotAchievements.pkz")
 add_custom_command(
@@ -100,7 +117,8 @@ add_custom_command(
     DEPENDS pkztool
             "${REEOT_PKZ_DATA}/ReeotAchievements.manifest"
             "${REEOT_ACH_STRINGS}"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/achievement_icons_64.png"
+            "${REEOT_ACH_ICONS}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/achievements/Reeot_Ach_Toast.dds"
     COMMENT "Authoring ReeotAchievements.pkz from pkzlib/ReeotAchievements.manifest"
     VERBATIM)
 set(REEOT_ICONS_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotIcons.pkz")
@@ -112,24 +130,14 @@ add_custom_command(
     DEPENDS pkztool
             "${REEOT_PKZ_DATA}/ReeotIcons.manifest"
             "${REEOT_PKZ_DATA}/strings/icons.txt"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/Reeot_Icons.dds"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPrompt_PlayStation_D.dds"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPromptY_PlayStation_D.dds"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPrompt_Switch_D.dds"
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/mash_prompt/Reeot_MashPrompt_Keyboard_D.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/controls/Reeot_Icons.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/controls/mash_prompt/Reeot_MashPrompt_PlayStation_D.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/controls/mash_prompt/Reeot_MashPromptY_PlayStation_D.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/controls/mash_prompt/Reeot_MashPrompt_Switch_D.dds"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/controls/mash_prompt/Reeot_MashPrompt_Keyboard_D.dds"
     COMMENT "Authoring ReeotIcons.pkz from pkzlib/ReeotIcons.manifest"
     VERBATIM)
-set(REEOT_SUITS_DDS "")
-foreach(name Reeot_AntiVenom Reeot_AntiVenomMassive Reeot_SM2099Body Reeot_MonsterOck)
-    foreach(map D N)
-        list(APPEND REEOT_SUITS_DDS "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/characters/${name}_${map}.dds")
-    endforeach()
-endforeach()
-foreach(state 00 03 05 07)
-    foreach(map D N S)
-        list(APPEND REEOT_SUITS_DDS "${CMAKE_CURRENT_SOURCE_DIR}/res/textures/suits/Reeot_SMA_State${state}_${map}.dds")
-    endforeach()
-endforeach()
+file(GLOB REEOT_SUITS_DDS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/res/suits/*/*.dds")
 set(REEOT_SUITS_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotSuits.pkz")
 add_custom_command(
     OUTPUT "${REEOT_SUITS_PKZ_OUTPUT}"
@@ -287,8 +295,8 @@ if(WIN32 OR APPLE)
 endif()
 if(WIN32)
     enable_language(RC)
-    set(REEOT_ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/res/reeot.ico")
-    configure_file(res/reeot.rc.in "${REEOT_GEN_DIR}/reeot.rc" @ONLY)
+    set(REEOT_ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/res/app/icon/reeot.ico")
+    configure_file(res/app/windows/reeot.rc.in "${REEOT_GEN_DIR}/reeot.rc" @ONLY)
     add_executable(reeot WIN32 ${REEOT_SOURCES} "${REEOT_GEN_DIR}/reeot.rc")
 else()
     add_executable(reeot ${REEOT_SOURCES})
@@ -397,7 +405,7 @@ if(UNIX)
     add_custom_command(TARGET reeot POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${reeot_unix_runtime_libs}
-            "${CMAKE_CURRENT_SOURCE_DIR}/res/icon/reeot_icon.png"
+            "${CMAKE_CURRENT_SOURCE_DIR}/res/app/icon/reeot_icon.png"
             $<TARGET_FILE_DIR:reeot>
         VERBATIM)
     file(GENERATE OUTPUT "$<TARGET_FILE_DIR:reeot>/build_stamp.txt"
