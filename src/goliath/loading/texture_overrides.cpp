@@ -17,7 +17,6 @@
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/controller/button_glyphs.h"
-#include "goliath/mash_prompt.h"
 #include "goliath/text/glyph_pages.h"
 #include "goliath/ui/name_crc.h"
 #include "platform/user_dirs.h"

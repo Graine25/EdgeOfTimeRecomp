@@ -259,7 +259,6 @@ set(REEOT_SOURCES
     src/goliath/loading/reeot_package.cpp
     src/goliath/loading/texture_overrides.cpp
     src/goliath/web_color.cpp
-    src/goliath/mash_prompt.cpp
     src/goliath/text/glyph_pages.cpp
     src/gpu/taa.cpp
     src/gpu/shaders/guest_shaders.cpp
