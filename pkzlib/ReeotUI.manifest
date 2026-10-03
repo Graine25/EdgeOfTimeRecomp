@@ -1,8 +1,8 @@
 package 0x7EE ReeotUI
 languages 1 2 5 3 4
 strings strings/ui.txt
-texture Reeot_Font_TempusGothic_4x dds ../res/textures/TempusGothic_texture_0.dds nomips
-texture Reeot_Font_SansaCon_4x dds ../res/textures/SteelworksBook_texture_0.dds nomips
+texture Reeot_Font_TempusGothic_4x dds ../res/fonts/TempusGothic_texture_0.dds nomips
+texture Reeot_Font_SansaCon_4x dds ../res/fonts/SteelworksBook_texture_0.dds nomips
 strings strings/TempusGothic_cyrillic.txt GlyphsTempusGothic lang=0x1F
 strings strings/SansaCon_cyrillic.txt GlyphsSansaCon lang=0x1F
 font TempusGothic from Main.pak TempusGothic atlas=Reeot_Font_TempusGothic_4x

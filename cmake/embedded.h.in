@@ -34,18 +34,4 @@ consteval EmbeddedAsset Embedded(std::string_view name) {
   return {};
 }
 
-constexpr std::span<const EmbeddedAsset> EmbeddedGroup(std::string_view dir) {
-  const EmbeddedAsset *first = nullptr;
-  size_t count = 0;
-  for (const EmbeddedAsset &asset : kEmbeddedAssets) {
-    if (asset.name.size() <= dir.size() || !asset.name.starts_with(dir) ||
-        asset.name[dir.size()] != '/')
-      continue;
-    if (!first)
-      first = &asset;
-    ++count;
-  }
-  return {first, count};
-}
-
 }

@@ -1,4 +1,4 @@
-# Button glyphs: the cells of res/textures/Reeot_Icons.png, written by tools/glyphs/build_icon_sheet.py -- do not edit.
+# Button glyphs: the cells of res/controls/Reeot_Icons.png, written by tools/glyphs/build_icon_sheet.py -- do not edit.
 IC_0000	sheet 1024 1988
 IC_0001	set switch
 IC_0002	cell 00 2 2 110 107

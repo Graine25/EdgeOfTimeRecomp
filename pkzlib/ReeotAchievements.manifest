@@ -1,7 +1,7 @@
 package 0x7EC ReeotAchievements
 languages 1 2 5 3 4
 strings generated/reeot_ach_strings.txt ReeotAchievements
-texture Reeot_Ach_Icons png ../res/textures/achievement_icons_64.png
+texture Reeot_Ach_Icons png generated/achievement_icons_64.png
 texture Reeot_Ach_Row_Tex from WebOfSkills.pkz Menu_Upgrades_Slot_Selected_DA[Hi]
 texture Reeot_Ach_Details_Tex from WebOfSkills.pkz Menu_WOSDialogueBox_DA[Hi]
 texture Reeot_Ach_IconBox_Tex from WebOfSkills.pkz Menu_WOSBG_Video_DA[Hi]
@@ -12,7 +12,7 @@ texture Reeot_Ach_SliderKnob_Tex from Common.pak Menu_SliderKnob_Normal[Hi]
 texture Reeot_Ach_ScrollArrow_Tex from Common.pak Menu_ScrollArrowUp[Hi]
 texture Reeot_Ach_Cursor_Tex from Main.pak Menu_Curser_Normal[Hi]
 texture Reeot_Ach_Bar_Tex from Common.pak Menu_RightCorner_GreyBar_DA[Hi]
-texture Reeot_Ach_Toast_Tex dds ../res/textures/Reeot_Ach_Toast.dds nomips
+texture Reeot_Ach_Toast_Tex dds ../res/achievements/Reeot_Ach_Toast.dds nomips
 textstyle Reeot_Ach_Style_Label from WebOfSkills.pkz HUDUpgrade_ListLabel
 textstyle Reeot_Ach_Style_Title from WebOfSkills.pkz HUDUpgrade_DescriptionTitle
 textstyle Reeot_Ach_Style_Text from WebOfSkills.pkz HUDUpgrade_Description
