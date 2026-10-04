@@ -10,6 +10,12 @@ bool LayoutIsWidescreen();
 
 bool MacWide();
 
+// How much wider than the game's own the FOV option draws the picture, and that
+// camera's eye while it does.
+float ViewWidening();
+
+bool WidenedViewEye(float eye[3]);
+
 class CameraRatioHold {
 public:
   explicit CameraRatioHold(float value);

@@ -14,8 +14,6 @@
 #include "gpu/settings.h"
 
 REX_EXTERN(__imp__eot_RenderComposition_ExecuteChain);
-REX_EXTERN(__imp__eot_GLAPICamera_SetFOVAngle);
-REX_EXTERN(__imp__eot_GLAPICamera_GetFOVAngle);
 REX_EXTERN(__imp__eot_PAK_SelectLanguage);
 REX_EXTERN(__imp__eot_GLAPICamera_ShadowMapSetParams);
 
@@ -45,13 +43,6 @@ uint32_t DisabledStages() {
 }
 
 std::atomic<uint32_t> g_last_flags{0xFFFFFFFFu};
-
-double FovScale() {
-  const double s = Settings::FovScale();
-  return (s > 0.25 && s < 4.0) ? s : 1.0;
-}
-
-std::atomic<int> g_fov_logs{0};
 
 constexpr uint32_t kActiveLanguage = 0x824E56D8;
 std::atomic<int> g_quality_logs{0};
@@ -179,23 +170,4 @@ REX_HOOK_RAW(eot_GLAPICamera_ShadowMapSetParams) {
     }
   }
   __imp__eot_GLAPICamera_ShadowMapSetParams(ctx, base);
-}
-
-REX_HOOK_RAW(eot_GLAPICamera_SetFOVAngle) {
-  const double scale = FovScale();
-  if (g_fov_logs.load(std::memory_order_relaxed) < 4) {
-    g_fov_logs.fetch_add(1, std::memory_order_relaxed);
-    EOT_DEBUG("[postfx] SetFOVAngle({:#x}, {:#x}) = {:.4f} (scale {:.3f})", ctx.r3.u32, ctx.r4.u32,
-             ctx.f1.f64, scale);
-  }
-  if (scale != 1.0)
-    ctx.f1.f64 *= scale;
-  __imp__eot_GLAPICamera_SetFOVAngle(ctx, base);
-}
-
-REX_HOOK_RAW(eot_GLAPICamera_GetFOVAngle) {
-  __imp__eot_GLAPICamera_GetFOVAngle(ctx, base);
-  const double scale = FovScale();
-  if (scale != 1.0)
-    ctx.f1.f64 /= scale;
 }
