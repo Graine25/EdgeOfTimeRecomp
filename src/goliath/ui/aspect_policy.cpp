@@ -1,5 +1,6 @@
 #include "goliath/ui/aspect_policy.h"
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <bit>
@@ -605,12 +606,17 @@ constexpr uint32_t kCardCrc = 0x940EBBAB;
 constexpr uint32_t kTitleCrc = 0x2CF5252B;
 
 constexpr uint32_t kRecordWorld = 92;
+constexpr uint32_t kRowY = 1;
 constexpr uint32_t kRowZ = 2;
 constexpr uint32_t kRowPos = 3;
 
 constexpr float kAuthored = 16.0f / 9.0f;
 constexpr float kPivotZ = -1.42f;
+constexpr float kPivotY = 2.02f;
 constexpr float kMargin = 1.05f;
+// While the FOV option widens the view the card is drawn this much nearer the eye,
+// behind the title's figures and in front of the floor that would cut its bottom.
+constexpr float kNearer = 0.55f;
 constexpr uint32_t kSearchEvery = 4;
 
 uint32_t g_card_handle = 0;
@@ -619,6 +625,8 @@ uint32_t g_search = 0;
 bool g_announced = false;
 std::atomic<uint32_t> g_card{0};
 std::atomic<float> g_stretch{1.0f};
+std::atomic<float> g_stretch_y{1.0f};
+std::atomic<bool> g_nearer{false};
 
 bool Invalid(uint32_t handle) { return handle == 0 || handle == 0xFFFFFFFFu || handle == 0x80000001u; }
 
@@ -657,13 +665,28 @@ uint32_t Find(const PPCContext &ctx, uint8_t *base, uint32_t crc, uint32_t &hand
   return object;
 }
 
-void Stretch(uint32_t world, float s) {
+void Stretch(uint32_t world, uint32_t row, float pivot, float s) {
+  if (s == 1.0f)
+    return;
   for (uint32_t k = 0; k < 3; ++k) {
-    const uint32_t axis_at = world + (kRowZ * 4 + k) * 4;
+    const uint32_t axis_at = world + (row * 4 + k) * 4;
     const uint32_t pos_at = world + (kRowPos * 4 + k) * 4;
     const float axis = LoadF(axis_at);
-    StoreF(pos_at, LoadF(pos_at) + axis * kPivotZ * (1.0f - s));
+    StoreF(pos_at, LoadF(pos_at) + axis * pivot * (1.0f - s));
     StoreF(axis_at, axis * s);
+  }
+}
+
+// Scaled about the eye: the same pixels, nearer.
+void Nearer(uint32_t world, const float eye[3], float s) {
+  for (uint32_t row = 0; row < 3; ++row)
+    for (uint32_t k = 0; k < 3; ++k) {
+      const uint32_t at = world + (row * 4 + k) * 4;
+      StoreF(at, LoadF(at) * s);
+    }
+  for (uint32_t k = 0; k < 3; ++k) {
+    const uint32_t at = world + (kRowPos * 4 + k) * 4;
+    StoreF(at, eye[k] + (LoadF(at) - eye[k]) * s);
   }
 }
 
@@ -673,20 +696,26 @@ namespace eot::goliath {
 
 void TitleMatteTick(const PPCContext &ctx, uint8_t *base) {
   const float aspect = eot::gpu::ConfiguredAspectRatio();
-  if (!(aspect > kAuthored + 0.01f)) {
+  const float widening = std::max(eot::gpu::ViewWidening(), 0.25f);
+  const float wide = aspect * widening;
+  const float stretch = wide > kAuthored + 0.01f ? wide / kAuthored * kMargin : 1.0f;
+  const float stretch_y = widening > 1.01f ? widening * kMargin : 1.0f;
+  if (stretch == 1.0f && stretch_y == 1.0f) {
     g_card.store(0, std::memory_order_relaxed);
     return;
   }
-  const float stretch = aspect / kAuthored * kMargin;
   g_stretch.store(stretch, std::memory_order_relaxed);
+  g_stretch_y.store(stretch_y, std::memory_order_relaxed);
+  g_nearer.store(stretch_y != 1.0f, std::memory_order_relaxed);
 
   const bool search = g_search++ % kSearchEvery == 0;
   uint32_t card = 0;
   if (Find(ctx, base, kTitleCrc, g_title_handle, search))
     card = Find(ctx, base, kCardCrc, g_card_handle, search);
   if (card && !g_announced)
-    EOT_INFO("[title] the menu's darkening card (HUD_BlackFade) found; widened x{:.3f} for a {:.3f} display", stretch,
-             aspect);
+    EOT_INFO("[title] the menu's darkening card (HUD_BlackFade) found; widened x{:.3f} and heightened x{:.3f} for a "
+             "{:.3f} display drawn x{:.3f} wider by the FOV option",
+             stretch, stretch_y, aspect, widening);
   g_announced = card != 0;
   g_card.store(card, std::memory_order_relaxed);
 }
@@ -696,8 +725,13 @@ void TitleMatteTick(const PPCContext &ctx, uint8_t *base) {
 REX_HOOK_RAW(eot_GRRender3dObj_AppendSubmeshDrawRecord) {
   const uint32_t object = ctx.r3.u32;
   const uint32_t record = ctx.r7.u32;
-  if (object != 0 && record != 0 && object == g_card.load(std::memory_order_relaxed))
-    Stretch(record + kRecordWorld, g_stretch.load(std::memory_order_relaxed));
+  if (object != 0 && record != 0 && object == g_card.load(std::memory_order_relaxed)) {
+    Stretch(record + kRecordWorld, kRowZ, kPivotZ, g_stretch.load(std::memory_order_relaxed));
+    Stretch(record + kRecordWorld, kRowY, kPivotY, g_stretch_y.load(std::memory_order_relaxed));
+    float eye[3];
+    if (g_nearer.load(std::memory_order_relaxed) && eot::gpu::WidenedViewEye(eye))
+      Nearer(record + kRecordWorld, eye, kNearer);
+  }
   eot::goliath::MashPromptDrawRecord(object, record);
   __imp__eot_GRRender3dObj_AppendSubmeshDrawRecord(ctx, base);
 }

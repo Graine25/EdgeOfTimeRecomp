@@ -2684,6 +2684,7 @@ out_directory_path = "generated/default_xex"
 0x82153BD8 = { name = "eot_RenderTargetResource_QueueCreateOrRefresh" }
 0x82153D00 = { name = "eot_RenderTargetResource_QueueReleaseAndFree" }
 0x82153D98 = { name = "eot_RenderTargetResource_ProcessPendingUpdate" }
+0x82152270 = { name = "eot_GRCamera_UpdateFromGameObj" }
 0x821528C8 = { name = "eot_GRCameraFactory_CreateCamera" }
 0x82152AD0 = { name = "eot_GRCameraMgr_AllocCam" }
 0x82152D80 = { name = "eot_GRCameraMgr_FreeCam" }
