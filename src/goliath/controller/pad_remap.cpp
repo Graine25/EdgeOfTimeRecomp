@@ -573,6 +573,26 @@ constexpr uint16_t kNintendo = 0x057E;
 constexpr uint16_t kValve = 0x28DE;
 constexpr uint16_t kSteamDeck = 0x1205;
 
+// The original Steam Controller, the HEADCRAB one and the new one with its dongles.
+bool IsSteamController(uint16_t product) {
+  switch (product) {
+  case 0x1101:
+  case 0x1102:
+  case 0x1105:
+  case 0x1106:
+  case 0x1142:
+  case 0x1201:
+  case 0x1202:
+  case 0x1302:
+  case 0x1303:
+  case 0x1304:
+  case 0x1305:
+    return true;
+  default:
+    return false;
+  }
+}
+
 uint16_t GuidWord(std::string_view guid, size_t byte) {
   if (guid.size() < (byte + 2) * 2)
     return 0;
@@ -590,8 +610,13 @@ PadBrand BrandOf(const rex::input::DeviceInfo &info) {
   const uint16_t vendor = GuidWord(info.guid, 4);
   const uint16_t product = GuidWord(info.guid, 8);
   const std::string_view name = info.name;
+  if (vendor == kValve && product == kSteamDeck)
+    return PadBrand::SteamDeck;
+  // Steam Input hands a Steam Controller over under its own name.
+  if ((vendor == kValve && IsSteamController(product)) || Has(name, "Steam Controller"))
+    return PadBrand::SteamController;
   if (vendor == kValve)
-    return product == kSteamDeck ? PadBrand::SteamDeck : PadBrand::Unknown;
+    return PadBrand::Unknown;
   if (vendor == kSony || Has(name, "PS4") || Has(name, "PS5") || Has(name, "DualSense") || Has(name, "DualShock"))
     return PadBrand::PlayStation;
   if (vendor == kNintendo || Has(name, "Switch") || Has(name, "Joy-Con"))
@@ -617,6 +642,8 @@ const char *ToString(PadBrand brand) {
     return "switch";
   case PadBrand::SteamDeck:
     return "steamdeck";
+  case PadBrand::SteamController:
+    return "steamcontroller";
   case PadBrand::Keyboard:
     return "keyboard";
   default:

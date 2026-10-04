@@ -38,6 +38,7 @@ enum class PadBrand {
   PlayStation,
   Switch,
   SteamDeck,
+  SteamController,
   Keyboard,
 };
 

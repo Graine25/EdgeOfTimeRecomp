@@ -437,6 +437,8 @@ uint32_t WantedPage(const std::string &setting, PadBrand pad) {
     return PageFor("switch");
   case PadBrand::PlayStation:
     return PageFor("playstation");
+  case PadBrand::SteamController:
+    return PageFor("steam");
   default:
     return XboxPage();
   }
