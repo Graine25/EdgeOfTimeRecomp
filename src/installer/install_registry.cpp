@@ -15,6 +15,8 @@
 #include <unistd.h>
 #endif
 
+#include <rex/filesystem.h>
+
 #include "core/build_info.h"
 #include "core/logging.h"
 #include "platform/desktop_shortcut.h"
@@ -31,11 +33,19 @@ std::filesystem::path InstallRootFor(const std::filesystem::path &picked) {
 }
 
 std::filesystem::path DefaultInstallRoot() {
-#if defined(_WIN32)
-  if (const wchar_t *local = _wgetenv(L"LOCALAPPDATA"); local && *local)
-    return std::filesystem::path(local) / L"Programs" / kInstallFolderName;
+#if defined(__APPLE__)
+  if (const std::filesystem::path home = platform::HomeDir(); !home.empty()) {
+    std::error_code ec;
+    const std::filesystem::path support = home / "Library" / "Application Support";
+    return std::filesystem::is_directory(support, ec) ? support / kInstallFolderName
+                                                      : home / ("." + std::string(kInstallFolderName));
+  }
+#elif defined(__linux__)
+  if (const char *appimage = std::getenv("APPIMAGE"); appimage && *appimage)
+    if (const std::filesystem::path data = platform::DataHome(); !data.empty())
+      return data / kInstallFolderName;
 #endif
-  return std::filesystem::path(kInstallFolderName);
+  return rex::filesystem::GetExecutableFolder();
 }
 
 }

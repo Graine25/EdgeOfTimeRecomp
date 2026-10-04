@@ -92,14 +92,7 @@ uint32_t AutoRenderHeight(const Display &display) {
 }
 
 const char *AutoResolutionPreset(const Display &display) {
-  switch (AutoRenderHeight(display)) {
-  case 1440:
-    return "1440p";
-  case 1080:
-    return "1080p";
-  default:
-    return "720p";
-  }
+  return AutoRenderHeight(display) >= 1080 ? "1080p" : "720p";
 }
 
 const char *AutoAspectPreset(const Display &display) {
@@ -118,11 +111,6 @@ const char *AutoAspectPreset(const Display &display) {
     if (std::fabs(p.ratio - ratio) < std::fabs(best->ratio - ratio))
       best = &p;
   return best->name;
-}
-
-const char *AutoQualityPreset(const Display &display) {
-  const uint32_t height = display.height ? display.height : 1080;
-  return height >= 1080 ? "medium" : "low";
 }
 
 uint32_t AutoFrameRateLimit(const Display &display) { return display.refresh_hz ? display.refresh_hz : 60; }

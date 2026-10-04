@@ -45,6 +45,7 @@ constexpr const char *kRepairNotice =
 constexpr const char *kSpaceHint = "(~6 GB required)";
 
 constexpr const char *kSuggestedVsync = "false";
+constexpr const char *kSuggestedQuality = "low";
 
 struct SettingRow {
   const char *label;
@@ -264,8 +265,8 @@ void InstallerWizard::SuggestDefaults() {
   EOT_INFO("[install] primary display {}x{} at {} Hz: suggesting {}, {}, {} fps, the {} preset", display.width,
            display.height, display.refresh_hz, eot::platform::AutoResolutionPreset(display),
            eot::platform::AutoAspectPreset(display), eot::platform::AutoFrameRateLimit(display),
-           eot::platform::AutoQualityPreset(display));
-  suggest("eot_quality_preset", eot::platform::AutoQualityPreset(display));
+           kSuggestedQuality);
+  suggest("eot_quality_preset", kSuggestedQuality);
   suggest("eot_resolution", eot::platform::AutoResolutionPreset(display));
   suggest("eot_aspect_ratio", eot::platform::AutoAspectPreset(display));
   suggest("eot_fps_limit", std::to_string(eot::platform::AutoFrameRateLimit(display)));

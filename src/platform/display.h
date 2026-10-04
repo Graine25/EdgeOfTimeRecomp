@@ -17,8 +17,6 @@ const char *AutoResolutionPreset(const Display &display);
 
 const char *AutoAspectPreset(const Display &display);
 
-const char *AutoQualityPreset(const Display &display);
-
 uint32_t AutoFrameRateLimit(const Display &display);
 
 }
