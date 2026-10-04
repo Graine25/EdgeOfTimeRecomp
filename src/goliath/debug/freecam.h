@@ -28,6 +28,9 @@ void ScenePauseStep();
 
 int ScenePauseStepsPending();
 
+// Hides the whole HUD window tree or brings it back; true when it is now hidden.
+bool ToggleHud();
+
 }
 
 namespace eot::debug {

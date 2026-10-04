@@ -732,6 +732,9 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
     const bool shown = rex::cvar::Query<bool>("show_fps_overlay");
     rex::cvar::SetFlagByName("show_fps_overlay", shown ? "false" : "true");
   });
+  rex::ui::RegisterBind("bind_hide_hud", "F1", "Hide or show the game's HUD", [] {
+    EOT_INFO("[hud] {} (F1)", eot::debug::ToggleHud() ? "hidden" : "shown");
+  });
   const auto debug_toggle = [](const char *flag) {
     return [flag] {
       if (!eot::controller::DebugModeActive())

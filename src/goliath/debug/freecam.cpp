@@ -496,6 +496,10 @@ std::atomic<bool> g_frozen{false};
 
 std::atomic<int> g_steps{0};
 
+// F1: the whole HUD tree off, frozen or not. A flag, not a cvar, so a hidden HUD
+// is never saved into the profile.
+std::atomic<bool> g_hud_off{false};
+
 bool Sane(float scale) { return scale > 0.0f && std::isfinite(scale); }
 
 float LoadScale() { return std::bit_cast<float>(eot::mem::load<uint32_t>(kTimeScale)); }
@@ -505,6 +509,8 @@ void StoreScale(float scale) {
 }
 
 bool HudHidden() {
+  if (g_hud_off.load(std::memory_order_relaxed))
+    return true;
   return g_frozen.load(std::memory_order_relaxed) && REXCVAR_GET(eot_debug_pause_hide_hud);
 }
 
@@ -527,6 +533,12 @@ void ScenePauseStep() {
 }
 
 int ScenePauseStepsPending() { return g_steps.load(std::memory_order_relaxed); }
+
+bool ToggleHud() {
+  const bool off = !g_hud_off.load(std::memory_order_relaxed);
+  g_hud_off.store(off, std::memory_order_relaxed);
+  return off;
+}
 
 void ScenePauseTick() {
   const bool want = REXCVAR_GET(eot_debug_pause);
