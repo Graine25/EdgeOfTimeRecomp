@@ -45,7 +45,7 @@ REX_EXTERN(__imp__eot_Audio_SetVoiceVolume);
 REX_EXTERN(__imp__eot_Subtitles_SetEnabled); // (shown r3)
 
 REXCVAR_DEFINE_STRING(eot_button_glyphs, "auto", "EdgeOfTime/Input", "Which button prompts show")
-    .allowed({"auto", "xbox", "playstation", "switch", "keyboard"});
+    .allowed({"auto", "xbox", "playstation", "switch", "steam", "keyboard"});
 
 namespace {
 
@@ -375,6 +375,7 @@ constexpr Choice kGlyphs[] = {{"REEOT_VAL_AUTO", "auto"},
                               {"REEOT_VAL_XBOX", "xbox"},
                               {"REEOT_VAL_PLAYSTATION", "playstation"},
                               {"REEOT_VAL_SWITCH", "switch"},
+                              {"REEOT_VAL_STEAM", "steam"},
                               {"REEOT_VAL_KEYBOARD", "keyboard"}};
 
 bool FullscreenOn() { return rex::cvar::Query<bool>("fullscreen"); }
