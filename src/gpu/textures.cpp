@@ -188,7 +188,7 @@ void UntileLevel(u8 *out, const u8 *in, const tc::UntileInfo &ui, u32 bpb, xe::E
       same = std::memcmp(out + y * pitch, reference.data() + y * pitch, u64(ui.width) * bpb) == 0;
     state = same ? 1 : 2;
     if (same) {
-      EOT_INFO("[textures] fast untile checked against the SDK's for {}-byte blocks, byte order {}", bpb, e);
+      EOT_DEBUG("[textures] fast untile checked against the SDK's for {}-byte blocks, byte order {}", bpb, e);
     } else {
       EOT_ERROR("[textures] fast untile differs from the SDK's for {}-byte blocks, byte order {}; "
                 "using the SDK's",

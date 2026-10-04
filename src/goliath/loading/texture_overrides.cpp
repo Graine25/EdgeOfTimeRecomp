@@ -243,7 +243,7 @@ void TrackSuit(const PPCContext &ctx, uint8_t *base, uint32_t i) {
     }
     g_unwanted[i] = 0;
     if (ReleaseSuit(ctx, base, i))
-      EOT_INFO("[tex] {} let go with {}", o.replacement, o.retail);
+      EOT_DEBUG("[tex] {} let go with {}", o.replacement, o.retail);
     ReleaseResource(ctx, base, retail);
     return;
   }
@@ -253,7 +253,7 @@ void TrackSuit(const PPCContext &ctx, uint8_t *base, uint32_t i) {
     if (replacementHandle) {
       LoadData(ctx, base, replacementHandle);
       g_held[i] = replacementHandle;
-      EOT_INFO("[tex] {} loading with {}", o.replacement, o.retail);
+      EOT_DEBUG("[tex] {} loading with {}", o.replacement, o.retail);
     }
   }
   if (g_held[i] && g_swapped[i] != retailHandle) {
@@ -263,8 +263,8 @@ void TrackSuit(const PPCContext &ctx, uint8_t *base, uint32_t i) {
     if (descriptor) {
       TextureReplace(ctx, base, retail, replacement);
       g_swapped[i] = retailHandle;
-      EOT_INFO("[tex] {} -> {} ({:#x} -> {:#x}, descriptor {:#x})", o.retail, o.replacement, retail,
-               replacement, descriptor);
+      EOT_DEBUG("[tex] {} -> {} ({:#x} -> {:#x}, descriptor {:#x})", o.retail, o.replacement, retail,
+                replacement, descriptor);
     }
     ReleaseResource(ctx, base, replacement);
   }
@@ -286,7 +286,7 @@ void TrackPromptArt(const PPCContext &ctx, uint8_t *base) {
   const std::string_view set = eot::controller::ActiveGlyphSet();
   for (uint32_t i = 0; i < kOverrideCount; ++i) {
     if ((mask & (1u << i)) && set != kOverrides[i].set && ReleaseSuit(ctx, base, i))
-      EOT_INFO("[tex] {} let go: the prompts draw the {} set", kOverrides[i].replacement, set);
+      EOT_DEBUG("[tex] {} let go: the prompts draw the {} set", kOverrides[i].replacement, set);
   }
   uint32_t wide[2] = {0, 0};
   uint32_t n = 0;
@@ -326,7 +326,7 @@ Try TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
     if (!(g_requested & (1u << i))) {
       g_requested |= 1u << i;
       RequestResourceLoad(ctx, base, replacement);
-      EOT_INFO("[tex] {} asked to load; the swap waits for its data", o.replacement);
+      EOT_DEBUG("[tex] {} asked to load; the swap waits for its data", o.replacement);
     }
     ReleaseResource(ctx, base, replacement);
     return Try::NotReady;
@@ -342,8 +342,8 @@ Try TryApply(const PPCContext &ctx, uint8_t *base, uint32_t i) {
     call.r3.u32 = retail;
     call.r4.u32 = replacement;
     __imp__eot_RZTexture_TextureReplace(call, base);
-    EOT_INFO("[tex] {} -> {} ({:#x} -> {:#x}, descriptor {:#x})", o.retail, o.replacement, retail, replacement,
-             descriptor);
+    EOT_DEBUG("[tex] {} -> {} ({:#x} -> {:#x}, descriptor {:#x})", o.retail, o.replacement, retail, replacement,
+              descriptor);
     if (o.font)
       RepointFontAtlas(ctx, base, o, retail, replacement);
     g_swapped[i] = retailHandle;
@@ -363,8 +363,8 @@ void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
     g_suits_on = REXCVAR_GET(eot_suits_remaster);
     g_off = g_suits_on ? 0 : (g_wanted & kSuitMask);
     g_pending = g_wanted & kFontMask;
-    EOT_INFO("[tex] overrides wanted: {:#x} of {}{}", g_wanted, kOverrideCount,
-             g_suits_on ? "" : " (the suits are switched off)");
+    EOT_DEBUG("[tex] overrides wanted: {:#x} of {}{}", g_wanted, kOverrideCount,
+              g_suits_on ? "" : " (the suits are switched off)");
   }
   if (!g_pending)
     return;
@@ -561,12 +561,15 @@ void HeapCensusTick(const PPCContext &ctx, uint8_t *base) {
   if (now < g_next)
     return;
   g_next = now + kInterval;
+  auto *log = ::rex::GetLoggerRaw(::rex::log::eot());
+  if (!log || !log->should_log(spdlog::level::debug))
+    return;
   const Census census = Walk(ctx, base);
   if (!census.heap)
     return;
-  EOT_INFO("[mem] heap 0: {} MB in use, {} MB free in {} blocks (largest {} KB); {} MB of physical memory "
-           "outside it",
-           census.in_use >> 20, census.free >> 20, census.blocks, census.largest >> 10, FreePhysicalBytes() >> 20);
+  EOT_DEBUG("[mem] heap 0: {} MB in use, {} MB free in {} blocks (largest {} KB); {} MB of physical memory "
+            "outside it",
+            census.in_use >> 20, census.free >> 20, census.blocks, census.largest >> 10, FreePhysicalBytes() >> 20);
 }
 
 }
@@ -634,7 +637,7 @@ REX_HOOK_RAW(eot_XContentCreate) {
   const std::string root = GuestString(ctx.r4.u32, 32);
   const std::string file = ctx.r5.u32 ? GuestString(ctx.r5.u32 + kXContentFileName, 42) : std::string();
   __imp__eot_XContentCreate(ctx, base);
-  EOT_INFO("[dlc] XContentCreate('{}', '{}') -> {:#x}", root, file, ctx.r3.u32);
+  EOT_DEBUG("[dlc] XContentCreate('{}', '{}') -> {:#x}", root, file, ctx.r3.u32);
 }
 
 namespace eot::loading {
@@ -648,7 +651,7 @@ void DlcTraceTick() {
       std::string line = DescribeItem(i);
       if (line != g_items[i]) {
         if (!line.empty())
-          EOT_INFO("[dlc] {}", line);
+          EOT_DEBUG("[dlc] {}", line);
         g_items[i] = std::move(line);
       }
     }
@@ -668,7 +671,7 @@ void DlcTraceTick() {
                         eot::mem::load<uint32_t>(row + kCostumeHud) ? "" : "(no gallery row)");
   }
   if (line != g_costumes) {
-    EOT_INFO("[dlc] costume table: {} entries{}{}", costumes, line.empty() ? "" : ": ids ", line);
+    EOT_DEBUG("[dlc] costume table: {} entries{}{}", costumes, line.empty() ? "" : ": ids ", line);
     g_costumes = std::move(line);
   }
 }

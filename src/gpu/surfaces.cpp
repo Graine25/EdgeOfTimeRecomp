@@ -618,9 +618,9 @@ bool SurfaceMakeMultisampled(VideoState &s, GuestSurface &surf) {
     surf.contentInSingle = false;
     surf.imagesAgree = true;
   }
-  EOT_INFO("[surfaces] {:#x}: {} {}x{} {}x image made at its first multisampled pass ({} MB, {:.2f} ms)", surf.va,
-           surf.isDepth ? "depth" : "colour", surf.host.width, surf.host.height, samples,
-           HostTextureBytes(surf.host) >> 20, static_cast<f64>(PerfNow() - t0) * PerfMsPerTick());
+  EOT_DEBUG("[surfaces] {:#x}: {} {}x{} {}x image made at its first multisampled pass ({} MB, {:.2f} ms)", surf.va,
+            surf.isDepth ? "depth" : "colour", surf.host.width, surf.host.height, samples,
+            HostTextureBytes(surf.host) >> 20, static_cast<f64>(PerfNow() - t0) * PerfMsPerTick());
   return true;
 }
 

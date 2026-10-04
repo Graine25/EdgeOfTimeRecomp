@@ -484,7 +484,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
         if (!g_requested) {
           g_requested = true;
           RequestResourceLoad(ctx, base, record);
-          EOT_INFO("[glyphs] {} asked to load; the icon pages wait for its data", kSheet);
+          EOT_DEBUG("[glyphs] {} asked to load; the icon pages wait for its data", kSheet);
         }
         ReleaseResource(ctx, base, record);
         return;
@@ -512,7 +512,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
         ApplyPage(page);
         RefillMenuPage(ctx, base);
         RecomposePrompts(ctx, base);
-        EOT_INFO("[glyphs] prompts draw page {} (auto: {})", page, ToString(pad));
+        EOT_DEBUG("[glyphs] prompts draw page {} (auto: {})", page, ToString(pad));
       }
     }
   }
@@ -532,7 +532,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       const std::vector<eot::text::IconCell> keys = KeyboardCells();
       for (const Font &font : kFonts)
         InstallInto(ctx, base, font, keys, true);
-      EOT_INFO("[glyphs] key caps refilled for the binds as they are now");
+      EOT_DEBUG("[glyphs] key caps refilled for the binds as they are now");
       if (g_applied_page == kKeyboardPage)
         ApplyPage(kKeyboardPage);
     }
@@ -549,7 +549,7 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
         eot::text::InstallIconPage(ctx, base, record, kRemapPage, g_texture, cells);
         ReleaseResource(ctx, base, record);
       }
-      EOT_INFO("[glyphs] the Xbox page refilled for the pad binds as they are now");
+      EOT_DEBUG("[glyphs] the Xbox page refilled for the pad binds as they are now");
     }
     const std::string setting = rex::cvar::GetFlagByName("eot_button_glyphs");
     const PadBrand pad = setting == "auto" ? ActivePad() : PadBrand::Unknown;
@@ -560,8 +560,8 @@ void ButtonGlyphsTick(const PPCContext &ctx, uint8_t *base) {
       ApplyPage(page);
       RefillMenuPage(ctx, base);
       RecomposePrompts(ctx, base);
-      EOT_INFO("[glyphs] prompts draw page {} ({}{}{})", page, setting, setting == "auto" ? ": " : "",
-               setting == "auto" ? ToString(pad) : "");
+      EOT_DEBUG("[glyphs] prompts draw page {} ({}{}{})", page, setting, setting == "auto" ? ": " : "",
+                setting == "auto" ? ToString(pad) : "");
       return;
     }
   }

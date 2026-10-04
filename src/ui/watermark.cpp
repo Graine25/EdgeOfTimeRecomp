@@ -16,7 +16,7 @@
 #include "gpu/settings.h"
 #include "platform/update_check.h"
 
-REXCVAR_DEFINE_BOOL(eot_watermark, true, "EdgeOfTime/Video", "Show the build watermark");
+REXCVAR_DEFINE_BOOL(eot_watermark, false, "EdgeOfTime/Video", "Show the build watermark");
 
 namespace eot::ui {
 

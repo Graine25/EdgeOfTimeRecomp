@@ -198,7 +198,7 @@ REX_HOOK_RAW(eot_SM2099_Activate) {
   store<uint32_t>(kFxBodyAnimHurt, hurt);
   store<uint32_t>(kFxBodyAnimFull, full);
   store<uint8_t>(kFxFlags, load<uint8_t>(kFxFlags) | kFxFlagOn);
-  EOT_INFO("[suit] 2099 body pulse on a custom suit: object {:#x} material {} animations {:#x} / {:#x}", object, material, full, hurt);
+  EOT_DEBUG("[suit] 2099 body pulse on a custom suit: object {:#x} material {} animations {:#x} / {:#x}", object, material, full, hurt);
 }
 
 REX_HOOK_RAW(eot_SM2099HealthFX_HandleMessage) {
@@ -246,8 +246,8 @@ REX_HOOK_RAW(eot_GLInstanciateGenericSectionControl) {
     if (entry.section != section)
       continue;
     store<uint32_t>(params + kParamsLightManager, entry.light_manager);
-    EOT_INFO("[lights] section {} takes LightManager {:#010x} (the one the sections before it applied)", section,
-             entry.light_manager);
+    EOT_DEBUG("[lights] section {} takes LightManager {:#010x} (the one the sections before it applied)", section,
+              entry.light_manager);
     return;
   }
 }

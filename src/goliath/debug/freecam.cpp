@@ -678,9 +678,9 @@ void Flush(Burst &burst) {
   if (!burst.count)
     return;
   const auto span = std::chrono::duration_cast<std::chrono::milliseconds>(burst.last - burst.first);
-  EOT_INFO("[anim] {} animation(s) loaded over {} ms, ending {} ms ago (slowest {} us)", burst.count, span.count(),
-           std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - burst.last).count(),
-           burst.slowest_us);
+  EOT_DEBUG("[anim] {} animation(s) loaded over {} ms, ending {} ms ago (slowest {} us)", burst.count, span.count(),
+            std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - burst.last).count(),
+            burst.slowest_us);
   burst.count = 0;
   burst.slowest_us = 0;
 }

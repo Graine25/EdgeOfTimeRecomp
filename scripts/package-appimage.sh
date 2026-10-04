@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PRESET="${1:-linux-amd64-relwithdebinfo}"
+PRESET="${1:-linux-amd64-release}"
 APP_NAME="EdgeOfTimeRecomp"
 BUILD_DIR="out/build/${PRESET}"
 APPIMAGE_ARCH="${APPIMAGE_ARCH:-x86_64}"

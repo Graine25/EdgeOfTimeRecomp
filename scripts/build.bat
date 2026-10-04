@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0.."
 if errorlevel 1 goto :cd_failed
 
-set "PRESET=win-amd64-relwithdebinfo"
+set "PRESET=win-amd64-release"
 
 where rexglue.exe >nul 2>nul
 if not errorlevel 1 goto :rexglue_found

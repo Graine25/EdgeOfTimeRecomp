@@ -53,7 +53,7 @@ uint32_t RegisterPackage(const PPCContext &ctx, uint8_t *base, uint32_t id, cons
   const uint32_t slot = kPackageMgr + kMgrRecords + id * 4;
   uint32_t record = eot::mem::load<uint32_t>(slot);
   if (record) {
-    EOT_INFO("[pkg] package {} already registered at {:#x}", id, record);
+    EOT_DEBUG("[pkg] package {} already registered at {:#x}", id, record);
     return record;
   }
   record = GuestAlloc(ctx, base, kRecordSize);
@@ -118,7 +118,7 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
   const uint32_t mount_flags = package ? eot::mem::load<uint32_t>(package + 160) : 0u;
   const uint32_t open_flags = package ? eot::mem::load<uint32_t>(package + 164) : 0u;
   if (name.rfind("GDLC", 0) == 0)
-    EOT_INFO("[dlc] mount id {:#x} '{}' -> flags {:#x} openFlags {:#x}", id, name, mount_flags, open_flags);
+    EOT_DEBUG("[dlc] mount id {:#x} '{}' -> flags {:#x} openFlags {:#x}", id, name, mount_flags, open_flags);
   else
     EOT_DEBUG("[pkg] mount id {} '{}' -> flags {:#x} openFlags {:#x}", id, name, mount_flags, open_flags);
   if (!IsPortOrModPackage(id)) {
@@ -128,7 +128,7 @@ REX_HOOK_RAW(eot_PKPackage_Mount) {
   if (package) {
     const uint32_t flags = eot::mem::load<uint32_t>(package + 160);
     eot::mem::store<uint32_t>(package + 160, flags | 0x8);
-    EOT_INFO("[pkg] {} activation requested (flags {:#x} -> {:#x})", GuestString(record), flags, flags | 0x8);
+    EOT_DEBUG("[pkg] {} activation requested (flags {:#x} -> {:#x})", GuestString(record), flags, flags | 0x8);
   }
   eot::text::NoteGlyphPackage(package);
   eot::loading::ApplyTextureOverrides(ctx, base);
@@ -164,7 +164,7 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
     if (!p.language.empty() && language != p.language)
       continue;
     if (eot::mem::load<uint32_t>(kPackageMgr + kMgrPackages + p.id * 4)) {
-      EOT_INFO("[pkg] {} (id {:#x}) is already loaded", p.name, p.id);
+      EOT_DEBUG("[pkg] {} (id {:#x}) is already loaded", p.name, p.id);
       continue;
     }
     if (p.mod && eot::mem::load<uint32_t>(kPackageMgr + kMgrRecords + p.id * 4)) {
@@ -175,8 +175,8 @@ REX_HOOK_RAW(eot_GEEngineMgr_LoadMainPackage) {
     if (!RegisterPackage(ctx, base, p.id, p.name.c_str(), kReeotPackageDependency))
       continue;
     const uint32_t package = LoadPackage(ctx, base, p.id);
-    EOT_INFO("[pkg] queued {} as package id {:#x}: object {:#x}, handles {:#010x}+", p.name, p.id, package,
-             p.id << 20);
+    EOT_DEBUG("[pkg] queued {} as package id {:#x}: object {:#x}, handles {:#010x}+", p.name, p.id, package,
+              p.id << 20);
   }
 }
 

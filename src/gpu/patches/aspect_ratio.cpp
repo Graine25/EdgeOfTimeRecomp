@@ -364,7 +364,7 @@ REX_HOOK_RAW(eot_Movie_DrawFrame) {
   if (g_in_movie_command && state && eot::mem::load<uint8_t>(state + kFrameReady) == 0) {
     g_skip_resolve.store(true, std::memory_order_release);
     if (g_skipped++ < 8)
-      EOT_INFO("[movie] state {:#x}: no frame decoded yet; the menu texture is cleared instead of resolved", state);
+      EOT_DEBUG("[movie] state {:#x}: no frame decoded yet; the menu texture is cleared instead of resolved", state);
   }
   if (state) {
     DrawnMovie now;
@@ -379,8 +379,8 @@ REX_HOOK_RAW(eot_Movie_DrawFrame) {
     if (fresh || last.width != now.width || last.height != now.height ||
         std::memcmp(last.rect, now.rect, sizeof(now.rect)) != 0) {
       last = now;
-      EOT_INFO("[movie] state {:#x}: {}x{} frames drawn into x {:.3f}..{:.3f}, y {:.3f}..{:.3f} (clip space)", state,
-               now.width, now.height, now.rect[0], now.rect[2], now.rect[3], now.rect[1]);
+      EOT_DEBUG("[movie] state {:#x}: {}x{} frames drawn into x {:.3f}..{:.3f}, y {:.3f}..{:.3f} (clip space)", state,
+                now.width, now.height, now.rect[0], now.rect[2], now.rect[3], now.rect[1]);
     }
   }
   __imp__eot_Movie_DrawFrame(ctx, base);
@@ -394,12 +394,12 @@ REX_HOOK_RAW(eot_MovieTarget_CreateForTexture) {
   const uint32_t resident = record ? eot::mem::load<uint32_t>(record + 92) : 0;
   if (!target)
     return;
-  EOT_INFO("[movie] slot {} on texture {:#x}: its own image {}x{} (descriptor {:#x}, header {:#x}); the movie's "
-           "target {}x{} (descriptor {:#x}, header {:#x})",
-           slot, record, resident ? eot::mem::load<uint32_t>(resident + 12) : 0,
-           resident ? eot::mem::load<uint32_t>(resident + 16) : 0, resident,
-           resident ? eot::mem::load<uint32_t>(resident + 4) : 0, eot::mem::load<uint32_t>(target + 12),
-           eot::mem::load<uint32_t>(target + 16), target, eot::mem::load<uint32_t>(target + 4));
+  EOT_DEBUG("[movie] slot {} on texture {:#x}: its own image {}x{} (descriptor {:#x}, header {:#x}); the movie's "
+            "target {}x{} (descriptor {:#x}, header {:#x})",
+            slot, record, resident ? eot::mem::load<uint32_t>(resident + 12) : 0,
+            resident ? eot::mem::load<uint32_t>(resident + 16) : 0, resident,
+            resident ? eot::mem::load<uint32_t>(resident + 4) : 0, eot::mem::load<uint32_t>(target + 12),
+            eot::mem::load<uint32_t>(target + 16), target, eot::mem::load<uint32_t>(target + 4));
 }
 
 REX_HOOK_RAW(eot_Movie_FitRect) {
@@ -422,8 +422,8 @@ REX_HOOK_RAW(eot_Movie_FitRect) {
   StoreF32(state + kRectY1, -half_h);
   StoreF32(state + kRectX2, half_w);
   StoreF32(state + kRectY2, half_h);
-  EOT_INFO("[patch] movie {:.4f} on a {:.4f} display (the game guessed {:.4f}): rect {:.1f}% x {:.1f}%",
-           movie, display, guessed, 100.0f * half_w, 100.0f * half_h);
+  EOT_DEBUG("[patch] movie {:.4f} on a {:.4f} display (the game guessed {:.4f}): rect {:.1f}% x {:.1f}%",
+            movie, display, guessed, 100.0f * half_w, 100.0f * half_h);
 }
 
 REX_EXTERN(__imp__eot_CriMvEasyPlayer_SetUsableProcessors);

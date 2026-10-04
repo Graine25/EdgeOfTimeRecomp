@@ -284,8 +284,8 @@ bool EnsureHistory(VideoState &s, View &st, const HostTexture &scene) {
   st.height = scene.height;
   st.historyValid = false;
   st.prevValid = false;
-  EOT_INFO("[taa] history {}x{} for scene {:#x} ({} phases, feedback {:.2f})", desc.width,
-           desc.height, st.mirrorVa, kJitterPhases, Settings::TaaFeedback());
+  EOT_DEBUG("[taa] history {}x{} for scene {:#x} ({} phases, feedback {:.2f})", desc.width,
+            desc.height, st.mirrorVa, kJitterPhases, Settings::TaaFeedback());
   return true;
 }
 
@@ -680,8 +680,8 @@ bool AllocBlock(VideoState &s, CaptureState &c, Block *out) {
       return false;
     }
     c.chunks.push_back(std::move(chunk));
-    EOT_INFO("[velocity] history arena: chunk {} ({} MB, {} blocks)", c.chunks.size(),
-             kArenaChunkBytes >> 20, kArenaChunkBytes / kBlockBytes);
+    EOT_DEBUG("[velocity] history arena: chunk {} ({} MB, {} blocks)", c.chunks.size(),
+              kArenaChunkBytes >> 20, kArenaChunkBytes / kBlockBytes);
   }
   ArenaChunk &chunk = c.chunks.back();
   const u64 start = (chunk.used + kBlockAlignment - 1) / kBlockAlignment * kBlockAlignment;
@@ -964,8 +964,8 @@ Target *CurrentFor(VideoState &s, const GuestSurface &depth, u32 width, u32 heig
     t.needsClear = true;
     t.frameWritten = ~0ull;
     t.frameResolved = ~0ull;
-    EOT_INFO("[velocity] target {}x{} x{} for depth surface {:#x} slot {}", width, height,
-             t.samples, depth.va, t.slot);
+    EOT_DEBUG("[velocity] target {}x{} x{} for depth surface {:#x} slot {}", width, height,
+              t.samples, depth.va, t.slot);
   }
   return &t;
 }

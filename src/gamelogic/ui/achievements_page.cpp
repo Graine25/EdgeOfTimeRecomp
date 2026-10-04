@@ -407,7 +407,7 @@ bool Open(const PPCContext &ctx, uint8_t *base) {
   ShowProgress(ctx, base);
   hud::Activate(ctx, base, g_windows.page, true);
   g_open = true;
-  EOT_INFO("[ach] page open: Act 1, {} of {} rows", std::min<size_t>(kRows, List().size()), List().size());
+  EOT_DEBUG("[ach] page open: Act 1, {} of {} rows", std::min<size_t>(kRows, List().size()), List().size());
   return true;
 }
 
@@ -416,7 +416,7 @@ void Close(const PPCContext &ctx, uint8_t *base) {
     return;
   hud::Activate(ctx, base, g_windows.page, false);
   g_open = false;
-  EOT_INFO("[ach] page closed");
+  EOT_DEBUG("[ach] page closed");
 }
 
 bool IsOpen() { return g_open; }
@@ -427,7 +427,7 @@ void SetAct(const PPCContext &ctx, uint8_t *base, uint32_t act) {
   g_act = act;
   ShowPortrait(ctx, base);
   ShowSelection(ctx, base);
-  EOT_INFO("[ach] Act {}: {} achievements", act + 1, List().size());
+  EOT_DEBUG("[ach] Act {}: {} achievements", act + 1, List().size());
 }
 
 uint32_t Act() { return g_act; }
@@ -516,8 +516,8 @@ REX_HOOK_RAW(eot_HUDGalleryOptions_PushTabs) {
       g_act_handles[act] = Label(ctx, base, kActLabels[act]);
     g_labels_resolved = g_achievements_handle && g_act_handles[0] && g_act_handles[1] && g_act_handles[2];
     if (g_labels_resolved)
-      EOT_INFO("[gallery] tab labels resolved: Achievements {:#010x}, Acts {:#010x} {:#010x} {:#010x}",
-               g_achievements_handle, g_act_handles[0], g_act_handles[1], g_act_handles[2]);
+      EOT_DEBUG("[gallery] tab labels resolved: Achievements {:#010x}, Acts {:#010x} {:#010x} {:#010x}",
+                g_achievements_handle, g_act_handles[0], g_act_handles[1], g_act_handles[2]);
   }
   __imp__eot_HUDGalleryOptions_PushTabs(ctx, base);
 }
@@ -551,7 +551,7 @@ REX_HOOK_RAW(eot_HUDGalleryOptions_HandleInputEvent) {
   }
   if (self && event && type == kEvtSelect && eot::mem::load<uint32_t>(self + kScreenSelected) == kAchievementsTab) {
     ConsumeEvent(event);
-    EOT_INFO("[gallery] Achievements tab selected (screen {:#x})", self);
+    EOT_DEBUG("[gallery] Achievements tab selected (screen {:#x})", self);
     if (achievements::Open(ctx, base)) {
       PlayCue(ctx, base, kCueAccept);
       PushBar(ctx, base, self, 0);
@@ -772,8 +772,8 @@ void Show(const PPCContext &ctx, uint8_t *base, const std::string &name, uint32_
   const Fitted fitted = SetName(ctx, base, name);
   g_phase = Phase::kIn;
   g_since = clock::now();
-  EOT_INFO("[ach] banner: {} (icon {}), drawn as \"{}\" at {:.2f} of the plate", name, image_id, fitted.line,
-           fitted.width);
+  EOT_DEBUG("[ach] banner: {} (icon {}), drawn as \"{}\" at {:.2f} of the plate", name, image_id, fitted.line,
+            fitted.width);
 }
 
 float Ease(float t) { return 1.0f - (1.0f - t) * (1.0f - t); }

@@ -61,9 +61,9 @@ void Finish(Capture &c, int32_t result, std::string name) {
   c.kinds = 0;
   c.result = result;
   c.name = std::move(name);
-  EOT_INFO("[binds] capture: {}{}{}",
-           result == EOT_BINDS_GOT_KEY ? "key" : result == EOT_BINDS_GOT_PAD ? "pad" : result == EOT_BINDS_CANCELLED ? "cancelled" : result == EOT_BINDS_CLEARED ? "cleared" : "timed out",
-           c.name.empty() ? "" : " ", c.name);
+  EOT_DEBUG("[binds] capture: {}{}{}",
+            result == EOT_BINDS_GOT_KEY ? "key" : result == EOT_BINDS_GOT_PAD ? "pad" : result == EOT_BINDS_CANCELLED ? "cancelled" : result == EOT_BINDS_CLEARED ? "cleared" : "timed out",
+            c.name.empty() ? "" : " ", c.name);
 }
 
 class KeyCapture final : public rex::ui::WindowInputListener {
@@ -227,8 +227,8 @@ int32_t eot_binds_capture_begin(int32_t kinds) {
   g_capture.armed_at = std::chrono::steady_clock::now();
   g_capture.prev_valid = false;
   g_capture.ctrl_edge = false;
-  EOT_INFO("[binds] capture armed for {}{}", (kinds & EOT_BINDS_KEY) ? "a key" : "",
-           (kinds & EOT_BINDS_PAD) ? ((kinds & EOT_BINDS_KEY) ? " or a pad button" : "a pad button") : "");
+  EOT_DEBUG("[binds] capture armed for {}{}", (kinds & EOT_BINDS_KEY) ? "a key" : "",
+            (kinds & EOT_BINDS_PAD) ? ((kinds & EOT_BINDS_KEY) ? " or a pad button" : "a pad button") : "");
   return 1;
 }
 

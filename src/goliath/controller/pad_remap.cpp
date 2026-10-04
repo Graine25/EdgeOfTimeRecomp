@@ -501,7 +501,7 @@ REX_HOOK_RAW(eot_XInputGetState) {
       g_table = t;
     }
     if (changed) {
-      EOT_INFO("[pad] binds {}: {}{}", t.identity ? "native" : "remapped", [&] {
+      EOT_DEBUG("[pad] binds {}: {}{}", t.identity ? "native" : "remapped", [&] {
         std::string s;
         for (uint32_t i = 0; i < kPadActionCount; ++i)
           if (t.physical[i] != kActions[i].native)

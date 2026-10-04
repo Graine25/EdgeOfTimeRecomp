@@ -670,19 +670,19 @@ void PsoCacheFlushIfDirty(bool force) {
     drawn = l.drawnCaptured;
     evicted = l.evicted;
   }
-  EOT_INFO("[pso] {} pipelines, {} drawn: recorded {} ({} drawn), local {} ({}), asset {} ({}), draw {} | "
-           "misses since last: {} not in the list, {} still queued, {} draws waited | queued: boot {}, "
-           "packages {}, assets {} ({} materials, {} models, {} bundles; {} slots: {} recorded, {} "
-           "new layouts, {} alpha-test variants, {} unknown pairs) | pool: {} built, {} for draws, {} skipped, {} failed, pending {} "
-           "screen {} loading {} background | loading: {} screens, {} holds {:.0f} ms | {} unused released | "
-           "{} drawn captured",
-           total, used, by_source[1], used_by_source[1], by_source[2], used_by_source[2], by_source[3],
-           used_by_source[3], by_source[0], gaps, races, waited, boot, packages, as.queued,
-           as.materials, as.models, as.bundles, as.slots, as.recorded, as.layouts, as.alpha, as.unknown,
-           ps.built,
-           ps.urgentBuilt, ps.skipped, ps.failed, ps.screenPending, ps.loadPending, ps.backgroundPending,
-           screens, holds,
-           hold_ms, evicted, drawn);
+  EOT_DEBUG("[pso] {} pipelines, {} drawn: recorded {} ({} drawn), local {} ({}), asset {} ({}), draw {} | "
+            "misses since last: {} not in the list, {} still queued, {} draws waited | queued: boot {}, "
+            "packages {}, assets {} ({} materials, {} models, {} bundles; {} slots: {} recorded, {} "
+            "new layouts, {} alpha-test variants, {} unknown pairs) | pool: {} built, {} for draws, {} skipped, {} failed, pending {} "
+            "screen {} loading {} background | loading: {} screens, {} holds {:.0f} ms | {} unused released | "
+            "{} drawn captured",
+            total, used, by_source[1], used_by_source[1], by_source[2], used_by_source[2], by_source[3],
+            used_by_source[3], by_source[0], gaps, races, waited, boot, packages, as.queued,
+            as.materials, as.models, as.bundles, as.slots, as.recorded, as.layouts, as.alpha, as.unknown,
+            ps.built,
+            ps.urgentBuilt, ps.skipped, ps.failed, ps.screenPending, ps.loadPending, ps.backgroundPending,
+            screens, holds,
+            hold_ms, evicted, drawn);
 }
 
 }

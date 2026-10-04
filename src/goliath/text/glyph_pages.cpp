@@ -266,8 +266,8 @@ bool InstallGlyphs(const PPCContext &ctx, uint8_t *base, uint32_t font, const ch
     }
   }
   g_done.push_back(font);
-  EOT_INFO("[glyphs] {}: Cyrillic page at {:#x}, {} cells and {} aliases; the sheet is {}x{} ({} rows retail)", name,
-           page, cells, aliases, width, newHeight, oldHeight);
+  EOT_DEBUG("[glyphs] {}: Cyrillic page at {:#x}, {} cells and {} aliases; the sheet is {}x{} ({} rows retail)", name,
+            page, cells, aliases, width, newHeight, oldHeight);
   return true;
 }
 
@@ -369,8 +369,8 @@ void BuildByText() {
       }
     }
   }
-  EOT_INFO("[text] {} lines of the loaded packages' tables matched to the translation, for the stream subtitles",
-           g_by_text.size());
+  EOT_DEBUG("[text] {} lines of the loaded packages' tables matched to the translation, for the stream subtitles",
+            g_by_text.size());
 }
 
 std::u16string Decode(std::string_view escaped) {

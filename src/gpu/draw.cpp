@@ -905,7 +905,7 @@ bool PoolAllocate(VideoState &s, BufferPool &pool, u64 budget, u64 chunk_bytes,
     pool.chunks.clear();
     pool.totalBytes = 0;
     *reset = true;
-    EOT_INFO("[draw] {} pool over budget ({} MB); rebuilt", name, budget >> 20);
+    EOT_DEBUG("[draw] {} pool over budget ({} MB); rebuilt", name, budget >> 20);
   }
   auto align_up = [align](u64 v) { return (v + align - 1) / align * align; };
   if (pool.chunks.empty() ||
@@ -1056,8 +1056,8 @@ bool IndexCacheAllocate(VideoState &s, u64 bytes, plume::RenderBuffer **buffer, 
     s.perf.index_cache_evictions++;
     u32 n;
     if (DiagShouldLog(0x5A11, &n))
-      EOT_INFO("[draw] index-cache recycled one chunk ({} ranges, {} MB resident)", erased,
-               pool.totalBytes >> 20);
+      EOT_DEBUG("[draw] index-cache recycled one chunk ({} ranges, {} MB resident)", erased,
+                pool.totalBytes >> 20);
   }
   bool reset = false;
   const bool ok = PoolAllocate(s, pool, kIndexCacheBudgetBytes, kIndexCacheChunkBytes,
@@ -1162,9 +1162,9 @@ const VertexMirror *GetVertexMirror(VideoState &s, const StreamInfo &st, u64 fir
   if (c.pool.totalBytes > kVertexMirrorBudgetBytes ||
       bytes > kVertexMirrorBudgetBytes - c.pool.totalBytes) {
     c.admissionClosed = true;
-    EOT_INFO("[draw] vertex-mirror cache full ({} MB, {} ranges); keeping residents and "
-             "using frame uploads for new ranges",
-             c.pool.totalBytes >> 20, c.map.size());
+    EOT_DEBUG("[draw] vertex-mirror cache full ({} MB, {} ranges); keeping residents and "
+              "using frame uploads for new ranges",
+              c.pool.totalBytes >> 20, c.map.size());
     return nullptr;
   }
   s.perf.vertex_cache_misses++;
@@ -1916,7 +1916,7 @@ void ShadowPassClose(ShadowPassCensus &c) {
 
 void NoteShadowCaster(VideoState &s, DeviceView dev, const GuestShader &vs, const StreamInfo streams[16],
                       u32 lo, u32 hi) {
-  if (Settings::DiagVerbosity() < 1)
+  if (Settings::DiagVerbosity() < 2)
     return;
   ShadowPassCensus &c = g_shadow_census;
   if (c.frame != s.guest_frames) {
@@ -1931,17 +1931,17 @@ void NoteShadowCaster(VideoState &s, DeviceView dev, const GuestShader &vs, cons
     if (s.guest_frames - c.lastPrint >= 300) {
       c.lastPrint = s.guest_frames;
       if (c.frames) {
-        EOT_INFO("[shadow] census over {} frames: {:.1f} passes a frame, {:.1f} whole repeats of the previous "
-                 "frame ({:.0f}%), {:.1f} static repeats ({:.0f}%); {:.0f} casters a frame, {:.0f} skinned, "
-                 "{:.0f} in whole repeats, {:.0f} static casters in static repeats",
-                 c.frames, static_cast<f64>(c.sumPasses) / c.frames,
-                 static_cast<f64>(c.sumRepeats) / c.frames,
-                 c.sumPasses ? 100.0 * c.sumRepeats / c.sumPasses : 0.0,
-                 static_cast<f64>(c.sumStaticRepeatPasses) / c.frames,
-                 c.sumPasses ? 100.0 * c.sumStaticRepeatPasses / c.sumPasses : 0.0,
-                 static_cast<f64>(c.sumCasters) / c.frames, static_cast<f64>(c.sumSkinned) / c.frames,
-                 static_cast<f64>(c.sumRepeatCasters) / c.frames,
-                 static_cast<f64>(c.sumStaticRepeatCasters) / c.frames);
+        EOT_DEBUG("[shadow] census over {} frames: {:.1f} passes a frame, {:.1f} whole repeats of the previous "
+                  "frame ({:.0f}%), {:.1f} static repeats ({:.0f}%); {:.0f} casters a frame, {:.0f} skinned, "
+                  "{:.0f} in whole repeats, {:.0f} static casters in static repeats",
+                  c.frames, static_cast<f64>(c.sumPasses) / c.frames,
+                  static_cast<f64>(c.sumRepeats) / c.frames,
+                  c.sumPasses ? 100.0 * c.sumRepeats / c.sumPasses : 0.0,
+                  static_cast<f64>(c.sumStaticRepeatPasses) / c.frames,
+                  c.sumPasses ? 100.0 * c.sumStaticRepeatPasses / c.sumPasses : 0.0,
+                  static_cast<f64>(c.sumCasters) / c.frames, static_cast<f64>(c.sumSkinned) / c.frames,
+                  static_cast<f64>(c.sumRepeatCasters) / c.frames,
+                  static_cast<f64>(c.sumStaticRepeatCasters) / c.frames);
       }
       c.sumPasses = c.sumRepeats = c.sumCasters = c.sumRepeatCasters = c.frames = 0;
       c.sumSkinned = c.sumStaticRepeatPasses = c.sumStaticRepeatCasters = 0;
@@ -2580,13 +2580,13 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
             if (now == was)
               continue;
             ++logged;
-            EOT_INFO("[draw] target memo miss: surface {} ({:#x}) host {}/{} single {}/{} redirect {}/{} "
-                     "samples {}/{} content {}/{} cis {}/{} agree {}/{} rsd {}/{} dirty {}/{} stale {}/{}",
-                     i, surf->va, was.host, now.host, was.single, now.single, was.redirect,
-                     now.redirect, was.samples, now.samples, was.content, now.content,
-                     was.contentInSingle, now.contentInSingle, was.imagesAgree, now.imagesAgree,
-                     was.resolvedSinceDraw, now.resolvedSinceDraw, was.singleDirty, now.singleDirty,
-                     was.singleStale, now.singleStale);
+            EOT_DEBUG("[draw] target memo miss: surface {} ({:#x}) host {}/{} single {}/{} redirect {}/{} "
+                      "samples {}/{} content {}/{} cis {}/{} agree {}/{} rsd {}/{} dirty {}/{} stale {}/{}",
+                      i, surf->va, was.host, now.host, was.single, now.single, was.redirect,
+                      now.redirect, was.samples, now.samples, was.content, now.content,
+                      was.contentInSingle, now.contentInSingle, was.imagesAgree, now.imagesAgree,
+                      was.resolvedSinceDraw, now.resolvedSinceDraw, was.singleDirty, now.singleDirty,
+                      was.singleStale, now.singleStale);
           }
         }
       }
@@ -2958,11 +2958,11 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
       s.perf.pipeline_bind_on_hit++;
       static u32 logged = 0;
       if (logged++ < 8)
-        EOT_INFO("[draw] pipeline bind on a memo hit: memo {} bound {} entry {} vs {:016x} ps {:016x} "
-                 "samples {} rt0 {:#x}",
-                 static_cast<const void *>(pipeline), static_cast<const void *>(s.bound_pipeline),
-                 static_cast<const void *>(memo), vs->hash, ps ? ps->hash : 0, targets.samples,
-                 targets.colorCount ? targets.color[0]->va : 0);
+        EOT_DEBUG("[draw] pipeline bind on a memo hit: memo {} bound {} entry {} vs {:016x} ps {:016x} "
+                  "samples {} rt0 {:#x}",
+                  static_cast<const void *>(pipeline), static_cast<const void *>(s.bound_pipeline),
+                  static_cast<const void *>(memo), vs->hash, ps ? ps->hash : 0, targets.samples,
+                  targets.colorCount ? targets.color[0]->va : 0);
     }
     s.bound_pipeline = pipeline;
   }

@@ -443,11 +443,11 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       if (!at_k) {
         u32 n;
         if (DiagShouldLog(0x7A00 ^ target.va ^ static_cast<u32>(k * 1000.0f), &n) && n == 0)
-          EOT_INFO("[resolve] {:#x} {}x{} at x{:.3f} (tile {}) into {:#x} {}x{} fmt {}, a mirror made at "
-                   "x{:.3f} ({}x{} host): drawn scaled, {}x{} -> {}x{} host",
-                   src_va, surf->width, surf->height, k, surf->baseTile, target.va, target.width,
-                   target.height, static_cast<u32>(target.format), kx, target.host.width,
-                   target.host.height, sw, sh, hx1 - hx0, hy1 - hy0);
+          EOT_DEBUG("[resolve] {:#x} {}x{} at x{:.3f} (tile {}) into {:#x} {}x{} fmt {}, a mirror made at "
+                    "x{:.3f} ({}x{} host): drawn scaled, {}x{} -> {}x{} host",
+                    src_va, surf->width, surf->height, k, surf->baseTile, target.va, target.width,
+                    target.height, static_cast<u32>(target.format), kx, target.host.width,
+                    target.host.height, sw, sh, hx1 - hx0, hy1 - hy0);
       }
       const bool copy_fits = at_k && sx0h + (hx1 - hx0) <= static_cast<i32>(src_host->width) &&
                              sy0h + (hy1 - hy0) <= static_cast<i32>(src_host->height) &&
@@ -639,11 +639,11 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
         (vx != 0 || vy != 0 || vw < static_cast<i32>(mip_w) || vh < static_cast<i32>(mip_h))) {
       u32 n;
       if (DiagShouldLog(0x7900 ^ dest_texture_va ^ (static_cast<u32>(vw) << 12) ^ static_cast<u32>(vh), &n) && n == 0)
-        EOT_INFO("[resolve] {:#x} {}x{} (alloc {}x{}, x{:.3f}, tile {}) covers part of texture {:#x} {}x{} fmt {} "
-                 "(host {}x{}): {}x{} at {},{}, {}x{} host",
-                 src_va, surf->width, surf->height, surf->allocWidth, surf->allocHeight, surf->scale, surf->baseTile,
-                 dest_texture_va, dest->width, dest->height, static_cast<u32>(dest->format), dest->host.width,
-                 dest->host.height, vw, vh, vx, vy, ScalePxBy(vw, surf->scale), ScalePxBy(vh, surf->scale));
+        EOT_DEBUG("[resolve] {:#x} {}x{} (alloc {}x{}, x{:.3f}, tile {}) covers part of texture {:#x} {}x{} fmt {} "
+                  "(host {}x{}): {}x{} at {},{}, {}x{} host",
+                  src_va, surf->width, surf->height, surf->allocWidth, surf->allocHeight, surf->scale, surf->baseTile,
+                  dest_texture_va, dest->width, dest->height, static_cast<u32>(dest->format), dest->host.width,
+                  dest->host.height, vw, vh, vx, vy, ScalePxBy(vw, surf->scale), ScalePxBy(vh, surf->scale));
     }
     if (vw > 0 && vh > 0 && redirect_hit) {
       dest->contentSerial++;

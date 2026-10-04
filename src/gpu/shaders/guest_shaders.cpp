@@ -230,8 +230,8 @@ bool GuestShadersInit() {
     c.canonical.emplace(e.hash, canon);
     canon_rows += std::format("{:016x},{:016x}\n", e.hash, canon);
   }
-  EOT_INFO("[shaders] {} entries, {} unique DXIL: {} streamed duplicates share a host shader",
-           g_shaderCacheEntryCount, by_bytes.size(), g_shaderCacheEntryCount - by_bytes.size());
+  EOT_DEBUG("[shaders] {} entries, {} unique DXIL: {} streamed duplicates share a host shader",
+            g_shaderCacheEntryCount, by_bytes.size(), g_shaderCacheEntryCount - by_bytes.size());
   if (FILE *f = std::fopen("pso/shader_canon.csv", "wb")) {
     std::fputs("hash,canonical\n", f);
     std::fwrite(canon_rows.data(), 1, canon_rows.size(), f);

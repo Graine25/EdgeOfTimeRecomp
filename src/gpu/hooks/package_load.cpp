@@ -56,7 +56,7 @@ REX_HOOK_RAW(eot_GLAPIPackage_Load) {
     return;
   const std::string name = PackageName(id);
   if (name.rfind("GDLC", 0) == 0)
-    EOT_INFO("[dlc] GLAPIPackage::Load({:#x} '{}')", id, name);
+    EOT_DEBUG("[dlc] GLAPIPackage::Load({:#x} '{}')", id, name);
   else
     EOT_DEBUG("[pso] GLAPIPackage::Load({:#x} '{}')", id, name);
   eot::gpu::PsoCacheOnPackageLoad(id, IsLevelPackage(name));

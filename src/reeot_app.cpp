@@ -94,7 +94,9 @@ struct BackgroundControllerEvents {
   }
 } g_background_controller_events;
 
-// Command-line and environment values stay out of the profile.
+constexpr const char *kDebugCategory = "EdgeOfTime/Debug";
+
+// Command-line and environment values stay out of the profile, and so do the debug cvars.
 void SaveProfileConfig(const std::filesystem::path &path) {
   std::map<std::string, std::string> file_lines;
   if (std::ifstream in(path); in) {
@@ -106,20 +108,25 @@ void SaveProfileConfig(const std::filesystem::path &path) {
     }
   }
   std::set<std::string> launch_only;
-  for (const auto &entry : rex::cvar::GetRegistry())
+  std::set<std::string> debug;
+  for (const auto &entry : rex::cvar::GetRegistry()) {
     if (entry.source == rex::cvar::Source::kCommandLine || entry.source == rex::cvar::Source::kEnvironment)
       launch_only.insert(entry.name);
+    if (entry.category == kDebugCategory)
+      debug.insert(entry.name);
+  }
 
   std::string out;
   std::istringstream serialized(rex::cvar::SerializeToTOML());
   for (std::string line; std::getline(serialized, line);) {
     const size_t eq = line.find(" = ");
-    if (eq != std::string::npos && launch_only.contains(line.substr(0, eq)))
+    const std::string name = eq == std::string::npos ? std::string() : line.substr(0, eq);
+    if (launch_only.contains(name) || debug.contains(name))
       continue;
     out += line + "\n";
   }
   for (const std::string &name : launch_only)
-    if (const auto it = file_lines.find(name); it != file_lines.end())
+    if (const auto it = file_lines.find(name); it != file_lines.end() && !debug.contains(name))
       out += it->second + "\n";
 
   std::error_code ec;
@@ -161,7 +168,7 @@ public:
     if (REXCVAR_GET(eot_achievement_notifications))
       eot::ui::QueueAchievementToast(event);
     else
-      EOT_INFO("[achievements] unlocked with the notifications off");
+      EOT_DEBUG("[achievements] unlocked with the notifications off");
   }
 };
 }
@@ -693,6 +700,9 @@ void ReeotApp::OnPreSetup(rex::RuntimeConfig &config) {
     ApplyBackgroundInput(value == "true" || value == "1");
   });
 
+  for (const std::string &name : rex::cvar::ListFlagsByCategory(kDebugCategory))
+    if (rex::cvar::GetFlagSource(name) == rex::cvar::Source::kConfig)
+      rex::cvar::ResetToDefault(name);
   SetCvarValue("eot_debug_pause", "false");
   SetCvarValue("eot_freecam", "false");
   SetCvarValue("eot_debug_script", "");
@@ -733,7 +743,7 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
     rex::cvar::SetFlagByName("show_fps_overlay", shown ? "false" : "true");
   });
   rex::ui::RegisterBind("bind_hide_hud", "F1", "Hide or show the game's HUD", [] {
-    EOT_INFO("[hud] {} (F1)", eot::debug::ToggleHud() ? "hidden" : "shown");
+    EOT_DEBUG("[hud] {} (F1)", eot::debug::ToggleHud() ? "hidden" : "shown");
   });
   const auto debug_toggle = [](const char *flag) {
     return [flag] {
@@ -761,7 +771,9 @@ void ReeotApp::OnCreateDialogs(rex::ui::ImGuiDrawer *drawer) {
       return;
     eot::debug::InputScriptReplay();
   });
-  rex::ui::RegisterBind("bind_vram_report", "F11", "Write a video memory report to the log", [] {
+  rex::ui::RegisterBind("bind_vram_report", "F11", "Debug mode: write a video memory report", [] {
+    if (!eot::controller::DebugModeActive())
+      return;
     eot::gpu::RequestMemoryReport();
     EOT_INFO("[vram] report requested (F11)");
   });
