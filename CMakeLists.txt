@@ -5,7 +5,7 @@
 #
 
 cmake_minimum_required(VERSION 3.25)
-project(reeot VERSION 0.6 LANGUAGES C CXX)
+project(reeot VERSION 0.6.7 LANGUAGES C CXX)
 if(APPLE)
     enable_language(OBJCXX)
 endif()

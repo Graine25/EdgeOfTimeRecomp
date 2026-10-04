@@ -79,7 +79,7 @@ REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video", "Screen color sat
 REXCVAR_DEFINE_DOUBLE(eot_gamma, 1.0, "EdgeOfTime/Video", "Screen gamma curve");
 REXCVAR_DEFINE_INT32(eot_perf_frames, 600, "EdgeOfTime/Debug", "Perf log every N frames");
 
-REXCVAR_DEFINE_INT32(eot_vram_report_seconds, 30, "EdgeOfTime/Debug", "Seconds between VRAM reports")
+REXCVAR_DEFINE_INT32(eot_vram_report_seconds, 0, "EdgeOfTime/Debug", "Seconds between VRAM reports")
     .range(0, 3600);
 REXCVAR_DEFINE_BOOL(eot_vram_csv, false, "EdgeOfTime/Debug", "Write VRAM allocation CSVs");
 
@@ -101,7 +101,7 @@ REXCVAR_DEFINE_STRING(eot_rdc_dll,
                       "C:/Users/rieng/Documents/GitHub/renderdoc/x64/Development/renderdoc.dll",
                       "EdgeOfTime/Debug", "Path to renderdoc.dll");
 
-REXCVAR_DEFINE_STRING(eot_rdc_path, "D:/reeot_caps/tmp/reeot", "EdgeOfTime/Debug", "RenderDoc capture path");
+REXCVAR_DEFINE_STRING(eot_rdc_path, "captures/reeot", "EdgeOfTime/Debug", "RenderDoc capture path");
 
 REXCVAR_DEFINE_INT32(eot_dump_every, 0, "EdgeOfTime/Debug", "Save a frame every N")
     .range(0, 1000000);

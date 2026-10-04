@@ -196,7 +196,7 @@ bool OverlayDrawer::EnsureResources(VideoState &s) {
     failed_ = true;
     return false;
   }
-  EOT_INFO("[overlay] ready");
+  EOT_DEBUG("[overlay] ready");
   return true;
 }
 

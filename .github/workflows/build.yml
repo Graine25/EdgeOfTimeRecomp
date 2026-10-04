@@ -24,13 +24,13 @@ jobs:
         include:
           - platform: win-amd64
             runner: windows-latest
-            preset: win-amd64-relwithdebinfo
+            preset: win-amd64-release
           - platform: linux-amd64
             runner: ubuntu-latest
-            preset: linux-amd64-relwithdebinfo
+            preset: linux-amd64-release
           - platform: mac-arm64
             runner: macos-26
-            preset: mac-arm64-relwithdebinfo
+            preset: mac-arm64-release
     runs-on: ${{ matrix.runner }}
     # Same image as the SDK's linux-amd64 nightly, so the glibc floor stays at 2.35.
     container: ${{ matrix.platform == 'linux-amd64' && fromJSON('{"image":"ubuntu:22.04"}') || fromJSON('null') }}
@@ -165,7 +165,7 @@ jobs:
         run: |
           $downloads = Join-Path $env:USERPROFILE 'Downloads'
           New-Item -ItemType Directory -Force $downloads, dist | Out-Null
-          ./scripts/package.ps1
+          ./scripts/package.ps1 ${{ matrix.preset }}
           Get-ChildItem $downloads -Filter 'EdgeOfTimeRecomp-v*.zip' |
             ForEach-Object { Move-Item $_.FullName "dist/$($_.BaseName)-win-amd64.zip" }
 

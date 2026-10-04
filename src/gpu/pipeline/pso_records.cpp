@@ -609,7 +609,7 @@ void PsoWriteSessionFile(const std::string &name, const std::string &header,
     std::fputc('\n', f);
   }
   std::fclose(f);
-  EOT_INFO("[pso] wrote {} ({} rows)", path, rows.size());
+  EOT_DEBUG("[pso] wrote {} ({} rows)", path, rows.size());
 }
 
 }

@@ -1,7 +1,9 @@
+param([string]$Preset = 'win-amd64-release')
+
 $ErrorActionPreference = 'Stop'
 
 $repo      = Split-Path -Parent $PSScriptRoot
-$build     = Join-Path $repo 'out\build\win-amd64-relwithdebinfo'
+$build     = Join-Path $repo "out\build\$Preset"
 $downloads = Join-Path $env:USERPROFILE 'Downloads'
 $dis       = Join-Path $downloads 'EdgeOfTimeRecomp-dis'
 $list      = Join-Path $build 'program_files.txt'
@@ -23,7 +25,7 @@ if (Test-Path $info) {
     if ($text -match 'REEOT_VERSION_STRING\s+"([^"]+)"')  { $ver   = $Matches[1] }
     if ($text -match 'REEOT_BUILD_TIMESTAMP\s+"([^"]+)"') { $stamp = $Matches[1] }
 }
-Write-Host "EdgeOfTimeRecomp playtest package  v$ver  build $stamp"
+Write-Host "EdgeOfTimeRecomp package  v$ver  build $stamp"
 Write-Host ""
 
 Write-Host "[1/4] Clearing old remnants..."
@@ -58,8 +60,6 @@ foreach ($name in $binaries) {
     if (Test-Path $src) {
         Copy-Item $src (Join-Path $dis $pdb) -Force
         Write-Host "        + $pdb"
-    } else {
-        Write-Host "        [WARN] no symbols for $name" -ForegroundColor Yellow
     }
 }
 

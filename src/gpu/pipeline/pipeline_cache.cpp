@@ -600,17 +600,17 @@ void PsoCacheFlushIfDirty(bool force) {
     hold_ms = l.holdMs;
     drawn = l.drawnCaptured;
   }
-  EOT_INFO("[pso] {} pipelines: draw {} | compiled-in {} ({} used) | local {} ({} used) | "
-           "predicted {} ({} used) | render-thread builds since last: {} gaps, {} races | pool: "
-           "{} queued, {} built, {} existing, {} skipped, {} failed, pending recorded {} prio {} bg "
-           "{} | predictor: {} models, {} materials, {} slots, {} queued, {} without template, {} "
-           "shadow biases | loading: {} screens, {} package sets, {} holds {:.0f} ms | {} drawn "
-           "captured",
-           total, by_source[0], by_source[1], used_by_source[1], by_source[2],
-           used_by_source[2], by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built,
-           ps.existing, ps.skipped, ps.failed, ps.recordedPending, ps.priorityPending,
-           ps.backgroundPending, pr.models, pr.materials, pr.slots, pr.queued, pr.noTemplate,
-           pr.shadowBiases, screens, sets_queued, holds, hold_ms, drawn);
+  EOT_DEBUG("[pso] {} pipelines: draw {} | compiled-in {} ({} used) | local {} ({} used) | "
+            "predicted {} ({} used) | render-thread builds since last: {} gaps, {} races | pool: "
+            "{} queued, {} built, {} existing, {} skipped, {} failed, pending recorded {} prio {} bg "
+            "{} | predictor: {} models, {} materials, {} slots, {} queued, {} without template, {} "
+            "shadow biases | loading: {} screens, {} package sets, {} holds {:.0f} ms | {} drawn "
+            "captured",
+            total, by_source[0], by_source[1], used_by_source[1], by_source[2],
+            used_by_source[2], by_source[3], used_by_source[3], gaps, races, ps.queued, ps.built,
+            ps.existing, ps.skipped, ps.failed, ps.recordedPending, ps.priorityPending,
+            ps.backgroundPending, pr.models, pr.materials, pr.slots, pr.queued, pr.noTemplate,
+            pr.shadowBiases, screens, sets_queued, holds, hold_ms, drawn);
   if (!force || templates.empty())
     return;
   std::vector<std::string> rows;
@@ -630,8 +630,8 @@ void PsoCacheFlushIfDirty(bool force) {
                                          kPsoCsvVersion, PsoCsvHeader().substr(PsoCsvHeader().find('\n') + 1));
   PsoWriteSessionFile("pso_templates_" + PsoSessionTag() + "_" + PsoSessionStamp() + ".csv",
                       header, rows);
-  EOT_INFO("[pso] templates: {} of {} produced a pipeline a draw used", used_templates,
-           templates.size());
+  EOT_DEBUG("[pso] templates: {} of {} produced a pipeline a draw used", used_templates,
+            templates.size());
 }
 
 }

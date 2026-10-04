@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0.."
 if errorlevel 1 goto :cd_failed
 
-set "PRESET=win-amd64-relwithdebinfo"
+set "PRESET=win-amd64-release"
 
 if not exist "generated\default\sources.cmake" goto :missing_codegen
 if not exist "generated\default\codegen.build.stamp" goto :missing_codegen

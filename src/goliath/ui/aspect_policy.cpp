@@ -516,9 +516,9 @@ struct Overflow {
       if (used > peak) {
         peak = used;
         if (!announced || (peak % 512) == 0) {
-          EOT_INFO("[hud] the console's {} runtime window handles are all in use; {} more in the port's "
-                   "table (peak {})",
-                   kRetailSlots, used, peak);
+          EOT_DEBUG("[hud] the console's {} runtime window handles are all in use; {} more in the port's "
+                    "table (peak {})",
+                    kRetailSlots, used, peak);
           announced = true;
         }
       }
@@ -713,9 +713,9 @@ void TitleMatteTick(const PPCContext &ctx, uint8_t *base) {
   if (Find(ctx, base, kTitleCrc, g_title_handle, search))
     card = Find(ctx, base, kCardCrc, g_card_handle, search);
   if (card && !g_announced)
-    EOT_INFO("[title] the menu's darkening card (HUD_BlackFade) found; widened x{:.3f} and heightened x{:.3f} for a "
-             "{:.3f} display drawn x{:.3f} wider by the FOV option",
-             stretch, stretch_y, aspect, widening);
+    EOT_DEBUG("[title] the menu's darkening card (HUD_BlackFade) found; widened x{:.3f} and heightened x{:.3f} for a "
+              "{:.3f} display drawn x{:.3f} wider by the FOV option",
+              stretch, stretch_y, aspect, widening);
   g_announced = card != 0;
   g_card.store(card, std::memory_order_relaxed);
 }

@@ -89,7 +89,7 @@ void ParseRigs() {
       const float fps = static_cast<float>(std::atof(entry.c_str() + eq + 1));
       if (!name.empty() && fps > 0.0f) {
         rigs.push_back({RigCrc(name), 1.0f / fps});
-        EOT_INFO("[anim-step] rig {} ({:08x}) steps at {:g} fps", name, rigs.back().crc, fps);
+        EOT_DEBUG("[anim-step] rig {} ({:08x}) steps at {:g} fps", name, rigs.back().crc, fps);
       } else {
         EOT_WARN("[anim-step] ignoring '{}': expected Rig=fps", entry);
       }
@@ -173,13 +173,13 @@ void LogCurves(const char *kind, uint32_t object, uint32_t params) {
     ++g_seen_logged;
   }
   auto f = [&](uint32_t off) { return eot::mem::load<float>(params + off); };
-  EOT_INFO("[update-lod] {} {:#x}: in view ({:.0f}m {:.3f}s | {:.0f}m {:.3f}s | {:.0f}m {:.3f}s, cull "
-           "{:.0f}m) hidden ({:.0f}m {:.3f}s | {:.0f}m {:.3f}s | {:.0f}m {:.3f}s, cull {:.0f}m) "
-           "flags {:#x} {:#x} {:#x} {:#x}",
-           kind, object, f(8), f(12), f(16), f(20), f(24), f(28), f(32), f(44), f(48), f(52),
-           f(56), f(60), f(64), f(68), eot::mem::load<uint32_t>(params),
-           eot::mem::load<uint32_t>(params + 4), eot::mem::load<uint32_t>(params + 36),
-           eot::mem::load<uint32_t>(params + 40));
+  EOT_DEBUG("[update-lod] {} {:#x}: in view ({:.0f}m {:.3f}s | {:.0f}m {:.3f}s | {:.0f}m {:.3f}s, cull "
+            "{:.0f}m) hidden ({:.0f}m {:.3f}s | {:.0f}m {:.3f}s | {:.0f}m {:.3f}s, cull {:.0f}m) "
+            "flags {:#x} {:#x} {:#x} {:#x}",
+            kind, object, f(8), f(12), f(16), f(20), f(24), f(28), f(32), f(44), f(48), f(52),
+            f(56), f(60), f(64), f(68), eot::mem::load<uint32_t>(params),
+            eot::mem::load<uint32_t>(params + 4), eot::mem::load<uint32_t>(params + 36),
+            eot::mem::load<uint32_t>(params + 40));
 }
 
 void LogSummary() {
@@ -191,11 +191,11 @@ void LogSummary() {
   last = now;
   const uint64_t calls = g_gate_calls.exchange(0), forced = g_gate_forced.exchange(0);
   if (calls)
-    EOT_INFO("[update-lod] last 30 s: {} gate calls, {} skips ticked instead ({:.1f}%)", calls,
-             forced, 100.0 * static_cast<double>(forced) / static_cast<double>(calls));
+    EOT_DEBUG("[update-lod] last 30 s: {} gate calls, {} skips ticked instead ({:.1f}%)", calls,
+              forced, 100.0 * static_cast<double>(forced) / static_cast<double>(calls));
   const uint64_t held = g_steps_held.exchange(0), made = g_steps_made.exchange(0);
   if (held || made)
-    EOT_INFO("[anim-step] last 30 s: {} skeleton advances held, {} made", held, made);
+    EOT_DEBUG("[anim-step] last 30 s: {} skeleton advances held, {} made", held, made);
   ForgetStaleHeld();
 }
 
@@ -304,12 +304,12 @@ void PhysicsLogSummary() {
     return;
   last = now;
   if (g_frames)
-    EOT_INFO("[physics] last 30 s: {} frames, {} fixed steps, {} frames with no step ({:.0f}%), mean alpha "
-             "{:.3f}, {} bodies",
-             g_frames, g_steps, g_zero_step_frames,
-             100.0 * static_cast<double>(g_zero_step_frames) / static_cast<double>(g_frames),
-             g_alpha_sum / static_cast<double>(g_frames),
-             eot::mem::load<uint32_t>(eot::mem::load<uint32_t>(kWorldObjectList) + 4));
+    EOT_DEBUG("[physics] last 30 s: {} frames, {} fixed steps, {} frames with no step ({:.0f}%), mean alpha "
+              "{:.3f}, {} bodies",
+              g_frames, g_steps, g_zero_step_frames,
+              100.0 * static_cast<double>(g_zero_step_frames) / static_cast<double>(g_frames),
+              g_alpha_sum / static_cast<double>(g_frames),
+              eot::mem::load<uint32_t>(eot::mem::load<uint32_t>(kWorldObjectList) + 4));
   g_frames = g_steps = g_zero_step_frames = 0;
   g_alpha_sum = 0.0;
 }
@@ -547,8 +547,8 @@ REX_HOOK_RAW(eot_PhysicsWorld_Update) {
   if (clock::now() - last >= std::chrono::seconds(30)) {
     last = clock::now();
     if (g_placements)
-      EOT_INFO("[physics] last 30 s: {} placements from inside a step, {} frames drawn between two", g_placements,
-               g_drawn_between);
+      EOT_DEBUG("[physics] last 30 s: {} placements from inside a step, {} frames drawn between two", g_placements,
+                g_drawn_between);
     g_placements = g_drawn_between = 0;
   }
 }

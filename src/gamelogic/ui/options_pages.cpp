@@ -1233,14 +1233,14 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
     for (uint32_t i = 0; i < 4; ++i)
       ScaleText(ctx, base, w.header[i], kHeaderScale);
     w.built = true;
-    EOT_INFO("[menu] the mods table's {} strips sized", kRows);
+    EOT_DEBUG("[menu] the mods table's {} strips sized", kRows);
     return;
   }
   if (&layout == &kBinds) {
     for (uint32_t i = 0; i < 3; ++i)
       ScaleText(ctx, base, w.header[i], kHeaderScale);
     w.built = true;
-    EOT_INFO("[menu] the binds table's {} strips sized", kRows);
+    EOT_DEBUG("[menu] the binds table's {} strips sized", kRows);
     return;
   }
   const uint32_t handles = g_block + kBlockHandles;
@@ -1275,7 +1275,7 @@ void BuildRows(const PPCContext &ctx, uint8_t *base) {
     ScaleText(ctx, base, eot::mem::load<uint32_t>(slider + ctl::kLabel), kTextScale);
   }
   w.built = true;
-  EOT_INFO("[menu] {} settings rows built for the {} layout", kRows, &layout == &kNarrow ? "narrow" : "wide");
+  EOT_DEBUG("[menu] {} settings rows built for the {} layout", kRows, &layout == &kNarrow ? "narrow" : "wide");
 }
 
 bool FindWindows(const PPCContext &ctx, uint8_t *base) {
@@ -1420,9 +1420,9 @@ void OpenPage(const PPCContext &ctx, uint8_t *base, const Page &page) {
   __imp__eot_YesNoWindow_Open(call, base);
   g_popup_id = call.r3.u32;
   g_popup_open = g_popup_id != 0xFFFFFFFFu;
-  EOT_INFO("[menu] {} page: {} {}, panel {:#x} -> pop-up id {:#x}", page.label,
-           page.table ? g_mods.size() : page.binds ? kBindRowCount : page.settings.size(),
-           page.table ? "mods" : page.binds ? "binds" : "settings", CurrentWindows().panel, g_popup_id);
+  EOT_DEBUG("[menu] {} page: {} {}, panel {:#x} -> pop-up id {:#x}", page.label,
+            page.table ? g_mods.size() : page.binds ? kBindRowCount : page.settings.size(),
+            page.table ? "mods" : page.binds ? "binds" : "settings", CurrentWindows().panel, g_popup_id);
 }
 
 bool RestartDue() {
@@ -1446,7 +1446,7 @@ void UndoRestartBound() {
     const Setting &s = g_page->settings[i];
     if (s.restart && Value(s) != g_opened_with[i]) {
       SetValue(s, g_opened_with[i]);
-      EOT_INFO("[menu] {} back to {} (no restart)", Name(s), g_opened_with[i]);
+      EOT_DEBUG("[menu] {} back to {} (no restart)", Name(s), g_opened_with[i]);
     }
   }
   rex::cvar::InvokeCommand("eot_save_settings", "");
@@ -1472,7 +1472,7 @@ void AskRestart(const PPCContext &ctx, uint8_t *base) {
   call.r3.u32 = g_restart_config;
   __imp__eot_YesNoWindow_Open(call, base);
   g_restart_asked = call.r3.u32 != 0xFFFFFFFFu;
-  EOT_INFO("[menu] restart asked -> pop-up id {:#x}", call.r3.u32);
+  EOT_DEBUG("[menu] restart asked -> pop-up id {:#x}", call.r3.u32);
 }
 
 void Close(const PPCContext &ctx, uint8_t *base, bool accept) {
@@ -1542,7 +1542,7 @@ void NoteModsResult(const PPCContext &ctx, uint8_t *base, bool ok, const char *m
   g_mods_changed = g_mods_changed || ok;
   g_remove_armed.clear();
   PlayCue(ctx, base, ok ? kCueAccept : kCueDenied);
-  EOT_INFO("[menu] mods: {}", g_mods_message);
+  EOT_DEBUG("[menu] mods: {}", g_mods_message);
   RefreshMods();
   if (g_cursor >= g_mods.size())
     g_cursor = g_mods.empty() ? 0 : static_cast<uint32_t>(g_mods.size()) - 1;
@@ -1857,7 +1857,7 @@ void AddMod(const PPCContext &ctx, uint8_t *base) {
   g_remove_armed.clear();
   g_import_state = EOT_MODS_CHOOSING;
   PlayCue(ctx, base, kCueAccept);
-  EOT_INFO("[menu] mods: the file browser is up");
+  EOT_DEBUG("[menu] mods: the file browser is up");
   ShowRows(ctx, base);
 }
 
@@ -1949,8 +1949,8 @@ void eot_OptionsBar_AddGraphics(PPCRegister &r6, PPCRegister &r31) {
   if (r31.u32)
     eot::mem::store<uint32_t>(r31.u32 + kScreenCursorOff, 0);
   const int mods_slot = g_mods_label ? AppendEntry(desc, g_mods_label) : -1;
-  EOT_INFO("[menu] options bar {:#x}: Video in slot {}, Graphics in slot {}{}", desc, kVideoIndex, kGraphicsIndex,
-           mods_slot >= 0 ? std::format(", Mods in slot {}", mods_slot) : std::string());
+  EOT_DEBUG("[menu] options bar {:#x}: Video in slot {}, Graphics in slot {}{}", desc, kVideoIndex, kGraphicsIndex,
+            mods_slot >= 0 ? std::format(", Mods in slot {}", mods_slot) : std::string());
 }
 
 void eot_OptionsBar_NavRightBound6(PPCRegister &r29, PPCCRRegister &cr6, PPCXERRegister &xer) {
@@ -1982,7 +1982,7 @@ void OpenRetailBrightness(const PPCContext &ctx, uint8_t *base, uint32_t screen_
     EOT_WARN("[menu] the Options screen did not take the Brightness select; the screen does not open");
     return;
   }
-  EOT_INFO("[menu] the game's Brightness screen opened from the Video page");
+  EOT_DEBUG("[menu] the game's Brightness screen opened from the Video page");
 }
 
 REX_HOOK_RAW(eot_HUDOptionsScreen_HandleInputEvent) {
@@ -2148,11 +2148,11 @@ REX_HOOK_RAW(eot_WindowComponent_Teardown) {
     if (g_capture.active && binds::Api().capture_end)
       binds::Api().capture_end();
     g_capture = Capture{};
-    EOT_INFO("[menu] {} page closed (id {:#x})", g_page ? g_page->label : "?", g_popup_id);
+    EOT_DEBUG("[menu] {} page closed (id {:#x})", g_page ? g_page->label : "?", g_popup_id);
     const Opens next = g_pending_opens;
     g_pending_opens = Opens::kNothing;
     if (next != Opens::kNothing && g_restart_asked)
-      EOT_INFO("[menu] a restart is being asked; the button's page does not open");
+      EOT_DEBUG("[menu] a restart is being asked; the button's page does not open");
     else if (next == Opens::kBinds)
       OpenPage(ctx, base, g_binds_page);
     else if (next == Opens::kBrightness)
@@ -2199,8 +2199,8 @@ REX_HOOK_RAW(eot_PauseMenu_GetMainMenuBarInfo) {
     eot::mem::store<uint32_t>(DescHandleAddr(desc, kQuitGameIndex), kHandleExitToMenu);
     slot = AppendEntry(desc, kHandleExitGame);
   }
-  EOT_INFO("[menu] pause bar {:#x}: count {} -> {}, Exit Game slot {}", desc, count,
-           desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0u, slot);
+  EOT_DEBUG("[menu] pause bar {:#x}: count {} -> {}, Exit Game slot {}", desc, count,
+            desc ? eot::mem::load<uint32_t>(desc + kDescCount) : 0u, slot);
 }
 
 REX_HOOK_RAW(eot_PauseMenu_HandleMainMenuSelectOption) {
@@ -2244,7 +2244,7 @@ REX_HOOK_RAW(eot_HUDSavegameSelect_HandleInputEvent) {
     const uint32_t handle = OpenConfirm(ctx, base, self, kSaveYesNo, kHandleLeaveTitle, kHandleLeaveBody,
                                         NameCrc("Reeot_LeaveWindow"), NameCrc("Reeot_LeaveYes"), NameCrc("Reeot_LeaveNo"));
     g_confirm_pending = handle != 0xFFFFFFFFu;
-    EOT_INFO("[menu] save selection: B, leave-the-game window {:#x}", handle);
+    EOT_DEBUG("[menu] save selection: B, leave-the-game window {:#x}", handle);
     return;
   }
   __imp__eot_HUDSavegameSelect_HandleInputEvent(ctx, base);
@@ -2253,7 +2253,7 @@ REX_HOOK_RAW(eot_HUDSavegameSelect_HandleInputEvent) {
 REX_HOOK_RAW(eot_HUDSavegameSelect_HandleMessage) {
   if (g_confirm_pending && ExitIfConfirmed(ctx.r3.u32, ctx.r4.u32, ctx.r5.u32, kSaveYesNo)) {
     g_confirm_pending = false;
-    EOT_INFO("[menu] save selection: leave-the-game window answered");
+    EOT_DEBUG("[menu] save selection: leave-the-game window answered");
     ctx.r3.u32 = 1;
     return;
   }
@@ -2288,7 +2288,7 @@ void ApplyRewrites() {
       continue;
     const uint32_t crc = eot::ui::NameCrc(r.replacement);
     eot::mem::store<uint32_t>(slot, crc);
-    EOT_INFO("[menu] button prompt {} -> {} (crc {:#010x})", r.id, r.replacement, crc);
+    EOT_DEBUG("[menu] button prompt {} -> {} (crc {:#010x})", r.id, r.replacement, crc);
   }
 }
 

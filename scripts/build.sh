@@ -3,9 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ "$(uname -s)" = "Darwin" ]; then
-    PRESET="${1:-mac-arm64-relwithdebinfo}"
+    PRESET="${1:-mac-arm64-release}"
 else
-    PRESET="${1:-linux-amd64-relwithdebinfo}"
+    PRESET="${1:-linux-amd64-release}"
 fi
 
 # REXSDK_DIR (an SDK source tree) or CMAKE_PREFIX_PATH (a nightly SDK package).

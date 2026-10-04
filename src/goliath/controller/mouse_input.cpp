@@ -113,8 +113,8 @@ public:
     if (window_)
       window_->SetCursorVisibility(fullscreen ? rex::ui::Window::CursorVisibility::kHidden
                                               : rex::ui::Window::CursorVisibility::kVisible);
-    EOT_INFO("[input] {}: mouse look {}, cursor {}", fullscreen ? "fullscreen" : "windowed",
-             fullscreen ? "on" : "off", fullscreen ? "hidden" : "visible");
+    EOT_DEBUG("[input] {}: mouse look {}, cursor {}", fullscreen ? "fullscreen" : "windowed",
+              fullscreen ? "on" : "off", fullscreen ? "hidden" : "visible");
   }
 
   void Tick(bool overlay_wants_pointer) {
@@ -156,8 +156,8 @@ public:
     }
     if (changed) {
       rex::input::mnk::SetMouseLookActive(!want);
-      EOT_INFO("[input] cursor {}: {}", want ? "shown" : "hidden",
-               want ? (overlay_wants_pointer ? "an overlay takes input" : "the mouse moved on a menu")
+      EOT_DEBUG("[input] cursor {}: {}", want ? "shown" : "hidden",
+                want ? (overlay_wants_pointer ? "an overlay takes input" : "the mouse moved on a menu")
                     : (menu ? "the mouse rested" : "no menu, the camera has the mouse"));
     }
     const auto visibility =
@@ -488,7 +488,7 @@ void NoteFinishPrompt(bool on) {
     static bool told = false;
     if (!told) {
       told = true;
-      EOT_INFO("[input] a finisher is in reach: the space bar answers it as B");
+      EOT_DEBUG("[input] a finisher is in reach: the space bar answers it as B");
     }
   }
 }
@@ -497,7 +497,7 @@ void NoteMashPrompt(uint16_t buttons) {
   const uint16_t was = g_mash_buttons.exchange(buttons, std::memory_order_acq_rel);
   g_mash_ns.store(clock::now().time_since_epoch().count(), std::memory_order_release);
   if (buttons != was)
-    EOT_INFO("[input] a mash QTE counts pad buttons {:#06x}: the space bar presses them too", buttons);
+    EOT_DEBUG("[input] a mash QTE counts pad buttons {:#06x}: the space bar presses them too", buttons);
 }
 
 void ApplyWheel(RawPad &pad) {
@@ -557,7 +557,7 @@ void ApplyMenuKeys(RawPad &pad) {
       static bool told = false;
       if (!told) {
         told = true;
-        EOT_INFO("[input] a contextual action is on offer: the space bar answers it as B");
+        EOT_DEBUG("[input] a contextual action is on offer: the space bar answers it as B");
       }
     }
   }

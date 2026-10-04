@@ -451,7 +451,7 @@ void Open() {
   D3DKMT_OPENADAPTERFROMLUID request{};
   request.AdapterLuid = device->d3d->GetAdapterLuid();
   if (open(&request) != 0) {
-    EOT_INFO("[gpu-sensors] the kernel would not open the adapter; no clock or temperature readings");
+    EOT_DEBUG("[gpu-sensors] the kernel would not open the adapter; no clock or temperature readings");
     return;
   }
   g_sensors.adapter = request.hAdapter;
@@ -482,8 +482,8 @@ std::string AdapterSensorsSummary() {
   if (!have_node && !have_adapter) {
     if (!g_sensors.reported_failure) {
       g_sensors.reported_failure = true;
-      EOT_INFO("[gpu-sensors] the driver reports no performance data (status {:#x} / {:#x})",
-               static_cast<u32>(node_status), static_cast<u32>(adapter_status));
+      EOT_DEBUG("[gpu-sensors] the driver reports no performance data (status {:#x} / {:#x})",
+                static_cast<u32>(node_status), static_cast<u32>(adapter_status));
     }
     return {};
   }

@@ -159,8 +159,8 @@ void NoteMade(const std::string &name, u64 bytes, bool announce) {
   }
 #endif
   if (first)
-    EOT_INFO("[vram-alloc] +{} MB {} (the first of this shape; guest frame {})", Mb(bytes), name,
-             state().guest_frames);
+    EOT_DEBUG("[vram-alloc] +{} MB {} (the first of this shape; guest frame {})", Mb(bytes), name,
+              state().guest_frames);
 }
 
 void NoteReleased(const std::string &name, u64 bytes) {

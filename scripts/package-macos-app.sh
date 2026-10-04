@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PRESET="${1:-mac-arm64-relwithdebinfo}"
+PRESET="${1:-mac-arm64-release}"
 BUILD_DIR="out/build/${PRESET}"
 SIGN_IDENTITY="${SIGN_IDENTITY:--}"
 MAX_MACOS="${MAX_MACOS:-13.3}"

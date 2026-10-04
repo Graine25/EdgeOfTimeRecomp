@@ -372,8 +372,8 @@ void LogRenderAreaLocked(VideoState &s, u64 frames) {
           stats.allocWidth, stats.allocHeight, stats.hostWidth, stats.hostHeight, stats.samples,
           stats.draws / n, stats.resolves / n, stats.clears / n);
     }
-    EOT_INFO("[render-area] {} target signatures (top: {}) | {} targets | {}", areas.size(),
-             area_details, surfaces.size(), details);
+    EOT_DEBUG("[render-area] {} target signatures (top: {}) | {} targets | {}", areas.size(),
+              area_details, surfaces.size(), details);
   }
 
   std::vector<const VideoState::TextureWorkStats *> textures;
@@ -402,7 +402,7 @@ void LogRenderAreaLocked(VideoState &s, u64 frames) {
                              texture.hostHeight, texture.format, texture.resolves / n,
                              dead_percent, texture.samples / n);
     }
-    EOT_INFO("[resolve-work] {} active destinations | {}", textures.size(), details);
+    EOT_DEBUG("[resolve-work] {} active destinations | {}", textures.size(), details);
   }
 
   s.surface_work_window.clear();
@@ -487,44 +487,44 @@ void LogPerfLocked(VideoState &s) {
     const f64 wall = p.frame_ms - q.frame_ms;
     const f64 paced = g_pace_ms - q.pace_ms;
     if (wall - paced > static_cast<f64>(hitch_ms)) {
-      EOT_WARN("[hitch] frame {} threads: capture {:.2f} present-wait {:.2f} worker-idle {:.2f} "
-               "blit {:.2f} house {:.2f} | gpu {:.2f} ({} frames collected) | transfers {} "
-               "evicted {} vtx-miss {} idx-miss {} pso-binds {} dead-resolves {} | "
-               "guest+other {:.2f}",
-               s.guest_frames, p.capture_ms - q.capture_ms, p.present_wait_ms - q.present_wait_ms,
-               p.worker_idle_ms - q.worker_idle_ms, p.present_blit_ms - q.present_blit_ms,
-               p.present_house_ms - q.present_house_ms, p.gpu_ms - q.gpu_ms,
-               p.gpu_frames - q.gpu_frames, p.surface_transfers - q.surface_transfers,
-               p.textures_evicted - q.textures_evicted,
-               p.vertex_cache_misses - q.vertex_cache_misses,
-               p.index_cache_misses - q.index_cache_misses,
-               p.pipeline_bind_calls - q.pipeline_bind_calls, p.dead_resolves - q.dead_resolves,
-               wall - (p.capture_ms - q.capture_ms) - (p.present_wait_ms - q.present_wait_ms));
-      EOT_WARN("[hitch] frame {} took {:.1f} ms: draw {:.2f} ({} draws) upload {:.2f} ({} tex) "
-               "resolve {:.2f} ({}) link {:.2f} ({}) pso {:.2f} ({}) guest d3d {:.2f} ({} calls) "
-               "| acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | new host objects: "
-               "{} tex ({} surface {} mirror {} guest, {} recycled) {} views {} fb, {} parked | "
-               "vtx {} KB idx {} KB "
-               "const {} KB | live {} tex {} surf, pool {} | resolve: mirror {:.2f} fb {:.2f} bind "
-               "{:.2f} | scans: alias {:.2f} msaa {:.2f} | "
-               "unaccounted {:.2f}",
-               s.guest_frames, wall, p.draw_ms - q.draw_ms, p.draws - q.draws,
-               p.upload_ms - q.upload_ms, p.uploads - q.uploads, p.resolve_ms - q.resolve_ms,
-               p.resolves - q.resolves, p.link_ms - q.link_ms, p.links - q.links,
-               p.pso_ms - q.pso_ms, p.psos - q.psos, p.guest_d3d_ms - q.guest_d3d_ms,
-               p.guest_d3d_calls - q.guest_d3d_calls, p.acquire_ms - q.acquire_ms,
-               p.submit_ms - q.submit_ms, p.fence_ms - q.fence_ms, g_pace_ms - q.pace_ms,
-               p.host_textures - q.host_textures, p.host_tex_surface - q.host_tex_surface,
-               p.host_tex_mirror - q.host_tex_mirror, p.host_tex_guest - q.host_tex_guest,
-               p.host_tex_recycled - q.host_tex_recycled,
-               p.host_views - q.host_views,
-               p.host_framebuffers - q.host_framebuffers, p.host_parked - q.host_parked,
-               (p.vertex_bytes - q.vertex_bytes) / 1024, (p.index_bytes - q.index_bytes) / 1024,
-               (p.constant_bytes - q.constant_bytes) / 1024, p.live_textures,
-               p.live_surfaces, p.pool_size, p.resolve_mirror_ms - q.resolve_mirror_ms,
-               p.resolve_fb_ms - q.resolve_fb_ms, p.resolve_bind_ms - q.resolve_bind_ms,
-               p.alias_scan_ms - q.alias_scan_ms, p.msaa_scan_ms - q.msaa_scan_ms,
-               wall - (p.draw_ms - q.draw_ms) - (p.upload_ms - q.upload_ms) -
+      EOT_DEBUG("[hitch] frame {} threads: capture {:.2f} present-wait {:.2f} worker-idle {:.2f} "
+                "blit {:.2f} house {:.2f} | gpu {:.2f} ({} frames collected) | transfers {} "
+                "evicted {} vtx-miss {} idx-miss {} pso-binds {} dead-resolves {} | "
+                "guest+other {:.2f}",
+                s.guest_frames, p.capture_ms - q.capture_ms, p.present_wait_ms - q.present_wait_ms,
+                p.worker_idle_ms - q.worker_idle_ms, p.present_blit_ms - q.present_blit_ms,
+                p.present_house_ms - q.present_house_ms, p.gpu_ms - q.gpu_ms,
+                p.gpu_frames - q.gpu_frames, p.surface_transfers - q.surface_transfers,
+                p.textures_evicted - q.textures_evicted,
+                p.vertex_cache_misses - q.vertex_cache_misses,
+                p.index_cache_misses - q.index_cache_misses,
+                p.pipeline_bind_calls - q.pipeline_bind_calls, p.dead_resolves - q.dead_resolves,
+                wall - (p.capture_ms - q.capture_ms) - (p.present_wait_ms - q.present_wait_ms));
+      EOT_DEBUG("[hitch] frame {} took {:.1f} ms: draw {:.2f} ({} draws) upload {:.2f} ({} tex) "
+                "resolve {:.2f} ({}) link {:.2f} ({}) pso {:.2f} ({}) guest d3d {:.2f} ({} calls) "
+                "| acquire {:.2f} submit {:.2f} fence {:.2f} pace {:.2f} | new host objects: "
+                "{} tex ({} surface {} mirror {} guest, {} recycled) {} views {} fb, {} parked | "
+                "vtx {} KB idx {} KB "
+                "const {} KB | live {} tex {} surf, pool {} | resolve: mirror {:.2f} fb {:.2f} bind "
+                "{:.2f} | scans: alias {:.2f} msaa {:.2f} | "
+                "unaccounted {:.2f}",
+                s.guest_frames, wall, p.draw_ms - q.draw_ms, p.draws - q.draws,
+                p.upload_ms - q.upload_ms, p.uploads - q.uploads, p.resolve_ms - q.resolve_ms,
+                p.resolves - q.resolves, p.link_ms - q.link_ms, p.links - q.links,
+                p.pso_ms - q.pso_ms, p.psos - q.psos, p.guest_d3d_ms - q.guest_d3d_ms,
+                p.guest_d3d_calls - q.guest_d3d_calls, p.acquire_ms - q.acquire_ms,
+                p.submit_ms - q.submit_ms, p.fence_ms - q.fence_ms, g_pace_ms - q.pace_ms,
+                p.host_textures - q.host_textures, p.host_tex_surface - q.host_tex_surface,
+                p.host_tex_mirror - q.host_tex_mirror, p.host_tex_guest - q.host_tex_guest,
+                p.host_tex_recycled - q.host_tex_recycled,
+                p.host_views - q.host_views,
+                p.host_framebuffers - q.host_framebuffers, p.host_parked - q.host_parked,
+                (p.vertex_bytes - q.vertex_bytes) / 1024, (p.index_bytes - q.index_bytes) / 1024,
+                (p.constant_bytes - q.constant_bytes) / 1024, p.live_textures,
+                p.live_surfaces, p.pool_size, p.resolve_mirror_ms - q.resolve_mirror_ms,
+                p.resolve_fb_ms - q.resolve_fb_ms, p.resolve_bind_ms - q.resolve_bind_ms,
+                p.alias_scan_ms - q.alias_scan_ms, p.msaa_scan_ms - q.msaa_scan_ms,
+                wall - (p.draw_ms - q.draw_ms) - (p.upload_ms - q.upload_ms) -
                    (p.resolve_ms - q.resolve_ms) - (p.guest_d3d_ms - q.guest_d3d_ms) -
                    (p.acquire_ms - q.acquire_ms) - (p.submit_ms - q.submit_ms) -
                    (p.fence_ms - q.fence_ms) - (g_pace_ms - q.pace_ms));
@@ -596,10 +596,10 @@ void LogPerfLocked(VideoState &s) {
       buckets[dim >= 2048 ? 0 : dim >= 1024 ? 1 : dim >= 512 ? 2 : dim >= 256 ? 3 : dim >= 128 ? 4 : 5]++;
       texels += u64(t.width) * t.height;
     }
-    EOT_INFO("[texstats] {} guest textures uploaded ({} resolve-owned): >=2048 {} | 1024 {} | 512 {} | "
-             "256 {} | 128 {} | smaller {} | {:.1f} Mtexels base level",
-             uploaded, resolve_owned, buckets[0], buckets[1], buckets[2], buckets[3], buckets[4],
-             buckets[5], texels / 1e6);
+    EOT_DEBUG("[texstats] {} guest textures uploaded ({} resolve-owned): >=2048 {} | 1024 {} | 512 {} | "
+              "256 {} | 128 {} | smaller {} | {:.1f} Mtexels base level",
+              uploaded, resolve_owned, buckets[0], buckets[1], buckets[2], buckets[3], buckets[4],
+              buckets[5], texels / 1e6);
   }
   p.live_surfaces = static_cast<u32>(s.surfaces.size());
   s.perf_prev_frame = p;
@@ -632,66 +632,66 @@ void LogPerfLocked(VideoState &s) {
     }
   }
   const f64 n = static_cast<f64>(p.frames);
-  EOT_INFO("[perf] {} frames, {:.2f} ms/frame wall (p50 {:.2f} p95 {:.2f} p99 {:.2f} max {:.2f}) | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
-           "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} refresh, {} twin, {:.1f} alias deferred, {:.2f} alias copied; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
-           "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} (@{:#x}) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
-           "| hostbind/f vb {:.1f}/{:.1f} (1s {:.1f}) ib {:.1f}/{:.1f} fb reuse {:.1f} tgtmemo {:.1f} (miss g{:.0f} w{:.0f} s{:.0f}) sorted {:.0f}/{:.0f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f} (hit {:.1f})/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
-           "| present acquire {:.2f} blit {:.2f} submit {:.2f} fence {:.2f} house {:.2f} pace {:.2f} | KB/frame vtx {} "
-           "idx {} const {} | gpu {}",
-           p.frames, p.frame_ms / n, wall_p50, wall_p95, wall_p99, wall_max, p.capture_ms / n, p.present_wait_ms / n, p.worker_idle_ms / n,
-           p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
-           p.setup_ms / n, p.replay_targets_ms / n,
-           p.pso_lookup_ms / n, p.replay_memo_hits / p.frames, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
-           p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
-           p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
-           p.const_file_mask_misses,
-           p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames, p.resolve_refreshes / p.frames,
-           p.surface_transfers / p.frames, static_cast<f64>(p.alias_deferred) / p.frames, static_cast<f64>(p.alias_copies) / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
-           p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
-           p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
-           p.guest_d3d_calls / p.frames, g_device_block_misses.exchange(0, std::memory_order_relaxed),
-           g_device_block_miss_offset.exchange(0, std::memory_order_relaxed),
-           p.index_cache_hits / p.frames, p.index_cache_misses,
-           p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
-           p.geometry_vram_binds / p.frames, p.geometry_staging_binds / p.frames,
-           static_cast<f64>(p.vertex_bind_calls) / n,
-           static_cast<f64>(p.vertex_bind_requests) / n,
-           static_cast<f64>(p.single_stream_draws) / n,
-           static_cast<f64>(p.index_bind_calls) / n,
-           static_cast<f64>(p.index_bind_requests) / n,
-           static_cast<f64>(p.framebuffer_cache_hits) / n,
-           static_cast<f64>(p.target_memo_hits) / n,
-           static_cast<f64>(p.target_memo_miss_gen) / n,
-           static_cast<f64>(p.target_memo_miss_words) / n,
-           static_cast<f64>(p.target_memo_miss_sig) / n,
-           static_cast<f64>(p.sorted_draws) / n, static_cast<f64>(p.sort_runs) / n,
-           static_cast<f64>(p.texture_bind_hits) / n,
-           static_cast<f64>(p.texture_bind_requests) / n,
-           static_cast<f64>(p.pipeline_bind_calls) / n,
-           static_cast<f64>(p.pipeline_bind_on_hit) / n,
-           static_cast<f64>(p.viewport_bind_calls) / n,
-           static_cast<f64>(p.scissor_bind_calls) / n,
-           static_cast<f64>(p.stencil_ref_calls) / n,
-           static_cast<f64>(p.texture_barrier_calls) / n,
-           static_cast<f64>(p.texture_barrier_resources) / n,
-           p.acquire_ms / n, p.present_blit_ms / n, p.submit_ms / n, p.fence_ms / n,
-           p.present_house_ms / n, g_pace_ms / n,
-           p.vertex_bytes / p.frames / 1024,
-           p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024,
-           GpuTimingSummary(p));
+  EOT_DEBUG("[perf] {} frames, {:.2f} ms/frame wall (p50 {:.2f} p95 {:.2f} p99 {:.2f} max {:.2f}) | cpu ms/frame: capture {:.2f} wait {:.2f} idle {:.2f} draw {:.2f} ({} draws, {} noop; "
+            "setup {:.2f} tgt {:.2f} psolk {:.2f} ({} memo, {} hot) streams {:.2f} [vtxcopy {:.2f}] const {:.2f} [float {:.2f} bind {:.2f}, {} file hits, {} mask-fast, {} mask-miss] rec {:.2f} [state {:.2f} vbind {:.2f}]; idx {:.2f} outside) resolve {:.2f} ({}; {} copies, {} handed, {} noop, {} dead, {} refresh, {} twin, {:.1f} alias deferred, {:.2f} alias copied; mirror {:.2f} fb {:.2f} bind {:.2f} alias {:.2f} msaa {:.2f}) upload {:.2f} ({}) link "
+            "{:.2f} ({}) pso {:.2f} ({}) | guest d3d {:.2f} ({} calls) winmiss {} (@{:#x}) | idxcache hit {} miss {} evict {} vtxcache hit {} miss {} vram {}/{} "
+            "| hostbind/f vb {:.1f}/{:.1f} (1s {:.1f}) ib {:.1f}/{:.1f} fb reuse {:.1f} tgtmemo {:.1f} (miss g{:.0f} w{:.0f} s{:.0f}) sorted {:.0f}/{:.0f} tex hit {:.1f}/{:.1f} pso/vp/sc/st {:.1f} (hit {:.1f})/{:.1f}/{:.1f}/{:.1f} barrier {:.1f}/{:.1f} "
+            "| present acquire {:.2f} blit {:.2f} submit {:.2f} fence {:.2f} house {:.2f} pace {:.2f} | KB/frame vtx {} "
+            "idx {} const {} | gpu {}",
+            p.frames, p.frame_ms / n, wall_p50, wall_p95, wall_p99, wall_max, p.capture_ms / n, p.present_wait_ms / n, p.worker_idle_ms / n,
+            p.draw_ms / n, p.draws / p.frames, p.draws_skipped / p.frames,
+            p.setup_ms / n, p.replay_targets_ms / n,
+            p.pso_lookup_ms / n, p.replay_memo_hits / p.frames, p.pipeline_hot_hits / p.frames, p.stream_ms / n,
+            p.vertex_copy_ms / n, p.const_ms / n + p.const_float_ms / n,
+            p.const_float_ms / n, p.bind_ms / n, p.const_file_hits / p.frames, p.const_file_clean_hits / p.frames,
+            p.const_file_mask_misses,
+            p.record_ms / n + p.rec_state_ms / n + p.rec_bind_ms / n, p.rec_state_ms / n, p.rec_bind_ms / n, p.index_ms / n, p.resolve_ms / n, p.resolves / p.frames, p.resolve_copies / p.frames, p.resolve_transfers / p.frames, p.resolve_noops / p.frames, p.dead_resolves / p.frames, p.resolve_refreshes / p.frames,
+            p.surface_transfers / p.frames, static_cast<f64>(p.alias_deferred) / p.frames, static_cast<f64>(p.alias_copies) / p.frames, p.resolve_mirror_ms / n, p.resolve_fb_ms / n,
+            p.resolve_bind_ms / n, p.alias_scan_ms / n, p.msaa_scan_ms / n, p.upload_ms / n,
+            p.uploads, p.link_ms / n, p.links, p.pso_ms / n, p.psos, p.guest_d3d_ms / n,
+            p.guest_d3d_calls / p.frames, g_device_block_misses.exchange(0, std::memory_order_relaxed),
+            g_device_block_miss_offset.exchange(0, std::memory_order_relaxed),
+            p.index_cache_hits / p.frames, p.index_cache_misses,
+            p.index_cache_evictions, p.vertex_cache_hits / p.frames, p.vertex_cache_misses,
+            p.geometry_vram_binds / p.frames, p.geometry_staging_binds / p.frames,
+            static_cast<f64>(p.vertex_bind_calls) / n,
+            static_cast<f64>(p.vertex_bind_requests) / n,
+            static_cast<f64>(p.single_stream_draws) / n,
+            static_cast<f64>(p.index_bind_calls) / n,
+            static_cast<f64>(p.index_bind_requests) / n,
+            static_cast<f64>(p.framebuffer_cache_hits) / n,
+            static_cast<f64>(p.target_memo_hits) / n,
+            static_cast<f64>(p.target_memo_miss_gen) / n,
+            static_cast<f64>(p.target_memo_miss_words) / n,
+            static_cast<f64>(p.target_memo_miss_sig) / n,
+            static_cast<f64>(p.sorted_draws) / n, static_cast<f64>(p.sort_runs) / n,
+            static_cast<f64>(p.texture_bind_hits) / n,
+            static_cast<f64>(p.texture_bind_requests) / n,
+            static_cast<f64>(p.pipeline_bind_calls) / n,
+            static_cast<f64>(p.pipeline_bind_on_hit) / n,
+            static_cast<f64>(p.viewport_bind_calls) / n,
+            static_cast<f64>(p.scissor_bind_calls) / n,
+            static_cast<f64>(p.stencil_ref_calls) / n,
+            static_cast<f64>(p.texture_barrier_calls) / n,
+            static_cast<f64>(p.texture_barrier_resources) / n,
+            p.acquire_ms / n, p.present_blit_ms / n, p.submit_ms / n, p.fence_ms / n,
+            p.present_house_ms / n, g_pace_ms / n,
+            p.vertex_bytes / p.frames / 1024,
+            p.index_bytes / p.frames / 1024, p.constant_bytes / p.frames / 1024,
+            GpuTimingSummary(p));
   if (p.uploads || p.uploads_skipped)
-    EOT_INFO("[uploads] {} ({} new, {} made again ({} reloaded by the game), {} of changed memory) in {:.1f} ms: {:.2f} M blocks at "
-             "{:.1f} ns, CPU mip chains {:.1f} ms | worst frame {} uploads in {:.1f} ms | new textures the "
-             "game's loader had in: under 50 ms before {}, 50-250 ms {}, 250 ms-1 s {}, over 1 s {}, "
-             "not announced {} ({}) | preloaded {} | render-target headers cleared instead {} | mirrors let "
-             "go: {} ({} as the game freed them)",
-             p.uploads, p.uploads_new, p.uploads_again, p.uploads_again_reloaded, p.uploads_refresh, p.upload_ms,
-             p.upload_blocks * 1e-6,
-             p.upload_blocks ? (p.upload_ms - p.upload_synth_ms) * 1e6 / static_cast<f64>(p.upload_blocks) : 0.0,
-             p.upload_synth_ms, p.upload_frame_max, p.upload_frame_max_ms, p.upload_lead[0], p.upload_lead[1],
-             p.upload_lead[2], p.upload_lead[3], p.upload_lead[4], TakeUnannouncedShapes(), p.uploads_preloaded,
-             p.uploads_skipped, p.textures_evicted,
-             p.textures_released);
+    EOT_DEBUG("[uploads] {} ({} new, {} made again ({} reloaded by the game), {} of changed memory) in {:.1f} ms: {:.2f} M blocks at "
+              "{:.1f} ns, CPU mip chains {:.1f} ms | worst frame {} uploads in {:.1f} ms | new textures the "
+              "game's loader had in: under 50 ms before {}, 50-250 ms {}, 250 ms-1 s {}, over 1 s {}, "
+              "not announced {} ({}) | preloaded {} | render-target headers cleared instead {} | mirrors let "
+              "go: {} ({} as the game freed them)",
+              p.uploads, p.uploads_new, p.uploads_again, p.uploads_again_reloaded, p.uploads_refresh, p.upload_ms,
+              p.upload_blocks * 1e-6,
+              p.upload_blocks ? (p.upload_ms - p.upload_synth_ms) * 1e6 / static_cast<f64>(p.upload_blocks) : 0.0,
+              p.upload_synth_ms, p.upload_frame_max, p.upload_frame_max_ms, p.upload_lead[0], p.upload_lead[1],
+              p.upload_lead[2], p.upload_lead[3], p.upload_lead[4], TakeUnannouncedShapes(), p.uploads_preloaded,
+              p.uploads_skipped, p.textures_evicted,
+              p.textures_released);
   LogRenderAreaLocked(s, p.frames);
   p = PerfCounters{};
   s.perf_resets++;
