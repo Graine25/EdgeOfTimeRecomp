@@ -323,6 +323,8 @@ if(TARGET reeot_GameLogic)
         src/gamelogic/input/input.cpp)
     target_include_directories(reeot_GameLogic PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_compile_definitions(reeot_GameLogic PRIVATE
+        $<$<BOOL:${REEOT_D3D12}>:EOT_D3D12>)
     # Named as the SDK opens it, so the copy preloaded beside the executable answers its dlopen.
     if(NOT WIN32)
         set_target_properties(reeot_GameLogic PROPERTIES PREFIX "" SUFFIX "")
