@@ -13,7 +13,6 @@ namespace eot::gpu {
 
 constexpr u32 kPsoCsvVersion = 4;
 
-constexpr const char *kPsoDir = "pso";
 #if defined(EOT_MVK)
 constexpr u32 kPsoHoldMaxMs = 60000;
 #else
@@ -61,6 +60,7 @@ const std::vector<PsoTemplate> &CompiledInTemplates();
 
 std::string PsoSessionStamp();
 std::string PsoSessionTag();
+std::string PsoDir();
 size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out);
 
 void PsoCaptureConfigure();

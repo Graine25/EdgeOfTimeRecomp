@@ -501,9 +501,11 @@ OsView QueryOs(plume::D3D12Device *device) {
 u64 g_peak_local = 0;
 
 void WriteCsv(VideoState &s, const std::vector<Allocation> &allocations) {
+  const std::filesystem::path log_file = rex::LoggingConfig().log_file;
+  const std::filesystem::path dir = log_file.empty() ? std::filesystem::path("logs") : log_file.parent_path();
   std::error_code ec;
-  std::filesystem::create_directories("logs", ec);
-  const std::string stem = std::format("logs/vram_{}", s.guest_frames);
+  std::filesystem::create_directories(dir, ec);
+  const std::string stem = (dir / std::format("vram_{}", s.guest_frames)).string();
   if (FILE *f = std::fopen((stem + "_allocations.csv").c_str(), "w")) {
     std::fprintf(f, "heap,type,tag,name,bytes,usage\n");
     for (const Allocation &a : allocations) {

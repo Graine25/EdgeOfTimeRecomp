@@ -23,6 +23,9 @@
 #include <unistd.h>
 #endif
 
+#include <rex/filesystem.h>
+#include <rex/runtime.h>
+
 #include "core/logging.h"
 #include "gpu/format.h"
 #include "gpu/settings.h"
@@ -536,12 +539,22 @@ size_t LoadPsoCsvDir(const std::string &dir, std::vector<PsoRecord> &out) {
   return n;
 }
 
+// Beside the executable is read-only inside an AppImage and sealed inside the macOS bundle.
+std::string PsoDir() {
+  std::filesystem::path root;
+  if (auto *rt = rex::Runtime::instance())
+    root = rt->cache_root();
+  if (root.empty())
+    root = rex::filesystem::GetUserFolder() / "reeot";
+  return (root / "pso").string();
+}
+
 void PsoCaptureConfigure() {
   auto &c = capture();
   std::lock_guard lock(c.mutex);
   std::error_code ec;
-  std::filesystem::create_directories(kPsoDir, ec);
-  c.dir = kPsoDir;
+  c.dir = PsoDir();
+  std::filesystem::create_directories(c.dir, ec);
   c.tag = PsoSessionTag();
   c.path.clear();
   c.headerWritten = false;
@@ -595,8 +608,9 @@ void PsoCaptureFlush(bool force, u64 guest_frame) {
 void PsoWriteSessionFile(const std::string &name, const std::string &header,
                          const std::vector<std::string> &rows) {
   std::error_code ec;
-  std::filesystem::create_directories(kPsoDir, ec);
-  const std::string path = (std::filesystem::path(kPsoDir) / name).string();
+  const std::string dir = PsoDir();
+  std::filesystem::create_directories(dir, ec);
+  const std::string path = (std::filesystem::path(dir) / name).string();
   FILE *f = std::fopen(path.c_str(), "wb");
   if (!f) {
     EOT_WARN("[pso] cannot write {}", path);

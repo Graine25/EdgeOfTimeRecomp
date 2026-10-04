@@ -1,9 +1,12 @@
 #include "reeot_app.h"
 
+#include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <map>
@@ -12,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <SDL3/SDL.h>
 #if !defined(_WIN32)
@@ -246,27 +250,50 @@ void ApplyReeotCvarDefaults() {
   SetCvarDefault("hid_mappings_file", (eot::platform::DataDir() / "gamecontrollerdb.txt").generic_string());
   SetCvarDefault("log_flush_interval", "1");
   SetCvarDefault("license_mask", "1");
+}
+
+// <exe dir>/logs is read-only inside an AppImage and sealed inside the macOS bundle.
+fs::path LogsFolder() {
 #if defined(__linux__)
-  if (const char *appimage = std::getenv("APPIMAGE"); appimage && *appimage) {
-    if (const fs::path state = eot::platform::StateHome(); !state.empty()) {
-      const fs::path logs = state / "reeot" / "logs";
-      std::error_code ec;
-      fs::create_directories(logs, ec);
-      if (!ec)
-        SetCvarDefault("log_file", (logs / "reeot.log").generic_string());
-    }
-  }
+  if (const char *appimage = std::getenv("APPIMAGE"); appimage && *appimage)
+    if (const fs::path state = eot::platform::StateHome(); !state.empty())
+      return state / "reeot" / "logs";
 #elif defined(__APPLE__)
-  if (eot::platform::InAppBundle()) {
-    if (const fs::path home = eot::platform::HomeDir(); !home.empty()) {
-      const fs::path logs = home / "Library" / "Logs" / "reeot";
-      std::error_code ec;
-      fs::create_directories(logs, ec);
-      if (!ec)
-        SetCvarDefault("log_file", (logs / "reeot.log").generic_string());
-    }
-  }
+  if (eot::platform::InAppBundle())
+    if (const fs::path home = eot::platform::HomeDir(); !home.empty())
+      return home / "Library" / "Logs" / "reeot";
 #endif
+  return rex::filesystem::GetExecutableFolder() / "logs";
+}
+
+constexpr size_t kMaxRunLogs = 10;
+
+// One file per run, the newest kMaxRunLogs kept. Zero-padded numbers sort oldest first.
+fs::path NextRunLogPath(const fs::path &dir) {
+  std::error_code ec;
+  fs::create_directories(dir, ec);
+  constexpr std::string_view kPrefix = "reeot_";
+  std::vector<fs::path> existing;
+  int max_seq = 0;
+  for (const auto &entry : fs::directory_iterator(dir, ec)) {
+    if (!entry.is_regular_file(ec) || entry.path().extension() != ".log")
+      continue;
+    const std::string stem = entry.path().stem().string();
+    if (!stem.starts_with(kPrefix))
+      continue;
+    existing.push_back(entry.path());
+    const std::string digits = stem.substr(kPrefix.size());
+    int seq = 0;
+    const auto [ptr, parse_ec] = std::from_chars(digits.data(), digits.data() + digits.size(), seq);
+    if (parse_ec == std::errc() && ptr == digits.data() + digits.size())
+      max_seq = std::max(max_seq, seq);
+  }
+  if (existing.size() >= kMaxRunLogs) {
+    std::sort(existing.begin(), existing.end());
+    for (size_t i = 0; i < existing.size() - (kMaxRunLogs - 1); ++i)
+      fs::remove(existing[i], ec);
+  }
+  return dir / std::format("reeot_{:03d}.log", max_seq + 1);
 }
 
 std::string SanitizeProfileName(const std::string &raw) {
@@ -338,6 +365,11 @@ void ReeotApp::UseInstallRoot(const fs::path &root, rex::PathConfig &paths) {
   paths.cache_root = profile_root_ / "cache";
   paths.config_path = profile_root_ / "reeot.toml";
   g_config_path = paths.config_path;
+}
+
+void ReeotApp::OnConfigureLogging(rex::LogConfig &config) {
+  config.flush_interval = std::chrono::seconds(REXCVAR_GET(log_flush_interval));
+  config.log_file = NextRunLogPath(LogsFolder());
 }
 
 void ReeotApp::OnConfigurePaths(rex::PathConfig &paths) {

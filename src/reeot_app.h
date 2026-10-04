@@ -34,6 +34,7 @@ public:
   ~ReeotApp() override;
 
 protected:
+  void OnConfigureLogging(rex::LogConfig &config) override;
   void OnConfigurePaths(rex::PathConfig &paths) override;
   void OnLoadXexImage(std::string &xex_image) override;
   void OnPostInitLogging() override;

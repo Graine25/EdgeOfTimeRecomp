@@ -174,7 +174,7 @@ void WritePairsLocked(Predictor &p, const std::vector<Slot> &slots) {
   if (rows.empty())
     return;
   if (p.pairsPath.empty())
-    p.pairsPath = std::string(kPsoDir) + "/pso_pairs_" + PsoSessionTag() + "_" +
+    p.pairsPath = PsoDir() + "/pso_pairs_" + PsoSessionTag() + "_" +
                   PsoSessionStamp() + ".csv";
   FILE *f = std::fopen(p.pairsPath.c_str(), p.pairsHeader ? "ab" : "wb");
   if (!f)

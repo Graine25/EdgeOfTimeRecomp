@@ -417,7 +417,7 @@ void PsoCachePrecache() {
     RouteRecord(*r, PsoSource::CompiledIn, &queued, &per_package);
   }
   std::vector<PsoRecord> rows;
-  local = LoadPsoCsvDir(kPsoDir, rows);
+  local = LoadPsoCsvDir(PsoDir(), rows);
   for (const PsoRecord &r : rows)
     RouteRecord(r, PsoSource::LocalCsv, &queued, &per_package);
   size_t packages;
@@ -432,7 +432,7 @@ void PsoCachePrecache() {
            "drawn to {}/ as '{}'",
            compiled_in, local, queued, per_package, packages,
            routed > queued + per_package ? routed - queued - per_package : 0u,
-           CompiledInTemplates().size(), kPsoDir, PsoSessionTag());
+           CompiledInTemplates().size(), PsoDir(), PsoSessionTag());
 }
 
 void PsoCacheSetLoadingScreen(bool on) {
