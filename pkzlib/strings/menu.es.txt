@@ -1,0 +1,195 @@
+# NAME<TAB>text: the Spanish menu strings; a row left out stays English.
+REEOT_VIDEO	Vídeo
+REEOT_GRAPHICS	Gráficos
+REEOT_AUDIO_TITLE	SONIDO
+REEOT_VIDEO_TITLE	VÍDEO
+REEOT_GRAPHICS_TITLE	GRÁFICOS
+REEOT_GAME_TITLE	JUEGO
+REEOT_CONTROLS_TITLE	CONTROLES
+REEOT_MODS	Mods
+REEOT_MODS_TITLE	MODS
+REEOT_MODS_NAME	Nombre
+REEOT_MODS_CREATOR	Autor
+REEOT_MODS_KIND	Tipo
+REEOT_MODS_STATE	Estado
+REEOT_KIND_PACKAGE	Paquete
+REEOT_KIND_REPLACEMENT	Reemplazo
+REEOT_KIND_MODEL	Modelo
+REEOT_MODS_EMPTY	No hay mods. Pulsa Y para abrir el explorador de archivos: elige el mod.toml de la carpeta de un mod o un archivo de paquete independiente.
+REEOT_MODS_REMOVE_ARMED	Pulsa X otra vez para quitar este mod. Se borrará su carpeta; puedes volver a añadir uno de los mods del propio port desde la línea de comandos.
+REEOT_MODS_CHOOSING	El explorador de archivos está abierto...
+REEOT_MODS_IMPORTING	Añadiendo...
+REEOT_PROMPT_TOGGLE	\MENUSELECT\ Activar/Desactivar
+REEOT_PROMPT_REMOVE	\MENUOPT1\ Quitar
+REEOT_PROMPT_ADD	\MENUOPT2\ Añadir
+REEOT_OPT_CONFIGURE_BUTTONS	Configurar botones
+REEOT_DESC_CONFIGURE_BUTTONS	Elige qué tecla y qué botón del mando usa cada acción. Pulsa \MENUSELECT\ para abrir.
+REEOT_BINDS_TITLE	CONFIGURAR BOTONES
+REEOT_BINDS_ACTION	Acción
+REEOT_BINDS_KEYBOARD	Teclado
+REEOT_BINDS_CONTROLLER	Mando
+REEOT_BIND_JUMP	Salto / Salto con telaraña
+REEOT_DESC_BIND_JUMP	Pulsa para saltar y vuelve a pulsar en el aire para hacer un doble salto. Mantén pulsado para dar un salto con telaraña.
+REEOT_BIND_WEB	Disparo de telaraña / Interactuar
+REEOT_DESC_BIND_WEB	Dispara una telaraña hacia lo que tienes delante. Interactúa con interruptores, puertas y objetos.
+REEOT_BIND_MELEE	Ataque cuerpo a cuerpo
+REEOT_DESC_BIND_MELEE	Un puñetazo o una patada. Sigue pulsando para realizar un combo.
+REEOT_BIND_RANGED	Ataque a distancia / Lanzamiento aéreo
+REEOT_DESC_BIND_RANGED	Pulsa para realizar un ataque de telaraña a distancia. Mantén pulsado para lanzar a un enemigo por los aires.
+REEOT_BIND_GRAB	Agarrar / Golpear
+REEOT_DESC_BIND_GRAB	Agarra a un enemigo o un objeto, o golpea a un enemigo desde lejos.
+REEOT_BIND_THROW	Lanzar
+REEOT_DESC_BIND_THROW	Lanza lo que tengas agarrado. Si lo mantienes pulsado junto con los botones de ataque, realizas un ataque especial.
+REEOT_BIND_WEB_SWING	Impulso con telaraña / Balanceo
+REEOT_DESC_BIND_WEB_SWING	Pulsa para impulsarte hacia donde estás mirando. Mantén pulsado para balancearte.
+REEOT_BIND_SPECIAL	Habilidad especial
+REEOT_DESC_BIND_SPECIAL	Hipersentido con Amazing Spider-Man; Señuelo acelerado con Spider-Man 2099.
+REEOT_BIND_SPIDER_SENSE	Sentido arácnido
+REEOT_BIND_MOVE_UP	Avanzar
+REEOT_BIND_MOVE_DOWN	Retroceder
+REEOT_BIND_MOVE_LEFT	Ir a la izquierda
+REEOT_BIND_MOVE_RIGHT	Ir a la derecha
+REEOT_BIND_LOOK_UP	Mirar arriba
+REEOT_BIND_LOOK_DOWN	Mirar abajo
+REEOT_BIND_LOOK_LEFT	Mirar a la izquierda
+REEOT_BIND_LOOK_RIGHT	Mirar a la derecha
+REEOT_DESC_BIND_SPIDER_SENSE	Sentido arácnido con Amazing Spider-Man, Visión acelerada con Spider-Man 2099: resalta los objetivos, los enemigos y el camino a seguir.
+REEOT_BIND_MOVE	Caminar / Correr
+REEOT_DESC_BIND_MOVE	Una dirección del stick izquierdo. Inclínalo más para correr; en el teclado, son las cuatro teclas de movimiento.
+REEOT_BIND_WALL	Adherirse a la pared
+REEOT_DESC_BIND_WALL	Pulsa el stick mientras te mueves junto a una pared para adherirte a ella.
+REEOT_BIND_CAMERA	Cámara
+REEOT_DESC_BIND_CAMERA	Una dirección del stick derecho. El ratón también mueve la cámara, independientemente de estas teclas.
+REEOT_BIND_CENTER	Centrar la cámara
+REEOT_DESC_BIND_CENTER	Pulsa el stick para volver a colocar la cámara detrás de Spider-Man.
+REEOT_BIND_TIME_PARADOX	Parada del tiempo
+REEOT_DESC_BIND_TIME_PARADOX	Deja ambos campos vacíos y Parada del tiempo seguirá siendo los dos clics de stick a la vez, como en consola. Si asignas aquí una tecla o un botón, realizará ambas acciones por sí solo.
+REEOT_BIND_PAUSE	Menú de pausa
+REEOT_DESC_BIND_PAUSE	Pausa el juego y abre el menú.
+REEOT_BIND_UPGRADES	Menú de mejoras
+REEOT_DESC_BIND_UPGRADES	Abre la Red de habilidades para gastar tus puntos.
+REEOT_BINDS_HINT	\MENUSELECT\ o Ctrl: reasignar. Izquierda y derecha: cambiar de columna.
+REEOT_BINDS_PRESS_KEY	Pulsa una tecla o un botón del ratón. Esc cancela; Retroceso borra.
+REEOT_BINDS_PRESS_KEY_FOR	Pulsa la tecla para: %s. Esc cancela.
+REEOT_BINDS_PRESS_PAD	Pulsa un botón o un gatillo del mando. Esc cancela.
+REEOT_BINDS_FIXED	Esta acción no se puede cambiar.
+REEOT_BINDS_DIR_UP	arriba
+REEOT_BINDS_DIR_DOWN	abajo
+REEOT_BINDS_DIR_LEFT	izquierda
+REEOT_BINDS_DIR_RIGHT	derecha
+REEOT_BINDS_MOUSE	Ratón
+REEOT_BINDS_STICKS_NORMAL	Stick izquierdo
+REEOT_BINDS_STICKS_SWAPPED	Stick derecho
+REEOT_BINDS_PAD_DOWN	Cruceta abajo
+REEOT_BINDS_PAD_LEFT	Cruceta izquierda
+REEOT_BINDS_PAD_RIGHT	Cruceta derecha
+REEOT_BINDS_NONE	ninguna
+REEOT_PROMPT_REBIND	\MENUSELECT\ Reasignar
+REEOT_PROMPT_RESET	\MENUOPT1\ Restablecer
+REEOT_PROMPT_DEFAULTS	\MENUOPT2\ Predeterminados
+REEOT_BINDS_FOOTER	\MENUSELECT\ Reasignar \MENUBACK\ Atrás \MENUOPT1\ Restablecer \MENUOPT2\ Predeterminados
+REEOT_OPT_FULLSCREEN	Pantalla completa
+REEOT_OPT_RESOLUTION	Resolución
+REEOT_OPT_ASPECT	Relación de aspecto
+REEOT_OPT_FPS_LIMIT	Límite de fotogramas
+REEOT_OPT_VSYNC	Sincronización vertical
+REEOT_OPT_RENDER_SCALE	Escala de renderizado
+REEOT_OPT_BRIGHTNESS	Brillo
+REEOT_OPT_CONTRAST	Contraste
+REEOT_OPT_SATURATION	Saturación
+REEOT_OPT_GAMMA	Gamma
+REEOT_OPT_PRESET	Preajuste de calidad
+REEOT_OPT_MSAA	AA del juego
+REEOT_OPT_HOST_AA	AA del port
+REEOT_OPT_ANISOTROPY	Filtrado anisotrópico
+REEOT_OPT_SHADOW_SIZE	Resolución de sombras
+REEOT_OPT_UPSCALE	Filtro de escalado
+REEOT_OPT_FOV	Campo de visión
+REEOT_OPT_BLOOM	Bloom
+REEOT_OPT_DOF	Profundidad de campo
+REEOT_OPT_MOTION_BLUR	Desenfoque de movimiento
+REEOT_OPT_HEAT	Efectos de calor
+REEOT_OPT_FILM_GRAIN	Grano de película
+REEOT_OPT_HALO	Halo
+REEOT_OPT_COLOR_GRADING	Gradación de color
+REEOT_VAL_ON	Activado
+REEOT_VAL_OFF	Desactivado
+REEOT_VAL_AUTO	Automático
+REEOT_VAL_STRETCH	Estirado
+REEOT_VAL_NATIVE	Nativa
+REEOT_VAL_LOW	Original
+REEOT_VAL_MEDIUM	Media
+REEOT_VAL_HIGH	Alta
+REEOT_VAL_ULTRA	Ultra
+REEOT_VAL_CUSTOM	Personalizada
+REEOT_VAL_BILINEAR	Bilineal
+REEOT_VAL_BICUBIC	Bicúbico
+REEOT_DESC_FULLSCREEN	Ocupa toda la pantalla o se ejecuta en una ventana.
+REEOT_DESC_RESOLUTION	Resolución de renderizado en pantalla completa. Nativa es la de la consola: 1120x632.
+REEOT_DESC_ASPECT	La forma de la imagen en pantalla completa. Una imagen más ancha muestra más a los lados.
+REEOT_DESC_FPS_LIMIT	La máxima velocidad de fotogramas a la que se ejecuta el juego.
+REEOT_DESC_VSYNC	Sincroniza los fotogramas con la pantalla para evitar el desgarro de imagen.
+REEOT_DESC_RENDER_SCALE	Renderiza por encima o por debajo de la resolución elegida. Por encima del 100 % ofrece más nitidez; por debajo, más velocidad.
+REEOT_DESC_BRIGHTNESS	Pulsa \MENUSELECT\ para abrir la pantalla de brillo del juego.
+REEOT_DESC_CONTRAST	Estira o comprime la imagen en torno al gris medio.
+REEOT_DESC_SATURATION	La intensidad de los colores: 0 % es escala de grises y 100 % es la intensidad original del juego.
+REEOT_DESC_GAMMA	La curva entre la oscuridad y la luz.
+REEOT_DESC_PRESET	Ajusta a la vez el suavizado de bordes, el filtrado anisotrópico, la resolución de sombras y el filtro de escalado. Cambiar cualquiera de ellos manualmente lo convierte en Personalizada.
+REEOT_DESC_MSAA	Los bordes del propio juego, suavizados dibujando cada pasada de la escena con varias muestras por píxel. El coste de memoria y ancho de banda aumenta proporcionalmente.
+REEOT_DESC_HOST_AA	La pasada del port sobre la imagen terminada, además del suavizado de los bordes del propio juego. El modo Temporal mezcla cada fotograma con el anterior, desplazado una fracción de píxel, para evitar que los bordes lejanos parpadeen.
+REEOT_DESC_ANISOTROPY	Mantiene nítidos suelos y paredes en ángulos rasantes. El coste es casi inapreciable en una tarjeta moderna.
+REEOT_DESC_SHADOW_SIZE	El tamaño de cada mapa de sombras. Automático sigue la resolución de renderizado; los tamaños fijos sacrifican nitidez a cambio de memoria.
+REEOT_DESC_UPSCALE	El filtro utilizado para adaptar la imagen renderizada a la ventana. Lanczos es el más nítido y bilineal, el más suave.
+REEOT_DESC_FOV	Amplía o reduce el campo de visión de la cámara. 100 % es el ajuste original del juego.
+REEOT_DESC_BLOOM	El resplandor alrededor de las luces intensas. Desactivado conserva la curva de tonos del juego.
+REEOT_DESC_DOF	Desenfoca lo que está fuera del foco de la cámara, incluido el enfoque reducido de las escenas.
+REEOT_DESC_MOTION_BLUR	Crea estelas en los movimientos rápidos, tanto de la cámara como de lo que esta muestra.
+REEOT_DESC_HEAT	La visión térmica y la distorsión del aire caliente.
+REEOT_DESC_FILM_GRAIN	Un fino grano sobre toda la imagen.
+REEOT_DESC_HALO	La luz que se derrama desde las partes más brillantes de la imagen.
+REEOT_DESC_COLOR_GRADING	La gradación de color propia del juego. Desactivado muestra la imagen sin gradación.
+REEOT_OPT_SFX_VOLUME	Volumen de efectos
+REEOT_OPT_VOICE_VOLUME	Volumen de voz
+REEOT_OPT_MUSIC_VOLUME	Volumen de música
+REEOT_OPT_SUBTITLES	Subtítulos
+REEOT_OPT_VIBRATION	Vibración
+REEOT_OPT_CAMERA_Y	Eje Y de la cámara
+REEOT_OPT_CAMERA_X	Eje X de la cámara
+REEOT_OPT_ACHIEVEMENT_TOASTS	Avisos de logros
+REEOT_OPT_SUITS_REMASTER	Trajes remasterizados
+REEOT_OPT_GLYPHS	Iconos de botones
+REEOT_OPT_MNK	Teclado y ratón
+REEOT_OPT_MOUSE_SENSITIVITY	Sensibilidad del ratón
+REEOT_OPT_BACKGROUND_INPUT	Entrada en segundo plano
+REEOT_VAL_NORMAL	Normal
+REEOT_VAL_INVERTED	Invertida
+REEOT_VAL_XBOX	Xbox
+REEOT_VAL_PLAYSTATION	PlayStation
+REEOT_VAL_SWITCH	Switch
+REEOT_VAL_KEYBOARD	Teclado
+REEOT_DESC_SUBTITLES	Muestra los diálogos como texto.
+REEOT_DESC_VIBRATION	Hace vibrar el mando.
+REEOT_DESC_CAMERA_Y	Invertida mueve la cámara hacia abajo cuando el stick va hacia arriba.
+REEOT_DESC_CAMERA_X	Invertida gira la cámara a la izquierda cuando el stick va hacia la derecha.
+REEOT_DESC_ACHIEVEMENT_TOASTS	Muestra un aviso al desbloquear un logro. Desactivado conserva el logro, pero omite el aviso.
+REEOT_DESC_SUITS_REMASTER	Muestra las texturas redibujadas del port en los trajes Amazing y Anti-Venom y en el cuerpo de 2099. Desactivado restaura las texturas de la consola.
+REEOT_DESC_GLYPHS	Indica de qué mando son los botones que aparecen en pantalla. Automático sigue el dispositivo en uso: los botones del mando o las teclas asignadas en el teclado.
+REEOT_DESC_MNK	Juega con el teclado como mando y el ratón como stick derecho.
+REEOT_DESC_MOUSE_SENSITIVITY	Cuánto gira la cámara con cada movimiento del ratón. Solo mueve la cámara a pantalla completa; en una ventana, el puntero queda libre.
+REEOT_DESC_BACKGROUND_INPUT	Sigue leyendo el mando mientras otra ventana tiene el foco.
+REEOT_OPT_LANGUAGE	Idioma
+REEOT_VAL_ENGLISH	Inglés
+REEOT_VAL_FRENCH	Francés
+REEOT_VAL_ITALIAN	Italiano
+REEOT_VAL_GERMAN	Alemán
+REEOT_VAL_SPANISH	Español
+REEOT_DESC_LANGUAGE	El idioma de los textos y, cuando el juego lo permite, de las voces. Automático sigue el idioma de pantalla de Windows. Se lee al iniciar el juego.
+REEOT_DESC_RESTART	Se aplica después de reiniciar.
+REEOT_RESTART_TITLE	¿Reiniciar ahora?
+REEOT_RESTART_BODY	Algunos de estos ajustes se aplican después de reiniciar. ¿Quieres reiniciar el juego ahora?
+REEOT_VAL_TAA	Temporal
+REEOT_OPT_MOTION_VECTORS	Vectores de movimiento
+REEOT_DESC_MOTION_VECTORS	Indica al AA del port TAA dónde estaba cada personaje y objeto en movimiento en el fotograma anterior, para que se integren con el escenario en lugar de difuminarse. Requiere que el AA del port TAA esté activado.
+REEOT_VAL_DISPLAY	Pantalla
+REEOT_OPT_FULLSCREEN_MODE	Modo de pantalla completa
+REEOT_DESC_FULLSCREEN_MODE	1: sin bordes. 2: exclusivo.

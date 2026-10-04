@@ -71,6 +71,20 @@ add_custom_command(
             "${CMAKE_CURRENT_SOURCE_DIR}/res/fonts/SteelworksBook_texture_0.dds"
     COMMENT "Authoring ReeotUI.pkz from pkzlib/ReeotUI.manifest"
     VERBATIM)
+file(GLOB REEOT_MENU_TRANSLATIONS CONFIGURE_DEPENDS "${REEOT_PKZ_DATA}/strings/menu.*.txt")
+set(REEOT_MENU_TABLES "")
+foreach(translation IN LISTS REEOT_MENU_TRANSLATIONS)
+    cmake_path(GET translation FILENAME name)
+    set(table "${REEOT_PKZ_DATA}/generated/${name}")
+    add_custom_command(
+        OUTPUT "${table}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${REEOT_PKZ_DATA}/generated"
+        COMMAND pkzprep strings "${REEOT_PKZ_DATA}/strings/menu.txt" "${translation}" "${table}"
+        DEPENDS pkzprep "${REEOT_PKZ_DATA}/strings/menu.txt" "${translation}"
+        COMMENT "Writing ${name} over the English menu strings"
+        VERBATIM)
+    list(APPEND REEOT_MENU_TABLES "${table}")
+endforeach()
 set(REEOT_MENU_PKZ_OUTPUT "${CMAKE_BINARY_DIR}/pkz/ReeotMenu.pkz")
 add_custom_command(
     OUTPUT "${REEOT_MENU_PKZ_OUTPUT}"
@@ -80,6 +94,7 @@ add_custom_command(
     DEPENDS pkztool
             "${REEOT_PKZ_DATA}/ReeotMenu.manifest"
             "${REEOT_PKZ_DATA}/strings/menu.txt"
+            ${REEOT_MENU_TABLES}
     COMMENT "Authoring ReeotMenu.pkz from pkzlib/ReeotMenu.manifest"
     VERBATIM)
 set(REEOT_XEX "${CMAKE_CURRENT_SOURCE_DIR}/assets/Default.xex")
