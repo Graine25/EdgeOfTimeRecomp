@@ -382,6 +382,15 @@ bool FullscreenOn() { return rex::cvar::Query<bool>("fullscreen"); }
 bool KeyboardMouseOn() { return rex::cvar::Query<bool>("mnk_mode"); }
 bool MouseLookOn() { return KeyboardMouseOn() && FullscreenOn(); }
 
+// Host AA runs on D3D12 only for now; the Vulkan builds grey it out.
+bool HostAaAvailable() {
+#if defined(EOT_D3D12)
+  return true;
+#else
+  return false;
+#endif
+}
+
 constexpr Setting kAudioSettings[] = {
     {.label = "REEOT_OPT_SFX_VOLUME", .description = nullptr, .accessor = &kFxVolume,
      .slider = {0.0, 1.0, 0.05, Format::kPercent}},
@@ -424,7 +433,7 @@ constexpr Setting kGraphicsSettings[] = {
     {.label = "REEOT_OPT_MSAA", .description = "REEOT_DESC_MSAA", .cvar = "eot_msaa", .choices = kMsaa,
      .numeric = true, .restart = true},
     {.label = "REEOT_OPT_HOST_AA", .description = "REEOT_DESC_HOST_AA", .cvar = "eot_host_aa",
-     .choices = kHostAa},
+     .choices = kHostAa, .enabled = HostAaAvailable, .disabled_text = "REEOT_VAL_OFF"},
     {.label = "REEOT_OPT_MOTION_VECTORS", .description = "REEOT_DESC_MOTION_VECTORS",
      .cvar = "eot_motion_vectors", .choices = kOnOff},
     {.label = "REEOT_OPT_ANISOTROPY", .description = "REEOT_DESC_ANISOTROPY", .cvar = "eot_anisotropy",
@@ -593,6 +602,7 @@ constexpr uint32_t kScreenCursorOff = 84;
 constexpr uint32_t kRetailBrightnessIndex = 1;
 constexpr uint32_t kEventSize = 16;
 uint32_t g_event = 0;
+bool g_brightness_select = false;
 
 bool ModsOnBar() { return rex::cvar::Query<bool>("eot_debug_mode"); }
 uint32_t LastBarIndex() { return ModsOnBar() ? kModsIndex : kControlsIndex; }
@@ -652,6 +662,10 @@ constexpr uint32_t kYesNoYes = 1;
 }
 
 constexpr uint32_t kComponentConfigOff = 36;
+// The object that opened the window, which hears its result.
+constexpr uint32_t kComponentOwnerOff = 40;
+constexpr uint32_t kApiLogicPtr = 0x883CA22C;
+constexpr uint32_t kMsgInputEvent = 0x0C844A2F;
 
 constexpr uint32_t kInputAccept = 9;
 constexpr uint32_t kInputBack = 10;
@@ -1942,27 +1956,31 @@ void eot_OptionsBar_NavRightBound6(PPCRegister &r29, PPCCRRegister &cr6, PPCXERR
   cr6.compare<uint32_t>(r29.u32, LastBarIndex(), xer);
 }
 
-void OpenRetailBrightness(const PPCContext &ctx, uint8_t *base) {
+// Sent as a message so the Options screen, not the closing Video page, owns the
+// pop-up and hears the result that makes it active again.
+void OpenRetailBrightness(const PPCContext &ctx, uint8_t *base, uint32_t screen_handle) {
   const uint32_t screen = g_options_screen;
-  if (!screen) {
-    EOT_WARN("[menu] no Options screen seen yet; the Brightness screen does not open");
+  if (!screen || !screen_handle || screen_handle == 0xFFFFFFFFu) {
+    EOT_WARN("[menu] no Options screen ({:#x}, handle {:#x}); the Brightness screen does not open", screen,
+             screen_handle);
     return;
   }
+  const uint32_t api = eot::mem::load<uint32_t>(kApiLogicPtr);
   if (!g_event)
     g_event = AllocGuest(ctx, base, kEventSize);
-  if (!g_event)
+  if (!g_event || !api)
     return;
   for (uint32_t off = 0; off < kEventSize; off += 4)
     eot::mem::store<uint32_t>(g_event + off, 0);
   eot::mem::store<uint32_t>(g_event + kEvtType, kEvtSelect);
   eot::mem::store<uint8_t>(g_event + kEvtConsumed, 1);
-  const uint32_t cursor = eot::mem::load<uint32_t>(screen + kScreenCursorOff);
-  eot::mem::store<uint32_t>(screen + kScreenCursorOff, kRetailBrightnessIndex);
-  PPCContext call = ctx;
-  call.r3.u32 = screen;
-  call.r4.u32 = g_event;
-  __imp__eot_HUDOptionsScreen_HandleInputEvent(call, base);
-  eot::mem::store<uint32_t>(screen + kScreenCursorOff, cursor);
+  g_brightness_select = true;
+  hud::CallAt(ctx, base, eot::mem::load<uint32_t>(api), screen_handle, 0, kMsgInputEvent, g_event);
+  if (g_brightness_select) {
+    g_brightness_select = false;
+    EOT_WARN("[menu] the Options screen did not take the Brightness select; the screen does not open");
+    return;
+  }
   EOT_INFO("[menu] the game's Brightness screen opened from the Video page");
 }
 
@@ -1974,6 +1992,14 @@ REX_HOOK_RAW(eot_HUDOptionsScreen_HandleInputEvent) {
     g_options_screen = self;
   if (g_popup_open || g_restart_asked) {
     ConsumeEvent(event);
+    return;
+  }
+  if (g_brightness_select && type == kEvtSelect && self) {
+    g_brightness_select = false;
+    const uint32_t cursor = eot::mem::load<uint32_t>(self + kScreenCursorOff);
+    eot::mem::store<uint32_t>(self + kScreenCursorOff, kRetailBrightnessIndex);
+    __imp__eot_HUDOptionsScreen_HandleInputEvent(ctx, base);
+    eot::mem::store<uint32_t>(self + kScreenCursorOff, cursor);
     return;
   }
   if (type == kEvtSelect && self) {
@@ -2111,6 +2137,7 @@ REX_HOOK_RAW(eot_GameOptionsPopup_OnUpdate) {
 
 REX_HOOK_RAW(eot_WindowComponent_Teardown) {
   const uint32_t config = ctx.r3.u32 ? eot::mem::load<uint32_t>(ctx.r3.u32 + kComponentConfigOff) : 0;
+  const uint32_t owner = ctx.r3.u32 ? eot::mem::load<uint32_t>(ctx.r3.u32 + kComponentOwnerOff) : 0;
   const uint32_t answer = config ? eot::mem::load<uint32_t>(config + cfg::kYesNoChoice) : 0;
   __imp__eot_WindowComponent_Teardown(ctx, base);
   CallScope scope(ctx, base);
@@ -2128,7 +2155,7 @@ REX_HOOK_RAW(eot_WindowComponent_Teardown) {
     else if (next == Opens::kBinds)
       OpenPage(ctx, base, g_binds_page);
     else if (next == Opens::kBrightness)
-      OpenRetailBrightness(ctx, base);
+      OpenRetailBrightness(ctx, base, owner);
   } else if (config && config == g_restart_config && g_restart_asked) {
     g_restart_asked = false;
     EOT_INFO("[menu] restart {}", answer == cfg::kYesNoYes ? "accepted" : "declined");
@@ -2309,7 +2336,6 @@ void RestorePrompt(uint32_t id) {
 }
 
 void SendPromptMask(const PPCContext &ctx, uint8_t *base, uint32_t zone, uint32_t mask, uint32_t scratch) {
-  constexpr uint32_t kApiLogicPtr = 0x883CA22C;
   constexpr uint32_t kHudsDataPtr = 0x883CA288;
   constexpr uint32_t kHelperOffset = 0xA4;
   constexpr uint32_t kSetMaskMessage = 0xDCDC2E9F;

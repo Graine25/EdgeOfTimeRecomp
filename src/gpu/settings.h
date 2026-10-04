@@ -9,6 +9,13 @@
 
 namespace eot::gpu {
 
+// The temporal pass works on D3D12 only for now.
+#if defined(EOT_D3D12)
+inline constexpr bool kHostAaAvailable = true;
+#else
+inline constexpr bool kHostAaAvailable = false;
+#endif
+
 struct Settings {
   static i32 TraceFrames();
   static i32 TraceStartFrame();

@@ -165,7 +165,7 @@ i32 Settings::RenderDocFrame() { return REXCVAR_GET(eot_rdc_frame); }
 std::string Settings::RenderDocDll() { return std::string(REXCVAR_GET(eot_rdc_dll)); }
 std::string Settings::RenderDocPath() { return std::string(REXCVAR_GET(eot_rdc_path)); }
 bool Settings::PresentGamma() { return REXCVAR_GET(eot_present_gamma); }
-bool Settings::Taa() { return REXCVAR_GET(eot_host_aa) == "taa"; }
+bool Settings::Taa() { return kHostAaAvailable && REXCVAR_GET(eot_host_aa) == "taa"; }
 bool Settings::MotionVectors() { return REXCVAR_GET(eot_motion_vectors); }
 double Settings::TaaFeedback() { return REXCVAR_GET(eot_taa_feedback); }
 bool Settings::Bloom() { return REXCVAR_GET(eot_bloom); }
@@ -286,7 +286,7 @@ constexpr Gate kGates[] = {
     {"eot_upscale", "bilinear", "bicubic", "bicubic", "lanczos"},
     {"eot_anisotropy", "0", "8", "16", "16"},
     {"eot_shadow_map_size", "1024", "2048", "4096", "8192"},
-    {"eot_host_aa", "off", "off", "off", "taa"},
+    {"eot_host_aa", "off", "off", "off", eot::gpu::kHostAaAvailable ? "taa" : "off"},
     {"eot_motion_vectors", "false", "false", "false", "true"},
 };
 
