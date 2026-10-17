@@ -1834,6 +1834,7 @@ out_directory_path = "generated/default_xex"
 0x8224AAC0 = { name = "eot_ScheduleSystemRequest" }
 0x8224A970 = { name = "eot_Xam_AchievementUnlock" }
 0x8224A770 = { name = "eot_Xam_LazyLoadProc" }
+0x82247A68 = { name = "eot_Xam_ShowDeviceSelectorUI" }
 0x82247A70 = { name = "eot_Xam_ShowDirtyDiscError_and_relaunch" }
 0x822B1638 = { name = "eot_Xam_WSAStartup_Compat" }
 0x822B1478 = { name = "eot_Xam_XNetStartup_Compat" }

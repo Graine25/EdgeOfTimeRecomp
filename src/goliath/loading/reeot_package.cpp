@@ -29,6 +29,7 @@ REX_EXTERN(__imp__eot_PKPackageMgrBC_Load);
 REX_EXTERN(__imp__eot_PKPackage_Mount); // PKPackage_Mount(package r3)
 REX_EXTERN(__imp__eot_Stream_Open);
 REX_EXTERN(__imp__eot_XContentCreateEx);
+REX_EXTERN(__imp__eot_Xam_ShowDeviceSelectorUI); // (user r3, content type r4, flags r5, size r6, device out r7, overlapped r8)
 
 namespace {
 
@@ -243,4 +244,39 @@ REX_HOOK_RAW(eot_GetFileAttributesExA) {
   for (uint32_t i = 0; i < 9; ++i)
     eot::mem::store<uint32_t>(info + 4 * i, words[i]);
   ctx.r3.u64 = 1;
+}
+
+namespace {
+
+constexpr uint32_t kErrorIoPending = 997;
+constexpr uint32_t kStorageDevice = 1;
+constexpr uint32_t kOvResult = 0;
+constexpr uint32_t kOvLength = 4;
+constexpr uint32_t kOvEvent = 12;
+constexpr uint32_t kOvRoutine = 16;
+constexpr uint32_t kOvExtendedError = 24;
+
+std::atomic<bool> g_device_logged{false};
+
+}
+
+// The save manager's device pick after Start, answered with the SDK's one device so the game
+// does not pause for a system UI nobody sees. A caller waiting on an event or a completion
+// routine is left to the SDK.
+REX_HOOK_RAW(eot_Xam_ShowDeviceSelectorUI) {
+  const uint32_t device_out = ctx.r7.u32;
+  const uint32_t overlapped = ctx.r8.u32;
+  if (!device_out || !overlapped || eot::mem::load<uint32_t>(overlapped + kOvEvent) ||
+      eot::mem::load<uint32_t>(overlapped + kOvRoutine)) {
+    __imp__eot_Xam_ShowDeviceSelectorUI(ctx, base);
+    return;
+  }
+  eot::mem::store<uint32_t>(device_out, kStorageDevice);
+  eot::mem::store<uint32_t>(overlapped + kOvLength, 0);
+  eot::mem::store<uint32_t>(overlapped + kOvExtendedError, 0);
+  eot::mem::store<uint32_t>(overlapped + kOvResult, 0);
+  ctx.r3.u32 = kErrorIoPending;
+  if (!g_device_logged.exchange(true))
+    EOT_INFO("[save] storage device {} chosen without the system UI (content type {}, flags {:#x})",
+             kStorageDevice, ctx.r4.u32, ctx.r5.u32);
 }
