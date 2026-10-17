@@ -786,6 +786,20 @@ void NoteResolveDestination(VideoState &s, const GuestTexture &t) {
   ranges.emplace(start, end);
 }
 
+static bool MayBeRenderTarget(const GuestTexture &t, u64 unlock_seq) {
+  return t.tiled && unlock_seq == 0 && !MapTextureFormat(t.format).blockCompressed;
+}
+
+static void LogTakeOver(const GuestTexture &t, u64 unlock_seq, bool taken) {
+  static u32 logged = 0;
+  if (logged >= 64)
+    return;
+  ++logged;
+  EOT_DEBUG("[textures] {:#x}: {}x{} fmt {} {}, {} unlock(s), over resolved memory: {}", t.va, t.width,
+            t.height, static_cast<u32>(t.format), t.tiled ? "tiled" : "linear", unlock_seq,
+            taken ? "taken over as a render target" : "uploaded");
+}
+
 static bool TakeOverAsResolveTarget(VideoState &s, GuestTexture &t) {
   if (t.host.isDepth || !s.command_list_open)
     return false;
@@ -827,9 +841,13 @@ u32 PrepareTextureForSampling(VideoState &s, GuestTexture &t, u32 swizzle) {
       EOT_DEBUG("[textures] {:#x}: Unlock on a resolve-owned mirror ignored (seq {} -> {})", t.va,
                t.uploadedUnlockSeq, seq);
     t.uploadedUnlockSeq = seq;
-  } else if (stale && !t.uploaded && InResolveMemory(s, t) && TakeOverAsResolveTarget(s, t)) {
+  } else if (stale && !t.uploaded && InResolveMemory(s, t) && MayBeRenderTarget(t, seq) &&
+             TakeOverAsResolveTarget(s, t)) {
+    LogTakeOver(t, seq, true);
     t.uploadedUnlockSeq = seq;
   } else if (stale) {
+    if (!t.uploaded && InResolveMemory(s, t))
+      LogTakeOver(t, seq, false);
     auto it = infos().find(t.va);
     if (it != infos().end()) {
       UploadFromGuest(s, t, it->second);
