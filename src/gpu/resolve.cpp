@@ -84,9 +84,16 @@ i32 Signed6(u32 v) {
   return v & 0x20 ? static_cast<i32>(v) - 64 : static_cast<i32>(v);
 }
 
-u32 ResolveStoreSwizzle(u32 fetch3) {
+u32 ResolveStoreSwizzle(u32 fetch3, xe::TextureFormat format) {
   const u32 sw = (fetch3 >> 1) & 0xFFF;
   constexpr u32 kSwapRedBlue = 0x60A;
+  constexpr u32 kAllFromAlpha = 0x6DB;
+  constexpr u32 kAllFromBlue = 0x492;
+  const bool swap = (sw & 7) != 0;
+  if (swap && format == xe::TextureFormat::k_8)
+    return 0x80000000u | kAllFromAlpha;
+  if (swap && (format == xe::TextureFormat::k_8_A || format == xe::TextureFormat::k_8_B))
+    return 0x80000000u | kAllFromBlue;
   return (sw & 7) == 2 ? (0x80000000u | kSwapRedBlue) : 0u;
 }
 
@@ -378,7 +385,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
                          vw == static_cast<i32>(surf->width) &&
                          vh == static_cast<i32>(surf->height) && vw == mip_w && vh == mip_h;
       const bool same_format = src_host->format == target.host.format;
-      const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3]) != 0;
+      const bool reorder = !depth_source && ResolveStoreSwizzle(target.fetch[3], target.format) != 0;
       const bool covers_image = whole && target.host.mipLevels == 1;
       const bool ms_src = src_host->sampleCount > 1;
       const GuestSurface &content_surf = alias_src ? *alias_src : *surf;
@@ -605,7 +612,7 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       resolve_dynamic_valid = true;
       CopyPushConstants pc;
       pc.resourceDescriptorIndex = BindTextureSRVLocked(s, *src_host);
-      pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(target.fetch[3]);
+      pc.resourceDescriptorIndex2 = depth_source ? 0u : ResolveStoreSwizzle(target.fetch[3], target.format);
       pc.param0 = scale;
       pc.param1 = 0.0f;
       const GuestSurface &src_surf = alias_src ? *alias_src : *surf;
@@ -617,10 +624,15 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
       } else {
         const float rx = static_cast<float>(src_surf.width) / static_cast<float>(surf->width);
         const float ry = static_cast<float>(src_surf.height) / static_cast<float>(surf->height);
-        pc.rect[0] = static_cast<float>(sx0) * rx / static_cast<float>(src_surf.allocWidth);
-        pc.rect[1] = static_cast<float>(sy0) * ry / static_cast<float>(src_surf.allocHeight);
-        pc.rect[2] = static_cast<float>(sx0 + vw) * rx / static_cast<float>(src_surf.allocWidth);
-        pc.rect[3] = static_cast<float>(sy0 + vh) * ry / static_cast<float>(src_surf.allocHeight);
+        const float ks = src_surf.scale;
+        auto edge = [ks](i32 guest, float r) {
+          return static_cast<float>(ScalePxBy(static_cast<i32>(std::lround(static_cast<float>(guest) * r)), ks));
+        };
+        const float iw = static_cast<float>(src_host->width), ih = static_cast<float>(src_host->height);
+        pc.rect[0] = edge(sx0, rx) / iw;
+        pc.rect[1] = edge(sy0, ry) / ih;
+        pc.rect[2] = edge(sx0 + vw, rx) / iw;
+        pc.rect[3] = edge(sy0 + vh, ry) / ih;
       }
       bind_scope.stop();
       cmd->setGraphicsPushConstants(kCopyPushConstantRangeIndex, &pc,
@@ -742,7 +754,8 @@ void ReplayResolveLocked(VideoState &s, const ResolvePacket &pk) {
             t->host.depth == 1 && t->host.sampleCount == 1 && dest->host.sampleCount == 1 &&
             t->host.format == dest->host.format && t->host.width <= dest->host.width &&
             t->host.height <= dest->host.height &&
-            (depth_source || ResolveStoreSwizzle(t->fetch[3]) == ResolveStoreSwizzle(dest->fetch[3]));
+            (depth_source ||
+             ResolveStoreSwizzle(t->fetch[3], t->format) == ResolveStoreSwizzle(dest->fetch[3], dest->format));
         std::shared_ptr<GuestTexture> t_ref;
         if (deferrable)
           if (auto it = s.textures.find(alias_va); it != s.textures.end() && it->second.get() == t)

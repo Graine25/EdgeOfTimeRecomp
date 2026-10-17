@@ -37,6 +37,7 @@ struct Settings {
   static double FovScale();
   static i32 Anisotropy();
   static i32 Msaa();
+  static bool MsaaAllPasses();
   static i32 QualityLevel();
   static i32 ShadowCascades();
   static i32 ShadowMapSize();

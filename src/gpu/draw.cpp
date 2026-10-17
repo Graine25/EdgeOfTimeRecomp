@@ -221,11 +221,13 @@ DrawClass ClassifyDraw(DeviceView dev, const Targets &t, bool has_ps, bool rect_
   return c;
 }
 
-u32 SelectPassSamples(const Targets &t, const DrawClass &c, bool stencil_twin) {
+u32 SelectPassSamples(const Targets &t, const DrawClass &c, bool stencil_twin, bool all_passes) {
   const u32 ms = t.colorCount ? t.color[0]->host.sampleCount
                               : (t.depth ? t.depth->host.sampleCount : 1u);
   if (ms <= 1)
     return 1;
+  if (all_passes)
+    return ms;
   const bool ms_depth = t.depth && t.depth->host.sampleCount > 1;
   if (ms_depth && c.stencil && !stencil_twin)
     return ms;
@@ -250,7 +252,7 @@ u32 SelectPassSamples(const Targets &t, const DrawClass &c, bool stencil_twin) {
 }
 
 bool SelectTargetImages(VideoState &s, Targets &t, const DrawClass &c) {
-  u32 samples = SelectPassSamples(t, c, s.stencil_ref_supported);
+  u32 samples = SelectPassSamples(t, c, s.stencil_ref_supported, s.msaa_all_passes);
   if (t.depth && t.colorCount && samples > 1 && t.depth->host.sampleCount != samples)
     samples = 1;
   if (samples > 1) {

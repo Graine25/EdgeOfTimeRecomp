@@ -1203,6 +1203,7 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
                  asked, mask, samples);
     }
     s.host_msaa_samples = samples;
+    s.msaa_all_passes = samples > 1 && Settings::MsaaAllPasses();
   }
 #if defined(EOT_D3D12)
   if (auto *d3d_device = static_cast<plume::D3D12Device *>(s.device.get());
@@ -1220,9 +1221,10 @@ bool Video::CreateHostDevice(rex::ui::Window *window) {
   s.ready = true;
   RenderThreadStart();
   EOT_INFO("[gpu] {} on {} ready: swapchain {}x{}, {} bindless texture slots, msaa {}x on the "
-           "full-frame surfaces",
+           "full-frame surfaces{}",
            s.backend_info, s.device->getDescription().name, s.swap_chain->getWidth(),
-           s.swap_chain->getHeight(), kBindlessTextureCount, s.host_msaa_samples);
+           s.swap_chain->getHeight(), kBindlessTextureCount, s.host_msaa_samples,
+           s.msaa_all_passes ? " (every pass)" : s.host_msaa_samples > 1 ? " (opaque geometry)" : "");
   EOT_INFO("[gpu] internal render {}x{} ({} = {:.3f}x the guest's {}x{}), fitted to the window at "
            "present; vsync {}, fps cap {}",
            InternalRenderWidth(), InternalRenderHeight(), Settings::Resolution(),

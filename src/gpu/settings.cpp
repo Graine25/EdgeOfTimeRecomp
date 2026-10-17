@@ -77,6 +77,8 @@ REXCVAR_DEFINE_INT32(eot_msaa, 0, "EdgeOfTime/Graphics", "MSAA sample count")
       return r.ec == std::errc() && (n == 0 || n == 2 || n == 4 || n == 8);
     })
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_BOOL(eot_msaa_all_passes, true, "EdgeOfTime/Graphics", "MSAA on every pass")
+    .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video", "Screen brightness offset");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video", "Screen contrast amount");
 REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video", "Screen color saturation");
@@ -167,6 +169,7 @@ bool Settings::SceneCopyRefresh() { return REXCVAR_GET(eot_scene_copy_refresh); 
 double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
 i32 Settings::Msaa() { return REXCVAR_GET(eot_msaa); }
+bool Settings::MsaaAllPasses() { return REXCVAR_GET(eot_msaa_all_passes); }
 i32 Settings::QualityLevel() { return REXCVAR_GET(eot_debug_quality_level); }
 i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
 i32 Settings::ShadowMapSize() { return REXCVAR_GET(eot_shadow_map_size); }
