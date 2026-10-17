@@ -334,6 +334,7 @@ if(TARGET reeot_GameLogic)
     target_sources(reeot_GameLogic PRIVATE
         src/gamelogic/debug/debug_mode.cpp
         src/gamelogic/patches/game_patches.cpp
+        src/gamelogic/patches/frame_rate.cpp
         src/gamelogic/ui/options_pages.cpp
         src/gamelogic/ui/achievements_page.cpp
         src/gamelogic/input/input.cpp)
