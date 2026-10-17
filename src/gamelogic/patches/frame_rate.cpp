@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <iterator>
 #include <mutex>
@@ -11,6 +12,7 @@
 
 #include <rex/hook.h>
 
+#include "core/export.h"
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "gamelogic/ui/hud_api.h"
@@ -19,6 +21,7 @@ REX_EXTERN(__imp__eot_Key_UpdateTravel);
 REX_EXTERN(__imp__eot_HiddenSpider_UpdateTravelToHero);
 REX_EXTERN(__imp__eot_FXEmitterLight_UpdateActive);
 REX_EXTERN(__imp__eot_EvadeClone_UpdateEvadeDone);
+REX_EXTERN(__imp__sub_882EAA98);
 
 namespace {
 using eot::mem::load;
@@ -165,4 +168,40 @@ REX_HOOK_RAW(eot_EvadeClone_UpdateEvadeDone) {
   });
   store<uint32_t>(clone + kEnterFrame, write);
   __imp__eot_EvadeClone_UpdateEvadeDone(ctx, base);
+}
+
+REX_HOOK_RAW(sub_882EAA98) {
+  constexpr uint32_t kDrawnPos = 8840;
+  constexpr uint32_t kCurrentLogicInstance = 0x820DDBB0;
+  constexpr uint32_t kHandleCurrent = 0x80000001u;
+  constexpr uint32_t kInstanceObject = 4;
+  constexpr uint32_t kWorldPos = 80;
+  using HeroFn = void (*)(uint32_t);
+  static const HeroFn hand_over = reinterpret_cast<HeroFn>(eot::HostEntryPoint("eot_physics_hero"));
+  const uint32_t hero = ctx.r3.u32;
+  __imp__sub_882EAA98(ctx, base);
+  if (!hand_over)
+    return;
+  const uint32_t instance = eot::ui::hud::CallAt(ctx, base, kCurrentLogicInstance, kHandleCurrent);
+  const uint32_t object =
+      instance && instance != eot::ui::hud::kNoWindow ? load<uint32_t>(instance + kInstanceObject) : 0;
+  static uint32_t known = 0;
+  static bool warned = false;
+  if (object && object != known) {
+    bool there = true;
+    for (uint32_t k = 0; k < 3; ++k)
+      there &= std::fabs(load<float>(object + kWorldPos + 4 * k) - load<float>(hero + kDrawnPos + 4 * k)) <= 0.01f;
+    if (there) {
+      known = object;
+      EOT_DEBUG("[physics] the hero's game object is {:#x}", object);
+    }
+  }
+  const bool his = object && object == known;
+  if (!his && !warned) {
+    warned = true;
+    EOT_WARN("[physics] the hero's game object was not where he is drawn (instance {:#x}, object {:#x}); "
+             "he is drawn at his physics steps",
+             instance, object);
+  }
+  hand_over(his ? object : 0);
 }

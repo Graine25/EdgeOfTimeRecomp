@@ -20,6 +20,7 @@
 #include <array>
 #include <cmath>
 
+#include "core/export.h"
 #include "core/logging.h"
 #include "core/memory_helpers.h"
 #include "goliath/ui/name_crc.h"
@@ -36,6 +37,7 @@ REX_EXTERN(__imp__eot_3dObj_AnimateSkeleton); // (object r3, seconds f1)
 REXCVAR_DEFINE_BOOL(eot_update_lod, false, "EdgeOfTime/Graphics", "Keep the console's update LOD");
 
 REXCVAR_DEFINE_STRING(eot_anim_fps, "", "EdgeOfTime/Graphics", "Fixed animation rate per rig");
+REXCVAR_DEFINE_BOOL(eot_hero_between_steps, true, "EdgeOfTime/Debug", "Smooth hero on web line");
 
 namespace {
 
@@ -300,6 +302,55 @@ constexpr uint32_t kWorldStepsThisFrame = kPhysicsWorld + 1788;
 uint64_t g_frames = 0, g_steps = 0, g_zero_step_frames = 0;
 double g_alpha_sum = 0.0;
 
+constexpr uint32_t kObjectBody = 24;
+constexpr uint32_t kObjectHeld = 228, kObjectHeld2 = 236;
+constexpr uint32_t kRigidBodyGOVtable = 0x8206A4F4;
+constexpr uint32_t kBodyActivation = 4;
+constexpr uint32_t kBodyCentre = 68;
+constexpr uint32_t kBodyFlags = 304;
+constexpr uint32_t kBodyObject = 780;
+constexpr uint32_t kBodyPosition = 976, kBodyPreviousPosition = 1008;
+constexpr uint32_t kFlagCentre = 0x2;
+constexpr uint32_t kFlagAtStep = 0x1;
+constexpr float kHeroMaxStep = 2.0f;
+
+std::atomic<uint32_t> g_hero_object{0};
+uint64_t g_hero_frames = 0, g_hero_lifted = 0, g_hero_left = 0;
+
+uint32_t LiftHeroAtStep() {
+  const uint32_t hero = g_hero_object.load(std::memory_order_acquire);
+  if (!hero || !REXCVAR_GET(eot_hero_between_steps))
+    return 0;
+  const uint32_t body = eot::mem::load<uint32_t>(hero + kObjectBody);
+  if (!body || eot::mem::load<uint32_t>(body) != kRigidBodyGOVtable ||
+      eot::mem::load<uint32_t>(body + kBodyObject) != hero)
+    return 0;
+  ++g_hero_frames;
+  const uint32_t flags = eot::mem::load<uint32_t>(body + kBodyFlags);
+  if (!(flags & kFlagAtStep))
+    return 0;
+  const uint32_t activation = eot::mem::load<uint32_t>(body + kBodyActivation);
+  if (eot::mem::load<uint32_t>(hero + kObjectHeld) || eot::mem::load<uint32_t>(hero + kObjectHeld2) ||
+      activation == 1 || activation == 4) {
+    ++g_hero_left;
+    return 0;
+  }
+  const uint32_t now = (flags & kFlagCentre) ? body + kBodyCentre : body + kBodyPosition;
+  float d2 = 0.0f;
+  for (uint32_t k = 0; k < 3; ++k) {
+    const float d = std::bit_cast<float>(eot::mem::load<uint32_t>(now + 4 * k)) -
+                    std::bit_cast<float>(eot::mem::load<uint32_t>(body + kBodyPreviousPosition + 4 * k));
+    d2 += d * d;
+  }
+  if (!(d2 <= kHeroMaxStep * kHeroMaxStep)) {
+    ++g_hero_left;
+    return 0;
+  }
+  eot::mem::store<uint32_t>(body + kBodyFlags, flags & ~kFlagAtStep);
+  ++g_hero_lifted;
+  return body;
+}
+
 void PhysicsLogSummary() {
   using clock = std::chrono::steady_clock;
   static clock::time_point last = clock::now();
@@ -314,6 +365,11 @@ void PhysicsLogSummary() {
               100.0 * static_cast<double>(g_zero_step_frames) / static_cast<double>(g_frames),
               g_alpha_sum / static_cast<double>(g_frames),
               eot::mem::load<uint32_t>(eot::mem::load<uint32_t>(kWorldObjectList) + 4));
+  if (g_hero_lifted || g_hero_left)
+    EOT_DEBUG("[physics] last 30 s, the hero: {} frames, at his last step by his logic's ask on {}: drawn "
+              "between steps all the same on {}, left at it on {} (a teleport, asleep or held)",
+              g_hero_frames, g_hero_lifted + g_hero_left, g_hero_lifted, g_hero_left);
+  g_hero_frames = g_hero_lifted = g_hero_left = 0;
   g_frames = g_steps = g_zero_step_frames = 0;
   g_alpha_sum = 0.0;
 }
@@ -327,8 +383,15 @@ REX_HOOK_RAW(eot_PhysicsWorld_Interpolate) {
   if (steps == 0)
     ++g_zero_step_frames;
   g_alpha_sum += ctx.f1.f64;
+  const uint32_t hero_body = LiftHeroAtStep();
   __imp__eot_PhysicsWorld_Interpolate(ctx, base);
+  if (hero_body)
+    eot::mem::store<uint32_t>(hero_body + kBodyFlags, eot::mem::load<uint32_t>(hero_body + kBodyFlags) | kFlagAtStep);
   PhysicsLogSummary();
+}
+
+extern "C" EOT_EXPORT void eot_physics_hero(uint32_t object) {
+  g_hero_object.store(object, std::memory_order_release);
 }
 
 REX_EXTERN(__imp__eot_PhysicsWorld_Update);
