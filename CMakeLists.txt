@@ -229,6 +229,8 @@ else()
 endif()
 target_include_directories(reeot_shader_cache PRIVATE src/gpu/shaders)
 target_compile_options(reeot_shader_cache PRIVATE -O0 -w)
+target_compile_definitions(reeot_shader_cache PRIVATE
+    $<IF:$<BOOL:${REEOT_D3D12}>,SHADER_CACHE_NO_SPIRV,SHADER_CACHE_NO_DXIL>)
 
 # Sources
 set(REEOT_SOURCES
@@ -269,6 +271,7 @@ set(REEOT_SOURCES
     src/gpu/gpu_timing.cpp
     src/gpu/memory_report.cpp
     src/gpu/pipeline/pso_records.cpp
+    src/gpu/frame_reserve.cpp
     src/gpu/pipeline/pso_precache.cpp
     src/gpu/pipeline/pso_predictor.cpp
     src/gpu/hooks/package_load.cpp

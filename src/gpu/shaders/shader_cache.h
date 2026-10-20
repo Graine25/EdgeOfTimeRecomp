@@ -31,6 +31,15 @@ struct ShaderCacheEntry {
   uint32_t velDxilSize;
   uint32_t velSpirvOffset;
   uint32_t velSpirvSize;
+  uint32_t fastDxilOffset;
+  uint32_t fastDxilSize;
+  uint32_t fastSpirvOffset;
+  uint32_t fastSpirvSize;
+  uint32_t fastVelDxilOffset;
+  uint32_t fastVelDxilSize;
+  uint32_t fastVelSpirvOffset;
+  uint32_t fastVelSpirvSize;
+  uint32_t fetchSlotMask;
 };
 
 extern ShaderCacheEntry g_shaderCacheEntries[];

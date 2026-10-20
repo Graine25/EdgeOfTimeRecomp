@@ -28,6 +28,7 @@
 #include "gpu/d3d.h"
 #include "gpu/device.h"
 #include "gpu/format.h"
+#include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/pipeline/pso_precache.h"
 #include "gpu/pipeline/pso_records.h"
 #include "gpu/settings.h"
@@ -367,6 +368,10 @@ u32 EnqueueSlots(const std::vector<Slot> &slots, PsoLane lane, u32 *no_template)
       }
       if (seen.insert(HashPipelineState(r.state)).second &&
           PsoPrecacheEnqueue(r, PsoSource::Predicted, lane, token))
+        ++queued;
+      PsoRecord fast = r;
+      if (FastTwinOf(fast.state) && seen.insert(HashPipelineState(fast.state)).second &&
+          PsoPrecacheEnqueue(fast, PsoSource::Predicted, PsoLane::Background, token))
         ++queued;
     };
     for (size_t ti = 0; ti < templates.size(); ++ti) {

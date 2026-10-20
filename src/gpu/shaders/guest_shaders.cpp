@@ -8,6 +8,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -21,6 +22,7 @@
 #include "gpu/backend.h"
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/settings.h"
 #include "gpu/shaders/shader_cache.h"
 
 #if !defined(EOT_D3D12)
@@ -173,6 +175,12 @@ const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size,
   } else if (variant == VsVariant::Velocity && e.velDxilSize) {
     offset = e.velDxilOffset;
     *size = e.velDxilSize;
+  } else if (variant == VsVariant::Fast && e.fastDxilSize) {
+    offset = e.fastDxilOffset;
+    *size = e.fastDxilSize;
+  } else if (variant == VsVariant::FastVelocity && e.fastVelDxilSize) {
+    offset = e.fastVelDxilOffset;
+    *size = e.fastVelDxilSize;
   }
 #else
   offset = e.spirvOffset;
@@ -186,6 +194,12 @@ const u8 *EntryBytes(const ShaderCacheEntry &e, u32 *size,
   } else if (variant == VsVariant::Velocity && e.velSpirvSize) {
     offset = e.velSpirvOffset;
     *size = e.velSpirvSize;
+  } else if (variant == VsVariant::Fast && e.fastSpirvSize) {
+    offset = e.fastSpirvOffset;
+    *size = e.fastSpirvSize;
+  } else if (variant == VsVariant::FastVelocity && e.fastVelSpirvSize) {
+    offset = e.fastVelSpirvOffset;
+    *size = e.fastVelSpirvSize;
   }
 #endif
   return c.blob.data() + offset;
@@ -496,13 +510,52 @@ VsVariant VsVariantFor(const ShaderCacheEntry *vs, const ShaderCacheEntry *ps, b
   return (ps->interpolantMask & ~vs->interpolantMask) ? VsVariant::Full : VsVariant::Trimmed;
 }
 
+FastPs FastPsFromSetting() {
+  const std::string mode = Settings::FastPixelShaders();
+  return mode == "all" ? FastPs::All : mode == "lights" ? FastPs::Lights : FastPs::Off;
+}
+
+// The lights are the deferred light and shadow-mask shaders. IrrEnvLightP's twin measured slower.
+bool FastPsWanted(FastPs mode, u64 ps_hash) {
+  if (mode == FastPs::Off || ps_hash == 0xdc61fa924b661d16ull) // IrrEnvLightP
+    return false;
+  if (mode == FastPs::All)
+    return true;
+  switch (ps_hash) {
+  case 0xe95bb90812b8d903ull: // DeferredLighting_DirLightP
+  case 0xf22fa3f5744ede4cull: // DirLightP2
+  case 0x21e112356174d8bdull: // DirLightP3
+  case 0x2d3b75791f8ef702ull: // DirLightP4
+  case 0x00ba542f16661e48ull: // PointLightP
+  case 0x10fdc1f91de4282dull: // SpotLightP
+  case 0x8934539abc3d24ccull: // PointLight_SMP
+  case 0xb3799c50968660bfull: // SpotLight_SMP
+  case 0x1a31426e40610047ull: // ShadowmapP
+  case 0x3f7e5706e95fbbf2ull: // ShadowmapVolumeP
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool EntryHasFast(const ShaderCacheEntry *e, bool velocity) {
+  if (!e)
+    return false;
+#if defined(EOT_D3D12)
+  return velocity ? e->fastVelDxilSize != 0 : e->fastDxilSize != 0;
+#else
+  return velocity ? e->fastVelSpirvSize != 0 : e->fastSpirvSize != 0;
+#endif
+}
+
 plume::RenderShader *GetHostShaderByHash(VideoState &s, u64 hash, u32 spec_mask, bool is_pixel,
                                          bool worker, VsVariant variant) {
   auto &c = cache();
   const ShaderCacheEntry *entry = FindShaderCacheEntry(hash);
   if (!entry || !s.device)
     return nullptr;
-  if (is_pixel && variant != VsVariant::Velocity)
+  if (is_pixel && variant != VsVariant::Velocity && variant != VsVariant::Fast &&
+      variant != VsVariant::FastVelocity)
     variant = VsVariant::Trimmed;
   const u32 effective = 0;
   (void)spec_mask;
@@ -555,7 +608,8 @@ plume::RenderShader *ResolveHostShader(VideoState &s, GuestShader &shader, u32 s
     }
     return nullptr;
   }
-  if (shader.isPixel && variant != VsVariant::Velocity)
+  if (shader.isPixel && variant != VsVariant::Velocity && variant != VsVariant::Fast &&
+      variant != VsVariant::FastVelocity)
     variant = VsVariant::Trimmed;
   if (shader.lastHost && shader.lastSpecMask == spec_mask && static_cast<VsVariant>(shader.lastVariant) == variant)
     return shader.lastHost;

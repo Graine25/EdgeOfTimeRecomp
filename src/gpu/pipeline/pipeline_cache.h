@@ -64,6 +64,12 @@ inline i32 PolygonOffsetUnits(float offset) {
 }
 
 void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask);
+// Marks st as its pixel shader's fast twin (eot_fast_ps) where one applies.
+bool FastTwinOf(PipelineState &st);
+// Whether a pipeline for st was built (or failed); never builds one.
+bool PipelineKnown(const PipelineState &st);
+// Queues st on the background workers.
+void RequestPipeline(const PipelineState &st);
 
 plume::RenderPipeline *GetOrCreatePipeline(VideoState &s, const PipelineState &state,
                                            bool worker = false,

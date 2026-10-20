@@ -4,6 +4,7 @@
 
 #include "gpu/device.h"
 #include "gpu/gpu_timing.h"
+#include "gpu/frame_reserve.h"
 #include "gpu/memory_report.h"
 #include "gpu/pipeline/pipeline_cache.h"
 #include "gpu/pipeline/pso_precache.h"
@@ -677,6 +678,13 @@ CreateHostTexture(plume::RenderDevice *device, const plume::RenderTextureDesc &d
   if (!device)
     return nullptr;
   EOT_CPU_ZONE_DYN(tag ? tag : "host texture");
+  if (!pool) {
+    FrameReserveNote(desc, tag);
+    if (auto reserved = FrameReserveTake(desc)) {
+      RetagHostAllocation(reserved.get(), tag, desc);
+      return reserved;
+    }
+  }
   state().perf.host_textures++;
   if (tag) {
     if (tag[0] == 's')

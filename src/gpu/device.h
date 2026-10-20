@@ -64,6 +64,8 @@ struct PerfCounters {
   u32 const_file_mask_misses = 0;
   u32 pipeline_hot_hits = 0;
   u32 replay_memo_hits = 0;
+  u32 fast_ps_draws = 0;
+  u32 marks_cut = 0;
   u32 vertex_bind_requests = 0, vertex_bind_calls = 0;
   u32 single_stream_draws = 0, target_memo_hits = 0;
   u32 sorted_draws = 0, sort_runs = 0;
@@ -229,6 +231,11 @@ struct VideoState {
   std::unique_ptr<plume::RenderShader> derive_depth_stencil_ps[3];
   std::unordered_map<u64, std::unique_ptr<plume::RenderPipeline>> derive_depth_stencil_pipelines;
   bool stencil_ref_supported = false;
+  // A light mark was dropped on this depth surface since its last stencil clear; marks_cut_off
+  // keeps them for the session once another test reads the difference.
+  bool marks_cut_live = false;
+  bool marks_cut_off = false;
+  u32 marks_cut_depth_va = 0;
 
   std::string backend_info;
 

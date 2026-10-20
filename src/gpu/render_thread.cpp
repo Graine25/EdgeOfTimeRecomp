@@ -18,6 +18,7 @@
 #include <pthread.h>
 #endif
 
+#include "core/cpu.h"
 #include "core/logging.h"
 #include "core/profiling.h"
 #include "gpu/device.h"
@@ -128,6 +129,27 @@ u64 WaitForWork(Queue &q, u64 head) {
   return q.tail.load(std::memory_order_acquire);
 }
 
+// A light mark whose next command is its shade is dropped; a mark at the tail waits a moment for it.
+constexpr f64 kMarkShadeWaitMs = 0.05;
+
+bool DropSameFaceMark(VideoState &s, Queue &q, u64 head, const RenderCommand &mark) {
+  u64 tail = q.tail.load(std::memory_order_acquire);
+  if (tail - head < 2) {
+    const u64 t0 = PerfNow();
+    while (tail - head < 2 && static_cast<f64>(PerfNow() - t0) * PerfMsPerTick() < kMarkShadeWaitMs &&
+           !q.stop.load(std::memory_order_relaxed)) {
+      eot::cpu::Relax();
+      tail = q.tail.load(std::memory_order_acquire);
+    }
+    if (tail - head < 2)
+      return RejectSameFaceShade(12);
+  }
+  RenderCommand &next = q.slots[(head + 1) & kQueueMask];
+  if (next.type != RenderCommandType::Draw)
+    return RejectSameFaceShade(13);
+  return TakeSameFaceShade(s, mark.draw, next.draw);
+}
+
 u32 GatherSortRun(Queue &q, u64 head, u64 avail, u64 *keys) {
   const RenderCommand &first = q.slots[head & kQueueMask];
   u32 run = 0;
@@ -234,7 +256,8 @@ void WorkerMain() {
       RenderCommand &c = q.slots[head & kQueueMask];
       if (i + 1 < n)
         Prefetch(q.slots[(head + 1) & kQueueMask]);
-      Execute(s, q, c);
+      if (!(c.type == RenderCommandType::Draw && IsSameFaceMark(c.draw) && DropSameFaceMark(s, q, head, c)))
+        Execute(s, q, c);
       ++head;
       if ((head & (kPublishEvery - 1)) == 0 || i + 1 == n)
         PublishHead(q, head);

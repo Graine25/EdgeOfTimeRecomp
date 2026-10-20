@@ -130,6 +130,8 @@ struct DrawPacket {
   float cameraVP[16] = {};
   bool taaSkip = false;
   bool velocity = false;
+  // A light-volume draw's vertex bytes (XXH3), to pair a stencil mark with its shade.
+  u64 streamBytesHash = 0;
 };
 
 struct ClearPacket {

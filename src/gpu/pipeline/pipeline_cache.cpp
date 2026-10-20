@@ -23,6 +23,7 @@
 
 #include "gpu/d3d.h"
 #include "gpu/device.h"
+#include "gpu/frame_reserve.h"
 #include "gpu/pipeline/pso_precache.h"
 #include "gpu/pipeline/pso_predictor.h"
 #include "gpu/pipeline/pso_records.h"
@@ -135,19 +136,59 @@ void RouteOne(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_
   PsoPrecacheEnqueue(r, source, PsoLane::Background);
 }
 
+// The twin goes behind every ordinary pipeline: until it is built the draw uses the ordinary one.
+void RouteWithFastTwin(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
+  RouteOne(r, source, queued, per_package);
+  PsoRecord fast = r;
+  if (FastTwinOf(fast.state))
+    PsoPrecacheEnqueue(fast, source, PsoLane::Background);
+}
+
 void RouteRecord(const PsoRecord &r, PsoSource source, size_t *queued, size_t *per_package) {
   const u32 msaa = state().host_msaa_samples;
   if (msaa > 1 && r.state.sampleCount == 1) {
     PsoRecord twin = r;
     twin.state.sampleCount = msaa;
-    RouteOne(twin, source, queued, per_package);
+    RouteWithFastTwin(twin, source, queued, per_package);
   }
-  RouteOne(r, source, queued, per_package);
+  RouteWithFastTwin(r, source, queued, per_package);
 }
 
 }
 
 void ZeroPipelineState(PipelineState &state) { std::memset(&state, 0, sizeof(state)); }
+
+bool PipelineKnown(const PipelineState &st) {
+  auto &c = cache();
+  std::shared_lock lock(c.mutex);
+  return c.map.count(HashPipelineState(st)) != 0;
+}
+
+void RequestPipeline(const PipelineState &st) {
+  if (!st.layout)
+    return;
+  const InputLayout &l = *st.layout;
+  if (l.declRaw.empty() || l.declRaw.size() > sizeof(PsoRecord::declRaw))
+    return;
+  PsoRecord r{};
+  r.state = st;
+  r.state.vs = nullptr;
+  r.state.ps = nullptr;
+  r.state.layout = nullptr;
+  r.declCount = static_cast<u32>(l.declRaw.size() / sizeof(DeclElement));
+  std::memcpy(r.declRaw, l.declRaw.data(), l.declRaw.size());
+  PsoPrecacheEnqueue(r, PsoSource::Predicted, PsoLane::Background);
+}
+
+// eot_fast_ps as the precache saw it at boot; the draws follow the setting at once.
+bool FastTwinOf(PipelineState &st) {
+  static const FastPs mode = FastPsFromSetting();
+  if (mode == FastPs::Off || !st.psHash || (st.spec & (kSpecAlphaTest | kSpecFastPs)) ||
+      !FastPsWanted(mode, st.psHash) || !EntryHasFast(FindShaderCacheEntry(st.psHash), st.velocity))
+    return false;
+  st.spec |= kSpecFastPs;
+  return true;
+}
 
 u64 HashPipelineState(const PipelineState &state) {
   return XXH3_64bits(reinterpret_cast<const u8 *>(&state) + kPipelineKeyOffset,
@@ -155,11 +196,13 @@ u64 HashPipelineState(const PipelineState &state) {
 }
 
 void CanonicalizePipelineState(PipelineState &st, u32 spec_mask, u32 stream_mask) {
+  // The fast twin is another shader, so another pipeline.
+  const u32 fast = st.spec & kSpecFastPs;
 #if defined(EOT_D3D12)
   (void)spec_mask;
-  st.spec = 0;
+  st.spec = fast;
 #else
-  st.spec &= spec_mask;
+  st.spec = (st.spec & spec_mask) | fast;
 #endif
   if (st.sampleCount == 0)
     st.sampleCount = 1;
@@ -374,10 +417,11 @@ PsoBuildResult BuildPipelineFromRecord(VideoState &s, const PsoRecord &r, PsoSou
   if (r.state.velocity && (variant != VsVariant::Velocity || !Settings::MotionVectors()))
     return PsoBuildResult::Skipped;
   st.vs = GetHostShaderByHash(s, r.state.vsHash, r.state.spec, false, true, variant);
-  st.ps = r.state.psHash
-              ? GetHostShaderByHash(s, r.state.psHash, r.state.spec, true, true,
-                                    r.state.velocity ? VsVariant::Velocity : VsVariant::Trimmed)
-              : nullptr;
+  const bool fast = (r.state.spec & kSpecFastPs) != 0;
+  const VsVariant ps_variant = r.state.velocity ? (fast ? VsVariant::FastVelocity : VsVariant::Velocity)
+                                                : (fast ? VsVariant::Fast : VsVariant::Trimmed);
+  st.ps = r.state.psHash ? GetHostShaderByHash(s, r.state.psHash, r.state.spec, true, true, ps_variant)
+                         : nullptr;
   if (!st.vs || (r.state.psHash && !st.ps))
     return PsoBuildResult::Skipped;
   std::vector<VertexInput> inputs;
@@ -407,6 +451,7 @@ void PsoCachePrecache() {
     std::unique_lock lock(c.mutex);
     c.capture = true;
   }
+  FrameReserveStart(s.device.get());
   PsoPrecacheStart();
 
   size_t compiled_in = 0, local = 0, queued = 0, per_package = 0;
@@ -561,9 +606,15 @@ void PipelineCacheCounts(u32 *alive, u32 *used) {
 void PsoCacheFlushIfDirty(bool force) {
   auto &s = state();
   PsoCaptureFlush(force, s.guest_frames);
+  if (force) {
+    FrameReserveStop();
+    FrameReserveHousekeep(true);
+  }
   auto &c = cache();
   if (!force && s.guest_frames < c.lastSummaryFrame + 600)
     return;
+  if (!force)
+    FrameReserveHousekeepAsync();
   u32 by_source[4] = {}, used_by_source[4] = {}, total = 0;
   u32 gaps, races;
   const auto &templates = CompiledInTemplates();

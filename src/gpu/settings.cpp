@@ -79,6 +79,11 @@ REXCVAR_DEFINE_INT32(eot_msaa, 0, "EdgeOfTime/Graphics", "MSAA sample count")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_BOOL(eot_msaa_all_passes, true, "EdgeOfTime/Graphics", "MSAA on every pass")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
+REXCVAR_DEFINE_STRING(eot_fast_ps, "all", "EdgeOfTime/Graphics", "Fast pixel shader twins")
+    .allowed({"off", "lights", "all"});
+REXCVAR_DEFINE_BOOL(eot_cut_same_face_marks, true, "EdgeOfTime/Graphics", "Skip redundant light stencil marks");
+REXCVAR_DEFINE_BOOL(eot_cut_two_sided_marks, false, "EdgeOfTime/Graphics", "Skip two-sided light marks");
+REXCVAR_DEFINE_BOOL(eot_specular_aa, false, "EdgeOfTime/Graphics", "Specular anti-aliasing");
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video", "Screen brightness offset");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video", "Screen contrast amount");
 REXCVAR_DEFINE_DOUBLE(eot_saturation, 1.0, "EdgeOfTime/Video", "Screen color saturation");
@@ -170,6 +175,10 @@ double Settings::FovScale() { return REXCVAR_GET(eot_fov_scale); }
 i32 Settings::Anisotropy() { return REXCVAR_GET(eot_anisotropy); }
 i32 Settings::Msaa() { return REXCVAR_GET(eot_msaa); }
 bool Settings::MsaaAllPasses() { return REXCVAR_GET(eot_msaa_all_passes); }
+std::string Settings::FastPixelShaders() { return std::string(REXCVAR_GET(eot_fast_ps)); }
+bool Settings::CutSameFaceMarks() { return REXCVAR_GET(eot_cut_same_face_marks); }
+bool Settings::CutTwoSidedMarks() { return REXCVAR_GET(eot_cut_two_sided_marks); }
+bool Settings::SpecularAa() { return kHostAaAvailable && REXCVAR_GET(eot_specular_aa); }
 i32 Settings::QualityLevel() { return REXCVAR_GET(eot_debug_quality_level); }
 i32 Settings::ShadowCascades() { return REXCVAR_GET(eot_shadow_cascades); }
 i32 Settings::ShadowMapSize() { return REXCVAR_GET(eot_shadow_map_size); }

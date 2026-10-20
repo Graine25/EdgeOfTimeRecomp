@@ -24,6 +24,9 @@
 #include <sys/resource.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+#elif defined(__APPLE__)
+#include <pthread.h>
+#include <pthread/qos.h>
 #endif
 
 #include "core/logging.h"
@@ -84,6 +87,10 @@ void SetWorkerPriority(bool loading) {
   sched_param param{};
   param.sched_priority = 0;
   ::pthread_setschedparam(::pthread_self(), loading ? SCHED_OTHER : SCHED_IDLE, &param);
+#elif defined(__APPLE__)
+  // Utility QoS outside a loading screen keeps the workers, and the Metal compiler service working
+  // for them, mostly off the performance cores the game runs on.
+  ::pthread_set_qos_class_self_np(loading ? QOS_CLASS_USER_INITIATED : QOS_CLASS_UTILITY, 0);
 #else
   (void)loading;
 #endif

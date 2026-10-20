@@ -159,6 +159,7 @@ struct GuestSurface {
   u64 handoffFrame = ~0ull;
   std::weak_ptr<GuestTexture> handoffMirror;
   u32 handoffMirrorOrdinal = 0;
+  u64 handoffSerial = 0;
   struct RedirectPrediction {
     std::weak_ptr<GuestTexture> mirror;
     const void *texture = nullptr;

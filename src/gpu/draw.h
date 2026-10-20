@@ -33,6 +33,10 @@ void DrawGuestIndexedPrimitives(u32 device_va, u32 primitive_type, i32 base_vert
                                 FloatConstantDirty constants);
 void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count);
 u64 DrawSortKey(const DrawPacket &pk, u32 *depth_func = nullptr);
+// A light volume's stencil mark, and its shade taking the mark's place (the caller drops the mark).
+bool IsSameFaceMark(const DrawPacket &pk);
+bool TakeSameFaceShade(VideoState &s, const DrawPacket &mark, DrawPacket &shade);
+bool RejectSameFaceShade(u32 reason);
 
 void FlushPendingTransitions(VideoState &s);
 void FlushGeometryStaging(VideoState &s);

@@ -515,8 +515,12 @@ void LogTransfer(VideoState &s, const GuestSurface &surf, const char *what) {
   }
 }
 
+// Only a re-resolve of the content handed over is a regret; one after the surface was drawn
+// again (every-pass MSAA's fog, glass and particles between the scene's resolves) is new content.
 void NoteHandoffRegret(const VideoState &s, GuestSurface &surf) {
   if (surf.handoffFrame != s.guest_frames || surf.handoffMirrorOrdinal >= 32)
+    return;
+  if (surf.serial != surf.handoffSerial)
     return;
   if (std::shared_ptr<GuestTexture> m = surf.handoffMirror.lock())
     m->handoffRegretMask |= 1u << surf.handoffMirrorOrdinal;
@@ -653,6 +657,7 @@ void SurfaceTransferToMirror(VideoState &s, GuestSurface &surf, HostTexture &src
   surf.contentInSingle = false;
   surf.imagesAgree = false;
   surf.handoffFrame = s.guest_frames;
+  surf.handoffSerial = surf.serial;
   surf.handoffMirror = target_ref;
   DropBorrow(surf);
   if (host_keeps) {

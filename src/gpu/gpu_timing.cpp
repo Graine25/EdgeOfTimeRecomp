@@ -57,10 +57,23 @@ bool g_open = false;
 
 std::string g_diag_tag;
 
+// plume follows every D3D12 timestamp with its own ResolveQueryData, a copy that drains the pipe
+// at each mark; here the mark is the EndQuery alone and GpuTimingFrameEnd resolves the frame's
+// queries in one copy.
+void WriteTimestamp(SlotTiming &st, plume::RenderCommandList *cmd, u32 index) {
+#if defined(EOT_D3D12)
+  auto *list = static_cast<plume::D3D12CommandList *>(cmd);
+  auto *pool = static_cast<plume::D3D12QueryPool *>(st.pool.get());
+  list->d3d->EndQuery(pool->d3d, D3D12_QUERY_TYPE_TIMESTAMP, index);
+#else
+  cmd->writeTimestamp(st.pool.get(), index);
+#endif
+}
+
 void WriteMark(SlotTiming &st, plume::RenderCommandList *cmd, u32 closing) {
   if (st.used >= kQueryCount)
     return;
-  cmd->writeTimestamp(st.pool.get(), st.used++);
+  WriteTimestamp(st, cmd, st.used++);
   st.journal.push_back(closing);
   if (st.diag)
     st.tags.push_back(g_diag_tag);
@@ -161,7 +174,7 @@ void GpuTimingFrameBegin(VideoState &s, plume::RenderCommandList *cmd, u32 slot)
   st.diag = false;
   g_diag_tag.clear();
   cmd->resetQueryPool(st.pool.get(), 0, kQueryCount);
-  cmd->writeTimestamp(st.pool.get(), st.used++);
+  WriteTimestamp(st, cmd, st.used++);
   g_active_slot = slot;
   g_cat = kGpuCatOther;
   g_open = true;
@@ -214,6 +227,13 @@ void GpuTimingFrameEnd(plume::RenderCommandList *cmd) {
     return;
   auto &st = g_slots[g_active_slot];
   WriteMark(st, cmd, g_cat);
+#if defined(EOT_D3D12)
+  auto *list = static_cast<plume::D3D12CommandList *>(cmd);
+  auto *pool = static_cast<plume::D3D12QueryPool *>(st.pool.get());
+  auto *readback = static_cast<plume::D3D12Buffer *>(pool->readbackBuffer.get());
+  if (st.used)
+    list->d3d->ResolveQueryData(pool->d3d, D3D12_QUERY_TYPE_TIMESTAMP, 0, st.used, readback->d3d, 0);
+#endif
   st.pending = st.journal.size() > 1;
   g_open = false;
 }
@@ -231,9 +251,18 @@ void GpuTimingCollect(VideoState &s, u32 slot) {
     return;
   }
 #if defined(EOT_D3D12)
-  st.pool->queryResults();
-  const u64 *r = st.pool->getResults();
-  const size_t n = std::min<size_t>(st.journal.size(), st.pool->getCount());
+  // The written queries only, ticks to nanoseconds as plume's queryResults does for the pool.
+  auto *pool = static_cast<plume::D3D12QueryPool *>(st.pool.get());
+  const size_t n = std::min<size_t>({st.journal.size(), static_cast<size_t>(st.used), pool->getCount()});
+  std::vector<u64> ns(n);
+  if (n) {
+    const auto *ticks = static_cast<const u64 *>(pool->readbackBuffer->map());
+    const double freq = static_cast<double>(pool->device->timestampFrequency);
+    for (size_t i = 0; i < n; ++i)
+      ns[i] = static_cast<u64>(static_cast<double>(ticks[i]) / freq * 1000000000.0);
+    pool->readbackBuffer->unmap();
+  }
+  const u64 *r = ns.data();
 #else
   auto *vk_pool = static_cast<plume::VulkanQueryPool *>(st.pool.get());
   std::vector<u64> ns(st.used);

@@ -38,6 +38,10 @@ struct Settings {
   static i32 Anisotropy();
   static i32 Msaa();
   static bool MsaaAllPasses();
+  static std::string FastPixelShaders();
+  static bool CutSameFaceMarks();
+  static bool CutTwoSidedMarks();
+  static bool SpecularAa();
   static i32 QualityLevel();
   static i32 ShadowCascades();
   static i32 ShadowMapSize();

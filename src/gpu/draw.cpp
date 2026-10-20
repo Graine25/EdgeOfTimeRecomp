@@ -133,7 +133,8 @@ bool ResolveTargets(VideoState &s, DeviceView dev, Targets &t) {
 }
 
 bool CaptureTargetWords(DeviceView dev, TargetWords &tw) {
-  tw.colorCount = 0;
+  // Whole: the packet's slot is reused, and every comparison of two packets' targets reads it all.
+  tw = TargetWords{};
   for (u32 i = 0; i < 4; ++i) {
     const u32 va = dev.U32(dev::kRenderTarget0 + 4 * i);
     if (!va || !ReadSurfaceHeaderWords(va, tw.colorWords[i]))
@@ -146,6 +147,23 @@ bool CaptureTargetWords(DeviceView dev, TargetWords &tw) {
   if (tw.depthVa && !ReadSurfaceHeaderWords(tw.depthVa, tw.depthWords))
     tw.depthVa = 0;
   return tw.colorCount || tw.depthVa;
+}
+
+// The same surfaces in the same shape: every captured word but the headers' Hi-Z control (word
+// 2), which the guest flips as it switches Hi-Z and Hi-Stencil. `with_color_info` also compares the
+// live RB_COLOR_INFO words, whose exponent bias the target resolution applies.
+bool SameTargetWords(const TargetWords &a, const TargetWords &b, bool with_color_info = true) {
+  if (a.colorCount != b.colorCount || a.depthVa != b.depthVa ||
+      std::memcmp(a.colorVa, b.colorVa, sizeof(a.colorVa)) != 0 ||
+      (with_color_info && std::memcmp(a.colorInfo, b.colorInfo, sizeof(a.colorInfo)) != 0))
+    return false;
+  auto same = [](const u32 (&x)[5], const u32 (&y)[5]) {
+    return x[0] == y[0] && x[1] == y[1] && x[3] == y[3] && x[4] == y[4];
+  };
+  for (u32 i = 0; i < 4; ++i)
+    if (!same(a.colorWords[i], b.colorWords[i]))
+      return false;
+  return same(a.depthWords, b.depthWords);
 }
 
 bool ResolveTargetsFromWords(VideoState &s, const TargetWords &tw, Targets &t) {
@@ -811,6 +829,190 @@ void PrefetchIndexProbes(u32 device_va, u32 start_index, u32 index_count) {
   if (start > 0xFFFFFFFFu - data_va)
     return;
   PrefetchSampleProbes(mem::at<u8>(data_va + static_cast<u32>(start)), bytes);
+}
+
+namespace {
+
+DeviceView PacketDevice(const DrawPacket &pk) {
+  DeviceView dev = Device(pk.device_va);
+  dev.snapshot = pk.window.image;
+  dev.snapshotSize = kDeviceSnapshotBytes;
+  dev.pages = DeviceWindow::PageTable();
+  return dev;
+}
+
+// RB_DEPTHCONTROL's single-sided stencil fields: function, fail, zpass and zfail ops.
+constexpr u32 kStencilFieldsMask = 0x000FFF81u;
+constexpr u32 StencilFields(u32 func, u32 fail, u32 zpass, u32 zfail) {
+  return 1u | (func << 8) | (fail << 11) | (zpass << 14) | (zfail << 17);
+}
+constexpr u32 kMarkStencil = StencilFields(6, 0, 1, 2);  // GEQUAL, KEEP, ZERO, REPLACE
+constexpr u32 kShadeStencil = StencilFields(4, 0, 0, 0); // GREATER, KEEP
+constexpr u32 kShadeStencilGe = StencilFields(6, 0, 0, 0);
+constexpr u32 kLightStencilRefMask = 0xFF7Fu;
+
+// The point, spot and shadow-mask volume vertex shaders.
+bool IsLightVolumeVs(const GuestShader *vs) {
+  if (!vs)
+    return false;
+  const u64 h = vs->hash;
+  return h == 0x73b04c35f8d81f9aull || h == 0xce105d80ff21241eull || h == 0xbdea655505f627f3ull;
+}
+
+// Their shades (PointLightP, SpotLightP, PointLight_SMP, SpotLight_SMP, ShadowmapVolumeP); none
+// exports depth, so a shade's depth test is its mark's.
+bool IsLightVolumePs(const GuestShader *ps) {
+  if (!ps)
+    return false;
+  switch (ps->hash) {
+  case 0x00ba542f16661e48ull:
+  case 0x10fdc1f91de4282dull:
+  case 0x8934539abc3d24ccull:
+  case 0xb3799c50968660bfull:
+  case 0x3f7e5706e95fbbf2ull:
+    return true;
+  default:
+    return false;
+  }
+}
+
+// PointLightP and PointLight_SMP: zero output outside the light's radius.
+bool IsPointLightPs(const GuestShader *ps) {
+  return ps && (ps->hash == 0x00ba542f16661e48ull || ps->hash == 0x8934539abc3d24ccull);
+}
+
+bool SameAlloc(const UploadAlloc &a, const UploadAlloc &b) {
+  if (a.buffer == b.buffer && a.offset == b.offset && a.size == b.size)
+    return true;
+  return a.size == b.size && a.cpu && b.cpu && std::memcmp(a.cpu, b.cpu, a.size) == 0;
+}
+
+// Whether a stencil test and its ops treat 0 and 0x7F alike.
+bool StencilBlindToMarks(u32 func, u32 fail, u32 zpass, u32 zfail, u32 refmask) {
+  const u32 ref = refmask & 0xFF, rmask = (refmask >> 8) & 0xFF, wmask = (refmask >> 16) & 0xFF;
+  auto test = [&](u32 v) {
+    const u32 a = ref & rmask, b = v & rmask;
+    switch (func) {
+    case 0: return false;
+    case 1: return a < b;
+    case 2: return a == b;
+    case 3: return a <= b;
+    case 4: return a > b;
+    case 5: return a != b;
+    case 6: return a >= b;
+    default: return true;
+    }
+  };
+  const bool pass = test(0);
+  if (pass != test(0x7F))
+    return false;
+  if (!wmask)
+    return true;
+  auto blind = [&](u32 op) { return op == 0 || ((op == 1 || op == 2) && wmask == 0xFF); };
+  return pass ? blind(zpass) && blind(zfail) : blind(fail);
+}
+
+}
+
+bool IsSameFaceMark(const DrawPacket &pk) {
+  if (pk.ps || !pk.vs || pk.rectList || !IsLightVolumeVs(pk.vs))
+    return false;
+  const DeviceView dev = PacketDevice(pk);
+  const u32 dc = dev.U32(dev::kDepthControl);
+  if ((dc & 6u) != 2u || (dc & kStencilFieldsMask) != kMarkStencil)
+    return false;
+  return (dev.U32(dev::kStencilRefMask) & 0xFFFFu) == kLightStencilRefMask;
+}
+
+bool RejectSameFaceShade(u32 reason) {
+  static const char *const kReasons[] = {"state", "targets", "cached range", "index upload",
+                                         "streams", "vertex constants", "coverage registers",
+                                         "loop constants", "depth control", "stencil reference",
+                                         "shade pixel shader", "vertex shader or layout",
+                                         "shade not published", "next command not a draw"};
+  static u32 counts[14] = {};
+  static u32 logged = 0;
+  ++counts[reason];
+  if (logged < 24) {
+    ++logged;
+    EOT_DEBUG("[draw] light mark kept: {} ({} so far)", kReasons[reason], counts[reason]);
+  }
+  return false;
+}
+
+// A light volume's stencil mark followed by its shade: the shade's test becomes GEQUAL 0x7F,
+// which passes exactly the samples the mark would have left at 0, and the caller drops the mark.
+// Same-face pairs (the camera inside the volume) always; a point light's two-sided pair with
+// eot_cut_two_sided_marks, where the shade then also runs in front of the sphere and adds zero.
+bool TakeSameFaceShade(VideoState &s, const DrawPacket &mark, DrawPacket &shade) {
+  auto Reject = [](u32 reason) { return RejectSameFaceShade(reason); };
+  const DeviceView md = PacketDevice(mark), sd = PacketDevice(shade);
+  const u32 mdc = md.U32(dev::kDepthControl), sdc = sd.U32(dev::kDepthControl);
+  if ((sdc & kStencilFieldsMask) != kShadeStencil)
+    return false;
+  const bool same_face = (sdc & 0x76u) == (mdc & 0x76u);
+  const bool two_sided = !same_face && (mdc & 0x76u) == 0x32u && (sdc & 0x76u) == 0x62u &&
+                         (md.U32(dev::kModeControl) ^ sd.U32(dev::kModeControl)) == 0x4u &&
+                         IsPointLightPs(shade.ps);
+  if (!(same_face ? Settings::CutSameFaceMarks() : two_sided && Settings::CutTwoSidedMarks()))
+    return false;
+  if (s.marks_cut_off)
+    return false;
+  if (!IsLightVolumePs(shade.ps))
+    return Reject(10);
+  if (shade.vs != mark.vs || shade.layout != mark.layout)
+    return Reject(11);
+  if (shade.rectList || shade.prim != mark.prim || shade.topology != mark.topology ||
+      shade.indexed != mark.indexed || shade.vertexCount != mark.vertexCount ||
+      shade.index_count != mark.index_count || shade.host_base_vertex != mark.host_base_vertex ||
+      shade.hasCached != mark.hasCached || shade.max_slot != mark.max_slot || shade.velocity ||
+      mark.velocity || shade.device_va != mark.device_va)
+    return Reject(0);
+  if (!SameTargetWords(shade.targets, mark.targets, false))
+    return Reject(1);
+  if (shade.hasCached && (shade.cached.buffer != mark.cached.buffer || shade.cached.offset != mark.cached.offset ||
+                          shade.cached.is32 != mark.cached.is32))
+    return Reject(2);
+  if (!shade.hasCached && shade.indexed && !SameAlloc(shade.index_alloc, mark.index_alloc))
+    return Reject(3);
+  for (u32 S = 0; S <= shade.max_slot && S < 16; ++S) {
+    const auto &a = shade.views[S], &b = mark.views[S];
+    const bool same_view = a.buffer.ref == b.buffer.ref && a.buffer.offset == b.buffer.offset;
+    const bool same_bytes = shade.streamBytesHash && shade.streamBytesHash == mark.streamBytesHash;
+    if (shade.strides[S] != mark.strides[S] || a.size != b.size || !(same_view || same_bytes))
+      return Reject(4);
+  }
+  if (!SameAlloc(shade.vs_consts, mark.vs_consts))
+    return Reject(5);
+  constexpr u32 kCoverageRegs[] = {
+      dev::kSurfaceInfo,      dev::kDepthInfo,           dev::kScreenScissorTL,
+      dev::kScreenScissorBR,  dev::kWindowOffset,        dev::kWindowScissorTL,
+      dev::kWindowScissorBR,  dev::kVportXScale,         dev::kVportXOffset,
+      dev::kVportYScale,      dev::kVportYOffset,        dev::kVportZScale,
+      dev::kVportZOffset,     dev::kClipControl,         dev::kModeControl,
+      dev::kVteControl,       dev::kAaConfig,            dev::kVtxControl,
+      dev::kPolyOffsetFrontScale, dev::kPolyOffsetFrontOffset, dev::kPolyOffsetBackScale,
+      dev::kPolyOffsetBackOffset, dev::kVsBoolConstants, dev::kVsBoolConstants + 4,
+      dev::kVsBoolConstants + 8, dev::kVsBoolConstants + 12};
+  for (u32 reg : kCoverageRegs)
+    if (md.U32(reg) != sd.U32(reg) && !(two_sided && reg == dev::kModeControl))
+      return Reject(6);
+  for (u32 i = 0; i < 16; ++i)
+    if (md.U32(dev::kVsLoopConstants + 4 * i) != sd.U32(dev::kVsLoopConstants + 4 * i))
+      return Reject(7);
+  if ((sd.U32(dev::kStencilRefMask) & 0xFFFFu) != kLightStencilRefMask)
+    return Reject(9);
+  // The snapshot holds the registers as the guest stores them, big-endian.
+  const u32 new_dc = (sdc & ~kStencilFieldsMask) | kShadeStencilGe;
+  u8 *dc_bytes = shade.window.image + dev::kDepthControl;
+  dc_bytes[0] = static_cast<u8>(new_dc >> 24);
+  dc_bytes[1] = static_cast<u8>(new_dc >> 16);
+  dc_bytes[2] = static_cast<u8>(new_dc >> 8);
+  dc_bytes[3] = static_cast<u8>(new_dc);
+  s.perf.marks_cut++;
+  s.marks_cut_live = true;
+  s.marks_cut_depth_va = shade.targets.depthVa;
+  return true;
 }
 
 u64 DrawSortKey(const DrawPacket &pk, u32 *depth_func) {
@@ -2321,6 +2523,8 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
     if (layout->streamMask & (1u << S))
       max_slot = S;
   pk.max_slot = max_slot;
+  pk.streamBytesHash = 0;
+  const bool hash_streams = IsLightVolumeVs(vs) && !geom.rectList;
   const u32 prefix_mask = (1u << (max_slot + 1)) - 1;
   const bool need_zero = layout->needsSyntheticSlot || layout->streamMask != prefix_mask;
   if (need_zero && !UploadZeroBuffer(s, &pk.zero)) {
@@ -2362,6 +2566,10 @@ bool CaptureDraw(VideoState &s, u32 device_va, u32 prim, GeometryPlan &geom,
     const bool morph = (layout->morphStreams >> S) & 1u;
     if (morph)
       NoteMorphStream(s, st_info, first, bytes);
+    if (hash_streams && st_info.data)
+      pk.streamBytesHash =
+          XXH3_64bits_withSeed(st_info.data + first, static_cast<size_t>(bytes),
+                               pk.streamBytesHash ^ (u64(S) << 56) ^ (u64(st_info.stride) << 32) ^ 1u);
     if (const VertexMirror *mirror = morph ? nullptr : GetVertexMirror(s, st_info, first, bytes)) {
       auto &pool = vertex_mirrors().pool;
       const u64 epoch = pool.flushEpoch.load(std::memory_order_acquire);
@@ -2549,7 +2757,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
   DrawClass cls;
   bool target_hit = tmemo.valid && tmemo.key == cls_key &&
                     tmemo.surfaceGeneration == s.surface_generation &&
-                    std::memcmp(&tmemo.words, &pk.targets, sizeof(TargetWords)) == 0;
+                    SameTargetWords(tmemo.words, pk.targets);
   if (target_hit) {
     const Targets &t = tmemo.targets;
     for (u32 i = 0; target_hit && i < t.colorCount; ++i) {
@@ -2570,7 +2778,7 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
       if (tmemo.surfaceGeneration != s.surface_generation)
         s.perf.target_memo_miss_gen++;
       else if (!(tmemo.key == cls_key) ||
-               std::memcmp(&tmemo.words, &pk.targets, sizeof(TargetWords)) != 0)
+               !SameTargetWords(tmemo.words, pk.targets))
         s.perf.target_memo_miss_words++;
       else {
         s.perf.target_memo_miss_sig++;
@@ -2631,6 +2839,23 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     tmemo.valid = true;
   }
   lap(s.perf.replay_targets_ms);
+
+  // With a light mark dropped, any other stencil test before the depth surface's next stencil
+  // clear must not tell 0 from 0x7F; one that does keeps the marks from then on.
+  if (s.marks_cut_live && !s.marks_cut_off && targets.depth && cls.stencil && !IsLightVolumeVs(vs)) {
+    const u32 dc = dev.U32(dev::kDepthControl);
+    bool blind = StencilBlindToMarks((dc >> 8) & 7, (dc >> 11) & 7, (dc >> 14) & 7, (dc >> 17) & 7,
+                                     dev.U32(dev::kStencilRefMask));
+    if (blind && (dc & 0x80))
+      blind = StencilBlindToMarks((dc >> 20) & 7, (dc >> 23) & 7, (dc >> 26) & 7, (dc >> 29) & 7,
+                                  dev.U32(dev::kStencilRefMaskBF));
+    if (!blind) {
+      s.marks_cut_off = true;
+      EOT_WARN("[draw] a stencil test after the light pass reads the dropped light marks (vs {:016x} ps "
+               "{:016x} dc {:#x}); the marks are kept from now on",
+               vs ? vs->hash : 0, ps ? ps->hash : 0, dc);
+    }
+  }
 
   if (pk.velocity && Settings::MotionVectors() && targets.colorCount == 1 && targets.depth &&
       targets.colorImage[0] && !cls.rect)
@@ -2827,6 +3052,46 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
                             (zfunc == 1 || zfunc == 3 || zfunc == 4 || zfunc == 6);
     BindTexturesAndSamplers(s, dev, texture_mask, sc, scene_draw ? &targets : nullptr);
   }
+  // The pixel shader's fast twin, for a draw that runs neither an alpha test nor a gamma fetch:
+  // the same pixels, with early depth and the fetches back to back.
+  if (ps && ps->entry && pipeline) {
+    static u64 fast_frame = ~0ull;
+    static FastPs fast_mode = FastPs::Off;
+    if (fast_frame != s.guest_frames) {
+      fast_frame = s.guest_frames;
+      fast_mode = FastPsFromSetting();
+    }
+    if (fast_mode != FastPs::Off && !(spec & kSpecAlphaTest) &&
+        ((sc.biasedTextures >> 16) & ps->entry->fetchSlotMask) == 0 &&
+        FastPsWanted(fast_mode, ps->hash) && EntryHasFast(ps->entry, st.velocity)) {
+      // Never built here: until the background workers have the twin, the draw uses the ordinary
+      // pipeline (the same image), and asks once a frame.
+      static std::unordered_map<plume::RenderPipeline *, plume::RenderPipeline *> fast_of;
+      static std::unordered_map<plume::RenderPipeline *, u64> fast_asked;
+      auto it = fast_of.find(pipeline);
+      if (it == fast_of.end()) {
+        auto [asked, fresh] = fast_asked.try_emplace(pipeline, ~0ull);
+        if (asked->second != s.guest_frames) {
+          asked->second = s.guest_frames;
+          PipelineState fst = st;
+          fst.spec |= kSpecFastPs;
+          fst.ps = ResolveHostShader(s, *ps, spec, st.velocity ? VsVariant::FastVelocity : VsVariant::Fast);
+          if (!fst.ps) {
+            it = fast_of.emplace(pipeline, pipeline).first;
+          } else if (PipelineKnown(fst)) {
+            plume::RenderPipeline *fp = GetOrCreatePipeline(s, fst);
+            it = fast_of.emplace(pipeline, fp ? fp : pipeline).first;
+          } else if (fresh) {
+            RequestPipeline(fst);
+          }
+        }
+      }
+      if (it != fast_of.end() && it->second != pipeline) {
+        pipeline = it->second;
+        s.perf.fast_ps_draws++;
+      }
+    }
+  }
   if (pk.hasCameraVP)
     taa::BeforeSceneConsumerDraw(s, s.draw_bound_textures, pk.cameraVP, ps ? ps->hash : 0, pk.taaSkip);
   UploadAlloc shared_alloc;
@@ -3000,9 +3265,13 @@ void ReplayDraw(VideoState &s, const DrawPacket &pk) {
     s.bound_root_offset[r] = roots[r]->offset;
   }
 #if defined(EOT_D3D12)
-  if (s.bound_spec != spec) {
-    cmd->setGraphicsPushConstants(kSpecPushConstantRangeIndex, &spec, 0, sizeof(spec));
-    s.bound_spec = spec;
+  // The specular AA bit goes only to the light shaders that declare it.
+  u32 draw_spec = spec;
+  if (ps && ps->entry && (ps->entry->specConstantsMask & kSpecSpecularAA) && Settings::SpecularAa())
+    draw_spec |= kSpecSpecularAA;
+  if (s.bound_spec != draw_spec) {
+    cmd->setGraphicsPushConstants(kSpecPushConstantRangeIndex, &draw_spec, 0, sizeof(draw_spec));
+    s.bound_spec = draw_spec;
   }
 #endif
   if (s.bound_root_buffer[2] != shared_alloc.buffer ||
@@ -3389,6 +3658,8 @@ void ReplayClearLocked(VideoState &s, const ClearPacket &pk) {
     }
   }
   const bool clear_depth = (flags & 0x10) != 0, clear_stencil = (flags & 0x20) != 0;
+  if (clear_stencil && whole && s.marks_cut_live && pk.targets.depthVa == s.marks_cut_depth_va)
+    s.marks_cut_live = false;
   if (clear_depth && whole && targets.depth)
     velocity::OnDepthCleared(s, *targets.depth);
   auto *cmd = s.command_list;
