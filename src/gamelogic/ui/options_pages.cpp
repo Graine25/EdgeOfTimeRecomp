@@ -359,8 +359,9 @@ void RefreshLanguageChoices() {
 }
 constexpr Choice kNormalInverted[] = {{"REEOT_VAL_NORMAL", "false"}, {"REEOT_VAL_INVERTED", "true"}};
 constexpr Choice kResolution[] = {{"REEOT_VAL_NATIVE", "native"}, {"REEOT_VAL_720P", "720p"},
-                                  {"REEOT_VAL_1080P", "1080p"},   {"REEOT_VAL_1440P", "1440p"},
-                                  {"REEOT_VAL_2160P", "2160p"},   {"REEOT_VAL_DISPLAY", "display"}};
+                                  {"REEOT_VAL_900P", "900p"},     {"REEOT_VAL_1080P", "1080p"},
+                                  {"REEOT_VAL_1440P", "1440p"},   {"REEOT_VAL_2160P", "2160p"},
+                                  {"REEOT_VAL_DISPLAY", "display"}};
 constexpr Choice kFullscreenMode[] = {{nullptr, "borderless", "1"}, {nullptr, "exclusive", "2"}};
 constexpr Choice kAspect[] = {{"REEOT_VAL_4_3", "4:3"},   {"REEOT_VAL_16_10", "16:10"}, {"REEOT_VAL_16_9", "16:9"},
                               {"REEOT_VAL_21_9", "21:9"}, {"REEOT_VAL_32_9", "32:9"}};

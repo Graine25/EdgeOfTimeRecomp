@@ -65,7 +65,7 @@ void BuildRows(const eot::platform::Display &display) {
       {"Display mode", "fullscreen", {{"Windowed", "false"}, {"Fullscreen", "true"}}},
       {"Resolution",
        "eot_resolution",
-       {{"720p", "720p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}},
+       {{"720p", "720p"}, {"900p", "900p"}, {"1080p", "1080p"}, {"1440p", "1440p"}, {"2160p (4K)", "2160p"}}},
       {"Aspect ratio",
        "eot_aspect_ratio",
        {{"4:3", "4:3"}, {"16:10", "16:10"}, {"16:9", "16:9"}, {"21:9", "21:9"}, {"32:9", "32:9"}}},

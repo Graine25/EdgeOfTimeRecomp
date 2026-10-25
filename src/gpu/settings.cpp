@@ -37,7 +37,7 @@ REXCVAR_DEFINE_INT32(eot_hitch_ms, 40, "EdgeOfTime/Debug", "Log frames slower th
 REXCVAR_DEFINE_DOUBLE(eot_render_scale, 1.0, "EdgeOfTime/Video", "Internal render scale")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_resolution, "1080p", "EdgeOfTime/Video", "Internal render resolution")
-    .allowed({"native", "720p", "1080p", "1440p", "2160p", "display"})
+    .allowed({"native", "720p", "900p", "1080p", "1440p", "2160p", "display"})
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_STRING(eot_fullscreen_mode, "borderless", "EdgeOfTime/Video", "Borderless or exclusive fullscreen")
     .allowed({"borderless", "exclusive"})
@@ -224,7 +224,7 @@ f32 ComputeRenderScale() {
     target_height = PresetRows(preset);
     if (target_height == 0) {
       target_height = g_auto_render_height;
-      EOT_WARN("[gpu] eot_resolution \"{}\" is not a preset (native, 720p, 1080p, 1440p, 2160p, display); "
+      EOT_WARN("[gpu] eot_resolution \"{}\" is not a preset (native, 720p, 900p, 1080p, 1440p, 2160p, display); "
                "rendering at the {} rows the display suggests",
                preset, target_height);
     }
