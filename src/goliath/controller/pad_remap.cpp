@@ -224,9 +224,22 @@ uint16_t MouseKey(rex::ui::MouseEvent::Button button) {
     return static_cast<uint16_t>(rex::ui::VirtualKey::kRButton);
   case rex::ui::MouseEvent::Button::kMiddle:
     return static_cast<uint16_t>(rex::ui::VirtualKey::kMButton);
+  case rex::ui::MouseEvent::Button::kX1:
+    return static_cast<uint16_t>(rex::ui::VirtualKey::kXButton1);
+  case rex::ui::MouseEvent::Button::kX2:
+    return static_cast<uint16_t>(rex::ui::VirtualKey::kXButton2);
   default:
     return 0;
   }
+}
+
+// The SDK names only three mouse buttons; the side buttons are named here.
+rex::ui::VirtualKey ParseKey(std::string_view name) {
+  if (name == "MouseBack")
+    return rex::ui::VirtualKey::kXButton1;
+  if (name == "MouseForward")
+    return rex::ui::VirtualKey::kXButton2;
+  return rex::ui::ParseVirtualKey(name);
 }
 
 using Keys = std::array<bool, 256>;
@@ -388,7 +401,7 @@ bool BindPressed(const Keys &keys, std::string_view value, uint8_t live, uint8_t
   ForEachToken(value, [&](std::string_view token) {
     if (pressed || TakeModifiers(token) != (live & ~bound))
       return;
-    const rex::ui::VirtualKey vk = rex::ui::ParseVirtualKey(token);
+    const rex::ui::VirtualKey vk = ParseKey(token);
     const uint16_t index = KeyIndex(vk);
     pressed = vk != rex::ui::VirtualKey::kNone && index < keys.size() && keys[index];
   });

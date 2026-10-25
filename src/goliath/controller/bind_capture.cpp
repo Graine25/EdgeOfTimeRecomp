@@ -131,6 +131,12 @@ public:
     case rex::ui::MouseEvent::Button::kMiddle:
       name = "MMB";
       break;
+    case rex::ui::MouseEvent::Button::kX1:
+      name = "MouseBack";
+      break;
+    case rex::ui::MouseEvent::Button::kX2:
+      name = "MouseForward";
+      break;
     default:
       return;
     }
