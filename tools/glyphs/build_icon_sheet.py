@@ -83,6 +83,9 @@ SETS = (
                      0x1E: "playstation/DPadUp", 0x1F: "playstation/DPadLeft",
                      0x20: "playstation/DPadDown", 0x21: "playstation/DPadRight"}),
     ("steam", {0x00: "steam/A", 0x01: "steam/B", 0x02: "steam/Y", 0x03: "steam/X",
+               0x04: "steam/R2", 0x05: "steam/L2",
+               0x08: "steam/Select", 0x09: "steam/Start",
+               0x0A: "steam/R1", 0x0B: "steam/L1",
                0x0C: "steam/DPad",
                0x1E: "steam/DPadUp", 0x1F: "steam/DPadLeft",
                0x20: "steam/DPadDown", 0x21: "steam/DPadRight"}),
@@ -94,7 +97,7 @@ KEYS = ("A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 0 1 2 3 4 5 6 7 8 9
         "Backtick Minus Plus Comma Period Semicolon Slash Backslash LBracket RBracket Quote "
         "Numpad0 Numpad1 Numpad2 Numpad3 Numpad4 Numpad5 Numpad6 Numpad7 Numpad8 Numpad9 "
         "NumpadEnter NumpadPlus NumpadMinus NumpadStar NumpadSlash PrintScreen Pause CapsLock "
-        "NumLock LMB RMB MMB").split()
+        "NumLock LMB RMB MMB MouseBack MouseForward").split()
 CLUSTERS = ("WASD", "MOUSE")
 ALIASES = {f"Numpad{n}": str(n) for n in range(10)}
 

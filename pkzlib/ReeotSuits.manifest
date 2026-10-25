@@ -13,7 +13,7 @@ texture Reeot_SMA_State07_D dds ../res/suits/amazing/Reeot_SMA_State07_D.dds
 texture Reeot_SMA_State07_N dds ../res/suits/amazing/Reeot_SMA_State07_N.dds normal
 texture Reeot_SMA_State07_S dds ../res/suits/amazing/Reeot_SMA_State07_S.dds linear
 texture Reeot_AntiVenom_D dds ../res/suits/antivenom/Reeot_AntiVenom_D.dds
-texture Reeot_AntiVenom_N dds ../res/suits/antivenom/Reeot_AntiVenom_N.dds normal bump=0.25
+texture Reeot_AntiVenom_N dds ../res/suits/antivenom/Reeot_AntiVenom_N.dds normal
 texture Reeot_AntiVenomMassive_D dds ../res/suits/antivenom/Reeot_AntiVenomMassive_D.dds
 texture Reeot_AntiVenomMassive_N dds ../res/suits/antivenom/Reeot_AntiVenomMassive_N.dds normal bump=0.4
 texture Reeot_SM2099Body_D dds ../res/suits/2099/Reeot_SM2099Body_D.dds
