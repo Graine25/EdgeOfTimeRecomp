@@ -735,6 +735,8 @@ void SleepUntil(std::chrono::steady_clock::time_point when) {
     std::this_thread::yield();
 }
 
+constexpr u32 kMaxHeldPresents = 60;
+
 std::atomic<i64> g_movie_presented_ns{0};
 constexpr auto kMovieHold = std::chrono::milliseconds(500);
 
@@ -801,9 +803,25 @@ void PresentLocked(VideoState &s, u32 front_buffer_texture_va) {
     front = GetGuestTexture(s, front_buffer_texture_va);
     if (front)
       FlushAliasCopy(s, *front);
-    if (front && !front->host.valid())
+    if (front && !front->host.valid()) {
+      u32 n;
+      if (DiagShouldLog(0x8003, &n))
+        EOT_DEBUG("[present] front buffer {:#x} has no image (resolve-owned {}, resolved at frame {} of {}, "
+                  "alias pending {}, base {:#x})",
+                  front_buffer_texture_va, front->resolveOwned, front->lastResolvedFrame, s.guest_frames,
+                  front->aliasPending, front->baseAddress);
       front = nullptr;
+    }
   }
+  static u32 held_presents = 0;
+  if (front_buffer_texture_va && !front && s.presented_frames > 0 && held_presents < kMaxHeldPresents) {
+    ++held_presents;
+    SubmitOpenListLocked(s);
+    AdvanceAndWaitReused(s);
+    return;
+  }
+  if (front || !front_buffer_texture_va)
+    held_presents = 0;
   PreloadAnnouncedTextures(s, PsoCacheInLoadingScreen() ? 8.0 : 1.0);
   s.swap_chain->setVsyncEnabled(Settings::Vsync());
   if (!HandleResize(s)) {
