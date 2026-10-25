@@ -77,7 +77,7 @@ REXCVAR_DEFINE_INT32(eot_msaa, 0, "EdgeOfTime/Graphics", "MSAA sample count")
       return r.ec == std::errc() && (n == 0 || n == 2 || n == 4 || n == 8);
     })
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
-REXCVAR_DEFINE_BOOL(eot_msaa_all_passes, true, "EdgeOfTime/Graphics", "MSAA on every pass")
+REXCVAR_DEFINE_BOOL(eot_msaa_all_passes, false, "EdgeOfTime/Graphics", "MSAA on every pass")
     .lifecycle(rex::cvar::Lifecycle::kRequiresRestart);
 REXCVAR_DEFINE_DOUBLE(eot_brightness, 0.0, "EdgeOfTime/Video", "Screen brightness offset");
 REXCVAR_DEFINE_DOUBLE(eot_contrast, 1.0, "EdgeOfTime/Video", "Screen contrast amount");
