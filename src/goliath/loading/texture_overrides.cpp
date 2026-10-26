@@ -52,6 +52,7 @@ struct Override {
   uint32_t replacementCrc;
   uint32_t fontCrc;
   bool wide;
+  bool ui = false;
 };
 
 constexpr Override Make(const char *retail, const char *replacement, const char *font, const char *glyphs = nullptr,
@@ -62,6 +63,12 @@ constexpr Override Make(const char *retail, const char *replacement, const char 
           nullptr, eot::ui::NameCrc(retail),
           eot::ui::NameCrc(replacement), font ? eot::ui::NameCrc(font) : 0u,
           false};
+}
+
+constexpr Override Ui(const char *retail, const char *replacement) {
+  Override o = Make(retail, replacement, nullptr);
+  o.ui = true;
+  return o;
 }
 
 constexpr Override ForSet(const char *retail, const char *replacement, const char *set, bool wide = false) {
@@ -98,6 +105,7 @@ constexpr Override kOverrides[] = {
     Make("SM99_Spiderman_S", "Reeot_SM2099Body_S", nullptr),
     Make("SMA_MonsterOck_D", "Reeot_MonsterOck_D", nullptr),
     Make("SMA_MonsterOck_N", "Reeot_MonsterOck_N", nullptr),
+    Ui("Reminder_Icon_DA", "Reeot_Reminder_Icon_DA"),
     ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_PlayStation_D", "playstation"),
     ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Switch_D", "switch"),
     ForSet("SMN_PromptWebPullButton_Xbox_D", "Reeot_MashPrompt_Keyboard_D", "keyboard", true),
@@ -125,6 +133,14 @@ constexpr uint32_t PromptMask() {
 constexpr uint32_t kPromptMask = PromptMask();
 constexpr uint32_t kAllMask = kOverrideCount >= 32 ? ~0u : (1u << kOverrideCount) - 1;
 constexpr uint32_t kSuitMask = kAllMask & ~kFontMask & ~kPromptMask;
+constexpr uint32_t UiMask() {
+  uint32_t mask = 0;
+  for (uint32_t i = 0; i < kOverrideCount; ++i)
+    if (kOverrides[i].ui)
+      mask |= 1u << i;
+  return mask;
+}
+constexpr uint32_t kSwitchedMask = kSuitMask & ~UiMask();
 
 uint32_t WantedMask() {
   const std::string tag = eot::platform::TranslationTag(rex::cvar::GetFlagByName("eot_language"));
@@ -307,7 +323,7 @@ void TrackPromptArt(const PPCContext &ctx, uint8_t *base) {
 void RevertSuits(const PPCContext &ctx, uint8_t *base) {
   uint32_t done = 0;
   for (uint32_t i = 0; i < kOverrideCount; ++i) {
-    if (!(g_wanted & kSuitMask & (1u << i)))
+    if (!(g_wanted & kSwitchedMask & (1u << i)))
       continue;
     g_off |= 1u << i;
     if (ReleaseSuit(ctx, base, i))
@@ -365,7 +381,7 @@ void ApplyTextureOverrides(const PPCContext &ctx, uint8_t *base) {
     g_pending_chosen = true;
     g_wanted = REXCVAR_GET(eot_texture_overrides) ? WantedMask() : 0;
     g_suits_on = REXCVAR_GET(eot_suits_remaster);
-    g_off = g_suits_on ? 0 : (g_wanted & kSuitMask);
+    g_off = g_suits_on ? 0 : (g_wanted & kSwitchedMask);
     g_pending = g_wanted & kFontMask;
     EOT_DEBUG("[tex] overrides wanted: {:#x} of {}{}", g_wanted, kOverrideCount,
               g_suits_on ? "" : " (the suits are switched off)");
