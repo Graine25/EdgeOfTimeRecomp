@@ -31,6 +31,7 @@
 #include <rex/runtime.h>
 
 #include "core/logging.h"
+#include "gpu/backend.h"
 #include "gpu/format.h"
 #include "gpu/settings.h"
 #include "gpu/shaders/guest_shaders.h"
@@ -407,6 +408,8 @@ bool PsoRecordFromCsv(const PsoCsvLayout &layout, std::string_view line, PsoReco
         spec_mask |= e->specConstantsMask;
     }
   }
+  if (g_mvk)
+    spec_mask &= ~kSpecSintTexcoord;
   CanonicalizePipelineState(s, spec_mask, 0xFFFFu);
   *out = r;
   return true;
